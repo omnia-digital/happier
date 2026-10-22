@@ -161,3 +161,11 @@ The launcher dry run resolves `repo-happier-181979f2a7` and its scoped CLI/state
 ## Current priority — macOS desktop first
 
 Josh confirmed macOS desktop is his primary interface. Prioritize launching and validating the fork on this Mac, then refine the desktop workflow from his feedback. Defer iOS builds, simulator work, signing and App Store setup. Windows setup is available for later work, but does not establish Mac readiness. The immediate Mac prerequisite is enough writable space for dependencies and native compilation.
+
+The Mac has 64 GiB of RAM with substantial observed memory headroom. A new, empty 16 GiB RAM disk was created and mounted at `/Volumes/HappierBuildRam`; no existing disk or simulator data was erased. Locked installation is now running with its cache on that temporary volume:
+
+```sh
+yarn install --frozen-lockfile --link-duplicates --cache-folder /Volumes/HappierBuildRam/yarn-cache --network-timeout 600000
+```
+
+This keeps downloaded cache files off the nearly full internal disk. Dependencies still install into this checkout. The install has reached package fetching; it is not yet verified complete. After installation, reclaim this task's RAM cache before native compilation and use temporary native build output where the canonical launcher permits it. RAM-disk contents disappear on detach or reboot, so this is a development workaround, not durable build storage. The proposed simulator cleanup remains unapproved and has not run.

@@ -8,6 +8,7 @@
 ### [ ] Verify local setup
 **Description:** Install locked dependencies when capacity allows and execute relevant setup checks.
 **Context:** macOS desktop is now the immediate priority; iOS is deferred. Native Mac builds require sufficient disk space and platform toolchains.
+**Current attempt:** 🟡 Yellow — locked Mac install is fetching packages with its cache on a new 16 GiB RAM disk at `/Volumes/HappierBuildRam`. Internal storage was about 14 GiB free at launch. Preserve simulator data; cleanup has not been approved. Installation/native startup remain unverified.
 **Status:** 🟡 Yellow — CocoaPods 1.17.0 and Rust/Cargo 1.94.1 now verify successfully (OH-3 done). Two Mac dependency-install attempts were interrupted before disk exhaustion; Yarn cache cleanup restored about 15 GiB free. The SSD worktree attempt failed with permission denied on a Time Machine volume. Windows SSH is verified with about 165 GiB free; locked dependency installation completed on `josh-pc` at `C:\Users\Admin\Developer\Projects\Omnia\happier`. Windows launcher checks: 18 pass, 3 fail, 1 skipped; actual startup found an unbuilt cli-common export. The canonical builder successfully compiled all five shared stack dependencies; rerunning launcher checks retains the same result. Full builds and device acceptance remain unrun.
 
 ### [x] Document and checkpoint the development process
