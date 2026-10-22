@@ -4,6 +4,10 @@ This is the fork-specific runbook for `omnia-digital/happier`. Develop against a
 
 ## Repository and change flow
 
+Planning lives in Linear team **Happier (OH)**, in [Happier fork — development and first stable release](https://linear.app/omniachurchapps/project/happier-fork-development-and-first-stable-release-9a3eb3200232). Use OH issue IDs for future task branches and link evidence to the owning issue. The initial backlog is OH-1 through OH-12, with milestones for development readiness, native app validation, and daily-use release readiness. OH-12 owns ongoing upstream maintenance. OH-10 tracks CI and Linear release-pipeline setup; no release pipeline is configured yet.
+
+Current external-write policy allows Linear planning and git pushes to the task's feature/PR branch. GitHub UI/API writes, including PR creation, merges, settings and workflow dispatch, remain user-owned unless separately authorized.
+
 - `origin`: `https://github.com/omnia-digital/happier.git`
 - `upstream`: `https://github.com/happier-dev/happier.git`
 - Development base and PR target: `dev`.

@@ -14,3 +14,8 @@
 **Description:** Write the fork runbook, review source-backed commands and signing requirements, commit and push.
 **Context:** Future sessions need a repeatable route to platform acceptance and safe daily-use cutover.
 **Status:** 🟢 Green — runbook committed and pushed; independent source review found no material errors in commands, isolation, identity or release caveats. All three local runbook links resolve; `git diff --check` passes. Runtime readiness remains blocked separately above.
+
+### [x] Establish OH planning in Linear
+**Description:** Create a fork-adoption project, three milestones, and actionable issues with acceptance criteria and dependencies in the new Happier team.
+**Context:** Team OH is verified and initially empty. Track development readiness, native platform validation, safe daily-use adoption, release tracking and ongoing upstream maintenance. Do not set invented dates, mark untested builds done, or mutate GitHub outside feature-branch pushes.
+**Status:** 🟢 Green — project P-OH-57 created with three milestones and issues OH-1 through OH-12; issue statuses and milestone assignments read back. Completed clone/docs are OH-1; storage/dependencies remain blocked in OH-2; OH-10 tracks release-pipeline setup; OH-12 tracks ongoing upstream maintenance. No release pipeline or release date is claimed configured.
