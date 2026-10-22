@@ -137,4 +137,15 @@ Only after these gates pass should we install fork release builds as daily tools
 - No app publication, service replacement, account migration, or release cutover was performed.
 - Independent source/documentation review found no material errors in the workflow; all three local runbook links resolve and `git diff --check` passes. This review does not close the runtime or platform gates.
 
-The next execution step is storage resolution, followed by locked dependency installation and rerunning the failed launcher checks. Then repair native toolchains and validate the local stack before configuring distribution identities.
+## Setup continuation — 2026-10-22
+
+Setup resumed after free space increased to approximately 14 GiB. Locked workspace dependency installation is being attempted, with native builds still pending its result and available storage. Upstream and fork `dev` were fetched again and remain identical.
+
+CocoaPods 1.17.0 is now installed for the user under Homebrew Ruby 3.3.5; `/Users/Josh/.gem/ruby/3.3.0/bin/pod --version` succeeds. The old `/usr/local/bin/pod` remains untouched. Select the working toolchain for this shell before native commands:
+
+```sh
+export PATH="$HOME/.gem/ruby/3.3.0/bin:/opt/homebrew/opt/ruby/bin:$HOME/.cargo/bin:$PATH"
+pod --version
+```
+
+Rust 1.94.1 installation is in progress. The next steps are to verify its completion, finish dependency installation, rerun launcher checks, and start the isolated stack. Neither native builds nor live session behavior has been verified yet.

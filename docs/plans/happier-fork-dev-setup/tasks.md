@@ -8,7 +8,7 @@
 ### [ ] Verify local setup
 **Description:** Install locked dependencies when capacity allows and execute relevant setup checks.
 **Context:** Native builds require sufficient disk space and platform toolchains.
-**Status:** 🔴 Red / blocked — about 9–10 GiB disk available; installation deferred pending storage resolution. Rust absent; existing CocoaPods command crashes. Two setup tests and twelve mobile-identity/desktop-scheme tests pass. Broader launcher run: 2 pass / 6 fail due to uninstalled workspace dependencies. Full builds and device acceptance remain unrun.
+**Status:** 🟡 Yellow — setup resumed with about 14 GiB available. Locked dependency installation is running. CocoaPods 1.17.0 now verifies successfully at `~/.gem/ruby/3.3.0/bin/pod`, using Homebrew Ruby 3.3.5; select that path for native commands instead of the broken system-Ruby copy. Rust 1.94.1 installation is running. Prior focused tooling checks passed, but launcher checks still need rerunning after dependencies install. Full builds and device acceptance remain unrun.
 
 ### [x] Document and checkpoint the development process
 **Description:** Write the fork runbook, review source-backed commands and signing requirements, commit and push.
