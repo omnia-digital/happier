@@ -20,6 +20,18 @@ git fetch upstream
 git log --oneline origin/dev..upstream/dev
 ```
 
+### Standing upstream maintenance policy
+
+Check the parent repository at the start of each Happier work session and before preparing a release candidate. Fetch upstream changes regularly and bring compatible improvements into the fork; maintaining our modifications is part of accepting an update.
+
+1. Fetch `origin` and `upstream`, compare their `dev` branches, and inspect relevant upstream commits and release notes.
+2. Integrate updates on a dedicated feature branch based on the fork's `origin/dev`. Preserve both sides' required functionality when resolving conflicts, including Omnia identities, update destinations and configuration.
+3. Run affected tests, typechecks and builds. Exercise changed platform paths on iOS, macOS and Windows as applicable, plus the cross-device session flow before release adoption.
+4. Merge through a reviewed PR into the fork's `dev` only after required validation passes. Promote daily-use releases separately through the adoption gates below.
+5. When an update breaks the fork or required verification is unavailable, keep it unmerged and record the upstream revision, failing or missing checks, and next action. Revisit it in the next work session.
+
+This is a standing work-session routine; no unattended scheduler or automatic merge job is installed. Fetching updates does not change the working tree or certify compatibility.
+
 ## Development prerequisites
 
 Use the committed Yarn lockfile and Yarn 1.22.22. This Mac currently has Node 24.20.0 and Xcode 27.1. Keep native toolchains aligned with the repository rather than independently upgrading them.
