@@ -26,6 +26,17 @@ Clone `omnia-digital/happier` here and establish a reproducible development and 
 - Free disk space was about 10 GiB during clone. Native build capacity needs resolution before large builds.
 - Model-routing MCP is unavailable in this session; native fallback is disclosed.
 
+## Verification and remaining prerequisites
+
+- Clone completed; `origin` is the Omnia fork and `upstream` is the original project; push default is `origin`.
+- Plan and runbook checkpoints are pushed on `chore/happier-fork-dev-setup`.
+- Two repo-script/stack-identity tests and twelve mobile-identity/desktop-deep-link tests passed.
+- Initial broader launcher run: 2 passed, 6 failed because `@happier-dev/cli-common` was not installed; dependent spawn checks could not run successfully.
+- Rust is absent. CocoaPods resolves to an old system-Ruby installation and crashes; Homebrew Ruby 3.3.5 exists but is not the active `pod` runtime.
+- Native builds, full tests and live stack checks are pending storage and dependency/toolchain setup. No daily-use cutover occurred.
+- Expo/EAS, Apple submission and Tauri updater configuration still refer to upstream ownership. Configure fork identities before release commands.
+- Local mobile helper clears the Expo slug; validate the project identity at its canonical owner before using a fork EAS project.
+
 ## Scope
 
 This task establishes and documents development setup. It does not publish releases, replace the running stable installation, migrate accounts, or claim unperformed Windows/iOS acceptance.

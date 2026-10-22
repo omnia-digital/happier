@@ -115,8 +115,10 @@ Only after these gates pass should we install fork release builds as daily tools
 
 - Full clone completed; feature branch and plan checkpoint pushed to `origin`.
 - Two dependency-free tests passed: root repo-local script wiring and Git-owned stack identity preservation.
+- Twelve additional tests passed for local mobile identity overrides and desktop channel deep-link configuration; these validate existing tooling, not a native app launch.
 - The initial broader setup run reported 2 passed / 6 failed: launcher/provider checks could not load uninstalled `@happier-dev/cli-common`; dependent spawn assertions consequently failed. No tests were changed.
 - Dependency install, full tests/typecheck, live stack, native builds, Windows and physical-iPhone acceptance: **blocked/unrun** pending setup prerequisites above.
 - No app publication, service replacement, account migration, or release cutover was performed.
+- Independent source/documentation review found no material errors in the workflow; all three local runbook links resolve and `git diff --check` passes. This review does not close the runtime or platform gates.
 
 The next execution step is storage resolution, followed by locked dependency installation and rerunning the failed launcher checks. Then repair native toolchains and validate the local stack before configuring distribution identities.
