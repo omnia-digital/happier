@@ -148,4 +148,8 @@ export PATH="$HOME/.gem/ruby/3.3.0/bin:/opt/homebrew/opt/ruby/bin:$HOME/.cargo/b
 pod --version
 ```
 
-Rust 1.94.1 installation is in progress. The next steps are to verify its completion, finish dependency installation, rerun launcher checks, and start the isolated stack. Neither native builds nor live session behavior has been verified yet.
+Rust and Cargo 1.94.1 now verify successfully, with rustfmt and clippy installed. OH-3 is complete for toolchain readiness; native compilation remains unverified.
+
+The Mac dependency install was interrupted twice as downloads consumed available disk capacity; it did not complete. `yarn cache clean` reclaimed the downloaded package cache and returned free space to approximately 15 GiB. The attempted SSD worktree could not be created because the attached Extreme SSD is a protected Time Machine volume; no source files were moved there. A local `feature/OH-2-run-happier` branch was created at `origin/dev` by that failed worktree attempt and has no task edits.
+
+SSH access to `josh-pc` is verified. Its C: drive had about 165 GiB free; Node 24.19.0 and Git 2.43.0 are present. A separate clone/install is now being prepared at `C:\Users\Admin\Developer\Projects\Omnia\happier`, on the same setup branch. The Mac checkout stays in place. Next: finish the Windows dependency install, rerun launcher checks there, start an isolated source stack, and verify it through a browser. Mac/iOS native builds still need sufficient local storage. Neither native builds nor live session behavior has been verified yet.

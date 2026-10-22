@@ -8,7 +8,7 @@
 ### [ ] Verify local setup
 **Description:** Install locked dependencies when capacity allows and execute relevant setup checks.
 **Context:** Native builds require sufficient disk space and platform toolchains.
-**Status:** 🟡 Yellow — setup resumed with about 14 GiB available. Locked dependency installation is running. CocoaPods 1.17.0 now verifies successfully at `~/.gem/ruby/3.3.0/bin/pod`, using Homebrew Ruby 3.3.5; select that path for native commands instead of the broken system-Ruby copy. Rust 1.94.1 installation is running. Prior focused tooling checks passed, but launcher checks still need rerunning after dependencies install. Full builds and device acceptance remain unrun.
+**Status:** 🟡 Yellow — CocoaPods 1.17.0 and Rust/Cargo 1.94.1 now verify successfully (OH-3 done). Two Mac dependency-install attempts were interrupted before disk exhaustion; Yarn cache cleanup restored about 15 GiB free. The SSD worktree attempt failed with permission denied on a Time Machine volume. Windows SSH is verified with about 165 GiB free; a separate clone/install is underway on `josh-pc` at `C:\Users\Admin\Developer\Projects\Omnia\happier`. Prior launcher checks still need rerunning after installation. Full builds and device acceptance remain unrun.
 
 ### [x] Document and checkpoint the development process
 **Description:** Write the fork runbook, review source-backed commands and signing requirements, commit and push.
