@@ -33,7 +33,7 @@ Clone `omnia-digital/happier` here and establish a reproducible development and 
 - Plan and runbook checkpoints are pushed on `chore/happier-fork-dev-setup`.
 - Two repo-script/stack-identity tests and twelve mobile-identity/desktop-deep-link tests passed.
 - Initial broader launcher run: 2 passed, 6 failed because `@happier-dev/cli-common` was not installed; dependent spawn checks could not run successfully.
-- Rust is absent. CocoaPods resolves to an old system-Ruby installation and crashes; Homebrew Ruby 3.3.5 exists but is not the active `pod` runtime.
+- Current toolchain evidence: Rust/Cargo 1.94.1 verifies on Mac and Windows. CocoaPods 1.17.0 verifies through Homebrew Ruby on Mac; the old system-Ruby executable is preserved. Windows locked dependency installation completed; stack dependency compilation and live startup are in progress. See the runbook continuation for exact failures and prerequisites.
 - Native builds, full tests and live stack checks are pending storage and dependency/toolchain setup. No daily-use cutover occurred.
 - Expo/EAS, Apple submission and Tauri updater configuration still refer to upstream ownership. Configure fork identities before release commands.
 - Local mobile helper clears the Expo slug; validate the project identity at its canonical owner before using a fork EAS project.
