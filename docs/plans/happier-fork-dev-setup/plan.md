@@ -6,6 +6,8 @@ Clone `omnia-digital/happier` here and establish a reproducible development and 
 
 ## Decisions
 
+- Current user priority: macOS desktop first, then desktop workflow improvements. Defer iOS until macOS works the way Josh wants; Windows remains a later platform target. Mac daily-use acceptance does not wait for iOS acceptance.
+
 - Base this setup branch on `origin/dev`; PRs target the fork's `dev` branch.
 - Keep `origin` as the fork and `upstream` as `happier-dev/happier`.
 - Standing user preference: check the parent at work-session start and before release candidates, and integrate compatible upstream improvements through feature branches and validation without breaking fork behavior.

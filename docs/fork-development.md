@@ -1,6 +1,6 @@
 # Omnia Happier development and adoption
 
-This is the fork-specific runbook for `omnia-digital/happier`. Develop against an isolated local stack, then qualify one revision on iOS, macOS, and Windows before using it for daily work. This setup is not yet build- or device-verified.
+This is the fork-specific runbook for `omnia-digital/happier`. Develop against an isolated local stack and qualify macOS desktop first for daily work. Windows and iOS remain later platform targets; iOS is explicitly deferred until the macOS app works the way Josh wants. This setup is not yet build- or device-verified.
 
 ## Repository and change flow
 
@@ -125,7 +125,7 @@ Then run affected integration lanes and live acceptance. Existing CI includes ma
 | Cross-device | Same account and server on all three devices; continue one session between them without lost messages or duplicate work |
 | Updates and rollback | Fork-owned feed/signatures; upgrade preserves account/settings/session access; previous version and data recovery tested |
 
-Only after these gates pass should we install fork release builds as daily tools and activate the fork CLI/services on each computer. A local server tied to a laptop sleeping cannot be assumed always available; choose a durable reachable host before relying on remote daily use. Account/session migration from the hosted service remains a separate tested step, not an assumption that a new server inherits existing data.
+For the first macOS daily-use adoption, require the local source stack, macOS, and update/rollback gates plus any applicable hosting and account-migration checks. Windows, iOS, and cross-device gates apply when those platforms enter the rollout. Activate fork CLI/services on each computer only after its applicable gates pass. A local server tied to a laptop sleeping cannot be assumed always available; choose a durable reachable host before relying on remote daily use. Account/session migration from the hosted service remains a separate tested step, not an assumption that a new server inherits existing data.
 
 ## Initial verification record — 2026-10-22
 
@@ -157,3 +157,7 @@ SSH access to `josh-pc` is verified. Its C: drive had about 165 GiB free; Node 2
 The first Windows launcher run reported 18 passed, 3 failed, and 1 skipped. Two provider-spawn tests could not read their capture files; the dependency auto-install test uses a Unix executable fixture and colon-separated PATH, which is not portable to Windows. No tests were changed. Actual startup stopped at a missing compiled `@happier-dev/cli-common` export. The existing command `node scripts/workspaces/ensureWorkspacePackagesBuiltCli.mjs --for-component=apps/stack` then successfully built protocol, agents, release-runtime, cli-common, and connection-supervisor. Rerunning the launcher tests still reports 18 passed, 3 failed, and 1 skipped. Corepack Yarn shims were installed in the Windows user's `.local\bin`; add that directory to the current shell PATH for builds.
 
 The launcher dry run resolves `repo-happier-181979f2a7` and its scoped CLI/state directories, rather than the main stack. Windows installation regenerated four tracked UI WebView bundle files; these are preserved in that checkout and have not been committed. The Mac checkout stays in place. Next: finish shared-package compilation, rerun affected checks, start the isolated stack, and verify it through Chrome. Mac/iOS native builds still need sufficient local storage. Neither native builds nor live session behavior has been verified yet.
+
+## Current priority — macOS desktop first
+
+Josh confirmed macOS desktop is his primary interface. Prioritize launching and validating the fork on this Mac, then refine the desktop workflow from his feedback. Defer iOS builds, simulator work, signing and App Store setup. Windows setup is available for later work, but does not establish Mac readiness. The immediate Mac prerequisite is enough writable space for dependencies and native compilation.
