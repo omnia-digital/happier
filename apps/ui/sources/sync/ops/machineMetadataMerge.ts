@@ -3,10 +3,11 @@ import type { MachineMetadata } from '../domains/state/storageTypes';
 export function mergeMachineMetadataForVersionMismatch(params: Readonly<{
     latest: MachineMetadata;
     intended: MachineMetadata;
+    updateDisplayName?: boolean;
 }>): MachineMetadata {
     return {
         ...params.latest,
-        displayName: Object.prototype.hasOwnProperty.call(params.intended, 'displayName')
+        displayName: params.updateDisplayName
             ? params.intended.displayName
             : params.latest.displayName,
         windowsRemoteSessionLaunchMode:

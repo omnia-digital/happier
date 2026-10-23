@@ -269,6 +269,7 @@ describe('MachineDetailScreen (appearance and revoke)', () => {
             'machine-1',
             expect.objectContaining({ displayName: 'theo-devbox' }),
             1,
+            { updateDisplayName: true },
         );
         expect(alertSpy).not.toHaveBeenCalled();
     });
@@ -277,6 +278,11 @@ describe('MachineDetailScreen (appearance and revoke)', () => {
         localIconMap.current = { '["server-a","machine-1"]': 'laptop' };
         const { default: MachineDetailScreen } = await import('@/app/(app)/machine/[id]');
         const screen = await renderScreen(React.createElement(MachineDetailScreen));
+
+        const title = (stackOptionsState.current?.headerTitle as () => React.ReactElement<{ children: React.ReactNode }>)();
+        const titleRow = React.Children.toArray(title.props.children)[0] as React.ReactElement<{ children: React.ReactNode }>;
+        const titleIcon = React.Children.toArray(titleRow.props.children)[0] as React.ReactElement<{ name: string }>;
+        expect(titleIcon.props.name).toBe('laptop');
 
         const iconPicker = screen.root.findAllByType('DropdownMenu' as never)
             .find((node) => node.props.itemTrigger?.title === 'machine.displayIconTitle');
@@ -294,6 +300,7 @@ describe('MachineDetailScreen (appearance and revoke)', () => {
             'machine-1',
             expect.objectContaining({ displayName: undefined, host: 'host' }),
             1,
+            { updateDisplayName: true },
         );
         expect(applyLocalSettingsSpy).toHaveBeenLastCalledWith({ machineDisplayIconByMachineV1: {} });
     });

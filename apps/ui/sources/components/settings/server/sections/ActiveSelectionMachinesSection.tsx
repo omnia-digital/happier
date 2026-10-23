@@ -5,6 +5,7 @@ import { Item } from '@/components/ui/lists/Item';
 import { ItemGroup } from '@/components/ui/lists/ItemGroup';
 import { Text } from '@/components/ui/text/Text';
 import { MachineCliGlyphs } from '@/components/sessions/new/components/MachineCliGlyphs';
+import { MachineDisplayGlyph } from '@/components/sessions/SessionMachineIdentity';
 import { isMachineOnline } from '@/utils/sessions/machineUtils';
 import { t } from '@/text';
 import type { Machine } from '@/sync/domains/state/storageTypes';
@@ -118,8 +119,9 @@ export const ActiveSelectionMachinesSection = React.memo(function ActiveSelectio
                                             textSecondaryColor: props.themeColors.textSecondary,
                                         })}
                                         icon={
-                                            <Icon
-                                                name="desktop"
+                                            <MachineDisplayGlyph
+                                                serverId={group.serverId}
+                                                machineId={machine.id}
                                                 size={29}
                                                 color={isOnline ? props.themeColors.status.connected : props.themeColors.status.disconnected}
                                             />
@@ -150,8 +152,9 @@ export const ActiveSelectionMachinesSection = React.memo(function ActiveSelectio
                                     textSecondaryColor: props.themeColors.textSecondary,
                                 })}
                                 icon={
-                                    <Icon
-                                        name="desktop"
+                                    <MachineDisplayGlyph
+                                        serverId={props.activeServerId}
+                                        machineId={machine.id}
                                         size={29}
                                         color={isOnline ? props.themeColors.status.connected : props.themeColors.status.disconnected}
                                     />

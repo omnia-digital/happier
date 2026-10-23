@@ -1153,8 +1153,9 @@ export async function machineUpdateMetadata(
     machineId: string,
     metadata: MachineMetadata,
     expectedVersion: number,
-    maxRetries: number = 3
+    options?: Readonly<{ maxRetries?: number; updateDisplayName?: boolean }>,
 ): Promise<{ version: number; metadata: string }> {
+    const maxRetries = options?.maxRetries ?? 3;
     let currentVersion = expectedVersion;
     let currentMetadata = { ...metadata };
     let retryCount = 0;
@@ -1202,6 +1203,7 @@ export async function machineUpdateMetadata(
             currentMetadata = mergeMachineMetadataForVersionMismatch({
                 latest: latestMetadata,
                 intended: currentMetadata,
+                updateDisplayName: options?.updateDisplayName,
             });
 
             retryCount++;

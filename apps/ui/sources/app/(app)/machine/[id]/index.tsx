@@ -682,7 +682,8 @@ export default function MachineDetailScreen() {
                 await machineUpdateMetadata(
                     machineId,
                     updatedMetadata,
-                    machine.metadataVersion
+                    machine.metadataVersion,
+                    { updateDisplayName: true },
                 );
             } catch (error) {
                 Modal.alert(
@@ -705,7 +706,7 @@ export default function MachineDetailScreen() {
                 await machineUpdateMetadata(machineId, {
                     ...machine.metadata,
                     displayName: undefined,
-                }, machine.metadataVersion);
+                }, machine.metadataVersion, { updateDisplayName: true });
             }
             applyLocalSettings({
                 machineDisplayIconByMachineV1: withMachineDisplayIcon(
@@ -879,7 +880,7 @@ export default function MachineDetailScreen() {
             <View>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <Icon
-                        name="desktop"
+                        name={selectedMachineDisplayIcon}
                         size={16}
                         color={theme.colors.chrome.header.foreground}
                         style={{ marginRight: 6 }}
@@ -905,7 +906,7 @@ export default function MachineDetailScreen() {
                 </View>
             </View>
         );
-    }, [machineIsOnline, machine, machineName, theme.colors.chrome.header.foreground]);
+    }, [machineIsOnline, machine, machineName, selectedMachineDisplayIcon, theme.colors.chrome.header.foreground]);
 
     const headerRight = React.useCallback(() => {
         if (!machine) return null;
