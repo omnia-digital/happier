@@ -1119,22 +1119,25 @@ export async function installProviderCli(params: Readonly<{
 
   try {
     if (plan.installMode === 'vendor_recipe') {
+      const childEnv = {
+        ...process.env,
+        ...env,
+        // Windows retains the original case-insensitive Path key. Only POSIX
+        // recipes need the additional user install directories.
+        ...(process.platform === 'win32' ? {} : { PATH: buildVendorRecipePath(params.providerId, {
+          ...process.env,
+          ...env,
+        }) }),
+        ...(vendorScratchDir ? { TMPDIR: vendorScratchDir, TMP: vendorScratchDir, TEMP: vendorScratchDir } : {}),
+      };
+      // A later command may fail after an earlier one installed the CLI. Only a CLI
+      // absent before the whole recipe can demonstrate recovery from that failure.
+      const resolvedBeforeRecipe = resolveProviderCliCommand(params.providerId, { processEnv: childEnv });
       for (const c of plan.commands) {
         if (!commandExistsOnPath(c.cmd, { env })) {
           return { ok: false, errorCode: 'command-not-found', errorMessage: `Command not found: ${c.cmd}`, plan, logPath };
         }
         const timeoutMs = resolveProviderInstallCommandTimeoutMs(env);
-        const childEnv = {
-          ...process.env,
-          ...env,
-          // Windows retains the original case-insensitive Path key. Only POSIX
-          // recipes need the additional user install directories.
-          ...(process.platform === 'win32' ? {} : { PATH: buildVendorRecipePath(params.providerId, {
-            ...process.env,
-            ...env,
-          }) }),
-          ...(vendorScratchDir ? { TMPDIR: vendorScratchDir, TMP: vendorScratchDir, TEMP: vendorScratchDir } : {}),
-        };
         const outcome = await runLoggedProviderCommand({ cmd: c.cmd, args: c.args, env: childEnv, logPath, timeoutMs, runCommand });
         if (outcome.kind === 'timed-out') {
           return {
@@ -1151,7 +1154,7 @@ export async function installProviderCli(params: Readonly<{
         const { status, signal } = outcome;
         if (status !== 0) {
           const resolvedAfterFailure = resolveProviderCliCommand(params.providerId, { processEnv: childEnv });
-          if (resolvedAfterFailure) {
+          if (!resolvedBeforeRecipe && resolvedAfterFailure) {
             appendLogLine(
               logPath,
               `# vendor recipe exited ${status ?? 'unknown'} but ${params.providerId} became available at ${resolvedAfterFailure.command}`,

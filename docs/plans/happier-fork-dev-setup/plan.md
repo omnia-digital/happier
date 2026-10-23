@@ -43,3 +43,19 @@ Clone `omnia-digital/happier` here and establish a reproducible development and 
 ## Scope
 
 This task establishes and documents development setup. It does not publish releases, replace the running stable installation, migrate accounts, or claim unperformed Windows/iOS acceptance.
+
+## First improvements after a stable macOS build
+
+Josh requested a prioritized Linear backlog before implementation: custom session ordering with project/repository grouping across machines; an alternate machine grouping/filter; right-click parity with the existing session overflow menu; an archive action among default session hover buttons; Command-held number hints with Command+number session navigation; and hovered-session A to archive through a confirmation dialog accepting Enter.
+
+Create focused OH tickets with native macOS acceptance, shared action ownership and shortcut safety. Gate this work on the stable macOS/source-session acceptance in OH-4 and OH-6, without waiting for Windows, iOS or the cross-device release. Keep implementation deferred until that baseline is verified. Review existing Linear work first to avoid duplicates; investigate canonical source owners only to ground the tickets, not to start feature implementation. Cross-machine repository identity and ordering persistence details belong in the organization ticket's design work.
+
+### Verified backlog
+
+- [OH-14](https://linear.app/omniachurchapps/issue/OH-14): project/repository grouping across machines, custom ordering and alternate machine grouping/filter. Existing workspace identity combines machine ID and normalized path; define repository equivalence without merging unrelated same-name repos and reuse organization/order state.
+- [OH-15](https://linear.app/omniachurchapps/issue/OH-15): right-click opens the same menu as the three-dot button. Reuse `moreMenuItems`/`handleMoreMenuSelect`; the native long-press menu currently has a different source.
+- [OH-16](https://linear.app/omniachurchapps/issue/OH-16): default hover Archive button alongside existing actions, using canonical capability, busy and stop/archive flows.
+- [OH-17](https://linear.app/omniachurchapps/issue/OH-17): held-Command number hints and Command+number navigation in current sidebar order; additionally depends on OH-14. First nine shortcuts are a proposed implementation range, not a final user decision.
+- [OH-18](https://linear.app/omniachurchapps/issue/OH-18): hover A always opens confirmation, Enter confirms and Escape cancels; additionally depends on OH-16. Capture the hovered target, exclude text entry and clear stale hover state.
+
+All five issues read back as High priority, Backlog, without a cycle, in milestone `macOS session workflow — after stable build`, with OH-4/OH-6 blocking relations. No product code was changed for this backlog. Routed source reconnaissance failed before work because the model-routing transport is invalid; matching native fallback completed the read-only inspection, and key source claims were independently checked. Linear shared agent-context lookup is unavailable; normal project/issue tools worked.

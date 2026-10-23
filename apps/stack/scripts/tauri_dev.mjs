@@ -322,6 +322,8 @@ async function main() {
     CI: 'false',
   }, {
     cwd: tauriInvocation.cwd,
+    // The stack owns this runner's process group; keep Tauri and its native child in it.
+    detached: false,
     ...(tauriInvocation.windowsVerbatimArguments ? { windowsVerbatimArguments: tauriInvocation.windowsVerbatimArguments } : {}),
   });
 }
