@@ -402,6 +402,18 @@ test.describe('ui e2e: session list ordering mode', () => {
       await expect(identity).not.toContainText(machineLabel);
     }
     const chosenGlyph = await machineIdentity.locator('svg').first().evaluate((svg) => svg.innerHTML);
+    const renderedMachineIdentity = await machineIdentity.evaluate((element) => {
+      const fiberKey = Object.keys(element).find((key) => key.startsWith('__reactFiber$'));
+      let fiber = fiberKey ? (element as any)[fiberKey] : null;
+      for (let depth = 0; depth < 30 && fiber; depth += 1, fiber = fiber.return) {
+        const props = fiber.memoizedProps;
+        if (props && typeof props.label === 'string' && 'serverId' in props && 'machineId' in props) {
+          return { serverId: props.serverId, machineId: props.machineId, label: props.label };
+        }
+      }
+      return null;
+    });
+    console.log('[OH54 machine identity scope]', JSON.stringify({ renderedMachineIdentity, iconPreferenceKey }));
     expect(chosenGlyph).not.toBe(defaultGlyph);
     await machineIdentity.focus();
     await expect(page.getByTestId(`session-list-machine-identity-${ordinarySessionId}-tooltip`)).toContainText(machineLabel);
