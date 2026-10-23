@@ -32,8 +32,10 @@ function getOrderingModeTitle(mode: SessionListOrderingModeV1): string {
 }
 
 export function SessionListViewMenuButton(props: Readonly<{
-    machineViewMode: 'original' | 'machine';
-    onMachineViewModeChange: (mode: 'original' | 'machine') => void;
+    machineViewMode: 'original' | 'machine' | 'repository';
+    onMachineViewModeChange: (mode: 'original' | 'machine' | 'repository') => void;
+    onRepositoryRefresh?: () => void;
+    repositoryRefreshing?: boolean;
     folderViewMode: SessionFolderViewModeV1;
     onFolderViewModeChange: (mode: SessionFolderViewModeV1) => void;
     orderingMode: SessionListOrderingModeV1;
@@ -73,6 +75,23 @@ export function SessionListViewMenuButton(props: Readonly<{
             rightElement: props.machineViewMode === 'machine'
                 ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} /> : null,
         },
+        {
+            id: 'session-view-repository',
+            testID: 'session-view-repository',
+            category: t('sessionsList.viewOptions'),
+            title: t('sessionsList.repositoryView'),
+            icon: <Icon name="git-branch" size={ICON_SIZE.sm} color={iconColor} />,
+            rightElement: props.machineViewMode === 'repository'
+                ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} /> : null,
+        },
+        ...(props.machineViewMode === 'repository' ? [{
+            id: 'session-repository-refresh',
+            testID: 'session-repository-refresh',
+            category: t('sessionsList.viewOptions'),
+            title: t('sessionsList.repositoryRefresh'),
+            icon: <Icon name="arrow-clockwise" size={ICON_SIZE.sm} color={iconColor} />,
+            disabled: props.repositoryRefreshing,
+        }] : []),
         ...SESSION_LIST_ORDERING_MODES_V1.map((mode): DropdownMenuItem => ({
             id: mode,
             testID: `session-list-ordering-mode-${mode}`,
@@ -145,11 +164,14 @@ export function SessionListViewMenuButton(props: Readonly<{
         props.folderViewMode,
         props.hideInactiveSessions,
         props.machineViewMode,
+        props.repositoryRefreshing,
         props.orderingMode,
         selectedIconColor,
     ]);
 
     const handleSelect = React.useCallback((itemId: string) => {
+        if (itemId === 'session-view-repository') { props.onMachineViewModeChange('repository'); return; }
+        if (itemId === 'session-repository-refresh') { if (!props.repositoryRefreshing) props.onRepositoryRefresh?.(); return; }
         if (itemId === 'session-view-original' || itemId === 'session-view-machine') {
             props.onMachineViewModeChange(itemId === 'session-view-machine' ? 'machine' : 'original');
             return;

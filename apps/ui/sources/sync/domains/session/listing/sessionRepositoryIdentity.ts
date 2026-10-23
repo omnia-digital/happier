@@ -52,24 +52,44 @@ export function repositoryOrderKey(identity: string): string {
     return `repository-v1:${bytesToHex(sha256(utf8ToBytes(identity)))}`;
 }
 
-export function readRepositoryAssociation(associations: SessionRepositoryAssociations, workspace: RepositoryWorkspace): SessionRepositoryAssociation | null {
-    const direct = associations[repositoryWorkspaceKey(workspace)];
-    if (direct) return direct;
+function associationKeysForWorkspace(associations: SessionRepositoryAssociations, workspace: RepositoryWorkspace): string[] {
+    const directKey = repositoryWorkspaceKey(workspace);
     const path = normalizeSessionPathForProjectGrouping(workspace.path, null);
-    for (const [key, association] of Object.entries(associations)) {
-        // Only explicit worktree paths from this scoped machine are aliases.
-        const prefix = `${JSON.stringify([workspace.serverId, workspace.accountId, workspace.machineId]).slice(0, -1)},`;
-        if (!key.startsWith(prefix)) continue;
-        if (association.rootPath === path || association.worktreePaths.includes(path)) return association;
-    }
-    return null;
+    const prefix = `${JSON.stringify([workspace.serverId, workspace.accountId, workspace.machineId]).slice(0, -1)},`;
+    return Object.keys(associations).filter(key => key === directKey || (key.startsWith(prefix)
+        && (associations[key].rootPath === path || associations[key].worktreePaths.includes(path))));
+}
+
+export function readRepositoryAssociation(associations: SessionRepositoryAssociations, workspace: RepositoryWorkspace): SessionRepositoryAssociation | null {
+    return associations[repositoryWorkspaceKey(workspace)] ?? associations[associationKeysForWorkspace(associations, workspace)[0]] ?? null;
 }
 
 export function withRepositoryAssociation(associations: SessionRepositoryAssociations, workspace: RepositoryWorkspace, discovered: SessionRepositoryAssociation): SessionRepositoryAssociations {
-    const key = repositoryWorkspaceKey(workspace);
+    const key = associationKeysForWorkspace(associations, workspace)[0] ?? repositoryWorkspaceKey(workspace);
     const previous = associations[key];
     const next = { ...discovered, ...(previous?.manual ? { manual: previous.manual } : {}) };
     return JSON.stringify(previous) === JSON.stringify(next) ? associations : { ...associations, [key]: next };
+}
+
+/** A worktree choice belongs to its discovered physical repository on this scoped machine. */
+export function withManualRepositoryAssociation(associations: SessionRepositoryAssociations, workspace: RepositoryWorkspace, manual: SessionRepositoryAssociation['manual'] | null): SessionRepositoryAssociations {
+    const previous = readRepositoryAssociation(associations, workspace);
+    const paths = new Set([workspace.path, previous?.rootPath, ...(previous?.worktreePaths ?? [])].filter((path): path is string => Boolean(path)));
+    const keys = new Set([...paths].flatMap(path => associationKeysForWorkspace(associations, { ...workspace, path })));
+    if (keys.size === 0) {
+        if (!manual) return associations;
+        keys.add(repositoryWorkspaceKey(workspace));
+    }
+    let result = associations;
+    for (const key of keys) {
+        const current = associations[key] ?? { identity: null, label: workspace.path, rootPath: workspace.path, worktreePaths: [] };
+        const { manual: _previousManual, ...automatic } = current;
+        const next = manual ? { ...automatic, manual } : automatic;
+        if (JSON.stringify(current) === JSON.stringify(next)) continue;
+        if (result === associations) result = { ...associations };
+        result[key] = next;
+    }
+    return result;
 }
 
 export type RepositoryHeaderPresentation = Readonly<{

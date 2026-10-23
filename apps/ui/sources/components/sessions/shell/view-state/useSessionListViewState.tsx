@@ -70,6 +70,7 @@ import {
 import { useSessionListSnapshotWhenInactive } from '../surface/useSessionListSnapshotWhenInactive';
 import { resolveSessionOrganizationMutationScope, type SessionOrganizationMutationScope } from '@/sync/domains/session/organization/mutationScope';
 import { projectSessionListMachineView } from './projectSessionListMachineView';
+import { useSessionRepositoryView, type SessionListViewMode } from './useSessionRepositoryView';
 
 const EMPTY_SESSION_KEYS: ReadonlyArray<string> = Object.freeze([]);
 const EMPTY_SESSION_LIST_GROUP_ORDER: Readonly<Record<string, ReadonlyArray<string> | undefined>> = Object.freeze({});
@@ -161,7 +162,7 @@ export function useSessionListViewState({
     const isTablet = useIsTablet();
     const [sessionMruOrderV1, setSessionMruOrderV1] = useLocalSettingMutable('sessionMruOrderV1');
     const [sessionListFolderSortModeRaw, setSessionListFolderSortModeV1] = useLocalSettingMutable('sessionListFolderSortModeV1');
-    const [sessionListMachineViewRaw, setSessionListMachineViewV1] = useLocalSettingMutable('sessionListMachineViewV1');
+    const [sessionListMachineViewRaw, persistSessionListMachineViewV1] = useLocalSettingMutable('sessionListMachineViewV1');
     const [sessionListOrderingModeRaw, setSessionListOrderingModeV1] = useSettingMutable('sessionListOrderingModeV1');
     const [sessionFolderViewModeRaw, setSessionFolderViewModeV1] = useSessionFolderViewModeMutable('sessionFolderViewModeV1');
     const sessionTagsEnabled = useSetting('sessionTagsEnabled');
@@ -198,7 +199,8 @@ export function useSessionListViewState({
     const sessionFolderViewMode: SessionFolderViewModeV1 = sessionFolderViewModeRaw === 'tree' ? 'tree' : 'off';
     const sessionListSavedFolderSortMode = normalizeSessionListFolderSortMode(sessionListFolderSortModeRaw);
     const sessionListOrderingMode = normalizeSessionListOrderingModeV1(sessionListOrderingModeRaw);
-    const sessionListMachineViewMode: 'original' | 'machine' = sessionListMachineViewRaw === 'machine' ? 'machine' : 'original';
+    const sessionListMachineViewMode: SessionListViewMode = sessionListMachineViewRaw === 'repository' ? 'repository' : sessionListMachineViewRaw === 'machine' ? 'machine' : 'original';
+    const sessionListSectionMode = useSetting('sessionListSectionModeV1') === 'single' ? 'single' : 'activity';
     const sessionListFolderSortMode = resolveEffectiveSessionListFolderSortMode({
         orderingMode: sessionListOrderingMode,
         folderSortMode: sessionListSavedFolderSortMode,
@@ -397,7 +399,7 @@ export function useSessionListViewState({
         return projectSessionListMachineView(data, renderMachineDisplayById, workspaceLabelsV1);
     }, [data, renderMachineDisplayById, sessionListMachineViewMode, workspaceLabelsV1]);
 
-    const folderPresentedData = React.useMemo(() => {
+    const physicalFolderPresentedData = React.useMemo(() => {
         if (!machinePresentedData || !folderViewEnabled) return machinePresentedData;
         return applySessionFoldersToSessionListViewData(machinePresentedData, {
             enabled: true,
@@ -405,6 +407,22 @@ export function useSessionListViewState({
             assignmentsBySessionKey: sessionFolderAssignmentsBySessionKey,
         });
     }, [machinePresentedData, folderViewEnabled, sessionFolderAssignmentsBySessionKey, sessionFoldersV1]);
+
+    const reportRepositoryDiscoveryFailure = React.useCallback(() => {
+        Modal.alert(t('common.error'), t('sessionsList.repositoryRefreshFailed'));
+    }, []);
+    const repositoryView = useSessionRepositoryView({
+        items: physicalFolderPresentedData,
+        mode: sessionListMachineViewMode,
+        setMode: persistSessionListMachineViewV1,
+        onFailure: reportRepositoryDiscoveryFailure,
+        groupOrder: currentGroupOrderMap,
+        orderingMode: sessionListOrderingMode,
+        sectionMode: sessionListSectionMode,
+        folderSortMode: sessionListFolderSortMode,
+    });
+    const folderPresentedData = repositoryView.items;
+    const setSessionListMachineViewV1 = repositoryView.selectMode;
 
     const headerFiltersActive = hasActiveSessionListHeaderFilters(headerFilters);
 
@@ -522,6 +540,8 @@ export function useSessionListViewState({
         setSessionFolderViewModeV1,
         sessionListOrderingMode,
         sessionListMachineViewMode,
+        refreshSessionRepositories: repositoryView.refresh,
+        sessionRepositoriesRefreshing: repositoryView.refreshing,
         setSessionListMachineViewV1,
         setSessionListOrderingModeV1,
         sessionListSavedFolderSortMode,

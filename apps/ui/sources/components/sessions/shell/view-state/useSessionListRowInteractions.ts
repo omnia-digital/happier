@@ -591,7 +591,7 @@ export function useSessionListRowInteractions({
         try {
             const tree = buildLatestGeometryFreeTree();
             const source = buildSessionListDragSource({ tree, sourceRowId });
-            if (resolveSessionListDragEligibilityBlock({ source, foldersFeatureEnabled: folderActionsEnabled })) return null;
+            if (resolveSessionListDragEligibilityBlock({ source, tree, foldersFeatureEnabled: folderActionsEnabled })) return null;
             const result = buildSessionListKeyboardMoveResult({ tree, source, direction, folderSortMode });
             pendingTreeDropRef.current = { tree, source, result };
             runPendingTreeDrop();

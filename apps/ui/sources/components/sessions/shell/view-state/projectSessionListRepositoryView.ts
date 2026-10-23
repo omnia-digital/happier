@@ -71,13 +71,14 @@ export function projectSessionListRepositoryView(input: Readonly<{
             if (item.type === 'header' && item.headerKind === 'folder' && (item.depth ?? 0) > 0 && folderBlock) { folderBlock.items.push(item); continue; }
             if (item.type === 'session' && item.folderId && folderBlock) { folderBlock.items.push(item); continue; }
             folderBlock = null;
-            const serverId = item.serverId ?? project?.serverId ?? '';
-            const scope = input.scopes[serverId];
+            const sourceServerId = item.serverId ?? project?.serverId ?? '';
+            const scope = input.scopes[sourceServerId];
+            const serverId = scope?.serverId ?? sourceServerId;
             const target = resolveRepositoryDiscoveryWorkspace(item, scope, project);
             const workspace: RepositoryWorkspace | null = target && scope ? { ...target, ...scope } : null;
             const association = workspace ? readRepositoryAssociation(input.associations, workspace) : null;
             const identity = association?.manual?.identity ?? association?.identity ?? null;
-            const fallbackKey = workspace ? repositoryWorkspaceKey(workspace) : JSON.stringify([serverId, target, item.type === 'session' ? item.session.id : item.folderId ?? item.groupKey]);
+            const fallbackKey = workspace ? repositoryWorkspaceKey({ ...workspace, path: association?.rootPath ?? workspace.path }) : JSON.stringify([serverId, target, item.type === 'session' ? item.session.id : item.folderId ?? item.groupKey]);
             const groupKey = repositoryOrderKey(JSON.stringify([bandKey, scope ?? serverId, identity ?? fallbackKey]));
             let bucket = buckets.get(groupKey);
             if (!bucket) {
@@ -92,7 +93,7 @@ export function projectSessionListRepositoryView(input: Readonly<{
             }
             const block: Block = item.type === 'header'
                 ? { key: `folder:${item.folderId}`, items: [item] }
-                : { key: `${serverId}:${item.session.id}`, items: [{ ...item, groupKey, groupKind: item.pinned ? 'pinned' : 'project' }] };
+                : { key: `${serverId}:${item.session.id}`, items: [{ ...item, serverId, groupKey, groupKind: item.pinned ? 'pinned' : 'project' }] };
             bucket.blocks.push(block);
             if (item.type === 'header' && item.headerKind === 'folder') folderBlock = block;
         }

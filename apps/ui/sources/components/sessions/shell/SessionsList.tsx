@@ -603,6 +603,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         setSessionFolderViewModeV1,
         sessionListOrderingMode,
         sessionListMachineViewMode,
+        refreshSessionRepositories,
+        sessionRepositoriesRefreshing,
         setSessionListMachineViewV1,
         setSessionListOrderingModeV1,
         sessionListSavedFolderSortMode,
@@ -1904,6 +1906,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
             <SessionListViewMenuButton
                 machineViewMode={sessionListMachineViewMode}
                 onMachineViewModeChange={setSessionListMachineViewV1}
+                onRepositoryRefresh={refreshSessionRepositories}
+                repositoryRefreshing={sessionRepositoriesRefreshing}
                 folderViewMode={sessionFolderViewMode}
                 onFolderViewModeChange={setSessionFolderViewModeV1}
                 orderingMode={sessionListOrderingMode}
@@ -1942,6 +1946,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         sessionListOrderingMode,
         sessionListMachineViewMode,
         sessionListSavedFolderSortMode,
+        refreshSessionRepositories,
+        sessionRepositoriesRefreshing,
         sessionFolderViewMode,
         setSessionListOrderingModeV1,
         setSessionListMachineViewV1,

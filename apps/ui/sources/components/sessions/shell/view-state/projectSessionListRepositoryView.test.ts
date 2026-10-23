@@ -23,7 +23,20 @@ const associations = Object.fromEntries(['m1', 'm2'].map(machineId => [repositor
 const band: SessionListViewItem = { type: 'header', headerKind: 'active', title: 'Active', groupKey: 'active' };
 
 describe('repository view projection', () => {
-    it('commits cross-checkout display order without erasing Original or Machine ranks or changing physical assignments', async () => {
+    it('uses captured canonical scope for implicit-active and legacy rows while retaining physical action targets', () => {
+        const implicit = { ...row('implicit', 'm1'), serverId: undefined };
+        const alias = { ...row('alias', 'm2'), serverId: 'old-profile' };
+        const result = projectSessionListRepositoryView({ items: [implicit, alias], scopes: { '': scope, 'old-profile': scope }, associations });
+        const headers = result.filter(item => item.type === 'header' && item.repository);
+        expect(headers).toHaveLength(1);
+        expect(headers[0]?.serverId).toBe(scope.serverId);
+        for (const item of result) if (item.type === 'session') {
+            expect(item.serverId).toBe(scope.serverId);
+            expect(item.workspace).toBe(item.session.id === 'implicit' ? implicit.workspace : alias.workspace);
+        }
+    });
+
+    it.each([true, false])('commits cross-checkout display order without physical changes (folders enabled: %s)', async (foldersFeatureEnabled) => {
         const source = [band, row('A', 'm1'), row('A2', 'm1'), row('B', 'm2')];
         const initial = projectSessionListRepositoryView({ items: source, scopes, associations });
         const groupKey = initial.find(item => item.type === 'header' && item.repository)?.groupKey!;
@@ -32,7 +45,7 @@ describe('repository view projection', () => {
             ...['A', 'A2', 'B'].map((id, index) => [treeRowId.session('home', id), { x: 0, y: 40 + index * 40, width: 320, height: 40 }] as const),
         ]) });
         const drag = buildSessionListDragSource({ tree, sourceRowId: treeRowId.session('home', 'B') });
-        const result = resolveSessionListInstruction({ tree, source: drag, pointer: { x: 20, y: 82 }, foldersFeatureEnabled: true });
+        const result = resolveSessionListInstruction({ tree, source: drag, pointer: { x: 20, y: 82 }, foldersFeatureEnabled });
         expect(result.instruction.kind).toBe('reorder-before');
         const setOrder = vi.fn();
         const setFolders = vi.fn();

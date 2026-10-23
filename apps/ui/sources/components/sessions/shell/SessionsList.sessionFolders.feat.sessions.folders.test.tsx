@@ -49,7 +49,7 @@ let foldersFeatureEnabled = true;
 let sessionFolderViewModeV1: 'off' | 'tree' = 'tree';
 let sessionListFolderSortModeV1: 'foldersFirst' | 'mixed' = 'foldersFirst';
 let sessionListOrderingModeV1: 'custom' | 'created' | 'updated' = 'custom';
-let sessionListMachineViewV1: 'original' | 'machine' = 'original';
+let sessionListMachineViewV1: 'original' | 'machine' | 'repository' = 'original';
 let sessionFoldersV1: any = { v: 1, folders: [] };
 let sessionListFocusedFolderV1: any = null;
 let collapsedGroupKeysV1: Record<string, boolean> = {};
@@ -661,6 +661,18 @@ describe('SessionsList session folders shell', () => {
 
         dropdown?.props.onSelect('folder-view-off');
         expect(setSessionFolderViewModeV1).toHaveBeenCalledWith('off');
+    });
+
+    it('renders restored Repository groups and exposes explicit discovery through the existing view menu', async () => {
+        sessionListMachineViewV1 = 'repository';
+        const screen = await renderSessionsList();
+        const dropdown = screen.findAllByType('DropdownMenu' as React.ElementType)
+            .find(node => node.props?.items?.some((item: any) => item.testID === 'session-view-repository'));
+        expect(dropdown).toBeTruthy();
+        expect(dropdown?.props.items.find((item: any) => item.testID === 'session-view-repository').rightElement).toBeTruthy();
+        expect(dropdown?.props.items.find((item: any) => item.testID === 'session-repository-refresh')).toBeTruthy();
+        expect(screen.root.findAll(node => typeof node.props.testID === 'string' && node.props.testID.startsWith('session-list-project-header:repository-v1:')).length).toBeGreaterThan(0);
+        expect(screen.findByTestId('session-folder-header-folder_a')).toBeTruthy();
     });
 
     it('persists folder sort mode selections from the view menu', async () => {

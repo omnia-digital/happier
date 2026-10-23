@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeRepositoryRemote, resolveRepositoryRemote, repositoryWorkspaceKey, readRepositoryAssociation, withRepositoryAssociation } from './sessionRepositoryIdentity';
+import { normalizeRepositoryRemote, resolveRepositoryRemote, repositoryWorkspaceKey, readRepositoryAssociation, withRepositoryAssociation, withManualRepositoryAssociation } from './sessionRepositoryIdentity';
 
 describe('repository grouping identity', () => {
     it('persists repository mode and scoped worktree associations through the actual local settings parser', async () => {
@@ -18,6 +18,27 @@ describe('repository grouping identity', () => {
         expect(readRepositoryAssociation(reloaded.sessionRepositoryAssociationsV1, { ...workspace, machineId: 'other' })).toBeNull();
         expect(readRepositoryAssociation(reloaded.sessionRepositoryAssociationsV1, { ...workspace, path: '/repo-same-name' })).toBeNull();
         expect(Object.keys(reloaded.sessionRepositoryAssociationsV1)).toEqual([repositoryWorkspaceKey(workspace)]);
+    });
+
+    it('preserves manual choices across discovered worktree aliases and resets the whole physical repository without touching another machine', () => {
+        const workspace = { serverId: 'home', accountId: 'account', machineId: 'machine', path: '/repo' };
+        const worktree = { ...workspace, path: '/worktree' };
+        const other = { ...workspace, machineId: 'other' };
+        const discovered = { identity: 'example.com/automatic/repo', label: 'Automatic', rootPath: '/repo', worktreePaths: ['/worktree'] };
+        let values = withRepositoryAssociation({}, workspace, discovered);
+        values = withRepositoryAssociation(values, other, discovered);
+        values = withManualRepositoryAssociation(values, worktree, { identity: 'manual:one', label: 'Together' });
+        expect(readRepositoryAssociation(values, workspace)?.manual?.identity).toBe('manual:one');
+        values = withRepositoryAssociation(values, worktree, { ...discovered, label: 'Refreshed' });
+        expect(readRepositoryAssociation(values, worktree)?.manual?.identity).toBe('manual:one');
+        expect(readRepositoryAssociation(values, other)?.manual).toBeUndefined();
+        const reloaded = JSON.parse(JSON.stringify(values));
+        const reset = withManualRepositoryAssociation(reloaded, workspace, null);
+        expect(readRepositoryAssociation(reset, workspace)?.manual).toBeUndefined();
+        expect(readRepositoryAssociation(reset, worktree)?.manual).toBeUndefined();
+        expect(readRepositoryAssociation(reset, worktree)?.identity).toBe(discovered.identity);
+        expect(reset[repositoryWorkspaceKey(other)]).toBe(reloaded[repositoryWorkspaceKey(other)]);
+        expect(withManualRepositoryAssociation(reset, workspace, null)).toBe(reset);
     });
 
     it('combines conventional transport aliases without merging namespaces, forks or ports', () => {
