@@ -323,6 +323,8 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
     const serverIdRef = React.useRef(serverId);
     const machinePlatformRef = React.useRef(machinePlatform);
     const machineIdRef = React.useRef(machineId);
+    const targetScopeKeyRef = React.useRef(props.targetScopeKey);
+    targetScopeKeyRef.current = props.targetScopeKey;
     const isFavoriteRef = React.useRef(isFavorite);
     const onToggleFavoriteRef = React.useRef(onToggleFavorite);
     const onChangeDraftPathRef = React.useRef(onChangeDraftPath);
@@ -440,6 +442,7 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
         const selectedPath = await openMachinePathBrowserModal({
             machineId,
             serverId: serverId ?? null,
+            targetScopeKey: props.targetScopeKey ?? null,
             initialPath,
             webPortalTarget: modalPortalTarget,
         });
@@ -457,6 +460,7 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
         modalPortalTarget,
         onBeforeBrowseMachinePath,
         serverId,
+        props.targetScopeKey,
     ]);
 
     // R16a: a stable resolver closure that reads volatile dependencies (machine
@@ -484,6 +488,7 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
             const result = await listMachineFileBrowserDirectoryEntries({
                 machineId: currentMachineId,
                 serverId: currentServerId ?? null,
+                targetScopeKey: targetScopeKeyRef.current ?? null,
                 directoryPath,
                 includeFiles: false,
             });

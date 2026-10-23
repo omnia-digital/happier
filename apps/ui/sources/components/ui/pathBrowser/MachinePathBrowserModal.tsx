@@ -43,6 +43,7 @@ import {
 export type MachinePathBrowserModalProps = CustomModalInjectedProps & Readonly<{
     machineId: string;
     serverId?: string | null;
+    targetScopeKey?: string | null;
     title?: string;
     initialPath?: string | null;
     includeFiles?: boolean;
@@ -53,6 +54,7 @@ export type MachinePathBrowserModalProps = CustomModalInjectedProps & Readonly<{
 export type MachinePathBrowserViewProps = Readonly<{
     machineId: string;
     serverId?: string | null;
+    targetScopeKey?: string | null;
     /**
      * When set, the browser is scoped to this absolute directory and will not list machine roots.
      */
@@ -327,8 +329,8 @@ function buildInitialPathPreviewEntries(params: Readonly<{
     }];
 }
 
-function toRootEntries(machineId: string, serverId?: string | null) {
-    return (getCachedMachineFileBrowserRoots({ machineId, serverId }) ?? []).map((root) => ({
+function toRootEntries(machineId: string, serverId?: string | null, targetScopeKey?: string | null) {
+    return (getCachedMachineFileBrowserRoots({ machineId, serverId, targetScopeKey }) ?? []).map((root) => ({
         name: root.label,
         path: root.path,
         type: 'directory' as const,
@@ -403,12 +405,13 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
                 return previewEntries;
             }
             if (directoryPath === '') {
-                return toRootEntries(props.machineId, props.serverId);
+                return toRootEntries(props.machineId, props.serverId, props.targetScopeKey);
             }
         }
         return getCachedMachineFileBrowserEntries({
             machineId: props.machineId,
             serverId: props.serverId,
+            targetScopeKey: props.targetScopeKey,
             directoryPath,
             includeFiles,
         })?.map((entry) => ({
@@ -418,7 +421,7 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
             sizeBytes: entry.sizeBytes,
             modifiedMs: entry.modifiedMs,
         })) ?? null;
-    }, [includeFiles, initialExpandedPaths, props.machineId, props.serverId, usesRootsListing]);
+    }, [includeFiles, initialExpandedPaths, props.machineId, props.serverId, props.targetScopeKey, usesRootsListing]);
 
     const getCachedDirectoryMetadata = React.useCallback((directoryPath: string) => {
         if (usesRootsListing && directoryPath === '') {
@@ -427,14 +430,15 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
         return getCachedMachineFileBrowserDirectoryMetadata({
             machineId: props.machineId,
             serverId: props.serverId,
+            targetScopeKey: props.targetScopeKey,
             directoryPath,
             includeFiles,
         });
-    }, [includeFiles, props.machineId, props.serverId, usesRootsListing]);
+    }, [includeFiles, props.machineId, props.serverId, props.targetScopeKey, usesRootsListing]);
 
     const loadDirectoryEntries = React.useCallback(async (directoryPath: string): Promise<LazyDirectoryTreeLoadResult> => {
         if (usesRootsListing && directoryPath === '') {
-            const result = await listMachineFileBrowserRoots({ machineId: props.machineId, serverId: props.serverId });
+            const result = await listMachineFileBrowserRoots({ machineId: props.machineId, serverId: props.serverId, targetScopeKey: props.targetScopeKey });
             if (!result.ok) return result;
             return {
                 ok: true,
@@ -451,6 +455,7 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
             directoryPath,
             includeFiles,
             serverId: props.serverId,
+            targetScopeKey: props.targetScopeKey,
         });
         if (!result.ok) return result;
         return {
@@ -465,11 +470,11 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
             })),
             truncated: result.truncated,
         };
-    }, [includeFiles, props.machineId, props.serverId, usesRootsListing]);
+    }, [includeFiles, props.machineId, props.serverId, props.targetScopeKey, usesRootsListing]);
 
     const warmDirectoryEntries = React.useCallback(async (directoryPath: string): Promise<LazyDirectoryTreeLoadResult> => {
         if (usesRootsListing && directoryPath === '') {
-            const result = await warmMachineFileBrowserRoots({ machineId: props.machineId, serverId: props.serverId });
+            const result = await warmMachineFileBrowserRoots({ machineId: props.machineId, serverId: props.serverId, targetScopeKey: props.targetScopeKey });
             if (!result.ok) return result;
             return {
                 ok: true,
@@ -486,6 +491,7 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
             directoryPath,
             includeFiles,
             serverId: props.serverId,
+            targetScopeKey: props.targetScopeKey,
         });
         if (!result.ok) return result;
         return {
@@ -500,7 +506,7 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
             })),
             truncated: result.truncated,
         };
-    }, [includeFiles, props.machineId, props.serverId, usesRootsListing]);
+    }, [includeFiles, props.machineId, props.serverId, props.targetScopeKey, usesRootsListing]);
 
     const {
         nodes: rawNodes,
@@ -510,7 +516,7 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
         retryDirectory,
         toggleDirectory,
     } = useLazyDirectoryTree({
-        scopeKey: `${props.machineId}:${props.serverId ?? ''}:${includeFiles ? 'all' : 'dirs'}:${rootDirectoryPath}`,
+        scopeKey: `${props.machineId}:${props.serverId ?? ''}:${props.targetScopeKey ?? ''}:${includeFiles ? 'all' : 'dirs'}:${rootDirectoryPath}`,
         enabled: true,
         rootDirectoryPath: usesRootsListing ? '' : rootDirectoryPath,
         expandedPaths,
@@ -720,12 +726,12 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
     }, [deepSearchEnabled, deepSearchNodes, isHiddenByAncestors, nodesByPath, rawNodes, searchQuery, showHidden]);
 
     const refresh = React.useCallback(() => {
-        clearCachedMachineFileBrowserRoots({ machineId: props.machineId, serverId: props.serverId });
-        clearCachedMachineFileBrowserEntries({ machineId: props.machineId, serverId: props.serverId });
+        clearCachedMachineFileBrowserRoots({ machineId: props.machineId, serverId: props.serverId, targetScopeKey: props.targetScopeKey });
+        clearCachedMachineFileBrowserEntries({ machineId: props.machineId, serverId: props.serverId, targetScopeKey: props.targetScopeKey });
         setTreeReloadNonce((n) => n + 1);
         setDeepSearchReloadNonce((n) => n + 1);
         void retryRoot();
-    }, [props.machineId, props.serverId, retryRoot]);
+    }, [props.machineId, props.serverId, props.targetScopeKey, retryRoot]);
 
     const collapseAll = React.useCallback(() => {
         setExpandedPaths([]);
@@ -880,8 +886,8 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
             }
 
             setExpandedPaths((prev) => prev.includes(directoryPath) ? prev : [...prev, directoryPath]);
-            clearCachedMachineFileBrowserEntries({ machineId: props.machineId, directoryPath, serverId: props.serverId });
-            clearCachedMachineFileBrowserEntries({ machineId: props.machineId, directoryPath: nextDirectoryPath, serverId: props.serverId });
+            clearCachedMachineFileBrowserEntries({ machineId: props.machineId, directoryPath, serverId: props.serverId, targetScopeKey: props.targetScopeKey });
+            clearCachedMachineFileBrowserEntries({ machineId: props.machineId, directoryPath: nextDirectoryPath, serverId: props.serverId, targetScopeKey: props.targetScopeKey });
             void retryDirectory(directoryPath);
 
             shouldAutoSelectInitialPathRef.current = false;
@@ -894,7 +900,7 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
         } finally {
             setIsCreatingFolder(false);
         }
-    }, [closeContextMenu, enableContextMenu, isCreatingFolder, props.machineId, props.serverId, retryDirectory]);
+    }, [closeContextMenu, enableContextMenu, isCreatingFolder, props.machineId, props.serverId, props.targetScopeKey, retryDirectory]);
     const createFolderInDirectoryRef = React.useRef(createFolderInDirectory);
     createFolderInDirectoryRef.current = createFolderInDirectory;
     const handleCreateFolderAction = React.useCallback(() => {
@@ -1328,6 +1334,7 @@ export function MachinePathBrowserModal(props: MachinePathBrowserModalProps): Re
         <MachinePathBrowserView
             machineId={props.machineId}
             serverId={props.serverId}
+            targetScopeKey={props.targetScopeKey}
             title={props.title}
             initialPath={props.initialPath}
             includeFiles={props.includeFiles}

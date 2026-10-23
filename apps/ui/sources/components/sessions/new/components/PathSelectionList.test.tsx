@@ -410,6 +410,32 @@ describe('PathSelectionList', () => {
         act(() => screen.tree.unmount());
     });
 
+    it('keeps legacy favorites out of suggestions until the user reviews and assigns one', async () => {
+        const onCommit = vi.fn();
+        const onAssign = vi.fn();
+        const { PathSelectionList } = await import('./PathSelectionList');
+        const screen = await renderScreen(<PathSelectionList
+            initialValue=""
+            favorites={[]}
+            recents={[]}
+            unassignedFavorites={['/Users/cassian/other-repo']}
+            onAssignUnassignedFavorite={onAssign}
+            machineHomeDir="/Users/josh"
+            machineId="m-josh"
+            serverId="srv-1"
+            machinePlatform="unix"
+            onCommit={onCommit}
+            onRequestClose={() => {}}
+        />);
+        expect(screen.findByTestId('path-selection-list:path-root:option:favorite:/Users/cassian/other-repo')).toBeNull();
+        expect(screen.findByTestId('path-selection-list:path-root:option:review-unassigned-favorites')).not.toBeNull();
+        await screen.pressByTestIdAsync('path-selection-list:path-root:option:review-unassigned-favorites');
+        await screen.pressByTestIdAsync('path-selection-list:assign-unassigned-favorites:option:assign-unassigned:0');
+        expect(onAssign).toHaveBeenCalledWith('/Users/cassian/other-repo');
+        expect(onCommit).not.toHaveBeenCalled();
+        act(() => screen.tree.unmount());
+    });
+
     it('opens the machine path browser modal inside the current modal portal target', async () => {
         const webPortalTarget = { nodeType: 1 } as Element;
         openMachinePathBrowserModalMock.mockResolvedValueOnce(null);
@@ -1352,6 +1378,38 @@ describe('PathSelectionList', () => {
 
             expect(listMachineFileBrowserDirectoryEntriesMock.mock.calls.length)
                 .toBeGreaterThan(initialCount);
+            act(() => screen.tree.unmount());
+        });
+
+        it('rebinds autocomplete to the current account on the same server and machine', async () => {
+            listMachineFileBrowserDirectoryEntriesMock.mockReset();
+            listMachineFileBrowserDirectoryEntriesMock.mockResolvedValue({ ok: true, entries: [] });
+            const { PathSelectionList } = await import('./PathSelectionList');
+            const renderHarness = (targetScopeKey: string) => (
+                <PathSelectionList
+                    initialValue="~/"
+                    favorites={[]}
+                    recents={[]}
+                    machineHomeDir="/home/alice"
+                    machineId="m-1"
+                    serverId="srv-a"
+                    targetScopeKey={targetScopeKey}
+                    machinePlatform="unix"
+                    onCommit={() => {}}
+                    onRequestClose={() => {}}
+                />
+            );
+
+            const screen = await renderScreen(renderHarness('account-a'));
+            await flushDynamicSection();
+            const initialCount = listMachineFileBrowserDirectoryEntriesMock.mock.calls.length;
+            expect(initialCount).toBeGreaterThanOrEqual(1);
+            expect(listMachineFileBrowserDirectoryEntriesMock).toHaveBeenLastCalledWith(expect.objectContaining({ targetScopeKey: 'account-a' }));
+
+            await act(async () => screen.tree.update(renderHarness('account-b')));
+            await flushDynamicSection();
+            expect(listMachineFileBrowserDirectoryEntriesMock.mock.calls.length).toBeGreaterThan(initialCount);
+            expect(listMachineFileBrowserDirectoryEntriesMock).toHaveBeenLastCalledWith(expect.objectContaining({ targetScopeKey: 'account-b' }));
             act(() => screen.tree.unmount());
         });
 

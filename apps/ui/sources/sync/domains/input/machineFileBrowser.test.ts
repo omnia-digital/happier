@@ -36,12 +36,13 @@ describe('machineFileBrowser domain', () => {
             truncated: false,
         });
 
-        const roots = await listMachineFileBrowserRoots({ machineId: 'machine-1', serverId: 'server-1' });
+        const roots = await listMachineFileBrowserRoots({ machineId: 'machine-1', serverId: 'server-1', targetScopeKey: 'account-1' });
         const directory = await listMachineFileBrowserDirectoryEntries({
             machineId: 'machine-1',
             directoryPath: '/Users/leeroy',
             includeFiles: true,
             serverId: 'server-1',
+            targetScopeKey: 'account-1',
         });
 
         expect(roots).toEqual({
@@ -55,8 +56,8 @@ describe('machineFileBrowser domain', () => {
                 'file:b.txt',
             ]);
         }
-        expect(getCachedMachineFileBrowserRoots({ machineId: 'machine-1', serverId: 'server-1' })).toEqual([{ id: '/', label: '/', path: '/' }]);
-        expect(getCachedMachineFileBrowserEntries({ machineId: 'machine-1', serverId: 'server-1', directoryPath: '/Users/leeroy' })).not.toBeNull();
+        expect(getCachedMachineFileBrowserRoots({ machineId: 'machine-1', serverId: 'server-1', targetScopeKey: 'account-1' })).toEqual([{ id: '/', label: '/', path: '/' }]);
+        expect(getCachedMachineFileBrowserEntries({ machineId: 'machine-1', serverId: 'server-1', targetScopeKey: 'account-1', directoryPath: '/Users/leeroy' })).not.toBeNull();
     });
 
     it('dedupes in-flight warm requests and clears machine-scoped caches independently', async () => {
@@ -73,11 +74,13 @@ describe('machineFileBrowser domain', () => {
             machineId: 'machine-1',
             directoryPath: '/Users/leeroy',
             includeFiles: false,
+            targetScopeKey: 'account-1',
         });
         const second = warmMachineFileBrowserDirectoryCache({
             machineId: 'machine-1',
             directoryPath: '/Users/leeroy',
             includeFiles: false,
+            targetScopeKey: 'account-1',
         });
 
         expect(ops.machineFilesystemListDirectory).toHaveBeenCalledTimes(1);
@@ -123,12 +126,14 @@ describe('machineFileBrowser domain', () => {
             serverId: 'server-1',
             directoryPath: '/Users/leeroy',
             includeFiles: false,
+            targetScopeKey: 'account-1',
         });
         const serverTwo = await listMachineFileBrowserDirectoryEntries({
             machineId: 'machine-1',
             serverId: 'server-2',
             directoryPath: '/Users/leeroy',
             includeFiles: false,
+            targetScopeKey: 'account-1',
         });
 
         const warmedServerOne = await warmMachineFileBrowserDirectoryCache({
@@ -136,6 +141,7 @@ describe('machineFileBrowser domain', () => {
             serverId: 'server-1',
             directoryPath: '/Users/leeroy',
             includeFiles: false,
+            targetScopeKey: 'account-1',
         });
 
         expect(serverOne).toEqual({
@@ -150,5 +156,29 @@ describe('machineFileBrowser domain', () => {
         });
         expect(warmedServerOne).toEqual(serverOne);
         expect(ops.machineFilesystemListDirectory).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not reuse directory results across accounts on the same Home and machine', async () => {
+        const ops = await import('@/sync/ops/machineFileBrowser');
+        (ops.machineFilesystemListDirectory as any).mockReset();
+        clearCachedMachineFileBrowserEntries({ machineId: 'machine-1' });
+        (ops.machineFilesystemListDirectory as any).mockResolvedValueOnce({
+            ok: true,
+            path: '/repo',
+            entries: [{ name: 'private', path: '/repo/private', type: 'directory' }],
+            truncated: false,
+        });
+        await listMachineFileBrowserDirectoryEntries({
+            machineId: 'machine-1', serverId: 'server-1', targetScopeKey: 'account-a',
+            directoryPath: '/repo', includeFiles: false,
+        });
+        expect(getCachedMachineFileBrowserEntries({
+            machineId: 'machine-1', serverId: 'server-1', targetScopeKey: 'account-a',
+            directoryPath: '/repo', includeFiles: false,
+        })).toEqual([{ name: 'private', path: '/repo/private', type: 'directory' }]);
+        expect(getCachedMachineFileBrowserEntries({
+            machineId: 'machine-1', serverId: 'server-1', targetScopeKey: 'account-b',
+            directoryPath: '/repo', includeFiles: false,
+        })).toBeNull();
     });
 });
