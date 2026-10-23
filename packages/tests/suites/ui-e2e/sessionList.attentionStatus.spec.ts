@@ -1166,19 +1166,19 @@ test.describe('ui e2e: session list attention', () => {
       const inputGroup = page.locator(`[data-testid^="inbox.session_attention."][data-testid$=".${input.id}"]`);
       const noticeRow = page.locator(`[data-testid^="inbox.review_session."][data-testid$=".${notice.id}"]`);
       await expect(permissionGroup).toContainText('Permission request · Reply needed', { timeout: 60_000 });
-      await expect(permissionGroup.getByTestId('permission-prompt-card')).toHaveCount(1);
       await expect(inputGroup).toContainText('Your input needed', { timeout: 60_000 });
-      await expect(inputGroup.getByTestId('user-action-prompt-card')).toContainText('Should OH49 continue?');
       await expect(noticeRow).toContainText('Completed · No reply needed', { timeout: 60_000 });
       await expect(noticeRow.getByTestId('permission-prompt-card')).toHaveCount(0);
 
-      await permissionGroup.getByRole('button', { name: 'Open' }).click();
+      // A list projection knows the current reason but has no request IDs. Its Inbox row
+      // navigates through the scoped session owner, which hydrates the actual request.
+      await permissionGroup.click();
       await expect(page).toHaveURL(new RegExp(`/session/${permission.id}(?:\\?|$)`), { timeout: 90_000 });
       await expect(page.getByTestId('permission-prompt-card')).toHaveCount(1, { timeout: 60_000 });
       await expect(page.getByTestId('permission-prompt-card')).toContainText('oh49-current-permission');
 
       await inboxButton.click();
-      await inputGroup.getByRole('button', { name: 'Open' }).click();
+      await inputGroup.click();
       await expect(page).toHaveURL(new RegExp(`/session/${input.id}(?:\\?|$)`), { timeout: 90_000 });
       await expect(page.getByTestId('user-action-prompt-card')).toContainText('Should OH49 continue?', { timeout: 60_000 });
 
@@ -1189,6 +1189,9 @@ test.describe('ui e2e: session list attention', () => {
           agentState: JSON.stringify({ requests: {}, completedRequests: {
             [index === 0 ? 'oh49-current-permission' : 'oh49-current-input']: {
               tool: index === 0 ? 'Bash' : 'AskUserQuestion',
+              arguments: index === 0
+                ? { command: 'echo oh49-current-permission' }
+                : { questions: [{ question: 'Should OH49 continue?', options: [{ label: 'Yes' }, { label: 'No' }] }] },
               status: 'approved', completedAt: Date.now(),
             },
           } }),
