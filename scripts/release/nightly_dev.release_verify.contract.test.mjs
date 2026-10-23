@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse } from 'yaml';
 import { projectReleaseStatus } from '../pipeline/release/project-release-status.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -97,7 +98,10 @@ test('nightly-dev publishes the newest forward-only CI-certified dev SHA and rep
   }
   assert.match(raw, /nightly_waiting_for_ci:[\s\S]*?exit 1/);
   assert.match(raw, /nightly_noop:[\s\S]*?release_needed == 'false'[\s\S]*?already completed and promoted/);
-  assert.match(raw, /release_status:[\s\S]*?if:\s*\$\{\{ always\(\) \}\}[\s\S]*?nightly_waiting_for_ci[\s\S]*?nightly_noop/);
+  const status = parse(raw).jobs.release_status;
+  assert.equal(status.if, "${{ always() && (github.event_name != 'schedule' || github.repository == 'happier-dev/happier') }}");
+  assert.ok(status.needs.includes('nightly_waiting_for_ci'));
+  assert.ok(status.needs.includes('nightly_noop'));
   assert.match(raw, /NIGHTLY_DECISION:\s*\$\{\{ needs\.prepare_release_candidate\.outputs\.decision \|\| 'blocked_ci' \}\}/);
 });
 

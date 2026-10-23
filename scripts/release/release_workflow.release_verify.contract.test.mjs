@@ -297,7 +297,7 @@ test('server releases admit the focused MySQL contract and stable platform evide
     assert.equal(extendedDb.on.workflow_call.inputs[inputName].default, true);
     assert.equal(
       extendedDb.jobs[jobName].if,
-      `\${{ !inputs.select_jobs_explicitly || inputs.${inputName} }}`,
+      `\${{ (github.event_name != 'schedule' || github.repository == 'happier-dev/happier') && (!inputs.select_jobs_explicitly || inputs.${inputName}) }}`,
     );
   }
   assert.equal(extendedDb.jobs['db-contract-mysql'].services.mysql.image, 'mysql:8.0');
