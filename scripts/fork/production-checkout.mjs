@@ -94,7 +94,7 @@ export function updateProductionCheckout(repoPath) {
   const previousPaths = protectionPaths(state);
   try {
     setLocked(previousPaths, false);
-    git(state.repo, 'merge', '--ff-only', '--no-edit', candidate);
+    git(state.repo, 'merge', '--ff-only', '--no-edit', '--no-overwrite-ignore', candidate);
   } finally {
     // Also protect files added by the pulled commit, including after a failed merge.
     setLocked([...new Set([...previousPaths.filter((path) => existsSync(path)), ...protectionPaths(state)])], true);

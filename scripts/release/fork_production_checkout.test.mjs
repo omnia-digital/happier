@@ -131,3 +131,18 @@ test('a failed fast-forward relocks the checkout and preserves the previous comm
   assert.throws(() => writeFileSync(join(checkout, 'app.txt'), 'edited'), /EPERM|EACCES/);
   assert.throws(() => writeFileSync(join(checkout, 'new.txt'), 'edited'), /EPERM|EACCES/);
 });
+
+test('an incoming tracked file cannot overwrite ignored local data', { skip: process.platform !== 'darwin' }, (t) => {
+  const { checkout, source, remote } = fixture(t);
+  writeFileSync(join(checkout, '.git', 'info', 'exclude'), 'cache.txt\n');
+  writeFileSync(join(checkout, 'cache.txt'), 'local data to preserve\n');
+  protectProductionCheckout(checkout);
+  const before = git(checkout, 'rev-parse', 'HEAD');
+  writeFileSync(join(source, 'cache.txt'), 'new tracked content\n');
+  git(source, 'add', 'cache.txt'); git(source, '-c', 'commit.gpgsign=false', 'commit', '-m', 'Track cache');
+  git(source, 'push', remote, 'production');
+  assert.throws(() => updateProductionCheckout(checkout), /overwritten|untracked/i);
+  assert.equal(git(checkout, 'rev-parse', 'HEAD'), before);
+  assert.equal(readFileSync(join(checkout, 'cache.txt'), 'utf8'), 'local data to preserve\n');
+  assert.throws(() => writeFileSync(join(checkout, 'app.txt'), 'edited'), /EPERM|EACCES/);
+});
