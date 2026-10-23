@@ -44,14 +44,14 @@ describe('session row machine identity', () => {
         expect(row.machineLabel).toBe('Replacement Mac');
         expect(row.showMachineIdentity).toBe(true);
         expect(row.isPinned).toBe(true);
-        expect(row.subtitle).toBe('project');
+        expect(row.subtitle).toBe('Replacement Mac · project');
     });
 
     it('hides the indicator on opt-out without changing the canonical machine or workspace subtitle', () => {
         const row = build({ showMachineIdentity: false });
         expect(row.machineLabel).toBe('Replacement Mac');
         expect(row.showMachineIdentity).toBe(false);
-        expect(row.subtitle).toBe('project');
+        expect(row.subtitle).toBe('Replacement Mac · project');
     });
 
     it('does not guess a different machine when the resolved projection is missing', () => {

@@ -264,7 +264,7 @@ function resolveRowSubtitle(input: Readonly<{
         const workspaceSubtitle = normalizeNonEmptyString(reachableDisplay.workspaceSubtitle) ?? '';
         const machineLabel = normalizeNonEmptyString(reachableDisplay.machineLabel) ?? '';
         return {
-            subtitle: input.settings.showMachineIdentity === undefined && input.settings.hasMultipleMachines
+            subtitle: input.settings.hasMultipleMachines
                 ? (machineLabel && workspaceSubtitle
                     ? `${machineLabel} · ${workspaceSubtitle}`
                     : machineLabel || workspaceSubtitle)
