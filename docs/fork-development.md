@@ -2,6 +2,16 @@
 
 This is the fork-specific runbook for `omnia-digital/happier`. Develop against an isolated local stack and qualify macOS desktop first for daily work. Windows and iOS remain later platform targets; iOS is explicitly deferred until the macOS app works the way Josh wants. Native Mac compilation, rendering and local test-account authentication across a full native restart are verified; real agent sessions and daily-use adoption remain unverified.
 
+## First adoption: custom macOS UI, existing Happier services
+
+Josh prefers to keep his current hosted account, relay, machines, CLI/daemons and sessions, and adopt only the forked macOS UI/app. Use that as the first daily-use target. Keep the isolated local relay/account for development tests and the original installed app for rollback. Self-hosting, account migration and source CLI pairing are not prerequisites for this UI-only path.
+
+The installed app reports 0.2.17 and the installed CLI 0.2.16. The hosted relay's `/v1/features` responds, and an actual `OPTIONS /v1/auth/ping` preflight allows the dev origin and authorization/content-type headers. The checked `/v1/version` returns only `ok`, so its exact deployed revision remains unknown. These checks establish reachability and the checked browser seam, not authenticated mixed-version session compatibility.
+
+Added `https://api.happier.dev` as **Happier Cloud** through the forked app's normal Relay settings and selected existing-account sign-in. The local test profile remains saved separately. No hosted account was created and no recovery key was copied. The app is at `/restore`, but its background WebView is not rendering the QR panel; the available native controls cannot focus this unbundled debug executable. Bring the **Happier Omnia Dev** window forward and sign in with an already authenticated Happier client. Hosted authentication, existing session/machine visibility, real session actions and native restart persistence remain unverified until that step completes.
+
+OH-6 now owns the hosted UI-only acceptance gate. OH-14 through OH-19 follow that stable Mac gate; their former OH-4 local-stack prerequisite was removed, preserving their other UI dependencies. OH-9 hosting/migration is deferred and OH-11 remains a later all-platform rollout. Keep shared settings and session writes compatible with the installed clients; negotiate unavailable hosted features rather than require a server/daemon migration.
+
 ## Repository and change flow
 
 Planning lives in Linear team **Happier (OH)**, in [Happier fork — development and first stable release](https://linear.app/omniachurchapps/project/happier-fork-development-and-first-stable-release-9a3eb3200232). Use OH issue IDs for future task branches and link evidence to the owning issue. The initial backlog is OH-1 through OH-12, with milestones for development readiness, native app validation, and daily-use release readiness. OH-12 owns ongoing upstream maintenance. OH-10 tracks CI and Linear release-pipeline setup; no release pipeline is configured yet.

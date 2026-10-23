@@ -1,5 +1,10 @@
 # Tasks: Happier fork development setup
 
+### [ ] Validate the forked macOS UI against the existing hosted setup
+**Description:** Use the new macOS app with the existing account, hosted relay, machines and sessions while preserving installed clients and services.
+**Context:** Josh's preferred first adoption is UI-only. Local relay/source CLI work is a test lane, not an adoption prerequisite. Sign in through the normal account-link flow; preserve the isolated account too.
+**Status:** 🟡 Yellow — installed app 0.2.17 and default CLI 0.2.16 observed. Hosted relay feature endpoint and actual CORS preflight are reachable; no server version/deploy revision is advertised by the checked version response. Added the hosted relay through the normal fork-app UI and reached existing-account `/restore` sign-in. The separate local profile is preserved. Its background WebView does not render the QR panel and the available controls cannot focus this unbundled executable; user foregrounding/sign-in is the next prerequisite. No recovery key copied or hosted account created. Hosted session/approval/native restart acceptance remains unverified. OH-6 and the workflow milestone now use this UI-only contract; OH-14–OH-19 no longer depend on local source-stack OH-4, OH-9 is deferred, and OH-11 stays a later cross-platform gate.
+
 ### [x] Establish checkout and platform workflow
 **Description:** Clone the fork, configure remotes, verify development and native build entry points.
 **Context:** Existing installed Happier must remain usable during fork development.
