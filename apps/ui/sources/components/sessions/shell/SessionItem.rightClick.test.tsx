@@ -109,6 +109,7 @@ describe('SessionItem right-click menu (web)', () => {
         const menu = screen.findByType('DropdownMenu' as React.ElementType);
         expect(menu.props.open).toBe(true);
         expect(menu.props.items).toEqual(expect.arrayContaining([expect.objectContaining({ id: SESSION_ACTION_RENAME_ID })]));
+        expect(menu.props.items).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'session.sameSetup' })]));
 
         await act(async () => menu.props.onSelect(SESSION_ACTION_RENAME_ID));
         expect(renameSpy).toHaveBeenCalledWith('sess_right_click', 'Renamed', { serverId: 'server_right_click' });
@@ -131,6 +132,7 @@ describe('SessionItem right-click menu (web)', () => {
         const rightArea = screen.findByTestId('session-item-right-area');
         if (!rightArea) throw new Error('session row action area not found');
         await act(async () => rightArea.props.onPointerEnter());
+        expect(screen.findByTestId('session-item-same-setup-action')).toBeTruthy();
 
         await act(async () => row.props.onContextMenu({ preventDefault: vi.fn(), stopPropagation: vi.fn() }));
         const menu = screen.findByType('DropdownMenu' as React.ElementType);
@@ -141,6 +143,7 @@ describe('SessionItem right-click menu (web)', () => {
             expect.objectContaining({ id: 'session.archive' }),
             expect.objectContaining({ id: 'session.stop' }),
         ]));
+        expect(rightClickItems).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'session.sameSetup' })]));
 
         await act(async () => menu.props.onOpenChange(false));
         const threeDotTrigger = menu.props.trigger({ toggle: () => menu.props.onOpenChange(true) });

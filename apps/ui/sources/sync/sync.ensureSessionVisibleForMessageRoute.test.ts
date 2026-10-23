@@ -79,6 +79,7 @@ import type { AccountSettingsScope } from './domains/settings/scope/accountSetti
 import type { Session } from './domains/state/storageTypes';
 import { encodeBase64 } from '@/encryption/base64';
 import { encodeUTF8 } from '@/encryption/text';
+import { clearTempData, peekTempData, type NewSessionData } from '@/utils/sessions/tempDataStore';
 
 const initialStorageState = storage.getState();
 
@@ -116,6 +117,7 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
         runtimeFetchMock.mockReset();
         getCredentialsForServerUrlMock.mockReset();
         createEncryptionFromAuthCredentialsMock.mockReset();
+        clearTempData();
 
         const { sync } = await import('./sync');
         sync.disconnectServer();
@@ -1022,7 +1024,7 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
             ...createSession({ sessionId }),
             serverId: activeServer.id,
             encryptionMode: 'plain',
-            metadata: { path: '/active', machineId: 'active-machine' },
+            metadata: { path: '/active', machineId: 'active-machine', host: 'active.example' },
         }]);
 
         const { sync } = await import('./sync');
@@ -1082,7 +1084,7 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
             ...createSession({ sessionId }),
             serverId: foreignServer.id,
             encryptionMode: 'plain',
-            metadata: { path: '/foreign', machineId: 'foreign-machine' },
+            metadata: { path: '/foreign', machineId: 'foreign-machine', host: 'foreign.example' },
         }]);
 
         const { sync } = await import('./sync');
@@ -1119,6 +1121,117 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
             serverId: activeServer.id,
             metadata: expect.objectContaining({ path: '/active', machineId: 'active-machine' }),
         }));
+    });
+
+    it('prepares Same Setup from the clicked thin row through its exact foreign server', async () => {
+        const sessionId = 'clicked_foreign_session';
+        const activeServer = upsertServerProfile({ serverUrl: 'https://active.example', name: 'Active' });
+        const foreignServer = upsertServerProfile({ serverUrl: 'https://foreign.example', name: 'Foreign' });
+        setActiveServerId(activeServer.id, { scope: 'device' });
+        storage.setState({ profileScope: { serverId: activeServer.id, accountId: 'active-account' } });
+        storage.getState().applySessions([{
+            ...createSession({ sessionId: 'selected_active_session' }),
+            serverId: activeServer.id,
+            encryptionMode: 'plain',
+            metadata: { path: '/active/other', machineId: 'active-machine', host: 'active.example', flavor: 'claude' },
+        }, {
+            ...createSession({ sessionId }),
+            serverId: foreignServer.id,
+            encryptionMode: 'plain',
+            metadata: null,
+        }]);
+
+        const { sync } = await import('./sync');
+        (sync as any).credentials = { token: 'active-token', secret: 'active-secret' };
+        (sync as any).activeServerSessionIds = new Set(['selected_active_session']);
+        (sync as any).hasFetchedSessionsSnapshotForActiveServer = true;
+        (sync as any).encryption = {
+            decryptEncryptionKey: async () => null,
+            initializeSessions: async () => {},
+            getSessionEncryption: () => null,
+        };
+        requestMock.mockRejectedValue(new Error('active request should not be used'));
+        getCredentialsForServerUrlMock.mockResolvedValue({
+            token: buildTokenWithSub('foreign-account'),
+            secret: 'foreign-secret',
+        });
+        createEncryptionFromAuthCredentialsMock.mockResolvedValue({
+            decryptEncryptionKey: async () => null,
+            initializeSessions: async () => {},
+            getSessionEncryption: () => null,
+        });
+        runtimeFetchMock.mockResolvedValue(new Response(JSON.stringify({
+            session: {
+                id: sessionId,
+                createdAt: 1,
+                updatedAt: 2,
+                seq: 3,
+                active: true,
+                activeAt: 2,
+                encryptionMode: 'plain',
+                dataEncryptionKey: null,
+                metadataVersion: 1,
+                metadata: JSON.stringify({
+                    path: '/foreign/worktree', machineId: 'foreign-machine', flavor: 'codex',
+                    profileId: 'foreign-profile', transcriptStorage: 'direct',
+                }),
+                agentStateVersion: 0,
+                agentState: null,
+                share: null,
+            },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+        const { prepareNewSessionSameSetupFromRow } = await import('@/components/sessions/new/navigation/newSessionSameSetup');
+        const prepared = await prepareNewSessionSameSetupFromRow({ sessionId, serverId: foreignServer.id });
+        expect(requestMock).not.toHaveBeenCalled();
+        expect(runtimeFetchMock.mock.calls.some(([url]) =>
+            matchServerFetchUrl(`https://foreign.example/v2/sessions/${sessionId}`).asymmetricMatch(url))).toBe(true);
+        expect(prepared.kind).toBe('ready');
+        if (prepared.kind !== 'ready') return;
+        expect(prepared.route).toEqual({
+            pathname: '/new',
+            params: expect.objectContaining({
+                machineId: 'foreign-machine', directory: '/foreign/worktree',
+                spawnServerId: foreignServer.id, dataId: expect.any(String),
+            }),
+        });
+        const seed = peekTempData<NewSessionData>(prepared.route.params.dataId);
+        expect(seed).toEqual(expect.objectContaining({
+            prompt: '', machineId: 'foreign-machine', directory: '/foreign/worktree',
+            agentType: 'codex', selectedProfileId: 'foreign-profile', transcriptStorage: 'direct',
+            replacePersistedDraftSelections: true,
+        }));
+        expect(seed?.resumeSessionId).toBeUndefined();
+        expect(seed?.sourceContext).toBeUndefined();
+        expect(seed?.checkoutCreationDraft).toBeNull();
+
+        // A full cached row from a previous login to this Home has no account stamp.
+        // Clicking it must fetch the current owner's setup instead of copying old metadata.
+        getCredentialsForServerUrlMock.mockResolvedValue({
+            token: buildTokenWithSub('next-foreign-account'), secret: 'next-foreign-secret',
+        });
+        runtimeFetchMock.mockClear();
+        runtimeFetchMock.mockResolvedValue(new Response(JSON.stringify({
+            session: {
+                id: sessionId, createdAt: 1, updatedAt: 3, seq: 4,
+                active: true, activeAt: 3, encryptionMode: 'plain', dataEncryptionKey: null,
+                metadataVersion: 2,
+                metadata: JSON.stringify({
+                    path: '/foreign/next-account', machineId: 'next-machine', flavor: 'claude',
+                    profileId: 'next-profile',
+                }),
+                agentStateVersion: 0, agentState: null, share: null,
+            },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+        const nextPrepared = await prepareNewSessionSameSetupFromRow({ sessionId, serverId: foreignServer.id });
+        expect(runtimeFetchMock).toHaveBeenCalled();
+        expect(nextPrepared.kind).toBe('ready');
+        if (nextPrepared.kind !== 'ready') return;
+        expect(nextPrepared.route.params).toEqual(expect.objectContaining({
+            machineId: 'next-machine', directory: '/foreign/next-account', spawnServerId: foreignServer.id,
+        }));
+        expect(peekTempData<NewSessionData>(nextPrepared.route.params.dataId))
+            .toEqual(expect.objectContaining({ agentType: 'claude', selectedProfileId: 'next-profile' }));
     });
 
     it('ignores localStorage read errors while evaluating debug hydration logging', async () => {

@@ -92,6 +92,12 @@ import { useFeatureEnabled } from '@/hooks/server/useFeatureEnabled';
 import { canForkConversation } from '@/sync/domains/sessionFork/forkUiSupport';
 import { resolveMachineTargetForSessionFromState } from '@/sync/ops/sessionMachineTarget';
 import { fireAndForget } from '@/utils/system/fireAndForget';
+import { useHappyAction } from '@/hooks/ui/useHappyAction';
+import { HappyError } from '@/utils/errors/errors';
+import {
+    prepareNewSessionSameSetupFromRow,
+    SESSION_NEW_SAME_SETUP_ACTION_ID,
+} from '@/components/sessions/new/navigation/newSessionSameSetup';
 
 const SESSION_LIST_MINIMAL_IDENTITY_GAP = 8;
 const CONTEXT_MENU_PRESS_SUPPRESSION_TIMEOUT_MS = 600;
@@ -926,8 +932,32 @@ const SessionItemContent = React.memo(
             router,
             serverId,
         ]);
+        const canStartSameSetup = !draft && Boolean(resolvedSession.id);
+        const [openingSameSetup, openSameSetup] = useHappyAction(async () => {
+            const prepared = await prepareNewSessionSameSetupFromRow({
+                sessionId: resolvedSession.id,
+                serverId: serverId ?? null,
+            });
+            if (prepared.kind !== 'ready') {
+                const message = prepared.kind === 'missing'
+                    ? t('errors.sessionNotFound')
+                    : prepared.kind === 'target_unavailable'
+                        ? t('machine.notFound')
+                        : t('errors.tryAgain');
+                throw new HappyError(message, true);
+            }
+            router.push(prepared.route as any);
+        });
         const leadingMenuItems = React.useMemo(() => {
             const items: DropdownMenuItem[] = [];
+            if (canStartSameSetup) {
+                items.push({
+                    id: SESSION_NEW_SAME_SETUP_ACTION_ID,
+                    title: t('sessionInfo.newSessionSameSetup'),
+                    icon: <Icon name="plus" size={16} color={rowActionIconColor} />,
+                    disabled: openingSameSetup,
+                });
+            }
             if (draft && onDeleteDraft) {
                 items.push({
                     id: SESSION_DELETE_DRAFT_MENU_ITEM_ID,
@@ -947,8 +977,12 @@ const SessionItemContent = React.memo(
                 });
             }
             return items;
-        }, [devModeEnabled, draft, onDeleteDraft, rowActionIconColor, showForkAction]);
+        }, [canStartSameSetup, devModeEnabled, draft, onDeleteDraft, openingSameSetup, rowActionIconColor, showForkAction]);
         const handleSelectLeadingMenuItem = React.useCallback(async (itemId: string) => {
+            if (itemId === SESSION_NEW_SAME_SETUP_ACTION_ID) {
+                await openSameSetup();
+                return;
+            }
             if (itemId === SESSION_DELETE_DRAFT_MENU_ITEM_ID) {
                 await confirmDeleteDraft();
                 return;
@@ -962,7 +996,7 @@ const SessionItemContent = React.memo(
             if (copied) {
                 copyFeedback.markCopied(resolvedSession.id);
             }
-        }, [confirmDeleteDraft, copyFeedback, openForkFlow, resolvedSession.id, resolveSessionDebugInformation]);
+        }, [confirmDeleteDraft, copyFeedback, openForkFlow, openSameSetup, resolvedSession.id, resolveSessionDebugInformation]);
         const supportsPin = typeof onTogglePinned === 'function';
         const supportsTag = tagsEnabled === true && typeof onSetTags === 'function';
         const handleTogglePinnedAction = React.useCallback(() => {
@@ -1665,6 +1699,24 @@ const SessionItemContent = React.memo(
                     />
                     {showRowActions ? (
                         <View style={styles.rowActionsRow}>
+                            {canStartSameSetup ? (
+                                <PressableSurface
+                                    testID="session-item-same-setup-action"
+                                    style={styles.rowActionButton}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={t('sessionInfo.newSessionSameSetup')}
+                                    webTooltip={t('sessionInfo.newSessionSameSetup')}
+                                    tooltipPlacement="left"
+                                    disabled={openingSameSetup}
+                                    hitSlop={8}
+                                    onPress={(event) => {
+                                        stopRowPressPropagation(event);
+                                        void openSameSetup();
+                                    }}
+                                >
+                                    <Icon name="plus" size={14} color={rowActionIconColor} />
+                                </PressableSurface>
+                            ) : null}
                             {showReorderHandle && reorderHandleGesture ? (
                                 <GestureDetector gesture={reorderHandleGesture}>
                                     <View
