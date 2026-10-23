@@ -510,8 +510,34 @@ test.describe('ui e2e: session list ordering mode', () => {
     const clickedRow = page.getByTestId(`session-list-item-${clickedSessionId}`);
     await expect(selectedRow).toHaveCount(1, { timeout: 120_000 });
     await expect(clickedRow).toHaveCount(1, { timeout: 120_000 });
+    await selectedRow.evaluate((element) => {
+      const diagnostic = window as typeof window & { __oh68Events?: string[] };
+      diagnostic.__oh68Events = [];
+      for (const type of ['pointerdown', 'pointerup', 'click']) {
+        element.addEventListener(type, (event) => {
+          diagnostic.__oh68Events?.push(`${type}:${(event.target as HTMLElement).closest('[data-testid]')?.getAttribute('data-testid') ?? 'none'}`);
+        }, true);
+      }
+      const pushState = history.pushState;
+      history.pushState = function (data, unused, url) {
+        diagnostic.__oh68Events?.push(`pushState:${String(url)}`);
+        return pushState.call(this, data, unused, url);
+      };
+      const replaceState = history.replaceState;
+      history.replaceState = function (data, unused, url) {
+        diagnostic.__oh68Events?.push(`replaceState:${String(url)}`);
+        return replaceState.call(this, data, unused, url);
+      };
+    });
     await selectedRow.click();
-    await expect.poll(() => new URL(page.url()).pathname, { timeout: 90_000 }).toBe(`/session/${selectedSessionId}`);
+    try {
+      await expect.poll(() => new URL(page.url()).pathname, { timeout: 5_000 }).toBe(`/session/${selectedSessionId}`);
+    } finally {
+      console.log('OH68 row navigation diagnostic', await page.evaluate(() => ({
+        url: window.location.href,
+        events: (window as typeof window & { __oh68Events?: string[] }).__oh68Events,
+      })));
+    }
 
     async function expectBlankDraftAndCancel(): Promise<void> {
       await page.waitForURL((url) => url.pathname.endsWith('/new'), { timeout: 60_000 });
