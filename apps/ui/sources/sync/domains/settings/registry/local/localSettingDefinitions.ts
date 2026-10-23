@@ -158,6 +158,12 @@ export const LOCAL_SETTING_DEFINITIONS = defineSettingDefinitions({
         storageScope: 'local',
         analytics: { trackCurrentState: true, trackChanges: true, valueKind: 'enum', privacy: 'safe', identityScope: 'device_user' },
     },
+    sessionListShowMachineIdentity: {
+        schema: z.boolean().catch(true),
+        default: true,
+        description: 'Show the hosting machine on session list rows on this device',
+        storageScope: 'local',
+    },
     themePreference: {
         schema: z.enum(['light', 'dark', 'adaptive']),
         default: 'adaptive',

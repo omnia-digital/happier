@@ -426,6 +426,8 @@ export function buildSessionListRowModel(input: BuildSessionListRowModelInput): 
         }),
         title,
         subtitle,
+        machineLabel: normalizeNonEmptyString(settings.reachableSessionDisplayByKey[rowKey]?.machineLabel),
+        showMachineIdentity: settings.showMachineIdentity !== false,
         subtitleEllipsizeMode,
         groupKey: String(item.groupKey ?? '').trim(),
         groupKind: item.groupKind ?? null,

@@ -32,6 +32,8 @@ interface ChatHeaderViewProps {
     subtitle?: string;
     subtitleEllipsizeMode?: 'head' | 'tail';
     badges?: ReadonlyArray<string>;
+    /** Canonical display name of the machine hosting the selected session. */
+    machineLabel?: string | null;
     onBackPress?: () => void;
     avatarId?: string;
     /** Resolved agent for this session, when there is one. Shown in place of the avatar on request. */
@@ -64,6 +66,7 @@ export const ChatHeaderView = React.memo(function ChatHeaderView({
     subtitle,
     subtitleEllipsizeMode = 'tail',
     badges,
+    machineLabel,
     onBackPress,
     avatarId,
     agentId,
@@ -213,6 +216,21 @@ export const ChatHeaderView = React.memo(function ChatHeaderView({
                                 </View>
                             ))
                         ) : null}
+                        {machineLabel ? (
+                            <View
+                                testID="session-header-machine-identity"
+                                accessible={true}
+                                accessibilityRole="text"
+                                accessibilityLabel={machineLabel}
+                                {...(Platform.OS === 'web' ? { title: machineLabel } : {})}
+                                style={styles.machineIdentity}
+                            >
+                                <Icon name="desktop" size={12} color={theme.colors.chrome.header.foreground} />
+                                <Text style={[styles.machineIdentityText, { color: theme.colors.chrome.header.foreground }]} numberOfLines={1} ellipsizeMode="tail">
+                                    {machineLabel}
+                                </Text>
+                            </View>
+                        ) : null}
                     </View>
                     {subtitle && (
                         <Text
@@ -348,6 +366,19 @@ const styles = StyleSheet.create(() => ({
     badgeText: {
         fontSize: 10,
         lineHeight: 14,
+    },
+    machineIdentity: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        maxWidth: 150,
+        minWidth: 0,
+        flexShrink: 1,
+    },
+    machineIdentityText: {
+        ...Typography.default(),
+        fontSize: 11,
+        flexShrink: 1,
     },
     rightElementContainer: {
         flexDirection: 'row',

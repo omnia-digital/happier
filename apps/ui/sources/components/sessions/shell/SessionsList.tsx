@@ -12,7 +12,7 @@ import {
 import { SessionListVirtualizedList } from '@/components/ui/lists/flashListCompat/SessionListVirtualizedList';
 import { usePathname, useRouter } from 'expo-router';
 import { useNavigateToSession } from '@/hooks/session/useNavigateToSession';
-import { SessionListViewItem, storage, useSetting } from '@/sync/domains/state/storage';
+import { SessionListViewItem, storage, useLocalSetting, useSetting } from '@/sync/domains/state/storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useVisibleSessionListViewData } from '@/hooks/session/useVisibleSessionListViewData';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
@@ -641,6 +641,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
     const sessionListWorkingIndicatorStyle = useSetting('sessionListNarrowWorkingIndicatorStyle');
     const backgroundWorkAttentionMode = normalizeSessionListBackgroundWorkAttentionMode(useSetting('sessionListBackgroundWorkAttentionModeV1'));
     const sessionListAgentActivityCountEnabled = useSetting('sessionListAgentActivityCountEnabled');
+    const sessionListShowMachineIdentity = useLocalSetting('sessionListShowMachineIdentity');
     const sessionListIdentityDisplay = useSessionListIdentityDisplay();
     const sessionListActiveColorMode = useSetting('sessionListActiveColorModeV1');
     const sessionListSectionModeRaw = useSetting('sessionListSectionModeV1');
@@ -943,6 +944,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
             showServerBadge,
             showPinnedServerBadge,
             agentActivityCountEnabled: sessionListAgentActivityCountEnabled === true,
+            showMachineIdentity: sessionListShowMachineIdentity !== false,
             tagsEnabled: sessionTagsEnabled === true,
             sessionTagsByKey: sessionTagsV1 ?? EMPTY_SESSION_TAGS_BY_KEY,
             allKnownTags,
@@ -971,6 +973,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         pinnedKeyList,
         reachableSessionDisplayByKeyRecord,
         sessionListAgentActivityCountEnabled,
+        sessionListShowMachineIdentity,
         sessionListActiveColorMode,
         sessionListIdentityDisplay,
         sessionListWorkingIndicatorStyle,
@@ -2080,6 +2083,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         rowLabelsSignature,
         sessionListActiveColorMode: rowPresentationSettings.activeColorMode,
         sessionListAgentActivityCountEnabled: rowPresentationSettings.agentActivityCountEnabled,
+        sessionListShowMachineIdentity: rowPresentationSettings.showMachineIdentity,
         sessionListHideInactiveSessions: rowPresentationSettings.hideInactiveSessions,
         sessionListIdentityDisplay: rowPresentationSettings.identityDisplay,
         sessionListOrderingMode,
@@ -2122,6 +2126,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         rowLabelsSignature,
         rowPresentationSettings.activeColorMode,
         rowPresentationSettings.agentActivityCountEnabled,
+        rowPresentationSettings.showMachineIdentity,
         rowPresentationSettings.hideInactiveSessions,
         rowPresentationSettings.identityDisplay,
         rowPresentationSettings.statusColors,

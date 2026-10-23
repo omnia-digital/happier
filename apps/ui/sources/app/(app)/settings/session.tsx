@@ -69,6 +69,7 @@ export default React.memo(function SessionSettingsScreen() {
     const [cockpitSwipeNavigationEnabled, setCockpitSwipeNavigationEnabled] = useSettingMutable('sessionCockpitSwipeNavigationEnabled');
     const [sessionListOrderingModeV1, setSessionListOrderingModeV1] = useSettingMutable('sessionListOrderingModeV1');
     const [sessionListFolderSortModeV1, setSessionListFolderSortModeV1] = useLocalSettingMutable('sessionListFolderSortModeV1');
+    const [sessionListShowMachineIdentity, setSessionListShowMachineIdentity] = useLocalSettingMutable('sessionListShowMachineIdentity');
     const [sessionsRightPaneDefaultOpen, setSessionsRightPaneDefaultOpen] = useLocalSettingMutable('sessionsRightPaneDefaultOpen');
     const [uiMultiPanePanelsEnabled] = useLocalSettingMutable('uiMultiPanePanelsEnabled');
 
@@ -693,6 +694,21 @@ export default React.memo(function SessionSettingsScreen() {
                 title={t('settingsSession.rootGroups.rowDetails.title')}
                 footer={t('settingsSession.rootGroups.rowDetails.footer')}
             >
+                <Item
+                    testID="settings-session-machineIdentity-item"
+                    title={t('settingsSession.sessionList.machineIdentityTitle')}
+                    subtitle={sessionListShowMachineIdentity !== false
+                        ? t('settingsSession.sessionList.machineIdentityEnabledSubtitle')
+                        : t('settingsSession.sessionList.machineIdentityDisabledSubtitle')}
+                    icon={<Icon name="desktop" size={29} color={theme.colors.accent.blue} />}
+                    rightElement={<Switch
+                        testID="settings-session-machineIdentity-toggle"
+                        value={sessionListShowMachineIdentity !== false}
+                        onValueChange={(next) => setSessionListShowMachineIdentity(Boolean(next))}
+                    />}
+                    showChevron={false}
+                    onPress={() => setSessionListShowMachineIdentity(sessionListShowMachineIdentity === false)}
+                />
                 <Item
                     title={t('settingsSession.sessionList.tagsTitle')}
                     subtitle={sessionTagsEnabled ? t('settingsSession.sessionList.tagsEnabledSubtitle') : t('settingsSession.sessionList.tagsDisabledSubtitle')}

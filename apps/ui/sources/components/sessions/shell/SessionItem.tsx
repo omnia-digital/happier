@@ -177,6 +177,8 @@ type SessionItemRenderProps = Omit<SessionItemBaseProps, 'activityTimeMode' | 's
     sessionStatus: SessionStatus;
     sessionNameResolved: string;
     sessionSubtitle: string;
+    machineLabel: string | null;
+    showMachineIdentity: boolean;
     pendingCount: number;
     hasUnreadMessages: boolean;
     draft: SessionListRowModel['draft'];
@@ -420,6 +422,20 @@ const stylesheet = StyleSheet.create((theme) => ({
         alignItems: 'center',
         marginBottom: 1,
         gap: 6,
+    },
+    machineIdentity: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        maxWidth: 112,
+        minWidth: 0,
+        flexShrink: 1,
+    },
+    machineIdentityText: {
+        color: theme.colors.text.secondary,
+        fontSize: 10,
+        ...Typography.default(),
+        flexShrink: 1,
     },
     sessionTitle: {
         ...SESSION_LIST_ROW_TITLE_TEXT_METRICS.default,
@@ -709,6 +725,8 @@ const SessionItemContent = React.memo(
         sessionStatus,
         sessionNameResolved,
         sessionSubtitle,
+        machineLabel,
+        showMachineIdentity,
         pendingCount,
         hasUnreadMessages,
         draft,
@@ -1445,6 +1463,21 @@ const SessionItemContent = React.memo(
                                 {sessionNameResolved}
                             </Text>
                         )}
+                        {showMachineIdentity && machineLabel ? (
+                            <View
+                                testID={`session-list-machine-identity-${resolvedSession.id}`}
+                                accessible={true}
+                                accessibilityRole="text"
+                                accessibilityLabel={machineLabel}
+                                {...(Platform.OS === 'web' ? { title: machineLabel } : {})}
+                                style={styles.machineIdentity}
+                            >
+                                <Icon name="desktop" size={11} color={theme.colors.text.secondary} />
+                                <Text style={styles.machineIdentityText} numberOfLines={1} ellipsizeMode="tail">
+                                    {machineLabel}
+                                </Text>
+                            </View>
+                        ) : null}
                         {showServerBadge && serverName ? (
                             <View style={styles.serverBadgeContainer}>
                                 <Text style={styles.serverBadgeText} numberOfLines={1}>
@@ -1916,6 +1949,8 @@ function SessionItemFromRowModel(props: SessionItemProps & { rowModel: SessionLi
             sessionStatus={rowModel.status}
             sessionNameResolved={rowModel.title}
             sessionSubtitle={itemProps.subtitleOverride ?? rowModel.subtitle}
+            machineLabel={rowModel.machineLabel}
+            showMachineIdentity={rowModel.showMachineIdentity}
             pendingCount={rowModel.pendingCount}
             hasUnreadMessages={rowModel.hasUnreadMessages}
             draft={rowModel.draft}
