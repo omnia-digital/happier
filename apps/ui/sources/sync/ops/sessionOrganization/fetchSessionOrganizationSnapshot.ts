@@ -11,6 +11,7 @@ export async function fetchAndApplySessionOrganizationSnapshot(params: Readonly<
     serverUrl?: string;
     request?: Partial<SessionOrganizationSnapshotRequest>;
     shouldContinue?: () => boolean;
+    canApplySnapshot?: () => Promise<boolean>;
 }>): Promise<void> {
     const requestedServerId = params.serverId.trim();
     const resolveCurrentServerId = () => (
@@ -32,6 +33,8 @@ export async function fetchAndApplySessionOrganizationSnapshot(params: Readonly<
             credentials: params.credentials,
             snapshot: response.snapshot,
         });
+        if (params.shouldContinue && !params.shouldContinue()) return;
+        if (params.canApplySnapshot && !await params.canApplySnapshot()) return;
         if (params.shouldContinue && !params.shouldContinue()) return;
         currentServerId = resolveCurrentServerId();
         if (currentServerId !== initialServerId) {

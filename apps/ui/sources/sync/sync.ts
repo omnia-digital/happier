@@ -1,3 +1,4 @@
+import { buildOrganizationProjectionForServer, persistSessionOrganizationWarmCache } from '@/sync/store/sessionOrganizationWarmCache';
 import Constants from 'expo-constants';
 import { parsePermissionIntentAlias, resolvePermissionIntentFromSessionMetadata } from '@happier-dev/agents';
 import { apiSocket } from '@/sync/api/session/apiSocket';
@@ -92,10 +93,7 @@ import {
 } from '@/sync/domains/session/realtime/deferredSessionStateHydration';
 import { normalizeSessionListAttentionPromotionMode } from '@/sync/domains/session/listing/attentionPromotion/sessionListAttentionPromotion';
 import {
-    buildSessionOrganizationProjection,
-    buildSessionOrganizationSnapshotFromProjection,
     listSessionOrganizationRequiredHydrationSessionIds,
-    type SessionOrganizationProjection,
 } from '@/sync/domains/session/organization';
 import { fetchAndApplySessionOrganizationSnapshot } from '@/sync/ops/sessionOrganization';
 import { createSessionListOrganizationSnapshotRequest } from '@/sync/engine/sessions/sessionListOrganizationSnapshotRequest';
@@ -204,7 +202,6 @@ import {
     loadSessionOrganizationWarmCacheSnapshot,
     readPersistedSessionListWarmCacheEntries,
     resolveWarmCacheAccountScope,
-    saveSessionOrganizationWarmCacheSnapshot,
     setWarmCacheAccountScope,
 } from './domains/state/warmCachePersistence';
 import {
@@ -891,56 +888,6 @@ function canShareFetchSessionsInFlight(options?: FetchSessionsOptions): boolean 
         && options?.mode !== 'append';
 }
 
-type SessionOrganizationSyncState = Pick<
-    ReturnType<typeof storage.getState>,
-    | 'sessionOrganizationSchemaVersionByServerId'
-    | 'sessionOrganizationSnapshotVersionByServerId'
-    | 'sessionOrganizationPinsBySessionKey'
-    | 'sessionOrganizationFoldersByFolderKey'
-    | 'sessionOrganizationFolderAssignmentsBySessionKey'
-    | 'sessionOrganizationTagsByTagKey'
-    | 'sessionOrganizationTagAssignmentsBySessionKey'
-    | 'sessionOrganizationAttentionStandingsBySessionKey'
-    | 'sessionOrganizationOrderEntriesByScopeKey'
-    | 'sessionOrganizationLabelsByLabelKey'
->;
-
-function buildOrganizationProjectionForServer(
-    state: SessionOrganizationSyncState,
-    serverId: string | null,
-): SessionOrganizationProjection | null {
-    const normalizedServerId = typeof serverId === 'string' && serverId.trim().length > 0 ? serverId.trim() : null;
-    if (!normalizedServerId) return null;
-    return buildSessionOrganizationProjection({
-        schemaVersionByServerId: state.sessionOrganizationSchemaVersionByServerId,
-        snapshotVersionByServerId: state.sessionOrganizationSnapshotVersionByServerId,
-        pinsBySessionKey: state.sessionOrganizationPinsBySessionKey,
-        foldersByFolderKey: state.sessionOrganizationFoldersByFolderKey,
-        folderAssignmentsBySessionKey: state.sessionOrganizationFolderAssignmentsBySessionKey,
-        tagsByTagKey: state.sessionOrganizationTagsByTagKey,
-        tagAssignmentsBySessionKey: state.sessionOrganizationTagAssignmentsBySessionKey,
-        attentionStandingsBySessionKey: state.sessionOrganizationAttentionStandingsBySessionKey,
-        orderEntriesByScopeKey: state.sessionOrganizationOrderEntriesByScopeKey,
-        labelsByLabelKey: state.sessionOrganizationLabelsByLabelKey,
-    }, normalizedServerId);
-}
-
-/**
- * Persist the organization the list is currently painting so the next boot repaints it before
- * the refresh lands. Written from the store rather than from a response so partial refreshes
- * (`refreshSessionOrganization`) stay represented, and skipped whenever the store does not hold
- * a complete snapshot for this server yet.
- */
-function persistSessionOrganizationWarmCache(
-    serverId: string | null,
-    accountId: string | null,
-    projection: SessionOrganizationProjection | null,
-): void {
-    if (!serverId || !projection) return;
-    const snapshot = buildSessionOrganizationSnapshotFromProjection(projection);
-    if (!snapshot) return;
-    saveSessionOrganizationWarmCacheSnapshot(serverId, accountId, snapshot);
-}
 
 function shouldIncludeSessionListAttentionRows(settings: Pick<Settings, 'sessionListAttentionPromotionModeV1'>): boolean {
     return normalizeSessionListAttentionPromotionMode(settings.sessionListAttentionPromotionModeV1) !== 'off';

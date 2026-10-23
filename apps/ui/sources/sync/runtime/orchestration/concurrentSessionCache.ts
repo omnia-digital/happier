@@ -1,3 +1,9 @@
+import { fetchAndApplySessionOrganizationSnapshot } from '@/sync/ops/sessionOrganization/fetchSessionOrganizationSnapshot';
+import { isServerScopedSessionContextCurrent } from './serverScopedRpc/resolveServerScopedSessionContext';
+import { parseToken } from '@/utils/auth/parseToken';
+import { loadSessionOrganizationWarmCacheSnapshot } from '@/sync/domains/state/warmCachePersistence';
+import { buildOrganizationProjectionForServer, persistSessionOrganizationWarmCache } from '@/sync/store/sessionOrganizationWarmCache';
+import { createSessionListOrganizationSnapshotRequest } from '@/sync/engine/sessions/sessionListOrganizationSnapshotRequest';
 import { TokenStorage, type AuthCredentials } from '@/auth/storage/tokenStorage';
 import { resolveAuthCredentialsScopeKey } from '@/auth/storage/resolveAuthCredentialsScopeKey';
 import { Encryption } from '@/sync/encryption/encryption';
@@ -60,6 +66,7 @@ type ManagedConcurrentServer = {
     serverUrl: string;
     serverName: string;
     credentials: AuthCredentials;
+    accountId: string | null;
     socket: ConcurrentServerSocket | null;
     socketTransport: ManagedConnectionTransport | null;
     reachabilityUnsubscribe: (() => void) | null;
@@ -289,6 +296,28 @@ async function refreshServerSnapshot(entry: ManagedConcurrentServer): Promise<vo
         return;
     }
 
+    if (entry.accountId) {
+        const targetAccountId = entry.accountId;
+        const isContextCurrent = () => isServerScopedSessionContextCurrent({
+            targetServerId: entry.id, targetServerUrl: entry.serverUrl, targetAccountId,
+        });
+        try {
+            await fetchAndApplySessionOrganizationSnapshot({
+                credentials: entry.credentials,
+                serverId: entry.id,
+                serverUrl: entry.serverUrl,
+                request: createSessionListOrganizationSnapshotRequest(),
+                shouldContinue: () => isManagedServerActive(entry),
+                canApplySnapshot: isContextCurrent,
+            });
+            if (!await isContextCurrent() || !isManagedServerActive(entry)) return;
+            persistSessionOrganizationWarmCache(entry.id, entry.accountId, buildOrganizationProjectionForServer(storage.getState(), entry.id));
+        } catch (error) {
+            console.warn('[concurrentSessionCache] Organization refresh failed', error);
+        }
+    }
+    if (!isManagedServerActive(entry)) return;
+
     const sessionListViewData = buildSessionListViewData(
         sessionsById,
         machinesById,
@@ -356,6 +385,12 @@ async function runRefresh(entry: ManagedConcurrentServer): Promise<void> {
 function stopManagedServer(serverId: string): void {
     const entry = managedServers.get(serverId);
     if (!entry) return;
+    if (!areServerProfileIdentifiersEquivalent(getActiveServerSnapshot().serverId, entry.id)) {
+        if (entry.accountId) {
+            persistSessionOrganizationWarmCache(entry.id, entry.accountId, buildOrganizationProjectionForServer(storage.getState(), entry.id));
+        }
+        storage.getState().clearSessionOrganizationForServer(entry.id);
+    }
     if (entry.refreshTimer) {
         clearTimeout(entry.refreshTimer);
     }
@@ -375,11 +410,23 @@ function stopManagedServer(serverId: string): void {
 
 function createManagedServer(target: ConcurrentTarget, credentials: AuthCredentials): ManagedConcurrentServer {
     const normalizedServerUrl = normalizeServerUrl(target.serverUrl) || target.serverUrl;
+    let accountId: string | null = null;
+    try {
+        accountId = parseToken(credentials.token);
+    } catch (error) {
+        console.warn('[concurrentSessionCache] Cannot restore organization for invalid account credentials', error);
+    }
+    storage.getState().clearSessionOrganizationForServer(target.id);
+    const organizationSnapshot = accountId ? loadSessionOrganizationWarmCacheSnapshot(target.id, accountId) : null;
+    if (organizationSnapshot) {
+        storage.getState().applySessionOrganizationSnapshot(target.id, organizationSnapshot, createSessionListOrganizationSnapshotRequest());
+    }
     const entry: ManagedConcurrentServer = {
         id: target.id,
         serverUrl: normalizedServerUrl,
         serverName: target.serverName,
         credentials,
+        accountId,
         socket: null,
         socketTransport: null,
         reachabilityUnsubscribe: null,
@@ -410,6 +457,7 @@ function createManagedServer(target: ConcurrentTarget, credentials: AuthCredenti
         entry.reachabilityState = state;
 
         if (state.phase === 'auth_failed') {
+            storage.getState().clearSessionOrganizationForServer(entry.id);
             updateConcurrentSessionListCache(entry.id, null);
             updateConcurrentMachineListCache({
                 serverId: entry.id,
