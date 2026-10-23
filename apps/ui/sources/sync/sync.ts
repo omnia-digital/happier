@@ -2356,7 +2356,11 @@ class Sync {
             // Fast-path when we already know the session exists on this server and the stored record is
             // already authoritatively hydrated (deep links can occur before the sessions snapshot bootstraps).
             const existingSession = storage.getState().sessions[normalized];
-            if (!forceRefresh && this.isSessionKnownOnActiveServer(normalized) && existingSession) {
+            const targetsActiveServer = !scopedServerId || (
+                !!activeServerIdAtHydrationStart
+                && areServerProfileIdentifiersEquivalent(scopedServerId, activeServerIdAtHydrationStart)
+            );
+            if (!forceRefresh && targetsActiveServer && this.isSessionKnownOnActiveServer(normalized) && existingSession) {
                 const encryptionMode: 'e2ee' | 'plain' = existingSession.encryptionMode === 'plain' ? 'plain' : 'e2ee';
                 const hasEncryption = encryptionMode === 'plain'
                     ? false
