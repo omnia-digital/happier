@@ -41,6 +41,10 @@ import {
 import { sessionTagKey } from './sessionTagUtils';
 import { t } from '@/text';
 import { Modal } from '@/modal';
+import { executeSessionAction } from '@/components/sessions/actions/sessionActionExecution';
+import { SESSION_ACTION_ARCHIVE_ID } from '@/components/sessions/actions/sessionActionIds';
+import type { SessionActionTarget } from '@/components/sessions/actions/sessionActionTypes';
+import { isSessionArchivePending } from '@/components/sessions/sessionStopArchiveFlow';
 import type { DropdownMenuItem } from '@/components/ui/forms/dropdown/DropdownMenu';
 import { Item } from '@/components/ui/lists/Item';
 import { ItemGroup } from '@/components/ui/lists/ItemGroup';
@@ -516,6 +520,15 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
     const data = useSessionListSnapshotWhenInactive(liveData, surfaceOwnership.dataActive);
     const surfaceDataActiveRef = React.useRef(surfaceOwnership.dataActive);
     surfaceDataActiveRef.current = surfaceOwnership.dataActive;
+    const hoveredArchiveTargetRef = React.useRef<{ key: string; target: SessionActionTarget } | null>(null);
+    const archiveShortcutPendingRef = React.useRef(false);
+    const handleHoverArchiveTarget = React.useCallback((key: string, target: SessionActionTarget | null) => {
+        if (target) {
+            hoveredArchiveTargetRef.current = { key, target };
+        } else if (hoveredArchiveTargetRef.current?.key === key) {
+            hoveredArchiveTargetRef.current = null;
+        }
+    }, []);
     const sessionListPaneSourceScopeKey = useSessionListPaneSourceScopeKey();
     const currentPathname = usePathname();
     const pathname = props.pathname ?? currentPathname;
@@ -1012,6 +1025,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         }
     }, []);
     const handleVirtualizedListScroll = React.useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+        hoveredArchiveTargetRef.current = null;
         if (surfaceDataActiveRef.current) {
             sync.markSessionListScrollActivity();
         }
@@ -1596,6 +1610,9 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
             selection.activeServerId,
         ],
     );
+    React.useEffect(() => {
+        hoveredArchiveTargetRef.current = null;
+    }, [focusedFolderId, searchQuery, selectedHeaderTags, surfaceOwnership.dataActive, surfaceOwnership.interactive]);
     const sessionListSelectionStore = useSessionListSelectionController({
         scopeKey: sessionListSelectionScopeKey,
         visibleOrderedKeys: visibleSessionSelectionKeys,
@@ -1723,9 +1740,28 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         }
         sessionListSelectionStore.selectRange(targetKey);
     }, [resolveSelectionKeyboardCurrentKey, sessionListSelectionStore, visibleSessionNavigationEntries]);
+    const handleHoveredArchiveShortcut = React.useCallback(() => {
+        if (archiveShortcutPendingRef.current) return false;
+        const hovered = hoveredArchiveTargetRef.current;
+        if (!hovered || !hovered.target.canArchive || hovered.target.isArchived) return false;
+        if (!renderedListItems.some((item) => item.type === 'session'
+            && `${item.serverId ?? ''}:${item.session.id}` === hovered.key)) return false;
+        const target = hovered.target;
+        if (isSessionArchivePending(target.sessionId, target.serverId)) return false;
+        archiveShortcutPendingRef.current = true;
+        void executeSessionAction({
+            actionId: SESSION_ACTION_ARCHIVE_ID,
+            target,
+            context: { hideInactiveSessions, forceArchiveConfirmation: true },
+        }).catch(showMoveError).finally(() => {
+            archiveShortcutPendingRef.current = false;
+        });
+        return true;
+    }, [hideInactiveSessions, renderedListItems, showMoveError]);
     useKeyboardShortcutHandlers(React.useMemo(() => {
         if (!surfaceOwnership.interactive) return {};
         return {
+            'session.hovered.archive': handleHoveredArchiveShortcut,
             ...Object.fromEntries(numberedSessionEntries.map((_, index) => [
                 `session.number.${index + 1}`,
                 () => handleNumberedSessionShortcut(index + 1),
@@ -1769,6 +1805,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
     }, [
         activeSessionKey,
         handleMruSessionShortcut,
+        handleHoveredArchiveShortcut,
         handleNumberedSessionShortcut,
         handleSessionSelectionExtend,
         handleSessionSelectionToggleFocused,
@@ -2138,6 +2175,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         sessionListSectionMode,
         sessionListStatusColors: rowPresentationSettings.statusColors,
         sessionListSurfaceDataActive: surfaceOwnership.dataActive,
+        sessionListSurfaceInteractive: surfaceOwnership.interactive,
         sessionListWorkingIndicatorMode: rowPresentationSettings.workingIndicatorMode,
         sessionListBackgroundWorkAttentionMode: rowPresentationSettings.backgroundWorkAttentionMode,
         sessionTagsEnabled: sessionTagsEnabled === true,
@@ -2186,6 +2224,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         sessionListMachineViewMode,
         sessionListSectionMode,
         surfaceOwnership.dataActive,
+        surfaceOwnership.interactive,
         sessionTagsEnabled,
         sessionTagsSignature,
         showStructuralDragHandles,
@@ -2221,6 +2260,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                 folderViewEnabled={folderViewEnabled}
                 forkActionContext={forkActionContext}
                 getRowMoveActionHandlers={getRowMoveActionHandlers}
+                onHoverArchiveTarget={surfaceOwnership.interactive && surfaceOwnership.dataActive ? handleHoverArchiveTarget : undefined}
                 getRowNativeContextMenuOpenChangeHandler={getRowNativeContextMenuOpenChangeHandler}
                 getRowSetTagsHandler={getRowSetTagsHandler}
                 getRowTogglePinnedHandler={getRowTogglePinnedHandler}
@@ -2247,6 +2287,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         forkActionContext,
         selection.activeServerId,
         surfaceOwnership.dataActive,
+        surfaceOwnership.interactive,
         nativeContextMenuSessionKey,
         numberByVisibleRowIndex,
         prioritySessionRowKeys,
@@ -2259,6 +2300,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         folderActionsEnabled,
         folderViewEnabled,
         getRowMoveActionHandlers,
+        handleHoverArchiveTarget,
         handleA11yDragStart,
         handleA11yTreeDropResult,
         handleStableDragCancel,

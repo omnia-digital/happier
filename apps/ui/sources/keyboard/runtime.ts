@@ -16,7 +16,7 @@ import type {
     NormalizedKeyboardEvent,
 } from './types';
 
-export type KeyboardShortcutHandlers = Partial<Record<KeyboardCommandId, () => boolean | void>>;
+export type KeyboardShortcutHandlers = Partial<Record<KeyboardCommandId, () => unknown>>;
 
 export type KeyboardShortcutDispatcherOptions = Readonly<{
     enabled: boolean;

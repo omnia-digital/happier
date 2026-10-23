@@ -59,6 +59,8 @@ import { useSessionRowActionMenu } from './row/actionMenu/useSessionRowActionMen
 import { formatSessionAttentionReminderDateTime } from './row/actionMenu/sessionAttentionReminderAction';
 import { createSessionActionTarget } from '@/components/sessions/actions/sessionActionContext';
 import { executeSessionAction } from '@/components/sessions/actions/sessionActionExecution';
+import type { SessionActionTarget } from '@/components/sessions/actions/sessionActionTypes';
+import { useKeyboardShortcutLabel } from '@/keyboard/KeyboardShortcutProvider';
 import {
     SESSION_ACTION_ARCHIVE_ID,
     SESSION_ACTION_PIN_ID,
@@ -164,6 +166,7 @@ type SessionItemBaseProps = Readonly<{
     onMoveToFolder?: () => void;
     onMoveToWorkspaceRoot?: () => void;
     onMoveUp?: () => void;
+    onHoverArchiveTarget?: (key: string, target: SessionActionTarget | null) => void;
     forkActionContext?: Readonly<{
         replayEnabled: boolean;
         executionRunsEnabled: boolean;
@@ -721,6 +724,7 @@ const SessionItemContent = React.memo(
         onMoveToFolder,
         onMoveToWorkspaceRoot,
         onMoveUp,
+        onHoverArchiveTarget,
         forkActionContext,
         sessionStatus,
         sessionNameResolved,
@@ -808,6 +812,7 @@ const SessionItemContent = React.memo(
         );
         const isMinimal = Boolean(compact && compactMinimal);
         const canArchiveSession = sessionActionTarget.canArchive;
+        const archiveShortcutLabel = useKeyboardShortcutLabel('session.hovered.archive');
         const swipeEnabled = Platform.OS !== 'web' && nativeInlineDragEnabled !== true && canArchiveSession;
         const [isRowHovered, setIsRowHovered] = React.useState(false);
         const [isRowFocused, setIsRowFocused] = React.useState(false);
@@ -1161,6 +1166,13 @@ const SessionItemContent = React.memo(
             reminder,
             archiving: sessionStatus.state === 'archiving',
         });
+
+        const hoverArchiveKey = `${sessionActionTarget.serverId ?? ''}:${sessionActionTarget.sessionId}`;
+        React.useEffect(() => {
+            if (!isWeb || !isRowHovered || !canArchiveSession || mutatingSession || sessionStatus.state === 'archiving') return;
+            onHoverArchiveTarget?.(hoverArchiveKey, sessionActionTarget);
+            return () => onHoverArchiveTarget?.(hoverArchiveKey, null);
+        }, [canArchiveSession, hoverArchiveKey, isRowHovered, isWeb, mutatingSession, onHoverArchiveTarget, sessionActionTarget, sessionStatus.state]);
 
         const handleSwipeAction = React.useCallback(async () => {
             swipeableRef.current?.close();
@@ -1753,7 +1765,9 @@ const SessionItemContent = React.memo(
                                     style={styles.rowActionButton}
                                     accessibilityRole="button"
                                     accessibilityLabel={t('sessionInfo.archiveSession')}
-                                    webTooltip={t('sessionInfo.archiveSession')}
+                                    webTooltip={archiveShortcutLabel
+                                        ? `${t('sessionInfo.archiveSession')} (${archiveShortcutLabel})`
+                                        : t('sessionInfo.archiveSession')}
                                     tooltipPlacement="left"
                                     disabled={mutatingSession}
                                     hitSlop={8}
