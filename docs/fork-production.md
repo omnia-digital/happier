@@ -4,7 +4,7 @@ The Omnia fork uses `dev` for integration and `production` for the daily-use
 source. `main` follows the parent project's main line and is not our release
 destination. Feature branches and pull requests target `dev`.
 
-This is a source promotion workflow. It does not publish upstream npm packages,
+This is a source promotion workflow gated by CI and unsigned desktop builds. It does not publish upstream npm packages,
 update feeds, app-store builds, Docker images, or GitHub release artifacts.
 Signing and distribution are separate release work. The hosted Happier account,
 relay, installed CLI and daemon remain the existing daily services.
@@ -112,14 +112,19 @@ schedules are best effort. A manual run is admitted only from this fork's `dev`.
 3. Use `verify-existing-ci.mjs` to validate the repository, workflow, event,
    branch, source SHA and required lane artifact. A green unrelated/manual run
    does not qualify. Missing or failed CI leaves production untouched.
-4. Create a narrowly scoped token from the fork's release GitHub App.
-5. Use the existing `promote-branch.mjs` owner to fast-forward `production` to
+4. Build unsigned desktop candidates through `build-tauri.yml`, with Apple
+   Silicon on Cassian and other platforms on their existing hosted runners.
+   Missing, skipped or failed builds block promotion.
+5. Create a narrowly scoped token from the fork's release GitHub App.
+6. Use the existing `promote-branch.mjs` owner to fast-forward `production` to
    the certified commit. Divergence fails; it is never reset. Newer `dev` commits
    arriving during the run are not silently included.
 
 GitHub's normal repository-write permission controls manual dispatch. The
 fork/repository and `dev` guards, exact-source CI verifier and App scope protect
-promotion. There is no extra organization team requirement. Upstream scheduled
+promotion. Desktop preparation retains the canonical release actor guard, with
+its repository-admin check when no release team credentials are forwarded.
+Upstream scheduled
 publication and extra nightly suites remain defined, but their scheduled jobs
 are admitted only in `happier-dev/happier`; their manual/reusable behavior remains.
 
@@ -145,21 +150,37 @@ has no authenticated GitHub API session. Registration remains part of the
 GitHub activation exception below; no credentials were copied between machines.
 
 For registration, use a dedicated organization runner group restricted to this
-repository and the trusted nightly workflow on `dev`. This fork is public, so
+repository and `omnia-digital/happier/.github/workflows/build-tauri.yml@refs/heads/dev`,
+where the reusable build job is defined. Its additional admission step permits
+Cassian only when called by `omnia-production.yml` on `dev`, for the triggering
+exact SHA and unsigned preparation. This fork is public, so
 do not expose Cassian's persistent runner to pull-request workflows. Give the
 runner a Cassian-specific label and its own `_work` directory under the installed
 runner. Register with `/opt/homebrew/bin` on PATH, then install/start its own
 service and verify that GitHub reports it online before dispatch.
 
-The native build must be wired through the existing
-`.github/workflows/build-tauri.yml` candidate owner. Its macOS build selection
-currently uses hosted runners and pins Xcode **26.2**. Resolve that toolchain
-requirement and route only the unsigned Mac candidate build to Cassian, preserving
-exact-source CI admission. Linux/Windows and signing/publication jobs keep their
-existing owners and environments. The persistent-runner admission contract must
-cover the added route; changing its existing test requires Josh's test-change
-approval. The current `omnia-production.yml` still performs source promotion
-only: moving its three jobs would not create or relocate a native app build.
+The branch now wires native builds through the existing
+`.github/workflows/build-tauri.yml` candidate owner. Only its unsigned Apple
+Silicon candidate selects the `self-hosted`, `macOS`, `ARM64`,
+`cassian-happier-nightly` labels. Its Xcode step verifies **26.5** in
+`/Applications/Xcode.app` and sets `DEVELOPER_DIR` for that job without changing
+the host's global selection. Intel Mac, Linux, Windows and signing/publication
+jobs keep their existing runners and environments; hosted Mac jobs retain Xcode
+**26.2**. The nightly call forwards no signing or release App credentials and
+requests preparation only, with publication disabled. Promotion depends on
+successful completion of the reusable desktop workflow.
+
+The three new Cassian workflow tests first failed on missing admission, routing,
+and build gating, then passed. They execute the real admission shell against
+trusted schedule/manual requests and reject PR contexts, other caller workflows,
+different source SHAs, and signing phases. The adjacent focused run passed 23 of
+24 tests: the prior source-promotion test still expects only two dependencies and
+must be updated to require the new build dependency. The existing persistent-
+runner security test also needs to recognize the conditional runner selection
+and explicitly admit this guarded job. Those existing-test updates await Josh's
+permission; this branch is not yet ready to merge. Actionlint reports inherited
+SC2016 findings in the desktop workflow; verify the new routing separately from
+those existing expressions.
 
 No Cassian native build, runner registration, workflow dispatch, or nightly
 execution has been verified yet. The runner installation is preparation for

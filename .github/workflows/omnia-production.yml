@@ -86,9 +86,26 @@ jobs:
             --source-branch dev \
             --run-id "$CI_RUN_ID"
 
+  desktop_candidate:
+    name: Build certified native source (Apple Silicon on Cassian)
+    needs: [candidate, verify_source_ci]
+    # The reusable release owner declares write permission for its publishing
+    # phases. Every unsigned build job explicitly reduces this to contents:read.
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/build-tauri.yml
+    with:
+      source_ref: ${{ needs.candidate.outputs.source_sha }}
+      environment: production
+      preparation_only: true
+      publish_release: false
+      cassian_build: true
+      release_message: Omnia nightly candidate ${{ needs.candidate.outputs.source_sha }}
+
   promote:
     name: Fast-forward production to certified dev SHA
-    needs: [candidate, verify_source_ci]
+    needs: [candidate, verify_source_ci, desktop_candidate]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
