@@ -71,6 +71,36 @@ the owning account or an administrator deliberately removing them. Agents must
 not remove the guards. After an abrupt process/OS interruption, rerun `protect`
 from development to reapply file flags before using the checkout.
 
+### Verified setup and remaining launch gate
+
+The two permanent clones were created at
+`98dab9837ab4f918cb9be86095eca8ebe6136c25`. The production clone has the guards
+installed: the OS rejects write access to tracked source with `EPERM`, its HEAD
+and index are immutable, and a real `update` fetched GitHub successfully without
+changing that commit. The six checkout tests exercise writes, Git mutations,
+fast-forward/repeat updates, wrong checkout admission, failed fetch/merge, and
+preservation of ignored files. Workflow, existing CI-verifier and existing
+promotion tests also pass locally. These do not establish a hosted release.
+
+Dependencies were copied independently with APFS copy-on-write from the existing
+checkout, whose dependency manifests/lockfile match this source. A separate
+repo-local production stack was initialized as
+`repo-happier-production-3cff8ebd12`, titled **Happier Omnia Production**, with the
+hosted relay and no local relay or daemon. Its protected launch is **blocked**:
+Expo development type generation opens `apps/ui/.gitignore` for writing and is
+correctly denied by the OS. The source guards were not weakened to allow this.
+The unprotected first native compilation was stopped before completion; no
+native build or authenticated production-app acceptance is claimed.
+
+The daily app has not been replaced. Resolve the source-read-only launch path
+through the canonical Stack build/launcher after the required setup changes reach
+production, then verify the built native app and hosted session continuity.
+`hstack build --tauri` already owns local bundled builds; its export paths can be
+kept outside source through existing stack settings. Distribution must also
+resolve the inherited upstream updater feed before daily adoption. Do not run
+the development launcher as the protected production daily app or bypass file
+flags to make it start.
+
 ## Nightly promotion
 
 `.github/workflows/omnia-production.yml` runs at **02:17 America/Los_Angeles**,
