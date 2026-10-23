@@ -1,5 +1,5 @@
 import { selectSessionListRowStateSnapshot } from '@/sync/store/sessionListRowStateSnapshot';
-import { isSessionHydrationRevisionCurrent } from '@/sync/domains/session/listing/sessionHydrationFreshness';
+import { isSessionHydrationRevisionCurrent, buildSessionHydrationRenderablePatch } from '@/sync/domains/session/listing/sessionHydrationFreshness';
 import type { Session } from '@/sync/domains/state/storageTypes';
 import { listPendingPermissionRequests, listPendingUserActionRequests, type PendingPermissionRequest } from '@/utils/sessions/sessionUtils';
 import {
@@ -103,6 +103,7 @@ type InboxSessionAddress = Readonly<{
 }>;
 
 type InboxSessionCandidateEntry = Readonly<{
+    requestSession?: Session;
     key: string;
     serverId: string | null;
     sessionId: string;
@@ -148,6 +149,7 @@ function collectInboxSessionEntries(params: Readonly<{
     sessionListViewDataByServerId: Readonly<Record<string, readonly SessionListViewItem[] | null>>;
     sessionListRenderables?: Readonly<Record<string, SessionListRenderableSession | undefined>>;
     activeServerId?: string | null;
+    sessionMessagesById?: StorageState['sessionMessages'];
 }>): InboxSessionCandidateEntry[] {
     const entries: InboxSessionCandidateEntry[] = [];
     const seenKeys = new Set<string>();
@@ -171,11 +173,19 @@ function collectInboxSessionEntries(params: Readonly<{
                 activeServerId: params.activeServerId, sessionListRenderables: params.sessionListRenderables,
             }, address).renderable ?? item.session : item.session;
             if (canonicalSession) matchedHydratedSessions.add(canonicalSession);
-            const session = canonicalSession && isSessionHydrationRevisionCurrent(canonicalSession, listSession)
+            let session: InboxAttentionSession = canonicalSession && isSessionHydrationRevisionCurrent(canonicalSession, listSession)
                 ? canonicalSession
                 : listSession;
+            let requestSession: Session | undefined;
+            if (canonicalSession && session === listSession && (canonicalSession.archivedAt ?? null) === (listSession.archivedAt ?? null)) {
+                const hydratedRenderable = buildSessionListRenderableFromSession(canonicalSession,
+                    readMessagesForInboxSession(params.sessionMessagesById, address, params.activeServerId));
+                const patch = buildSessionHydrationRenderablePatch(hydratedRenderable, listSession);
+                if (patch) session = { ...listSession, ...patch };
+                if (canonicalSession.agentStateVersion > listSession.agentStateVersion) requestSession = canonicalSession;
+            }
             if (session.archivedAt != null) continue;
-            entries.push({ ...address, session });
+            entries.push({ ...address, session, ...(requestSession ? { requestSession } : {}) });
         }
     }
 
@@ -200,11 +210,15 @@ function readMessagesForInboxSession(
     entry: InboxSessionAddress,
     activeServerId?: string | null,
 ) {
-    if (!sessionMessagesById) return undefined;
-    const messages = activeServerId ? selectSessionListRowStateSnapshot({
-        activeServerId, sessionMessages: sessionMessagesById,
-    }, entry).messages : sessionMessagesById[entry.sessionId];
-    return messages ? readStoredSessionMessagesFromStateLike(messages) : undefined;
+    if (activeServerId) {
+        const messages = selectSessionListRowStateSnapshot({
+            activeServerId, sessionMessages: sessionMessagesById,
+        }, entry).messages;
+        // An explicit empty transcript prevents pending-request helpers from falling back to
+        // the global bare-id transcript when this session belongs to another Home.
+        return readStoredSessionMessagesFromStateLike(messages);
+    }
+    return sessionMessagesById ? readStoredSessionMessagesFromStateLike(sessionMessagesById[entry.sessionId]) : undefined;
 }
 
 function buildPendingInboxRuntimeInput(params: Readonly<{
@@ -263,14 +277,15 @@ function evaluateInboxSessionCandidate(params: Readonly<{
     const { entry } = params;
     if (!isUserFacingSession(entry.session)) return null;
     const isHydrated = 'agentState' in entry.session;
-    const messages = isHydrated
+    const requestSession = entry.requestSession ?? (isHydrated ? entry.session : null);
+    const messages = requestSession
         ? readMessagesForInboxSession(params.sessionMessagesById, entry, params.activeServerId)
         : undefined;
-    const pendingPermissions = isHydrated
-        ? listPendingPermissionRequests(entry.session, messages)
+    const pendingPermissions = requestSession
+        ? listPendingPermissionRequests(requestSession, messages)
         : [];
-    const pendingUserActions = isHydrated
-        ? listPendingUserActionRequests(entry.session, messages)
+    const pendingUserActions = requestSession
+        ? listPendingUserActionRequests(requestSession, messages)
         : [];
     const renderable = isHydrated
         ? buildSessionListRenderableFromSession(entry.session, messages)
@@ -378,6 +393,7 @@ function buildInboxSessionSummaryFromNormalizedInput(input: Readonly<{
         sessionListViewDataByServerId: input.sessionListViewDataByServerId,
         sessionListRenderables: input.sessionListRenderables,
         activeServerId: input.activeServerId,
+        sessionMessagesById: input.sessionMessagesById,
     });
     for (const entry of candidates) {
         const evaluation = evaluateInboxSessionCandidate({
