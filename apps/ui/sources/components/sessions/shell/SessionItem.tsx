@@ -185,6 +185,7 @@ type SessionItemRenderProps = Omit<SessionItemBaseProps, 'activityTimeMode' | 's
     machineLabel: string | null;
     machineId: string | null;
     showMachineIdentity: boolean;
+    showMachineLabel: boolean;
     pendingCount: number;
     hasUnreadMessages: boolean;
     draft: SessionListRowModel['draft'];
@@ -417,6 +418,9 @@ const stylesheet = StyleSheet.create((theme) => ({
     sessionContentCompact: {
         marginLeft: 12,
     },
+    sessionContentWithoutLeadingIdentity: {
+        marginLeft: 0,
+    },
     sessionContentMinimal: {
         marginLeft: 0,
     },
@@ -428,6 +432,13 @@ const stylesheet = StyleSheet.create((theme) => ({
         alignItems: 'center',
         marginBottom: 1,
         gap: 6,
+    },
+    rightIdentity: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        minWidth: 0,
+        flexShrink: 1,
     },
     shortcutHint: {
         minWidth: 18,
@@ -733,6 +744,7 @@ const SessionItemContent = React.memo(
         machineLabel,
         machineId,
         showMachineIdentity,
+        showMachineLabel,
         shortcutHint,
         pendingCount,
         hasUnreadMessages,
@@ -1264,7 +1276,10 @@ const SessionItemContent = React.memo(
             sessionListIdentityDisplay === 'agentLogo' || sessionListIdentityDisplay === 'none'
                 ? sessionListIdentityDisplay
                 : 'avatar';
-        const shouldRenderSessionListIdentity = resolvedSessionListIdentityDisplay !== 'none';
+        const shouldRenderLeadingIdentity = resolvedSessionListIdentityDisplay === 'avatar'
+            || (resolvedSessionListIdentityDisplay === 'agentLogo' && isSessionIdentityLoading);
+        const shouldRenderTrailingAgentLogo = resolvedSessionListIdentityDisplay === 'agentLogo'
+            && !isSessionIdentityLoading;
         const shouldRenderSelectionCheckbox = Boolean(resolvedSelectionKey)
             && (rowSelection.isSelectionMode || rowSelection.isSelected);
         const shouldRenderSessionListAvatar = resolvedSessionListIdentityDisplay === 'avatar';
@@ -1275,9 +1290,9 @@ const SessionItemContent = React.memo(
                 rowWidth,
                 hasTrailingMeta,
                 hasRowActions: showRowActions,
-                hasLeadingIdentity: shouldRenderSessionListIdentity || shouldRenderSelectionCheckbox,
+                hasLeadingIdentity: shouldRenderLeadingIdentity || shouldRenderSelectionCheckbox,
             })
-        ), [hasTrailingMeta, rowDensity, rowWidth, shouldRenderSelectionCheckbox, shouldRenderSessionListIdentity, showRowActions, sourceTagChips]);
+        ), [hasTrailingMeta, rowDensity, rowWidth, shouldRenderSelectionCheckbox, shouldRenderLeadingIdentity, showRowActions, sourceTagChips]);
         const tagChips = tagDisplayPlan.chips;
         const showTagChips = tagChips.length > 0;
         const showInlineTagChips = showTagChips && tagDisplayPlan.placement === 'inline';
@@ -1394,7 +1409,7 @@ const SessionItemContent = React.memo(
                 onPressOut={enableLongPressContextMenu ? clearContextMenuPressInTimer : undefined}
                 onLongPress={enableLongPressContextMenu ? openContextMenuFromLongPress : undefined}
             >
-                {shouldRenderSessionListIdentity || shouldRenderSelectionCheckbox ? (
+                {shouldRenderLeadingIdentity || shouldRenderSelectionCheckbox ? (
                     <View
                         style={[
                             styles.avatarContainer,
@@ -1432,7 +1447,7 @@ const SessionItemContent = React.memo(
                         ) : (
                             <SessionListIdentity
                                 session={resolvedSession}
-                                display={resolvedSessionListIdentityDisplay}
+                                display="avatar"
                                 avatarSize={avatarSize}
                                 agentLogoSize={agentLogoSize}
                                 monochrome={shouldRenderAvatarMonochrome}
@@ -1458,7 +1473,8 @@ const SessionItemContent = React.memo(
                         styles.sessionContent,
                         compact ? styles.sessionContentCompact : null,
                         isMinimal ? styles.sessionContentMinimal : null,
-                        isMinimal && (shouldRenderSessionListIdentity || shouldRenderSelectionCheckbox) ? styles.sessionContentMinimalWithIdentity : null,
+                        isMinimal && (shouldRenderLeadingIdentity || shouldRenderSelectionCheckbox) ? styles.sessionContentMinimalWithIdentity : null,
+                        !shouldRenderLeadingIdentity && !shouldRenderSelectionCheckbox ? styles.sessionContentWithoutLeadingIdentity : null,
                     ]}
                 >
                     <View style={styles.sessionTitleRow}>
@@ -1478,14 +1494,29 @@ const SessionItemContent = React.memo(
                                 {sessionNameResolved}
                             </Text>
                         )}
-                        {showMachineIdentity && machineLabel ? (
-                            <SessionMachineIdentity
-                                testID={`session-list-machine-identity-${resolvedSession.id}`}
-                                label={machineLabel}
-                                serverId={serverId}
-                                machineId={machineId}
-                                variant="row"
-                            />
+                        {(shouldRenderTrailingAgentLogo && !shouldRenderSelectionCheckbox) || (showMachineIdentity && machineLabel) ? (
+                            <View testID={`session-list-right-identity-${resolvedSession.id}`} style={styles.rightIdentity}>
+                                {shouldRenderTrailingAgentLogo && !shouldRenderSelectionCheckbox ? (
+                                    <SessionListIdentity
+                                        session={resolvedSession}
+                                        display="agentLogo"
+                                        avatarSize={avatarSize}
+                                        agentLogoSize={identityMetrics.trailingAgentLogoSize}
+                                        monochrome={shouldRenderAvatarMonochrome}
+                                        color={sessionTitleColor}
+                                    />
+                                ) : null}
+                                {showMachineIdentity && machineLabel ? (
+                                    <SessionMachineIdentity
+                                        testID={`session-list-machine-identity-${resolvedSession.id}`}
+                                        label={machineLabel}
+                                        serverId={serverId}
+                                        machineId={machineId}
+                                        variant="row"
+                                        showLabel={showMachineLabel}
+                                    />
+                                ) : null}
+                            </View>
                         ) : null}
                         {showServerBadge && serverName ? (
                             <View style={styles.serverBadgeContainer}>
@@ -1968,6 +1999,7 @@ function SessionItemFromRowModel(props: SessionItemProps & { rowModel: SessionLi
             machineLabel={rowModel.machineLabel}
             machineId={rowModel.machineId}
             showMachineIdentity={rowModel.showMachineIdentity}
+            showMachineLabel={rowModel.showMachineLabel}
             pendingCount={rowModel.pendingCount}
             hasUnreadMessages={rowModel.hasUnreadMessages}
             draft={rowModel.draft}

@@ -33,4 +33,26 @@ describe('Session Preferences machine row identity', () => {
         hiddenToggle.props.onValueChange(true);
         expect(sessionSettingsEntryState.settingsState.sessionListShowMachineIdentity).toBe(true);
     });
+
+    it('toggles machine labels independently of the machine icon and agent identity controls', async () => {
+        const { default: SessionSettingsScreen } = await import('../../../../app/(app)/settings/session');
+        const screen = await renderSettingsView(<SessionSettingsScreen />);
+        const labelItem = screen.findByTestId('settings-session-machineLabel-item');
+        const labelToggle = labelItem?.props.rightElement as React.ReactElement<{ value: boolean; onValueChange: (next: boolean) => void }>;
+        expect(labelToggle.props.value).toBe(true);
+
+        labelToggle.props.onValueChange(false);
+        expect(sessionSettingsEntryState.settingsState.sessionListShowMachineLabel).toBe(false);
+        expect(sessionSettingsEntryState.settingsState.sessionListShowMachineIdentity).toBeUndefined();
+        expect(sessionSettingsEntryState.settingsState.sessionListIdentityDisplay).toBeUndefined();
+
+        await screen.update(<SessionSettingsScreen key="after-label-toggle" />);
+        const hiddenItem = screen.findByTestId('settings-session-machineLabel-item');
+        const hiddenToggle = hiddenItem?.props.rightElement as React.ReactElement<{ value: boolean; onValueChange: (next: boolean) => void }>;
+        expect(hiddenToggle.props.value).toBe(false);
+        expect(hiddenItem?.props.subtitle).toBe('settingsSession.sessionList.machineLabelDisabledSubtitle');
+
+        hiddenToggle.props.onValueChange(true);
+        expect(sessionSettingsEntryState.settingsState.sessionListShowMachineLabel).toBe(true);
+    });
 });

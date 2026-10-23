@@ -59,6 +59,7 @@ type StablePresentationSettingsRefs = Readonly<{
     showServerBadge: SessionListRowPresentationSettings['showServerBadge'];
     showPinnedServerBadge: SessionListRowPresentationSettings['showPinnedServerBadge'];
     showMachineIdentity: SessionListRowPresentationSettings['showMachineIdentity'];
+    showMachineLabel: SessionListRowPresentationSettings['showMachineLabel'];
     agentActivityCountEnabled: SessionListRowPresentationSettings['agentActivityCountEnabled'];
     tagsEnabled: SessionListRowPresentationSettings['tagsEnabled'];
     sessionTagsByKey: SessionListRowPresentationSettings['sessionTagsByKey'];
@@ -127,6 +128,7 @@ function buildStablePresentationSettingsRefs(
         showServerBadge: settings.showServerBadge,
         showPinnedServerBadge: settings.showPinnedServerBadge,
         showMachineIdentity: settings.showMachineIdentity,
+        showMachineLabel: settings.showMachineLabel,
         agentActivityCountEnabled: settings.agentActivityCountEnabled,
         tagsEnabled: settings.tagsEnabled,
         sessionTagsByKey: settings.sessionTagsByKey,
@@ -158,6 +160,7 @@ function areStablePresentationSettingsRefsEqual(
         && previous.showServerBadge === next.showServerBadge
         && previous.showPinnedServerBadge === next.showPinnedServerBadge
         && previous.showMachineIdentity === next.showMachineIdentity
+        && previous.showMachineLabel === next.showMachineLabel
         && previous.agentActivityCountEnabled === next.agentActivityCountEnabled
         && previous.tagsEnabled === next.tagsEnabled
         && previous.sessionTagsByKey === next.sessionTagsByKey
@@ -215,6 +218,7 @@ function buildInputSignature(input: Readonly<{
     appendSignaturePart(parts, settings.showServerBadge ? 1 : 0);
     appendSignaturePart(parts, settings.showPinnedServerBadge ? 1 : 0);
     appendSignaturePart(parts, settings.showMachineIdentity !== false ? 1 : 0);
+    appendSignaturePart(parts, settings.showMachineLabel !== false ? 1 : 0);
     appendSignaturePart(parts, settings.agentActivityCountEnabled ? 1 : 0);
     appendSignaturePart(parts, settings.tagsEnabled ? 1 : 0);
     appendSignatureList(parts, rowTags);

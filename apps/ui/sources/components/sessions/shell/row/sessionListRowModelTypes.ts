@@ -52,6 +52,7 @@ export type SessionListRowPresentationSettings = Readonly<{
     showPinnedServerBadge: boolean;
     /** Device-local row display choice; the selected session header is independent. */
     showMachineIdentity?: boolean;
+    showMachineLabel?: boolean;
     /**
      * Opt-in, OFF by default (R-8). A count on every row is a number a person did not ask for on a
      * surface they scan rather than read, so the row model always carries it and the setting decides
@@ -113,6 +114,7 @@ export type SessionListRowModel = Readonly<{
     machineLabel: string | null;
     machineId: string | null;
     showMachineIdentity: boolean;
+    showMachineLabel: boolean;
     subtitleEllipsizeMode: 'head' | 'tail';
     groupKey: string;
     groupKind: SessionListRowSessionItem['groupKind'] | null;

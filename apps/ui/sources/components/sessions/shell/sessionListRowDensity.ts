@@ -24,10 +24,10 @@ export const SESSION_LIST_ROW_STATUS_TEXT_METRICS = {
 } as const;
 
 export const SESSION_LIST_ROW_IDENTITY_METRICS = {
-    default: { slotSize: 48, agentLogoSize: 37 },
-    compact: { slotSize: 30, agentLogoSize: 23 },
-    minimal: { slotSize: 18, agentLogoSize: 14 },
-    minimalNativePhone: { slotSize: 20, agentLogoSize: 16 },
+    default: { slotSize: 48, agentLogoSize: 37, trailingAgentLogoSize: 17 },
+    compact: { slotSize: 30, agentLogoSize: 23, trailingAgentLogoSize: 15 },
+    minimal: { slotSize: 18, agentLogoSize: 14, trailingAgentLogoSize: 14 },
+    minimalNativePhone: { slotSize: 20, agentLogoSize: 16, trailingAgentLogoSize: 14 },
 } as const;
 
 export function resolveSessionListRowTitleTextMetrics(params: Readonly<{
@@ -43,7 +43,7 @@ export function resolveSessionListRowTitleTextMetrics(params: Readonly<{
 export function resolveSessionListRowIdentityMetrics(params: Readonly<{
     density: SessionListRowDensity;
     readableNativePhoneMinimal: boolean;
-}>): Readonly<{ slotSize: number; agentLogoSize: number }> {
+}>): Readonly<{ slotSize: number; agentLogoSize: number; trailingAgentLogoSize: number }> {
     if (params.density === 'minimal' && params.readableNativePhoneMinimal) {
         return SESSION_LIST_ROW_IDENTITY_METRICS.minimalNativePhone;
     }

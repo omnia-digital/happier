@@ -165,6 +165,12 @@ export const LOCAL_SETTING_DEFINITIONS = defineSettingDefinitions({
         description: 'Show the hosting machine on session list rows on this device',
         storageScope: 'local',
     },
+    sessionListShowMachineLabel: {
+        schema: z.boolean().catch(true),
+        default: true,
+        description: 'Show the hosting machine name beside its icon on session list rows on this device',
+        storageScope: 'local',
+    },
     machineDisplayIconByMachineV1: {
         schema: z.record(z.string(), MachineDisplayIconSchema).catch({}),
         default: {},

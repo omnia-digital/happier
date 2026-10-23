@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderScreen, standardCleanup } from '@/dev/testkit';
 import type { SessionStatus } from '@/utils/sessions/sessionUtils';
 import { createSessionItemTestRowModel, installSessionShellCommonModuleMocks } from './sessionShellTestHelpers';
+import { SessionListSelectionProvider, useSessionListSelectionActions } from './selection/SessionListSelectionContext';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -129,6 +130,14 @@ vi.mock('./sessionPinIcons', () => ({
 const SESSION_ID = 'sess_machine';
 const machineIconPreference = vi.hoisted(() => ({ current: {} as Record<string, 'laptop' | 'cloud'> }));
 
+function SelectionModeControls() {
+    const actions = useSessionListSelectionActions();
+    return React.createElement('SelectionModeControls', {
+        testID: 'enter-selection-mode',
+        onPress: () => actions.enter(),
+    });
+}
+
 describe('SessionItem machine identity', () => {
     afterEach(standardCleanup);
 
@@ -138,17 +147,83 @@ describe('SessionItem machine identity', () => {
         agentState: null, agentStateVersion: 1, thinking: false, thinkingAt: 0, presence: 'online',
     } as any;
 
-    async function renderMachineRow(showMachineIdentity: boolean) {
+    async function renderMachineRow(
+        showMachineIdentity: boolean,
+        showMachineLabel = true,
+        options: Readonly<{ density?: 'default' | 'compact' | 'minimal'; pinned?: boolean; identityDisplay?: 'avatar' | 'agentLogo' | 'none' }> = {},
+    ) {
         const { SessionItem } = await import('./SessionItem');
+        const density = options.density ?? 'minimal';
         const props: SessionItemProps = {
-            session, serverId: 'server-a', compact: true, compactMinimal: true,
-            pinned: true, variant: 'no-path',
+            session, serverId: 'server-a', compact: density !== 'default', compactMinimal: density === 'minimal',
+            pinned: options.pinned ?? true, variant: 'no-path',
         };
         return renderScreen(<SessionItem {...props} rowModel={createSessionItemTestRowModel(props, {
-            machineLabel: 'Long named studio workstation', machineId: 'machine-a', showMachineIdentity,
-            title: 'Review', isPinned: true,
+            machineLabel: 'Long named studio workstation', machineId: 'machine-a', showMachineIdentity, showMachineLabel,
+            title: 'Review', isPinned: options.pinned ?? true,
+            identityDisplay: options.identityDisplay ?? 'agentLogo',
         })} />);
     }
+
+    it('places one agent logo immediately before the machine glyph in the right identity group', async () => {
+        const screen = await renderMachineRow(true);
+        const rightGroup = screen.findByTestId(`session-list-right-identity-${SESSION_ID}`);
+        expect(rightGroup).not.toBeNull();
+        const agent = rightGroup?.findAllByType('AgentIcon' as never) ?? [];
+        expect(agent).toHaveLength(1);
+        expect(rightGroup?.children).toHaveLength(2);
+        expect((rightGroup?.children[0] as { findAllByType: (type: never) => unknown[] })
+            ?.findAllByType('AgentIcon' as never)).toHaveLength(1);
+        expect((rightGroup?.children[1] as { props?: { testID?: string } })?.props?.testID)
+            .toBe(`session-list-machine-identity-${SESSION_ID}`);
+        expect(screen.root.findAllByType('AgentIcon' as never)).toHaveLength(1);
+    });
+
+    it.each(['default', 'compact', 'minimal'] as const)(
+        'keeps the agent and machine on ordinary %s cards without another leading logo',
+        async (density) => {
+            const screen = await renderMachineRow(true, true, { density, pinned: false });
+            const group = screen.findByTestId(`session-list-right-identity-${SESSION_ID}`);
+            expect(group?.children).toHaveLength(2);
+            expect(screen.root.findAllByType('AgentIcon' as never)).toHaveLength(1);
+            expect(screen.findByTestId(`session-list-machine-identity-${SESSION_ID}`)).not.toBeNull();
+        },
+    );
+
+    it('keeps avatar and hidden-identity choices independent of the machine label preference', async () => {
+        const avatar = await renderMachineRow(true, false, { identityDisplay: 'avatar' });
+        expect(avatar.root.findAllByType('Avatar' as never)).toHaveLength(1);
+        expect(avatar.root.findAllByType('AgentIcon' as never)).toHaveLength(0);
+        expect(avatar.findByTestId(`session-list-machine-identity-${SESSION_ID}`)?.findAllByType('Text' as never)).toHaveLength(0);
+        await avatar.unmount();
+
+        const hidden = await renderMachineRow(true, true, { identityDisplay: 'none' });
+        expect(hidden.root.findAllByType('Avatar' as never)).toHaveLength(0);
+        expect(hidden.root.findAllByType('AgentIcon' as never)).toHaveLength(0);
+        expect(hidden.findByTestId(`session-list-machine-identity-${SESSION_ID}`)).not.toBeNull();
+    });
+
+    it('keeps the selection checkbox in its leading slot and removes the agent logo during selection', async () => {
+        const { SessionItem } = await import('./SessionItem');
+        const selectionKey = `server-a:${SESSION_ID}`;
+        const props: SessionItemProps = {
+            session, serverId: 'server-a', selectionKey, compact: true, compactMinimal: true,
+            pinned: true, variant: 'no-path',
+        };
+        const screen = await renderScreen(
+            <SessionListSelectionProvider scopeKey="scope-a" visibleOrderedKeys={[selectionKey]}>
+                <SelectionModeControls />
+                <SessionItem {...props} rowModel={createSessionItemTestRowModel(props, {
+                    machineLabel: 'Studio Mac', machineId: 'machine-a', identityDisplay: 'agentLogo',
+                })} />
+            </SessionListSelectionProvider>,
+        );
+        expect(screen.root.findAllByType('AgentIcon' as never)).toHaveLength(1);
+        await act(async () => screen.findByTestId('enter-selection-mode')?.props.onPress());
+        expect(screen.findByTestId(`session-list-selection-checkbox-${SESSION_ID}`)).not.toBeNull();
+        expect(screen.root.findAllByType('AgentIcon' as never)).toHaveLength(0);
+        expect(screen.findByTestId(`session-list-machine-identity-${SESSION_ID}`)).not.toBeNull();
+    });
 
     it('shows a readable machine name with full accessible identity on compact Pinned rows', async () => {
         const screen = await renderMachineRow(true);
@@ -196,6 +271,26 @@ describe('SessionItem machine identity', () => {
         const screen = await renderMachineRow(false);
         expect(screen.findByTestId(`session-list-machine-identity-${SESSION_ID}`)).toBeNull();
         expect(screen.getTextContent()).toContain('Review');
+    });
+
+    it('keeps the chosen glyph, accessible full name, and hover/focus tooltip when only the label is off', async () => {
+        machineIconPreference.current = { '["server-a","machine-a"]': 'laptop' };
+        try {
+            const screen = await renderMachineRow(true, false);
+            const indicator = screen.findByTestId(`session-list-machine-identity-${SESSION_ID}`);
+            const { Icon } = await import('@/components/ui/icons/Icon');
+            expect(indicator?.props.accessibilityLabel).toBe('Long named studio workstation');
+            expect(indicator?.findAllByType(Icon as never).some(node => node.props.name === 'laptop')).toBe(true);
+            expect(indicator?.findAllByType('Text' as never)).toHaveLength(0);
+            await act(async () => indicator?.props.onPointerEnter());
+            expect(screen.root.findAll((node) => node.props?.label === 'Long named studio workstation').length).toBeGreaterThan(0);
+            await act(async () => indicator?.props.onPointerLeave());
+            expect(typeof indicator?.props.onFocus).toBe('function');
+            await act(async () => indicator?.props.onFocus());
+            expect(screen.root.findAll((node) => node.props?.label === 'Long named studio workstation').length).toBeGreaterThan(0);
+        } finally {
+            machineIconPreference.current = {};
+        }
     });
 
     it('opens the full machine name through the web tooltip on hover', async () => {

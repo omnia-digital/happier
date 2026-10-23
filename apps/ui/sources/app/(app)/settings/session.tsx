@@ -70,6 +70,7 @@ export default React.memo(function SessionSettingsScreen() {
     const [sessionListOrderingModeV1, setSessionListOrderingModeV1] = useSettingMutable('sessionListOrderingModeV1');
     const [sessionListFolderSortModeV1, setSessionListFolderSortModeV1] = useLocalSettingMutable('sessionListFolderSortModeV1');
     const [sessionListShowMachineIdentity, setSessionListShowMachineIdentity] = useLocalSettingMutable('sessionListShowMachineIdentity');
+    const [sessionListShowMachineLabel, setSessionListShowMachineLabel] = useLocalSettingMutable('sessionListShowMachineLabel');
     const [sessionsRightPaneDefaultOpen, setSessionsRightPaneDefaultOpen] = useLocalSettingMutable('sessionsRightPaneDefaultOpen');
     const [uiMultiPanePanelsEnabled] = useLocalSettingMutable('uiMultiPanePanelsEnabled');
 
@@ -711,6 +712,21 @@ export default React.memo(function SessionSettingsScreen() {
                     />}
                     showChevron={false}
                     onPress={() => setSessionListShowMachineIdentity(sessionListShowMachineIdentity === false)}
+                />
+                <Item
+                    testID="settings-session-machineLabel-item"
+                    title={t('settingsSession.sessionList.machineLabelTitle')}
+                    subtitle={sessionListShowMachineLabel !== false
+                        ? t('settingsSession.sessionList.machineLabelEnabledSubtitle')
+                        : t('settingsSession.sessionList.machineLabelDisabledSubtitle')}
+                    icon={<Icon name="text-aa" size={29} color={theme.colors.accent.blue} />}
+                    rightElement={<Switch
+                        testID="settings-session-machineLabel-toggle"
+                        value={sessionListShowMachineLabel !== false}
+                        onValueChange={(next) => setSessionListShowMachineLabel(Boolean(next))}
+                    />}
+                    showChevron={false}
+                    onPress={() => setSessionListShowMachineLabel(sessionListShowMachineLabel === false)}
                 />
                 <Item
                     title={t('settingsSession.sessionList.tagsTitle')}

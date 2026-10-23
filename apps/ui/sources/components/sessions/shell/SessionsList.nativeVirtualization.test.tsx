@@ -51,6 +51,8 @@ let sessionFoldersV1: any = { v: 1, folders: [] };
 const setSessionFoldersV1 = vi.fn();
 let sessionListOrderingModeV1: 'custom' | 'created' | 'updated' = 'custom';
 let sessionListIdentityDisplay: 'avatar' | 'agentLogo' | 'none' = 'avatar';
+let sessionListShowMachineLabel = true;
+const machineLabelSettingListeners = new Set<() => void>();
 const setSessionListOrderingModeV1 = vi.fn();
 let sessionFolderAssignmentsBySessionKey: Record<string, string | null> = {};
 let rememberLastProjectSessionSelections: boolean | null = null;
@@ -535,6 +537,13 @@ installSessionShellCommonModuleMocks({
                     return [null, vi.fn()];
                 },
                 useSessionFolderAssignmentsBySessionKey: () => sessionFolderAssignmentsBySessionKey,
+                useLocalSetting: ((key: keyof LocalSettings) => React.useSyncExternalStore(
+                    (listener) => {
+                        machineLabelSettingListeners.add(listener);
+                        return () => machineLabelSettingListeners.delete(listener);
+                    },
+                    () => key === 'sessionListShowMachineLabel' ? sessionListShowMachineLabel : localSettingsDefaults[key],
+                )) as typeof import('@/sync/domains/state/storage')['useLocalSetting'],
                 useLocalSettingMutable: useLocalSettingMutableMock,
                 storage: createReactiveStorageStoreMock(storageState),
             },
@@ -827,6 +836,8 @@ describe('SessionsList (native virtualization)', () => {
         sessionFoldersV1 = { v: 1, folders: [] };
         sessionListOrderingModeV1 = 'custom';
         sessionListIdentityDisplay = 'avatar';
+        sessionListShowMachineLabel = true;
+        machineLabelSettingListeners.clear();
         sessionFolderAssignmentsBySessionKey = {};
         rememberLastProjectSessionSelections = null;
         organizationProjectionCache = null;
@@ -1738,6 +1749,37 @@ describe('SessionsList (native virtualization)', () => {
         );
         expect(updatedList.props.extraData).not.toBe(initialExtraData);
         expect(updatedList.props.extraData.sessionListIdentityDisplay).toBe('none');
+    });
+
+    it('invalidates mounted native rows when only machine label visibility changes', async () => {
+        const screen = await renderSessionsList();
+        const initialList = expectPresent(
+            screen.root.findAll((node) => String(node.type) === 'FlashListCompat')[0],
+            'expected native FlashListCompat',
+        );
+        const initialExtraData = initialList.props.extraData;
+        expect(initialExtraData.sessionListShowMachineLabel).toBe(true);
+        const initialRowModel = expectPresent(findSessionItem(screen, 'sess_a')?.props.rowModel, 'expected mounted session row');
+        expect(initialRowModel.showMachineLabel).toBe(true);
+        await act(async () => {
+            sessionListShowMachineLabel = false;
+            machineLabelSettingListeners.forEach((listener) => listener());
+        });
+
+        const updatedList = expectPresent(
+            screen.root.findAll((node) => String(node.type) === 'FlashListCompat')[0],
+            'expected updated native FlashListCompat',
+        );
+        expect(updatedList.props.extraData).not.toBe(initialExtraData);
+        expect(updatedList.props.extraData.sessionListShowMachineLabel).toBe(false);
+        const updatedRowModel = expectPresent(findSessionItem(screen, 'sess_a')?.props.rowModel, 'expected updated session row');
+        expect(updatedRowModel).not.toBe(initialRowModel);
+        expect(updatedRowModel.showMachineLabel).toBe(false);
+
+        await act(async () => {
+            machineLabelSettingListeners.forEach((listener) => listener());
+        });
+        expect(findSessionItem(screen, 'sess_a')?.props.rowModel).toBe(updatedRowModel);
     });
 
     it('keeps native FlashList structural data stable when a row overlay update changes one row model', async () => {

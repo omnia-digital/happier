@@ -14,4 +14,17 @@ describe('local session list machine view', () => {
         const restored = applyLocalSettings(machine, { sessionListMachineViewV1: 'original' });
         expect(localSettingsParse(JSON.parse(JSON.stringify(restored))).sessionListMachineViewV1).toBe('original');
     });
+
+    it('stores machine text visibility independently of machine glyph visibility', () => {
+        const defaults = localSettingsParse(null);
+        expect(LOCAL_SETTING_DEFINITIONS.sessionListShowMachineLabel.storageScope).toBe('local');
+        expect(defaults.sessionListShowMachineIdentity).toBe(true);
+        expect(defaults.sessionListShowMachineLabel).toBe(true);
+        const iconOnly = applyLocalSettings(defaults, { sessionListShowMachineLabel: false });
+        const reloaded = localSettingsParse(JSON.parse(JSON.stringify(iconOnly)));
+        expect(reloaded.sessionListShowMachineIdentity).toBe(true);
+        expect(reloaded.sessionListShowMachineLabel).toBe(false);
+        const noIdentity = applyLocalSettings(reloaded, { sessionListShowMachineIdentity: false });
+        expect(noIdentity.sessionListShowMachineLabel).toBe(false);
+    });
 });

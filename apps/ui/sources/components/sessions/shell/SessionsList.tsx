@@ -657,6 +657,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
     const backgroundWorkAttentionMode = normalizeSessionListBackgroundWorkAttentionMode(useSetting('sessionListBackgroundWorkAttentionModeV1'));
     const sessionListAgentActivityCountEnabled = useSetting('sessionListAgentActivityCountEnabled');
     const sessionListShowMachineIdentity = useLocalSetting('sessionListShowMachineIdentity');
+    const sessionListShowMachineLabel = useLocalSetting('sessionListShowMachineLabel');
     const sessionListIdentityDisplay = useSessionListIdentityDisplay();
     const sessionListActiveColorMode = useSetting('sessionListActiveColorModeV1');
     const sessionListSectionModeRaw = useSetting('sessionListSectionModeV1');
@@ -961,6 +962,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
             showPinnedServerBadge,
             agentActivityCountEnabled: sessionListAgentActivityCountEnabled === true,
             showMachineIdentity: sessionListShowMachineIdentity !== false,
+            showMachineLabel: sessionListShowMachineLabel !== false,
             tagsEnabled: sessionTagsEnabled === true,
             sessionTagsByKey: sessionTagsV1 ?? EMPTY_SESSION_TAGS_BY_KEY,
             allKnownTags,
@@ -990,6 +992,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         reachableSessionDisplayByKeyRecord,
         sessionListAgentActivityCountEnabled,
         sessionListShowMachineIdentity,
+        sessionListShowMachineLabel,
         sessionListActiveColorMode,
         sessionListIdentityDisplay,
         sessionListWorkingIndicatorStyle,
@@ -2170,6 +2173,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         sessionListActiveColorMode: rowPresentationSettings.activeColorMode,
         sessionListAgentActivityCountEnabled: rowPresentationSettings.agentActivityCountEnabled,
         sessionListShowMachineIdentity: rowPresentationSettings.showMachineIdentity,
+        sessionListShowMachineLabel: rowPresentationSettings.showMachineLabel,
         sessionListHideInactiveSessions: rowPresentationSettings.hideInactiveSessions,
         sessionListIdentityDisplay: rowPresentationSettings.identityDisplay,
         sessionListOrderingMode,
@@ -2217,6 +2221,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         rowPresentationSettings.activeColorMode,
         rowPresentationSettings.agentActivityCountEnabled,
         rowPresentationSettings.showMachineIdentity,
+        rowPresentationSettings.showMachineLabel,
         rowPresentationSettings.hideInactiveSessions,
         rowPresentationSettings.identityDisplay,
         rowPresentationSettings.statusColors,

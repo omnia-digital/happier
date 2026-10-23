@@ -82,4 +82,38 @@ describe('session row machine identity', () => {
         expect(hidden.machineLabel).toBe('Replacement Mac');
         expect(hidden.showMachineIdentity).toBe(false);
     });
+
+    it('rebuilds a Pinned row when only machine label visibility changes', () => {
+        const item = {
+            type: 'session', session, serverId: 'server-a', groupKey: 'pinned', groupKind: 'pinned', pinned: true,
+        } as Extract<SessionListViewItem, { type: 'session' }>;
+        const cache = createSessionListRowModelsCache();
+        const input = {
+            item, cache, snapshot: { session: undefined, renderable: undefined, messages: undefined, pending: undefined },
+            adjacency: { isFirst: true, isLast: true, isSingle: true },
+        } as const;
+        const shown = buildCachedSessionListRowModel({ ...input, settings: { ...settings, showMachineLabel: true } });
+        const iconOnly = buildCachedSessionListRowModel({ ...input, settings: { ...settings, showMachineLabel: false } });
+        expect(iconOnly).not.toBe(shown);
+        expect(iconOnly.machineLabel).toBe('Replacement Mac');
+        expect(iconOnly.showMachineIdentity).toBe(true);
+        expect(iconOnly.showMachineLabel).toBe(false);
+    });
+
+    it('uses the same label choice for ordinary and machine-grouped rows', () => {
+        for (const groupKind of ['date', 'machine'] as const) {
+            const row = buildSessionListRowModel({
+                item: {
+                    type: 'session', session, serverId: 'server-a', groupKey: groupKind,
+                    groupKind, pinned: false,
+                } as Extract<SessionListViewItem, { type: 'session' }>,
+                isFirst: true, isLast: true, isSingle: true,
+                settings: { ...settings, showMachineLabel: false },
+            });
+            expect(row.isPinned).toBe(false);
+            expect(row.machineLabel).toBe('Replacement Mac');
+            expect(row.showMachineIdentity).toBe(true);
+            expect(row.showMachineLabel).toBe(false);
+        }
+    });
 });

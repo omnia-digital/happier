@@ -29,15 +29,18 @@ export const SessionMachineIdentity = React.memo(function SessionMachineIdentity
     machineId,
     variant,
     testID,
+    showLabel = true,
 }: Readonly<{
     label: string;
     serverId?: string | null;
     machineId?: string | null;
     variant: 'row' | 'header';
     testID: string;
+    showLabel?: boolean;
 }>) {
     const { theme } = useUnistyles();
     const [hovered, setHovered] = React.useState(false);
+    const [focused, setFocused] = React.useState(false);
     const anchorRef = React.useRef<View | null>(null);
     const isHeader = variant === 'header';
     const color = isHeader ? theme.colors.chrome.header.foreground : theme.colors.text.secondary;
@@ -49,21 +52,24 @@ export const SessionMachineIdentity = React.memo(function SessionMachineIdentity
             accessible={true}
             accessibilityRole="text"
             accessibilityLabel={label}
+            tabIndex={Platform.OS === 'web' && !showLabel ? 0 : undefined}
             onPointerEnter={Platform.OS === 'web' ? () => setHovered(true) : undefined}
             onPointerLeave={Platform.OS === 'web' ? () => setHovered(false) : undefined}
+            onFocus={Platform.OS === 'web' && !showLabel ? () => setFocused(true) : undefined}
+            onBlur={Platform.OS === 'web' && !showLabel ? () => setFocused(false) : undefined}
             style={isHeader ? styles.headerIdentity : styles.rowIdentity}
         >
             <MachineDisplayGlyph serverId={serverId} machineId={machineId} size={isHeader ? 12 : 11} color={color} />
-            <Text
+            {showLabel ? <Text
                 style={[isHeader ? styles.headerText : styles.rowText, { color }]}
                 numberOfLines={1}
                 ellipsizeMode="tail"
             >
                 {label}
-            </Text>
-            {Platform.OS === 'web' && hovered ? (
+            </Text> : null}
+            {Platform.OS === 'web' && (hovered || focused) ? (
                 <DeferredAnchoredTooltip
-                    activationKey="hovered"
+                    activationKey={focused ? 'focused' : 'hovered'}
                     anchorRef={anchorRef}
                     label={label}
                     placement="top"
