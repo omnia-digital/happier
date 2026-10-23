@@ -24,9 +24,21 @@ Complete source-backed design from the phase-3 discovery before production edits
 
 Known facts: installed CLI 0.2.16 supports existing SCM snapshots with root/remotes/worktrees, but list metadata lacks repo identity and snapshots are ephemeral/expensive. Reuse the SCM owner for explicit discovery and persisted scoped associations; do not fetch from each row. Current machine-path SCM service lacks explicit server input, so establish the transport/cache scope before extending it. Origin host/full namespace/repo and nondefault port are identity inputs; never basename or any common upstream. Unknown SSH aliases/local remotes need a predictable separate/manual path. Resolve project projection, ordering, folder/drag behavior and lifecycle together, without a parallel organization store.
 
-- [ ] 🟡 Astra/high reviews the design against actual owners and proposes the smallest complete implementation; root decides routine mechanisms under the authorized outcome, asking only for an unresolved product/authority tradeoff.
+- [x] 🟢 Astra/high source design completed against the actual owners. Root accepted the routine mechanism choices below under the existing OH-14 outcome; no user approval gate or contract reduction is needed.
 - [ ] 🔴 Implement all required owners and deciding equivalent-repo, alias/worktree, same-basename, scope, persistence/order, folder/action and view-roundtrip regressions.
 - [ ] 🟡 Validate source, independent review, native workflow and restart; keep OH-14 In Progress until the full requirement is proven.
+
+### Selected implementation corridor
+
+Add Repository alongside Original/Machine using the existing local view owner. Explicit selection/Refresh initiates list-level discovery, consumes matching caches and sequentially resolves missing distinct machine/workspace targets through the SCM service. Recheck after each root/worktree discovery; leaving the view stops further dispatch. Restored/mounted rows must not start discovery or write preferences by themselves. Known associations survive failed refresh; unresolved/offline states remain honest and retryable.
+
+Capture server/account scope at the canonical service request boundary and namespace snapshot, alias, in-flight/enrichment caches consistently, migrating current callers rather than adding a separate cache/transport. Persist local scoped workspace-to-repository associations and manual override through one owner. Prefer origin fetch URL, with a single unambiguous alternate remote only when origin is absent; normalize conventional SSH/HTTPS/scp forms and transport defaults while preserving full namespace and nondefault ports. Unknown aliases/local/missing repos remain separate unless explicitly associated; credentials never enter stored identities.
+
+Project roots flatten equivalent checkout sessions so real A(machine1), B(machine2), A2(machine1) interleaving is possible; actual folder subtrees and empty folders retain workspace references, hierarchy, focus and IDs. Repository headers have presentation identity separate from a physical workspace. Actions choose a real checkout when ambiguous. Preserve Pinned/access/activity/server bands and row targets; never change actual host/path/folder just to reorder the view.
+
+Use existing organization group order scopes, optimistic rollback/hydration and real session IDs, with opaque namespaced digest keys. Custom ranks remain stable through activity and view switching; unranked fallback is deterministic. Extend the canonical writer with explicit display-scope reorder policy because current removal from every scope would erase unrelated orders. Retain full cleanup for real structural moves. Separate tree sibling-order identity from workspace-safe nesting, and migrate dependent menu copy now that Repository also offers supported ordering.
+
+Deciding tests include origin/shared-upstream distinctions, aliases/ports/same basenames/worktrees/manual reset; scope and in-flight isolation, dedup/cancel/retry/account switch/late response; actual A/B/A2 drag and organization reload, unchanged Original/Machine scopes/assignments, folders/pins/shared/actions, view roundtrip and activity stability. No new CLI/server deployment or protocol enum is required. Native two-machine/same-basename/restart acceptance remains open after source validation.
 
 ## Inventory and routing
 
