@@ -364,6 +364,7 @@ test.describe('ui e2e: session list ordering mode', () => {
       const rightIdentity = page.getByTestId(`session-list-right-identity-${sessionId}`);
       const logo = rightIdentity.getByTestId(`session-list-agent-logo-${sessionId}`);
       const machine = rightIdentity.getByTestId(`session-list-machine-identity-${sessionId}`);
+      await expect(page.getByTestId(`session-list-agent-logo-${sessionId}`)).toHaveCount(1);
       await expect(logo).toHaveCount(1);
       await expect(machine).toHaveCount(1);
       const logoBox = await logo.boundingBox();
@@ -403,6 +404,8 @@ test.describe('ui e2e: session list ordering mode', () => {
     }
     const chosenGlyph = await machineIdentity.locator('svg').first().evaluate((svg) => svg.innerHTML);
     expect(chosenGlyph).not.toBe(defaultGlyph);
+    await expect(page.getByTestId(`session-list-machine-identity-${pinnedSessionId}`).locator('svg').first())
+      .toHaveJSProperty('innerHTML', chosenGlyph);
     await machineIdentity.focus();
     await expect(page.getByTestId(`session-list-machine-identity-${ordinarySessionId}-tooltip`)).toContainText(machineLabel);
 
@@ -410,6 +413,8 @@ test.describe('ui e2e: session list ordering mode', () => {
     await waitForInitialAppUi({ page, timeoutMs: 180_000 });
     await expect(machineIdentity).not.toContainText(machineLabel);
     await expect(machineIdentity.locator('svg').first()).toHaveJSProperty('innerHTML', chosenGlyph);
+    await expect(page.getByTestId(`session-list-machine-identity-${pinnedSessionId}`).locator('svg').first())
+      .toHaveJSProperty('innerHTML', chosenGlyph);
     expect((await readUiE2eLocalSettings({ page })).sessionListShowMachineLabel).toBe(false);
   });
 });
