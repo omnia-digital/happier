@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createSessionMessagesFixture, createToolCallMessageFixture } from '@/dev/testkit/fixtures/transcriptFixtures';
 
 import type { SessionListRenderableSession } from '@/sync/domains/session/listing/sessionListRenderable';
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
@@ -712,6 +713,54 @@ describe('buildInboxSessionState', () => {
         });
         const resolved = buildInboxSessionState({ sessions: [resolvedHydrated], sessionListViewDataByServerId: list, nowMs: now });
         expect(resolved.sessionsNeedingAttention).toEqual([]);
+    });
+
+    it('keeps same-id foreign request details separate from the active Home overlay and transcript', () => {
+        const foreign = makeSession({ id: 'shared-request', serverId: 'server-b', activeAt: now,
+            agentState: { controlledByUser: null, requests: {
+                question: { tool: 'AskUserQuestion', kind: 'user_action', arguments: { q: 'Continue?' }, createdAt: now },
+            } },
+        });
+        const active = makeUnreadRenderable({ id: foreign.id, activeAt: now, agentStateVersion: 2,
+            hasPendingPermissionRequests: true, pendingRequestObservedAt: now });
+        const completed = createToolCallMessageFixture({ id: 'active-transcript', createdAt: now, tool: {
+            id: 'question', name: 'AskUserQuestion', state: 'error', input: {}, createdAt: now, startedAt: now,
+            completedAt: now + 1, description: null, permission: { id: 'question', status: 'canceled', kind: 'user_action' },
+        } });
+        const state = buildInboxSessionState({ sessions: [foreign], activeServerId: 'server-a',
+            sessionListRenderables: { [foreign.id]: active },
+            sessionListViewDataByServerId: {
+                'server-a': makeScopedSessionList('server-a', [{ ...active, agentStateVersion: 0, hasPendingPermissionRequests: false }]),
+                'server-b': makeScopedSessionList('server-b', [makeUnreadRenderable({ id: foreign.id, activeAt: now })]),
+            },
+            sessionMessagesById: { [foreign.id]: createSessionMessagesFixture({
+                messageIdsOldestFirst: [completed.id], messagesById: { [completed.id]: completed },
+            }) }, nowMs: now,
+        });
+        expect(state.sessionsNeedingAttention.map(entry => [entry.serverId, entry.reason])).toEqual([
+            ['server-a', 'permission_required'], ['server-b', 'action_required'],
+        ]);
+        expect(state.sessionsNeedingAttention[1].pendingUserActions.map(request => request.id)).toEqual(['question']);
+    });
+
+    it.each(['list', 'hydrated'] as const)('uses the newer %s unarchive state instead of suppressing its request with an older archive', (newerSource) => {
+        const hydrated = makeSession({
+            id: 'restored-request', serverId: 'server-a', activeAt: now,
+            updatedAt: newerSource === 'hydrated' ? 20 : 10,
+            archivedAt: newerSource === 'hydrated' ? null : 5,
+            agentState: { controlledByUser: null, requests: {
+                permission: { tool: 'Bash', kind: 'permission', arguments: {}, createdAt: now },
+            } },
+        });
+        const row = makeUnreadRenderable({
+            id: hydrated.id, activeAt: now, hasPendingPermissionRequests: true, pendingRequestObservedAt: now,
+            updatedAt: newerSource === 'list' ? 20 : 10,
+            archivedAt: newerSource === 'list' ? null : 5,
+        });
+        const state = buildInboxSessionState({ sessions: [hydrated],
+            sessionListViewDataByServerId: { 'server-a': makeScopedSessionList('server-a', [row]) }, nowMs: now });
+        expect(state.sessionsNeedingAttention.map(entry => entry.reason)).toEqual(['permission_required']);
+        expect(state.sessionsNeedingAttention[0].session).toBe(newerSource === 'list' ? row : hydrated);
     });
 
     it('keeps an actionable working session in one visible section without a premature read target', () => {

@@ -1,3 +1,4 @@
+import { isSessionHydrationRevisionCurrent } from '@/sync/domains/session/listing/sessionHydrationFreshness';
 import {
     V2SessionListResponseSchema,
     isSessionEncryptionModeAllowedByClientRequirement,
@@ -785,13 +786,8 @@ function isHydratedSessionCurrentForListState(
     const currentRenderable = getCurrentSessionListRenderable(session.id);
     if (!currentRenderable) return false;
 
-    if (currentRenderable.seq > session.seq) return false;
-    if (currentRenderable.updatedAt > session.updatedAt) return false;
-    if (currentRenderable.metadataVersion > session.metadataVersion) return false;
-    if (currentRenderable.agentStateVersion > session.agentStateVersion) return false;
     if ((currentRenderable.archivedAt ?? null) !== (session.archivedAt ?? null)) return false;
-
-    return true;
+    return isSessionHydrationRevisionCurrent(session, currentRenderable);
 }
 
 function buildStaleHydratedSessionRenderablePatch(

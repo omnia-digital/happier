@@ -1,3 +1,5 @@
+import { selectSessionListRowStateSnapshot } from '@/sync/store/sessionListRowStateSnapshot';
+import { isSessionHydrationRevisionCurrent } from '@/sync/domains/session/listing/sessionHydrationFreshness';
 import type { Session } from '@/sync/domains/state/storageTypes';
 import { listPendingPermissionRequests, listPendingUserActionRequests, type PendingPermissionRequest } from '@/utils/sessions/sessionUtils';
 import {
@@ -68,6 +70,8 @@ type BuildInboxSessionStateInput =
         sessions: readonly Session[];
         sessionListViewDataByServerId?: Readonly<Record<string, readonly SessionListViewItem[] | null>>;
         sessionMessagesById?: StorageState['sessionMessages'];
+        sessionListRenderables?: Readonly<Record<string, SessionListRenderableSession | undefined>>;
+        activeServerId?: string | null;
         nowMs?: number;
     }>;
 
@@ -75,6 +79,8 @@ function normalizeBuildInboxSessionStateInput(input: BuildInboxSessionStateInput
     sessions: readonly Session[];
     sessionListViewDataByServerId: Readonly<Record<string, readonly SessionListViewItem[] | null>>;
     sessionMessagesById?: StorageState['sessionMessages'];
+    sessionListRenderables?: Readonly<Record<string, SessionListRenderableSession | undefined>>;
+    activeServerId?: string | null;
     nowMs: number;
 }> {
     if ('sessions' in input) {
@@ -82,6 +88,8 @@ function normalizeBuildInboxSessionStateInput(input: BuildInboxSessionStateInput
             sessions: input.sessions,
             sessionListViewDataByServerId: input.sessionListViewDataByServerId ?? {},
             sessionMessagesById: input.sessionMessagesById,
+            sessionListRenderables: input.sessionListRenderables,
+            activeServerId: input.activeServerId,
             nowMs: typeof input.nowMs === 'number' && Number.isFinite(input.nowMs) ? input.nowMs : Date.now(),
         };
     }
@@ -138,6 +146,8 @@ function findScopedSession(
 function collectInboxSessionEntries(params: Readonly<{
     sessions: readonly Session[];
     sessionListViewDataByServerId: Readonly<Record<string, readonly SessionListViewItem[] | null>>;
+    sessionListRenderables?: Readonly<Record<string, SessionListRenderableSession | undefined>>;
+    activeServerId?: string | null;
 }>): InboxSessionCandidateEntry[] {
     const entries: InboxSessionCandidateEntry[] = [];
     const seenKeys = new Set<string>();
@@ -155,9 +165,17 @@ function collectInboxSessionEntries(params: Readonly<{
             seenKeys.add(address.key);
             scopedCacheSessionIds.add(address.sessionId);
             const canonicalSession = findScopedSession(sessionsById, address);
+            // Embedded list rows deliberately retain structural snapshots. Read live status from
+            // the same scoped overlay as session cards; foreign Homes keep their own cached row.
+            const listSession = params.activeServerId ? selectSessionListRowStateSnapshot({
+                activeServerId: params.activeServerId, sessionListRenderables: params.sessionListRenderables,
+            }, address).renderable ?? item.session : item.session;
             if (canonicalSession) matchedHydratedSessions.add(canonicalSession);
-            if (item.session.archivedAt != null || canonicalSession?.archivedAt != null) continue;
-            entries.push({ ...address, session: canonicalSession ?? item.session });
+            const session = canonicalSession && isSessionHydrationRevisionCurrent(canonicalSession, listSession)
+                ? canonicalSession
+                : listSession;
+            if (session.archivedAt != null) continue;
+            entries.push({ ...address, session });
         }
     }
 
@@ -179,10 +197,14 @@ function collectInboxSessionEntries(params: Readonly<{
 
 function readMessagesForInboxSession(
     sessionMessagesById: StorageState['sessionMessages'] | undefined,
-    sessionId: string,
+    entry: InboxSessionAddress,
+    activeServerId?: string | null,
 ) {
     if (!sessionMessagesById) return undefined;
-    return readStoredSessionMessagesFromStateLike(sessionMessagesById[sessionId]);
+    const messages = activeServerId ? selectSessionListRowStateSnapshot({
+        activeServerId, sessionMessages: sessionMessagesById,
+    }, entry).messages : sessionMessagesById[entry.sessionId];
+    return messages ? readStoredSessionMessagesFromStateLike(messages) : undefined;
 }
 
 function buildPendingInboxRuntimeInput(params: Readonly<{
@@ -235,13 +257,14 @@ function latestPendingRequestObservedAt(requests: readonly PendingPermissionRequ
 function evaluateInboxSessionCandidate(params: Readonly<{
     entry: InboxSessionCandidateEntry;
     sessionMessagesById?: StorageState['sessionMessages'];
+    activeServerId?: string | null;
     nowMs: number;
 }>) {
     const { entry } = params;
     if (!isUserFacingSession(entry.session)) return null;
     const isHydrated = 'agentState' in entry.session;
     const messages = isHydrated
-        ? readMessagesForInboxSession(params.sessionMessagesById, entry.sessionId)
+        ? readMessagesForInboxSession(params.sessionMessagesById, entry, params.activeServerId)
         : undefined;
     const pendingPermissions = isHydrated
         ? listPendingPermissionRequests(entry.session, messages)
@@ -272,9 +295,10 @@ function evaluateInboxSessionCandidate(params: Readonly<{
 }
 
 export function buildInboxSessionState(input: BuildInboxSessionStateInput): InboxSessionState {
-    const { sessions, sessionListViewDataByServerId, sessionMessagesById, nowMs } = normalizeBuildInboxSessionStateInput(input);
+    const normalized = normalizeBuildInboxSessionStateInput(input);
+    const { sessionMessagesById, nowMs } = normalized;
     const sessionsNeedingAttention: InboxSessionAttentionEntry[] = [];
-    const candidates = collectInboxSessionEntries({ sessions, sessionListViewDataByServerId });
+    const candidates = collectInboxSessionEntries(normalized);
     const sessionByKey = new Map(candidates.map((entry) => [entry.key, {
         serverId: entry.serverId,
         sessionId: entry.sessionId,
@@ -287,6 +311,7 @@ export function buildInboxSessionState(input: BuildInboxSessionStateInput): Inbo
         const evaluation = evaluateInboxSessionCandidate({
             entry,
             sessionMessagesById,
+            activeServerId: normalized.activeServerId,
             nowMs,
         });
         if (!evaluation) continue;
@@ -342,6 +367,8 @@ function buildInboxSessionSummaryFromNormalizedInput(input: Readonly<{
     sessions: readonly Session[];
     sessionListViewDataByServerId: Readonly<Record<string, readonly SessionListViewItem[] | null>>;
     sessionMessagesById?: StorageState['sessionMessages'];
+    sessionListRenderables?: Readonly<Record<string, SessionListRenderableSession | undefined>>;
+    activeServerId?: string | null;
     nowMs: number;
 }>): InboxSessionSummary {
     let hasContent = false;
@@ -349,11 +376,14 @@ function buildInboxSessionSummaryFromNormalizedInput(input: Readonly<{
     const candidates = collectInboxSessionEntries({
         sessions: input.sessions,
         sessionListViewDataByServerId: input.sessionListViewDataByServerId,
+        sessionListRenderables: input.sessionListRenderables,
+        activeServerId: input.activeServerId,
     });
     for (const entry of candidates) {
         const evaluation = evaluateInboxSessionCandidate({
             entry,
             sessionMessagesById: input.sessionMessagesById,
+            activeServerId: input.activeServerId,
             nowMs: input.nowMs,
         });
         if (!evaluation) continue;
@@ -386,12 +416,16 @@ export function resolveNextInboxSessionStateFreshnessAtMs(input: Readonly<{
     sessions: readonly Session[];
     sessionListViewDataByServerId?: Readonly<Record<string, readonly SessionListViewItem[] | null>>;
     sessionMessagesById?: StorageState['sessionMessages'];
+    sessionListRenderables?: Readonly<Record<string, SessionListRenderableSession | undefined>>;
+    activeServerId?: string | null;
     nowMs: number;
 }>): number | null {
     return buildInboxSessionSummaryFromNormalizedInput({
         sessions: input.sessions,
         sessionListViewDataByServerId: input.sessionListViewDataByServerId ?? {},
         sessionMessagesById: input.sessionMessagesById,
+        sessionListRenderables: input.sessionListRenderables,
+        activeServerId: input.activeServerId,
         nowMs: input.nowMs,
     }).nextFreshnessAtMs;
 }
