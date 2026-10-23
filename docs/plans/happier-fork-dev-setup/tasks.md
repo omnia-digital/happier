@@ -5,18 +5,22 @@
 **Context:** Existing installed Happier must remain usable during fork development.
 **Status:** 🟢 Green — full clone, feature branch, origin/upstream and pushed checkpoint verified. Canonical mobile, desktop, repo-local and CI entry points reviewed.
 
-### [ ] Verify local setup
-**Description:** Install locked dependencies when capacity allows and execute relevant setup checks.
-**Context:** macOS desktop is now the immediate priority; iOS is deferred. Native Mac builds require sufficient disk space and platform toolchains.
-**Current attempt:** 🟡 Yellow — locked Mac install is fetching packages with its cache on a new 16 GiB RAM disk at `/Volumes/HappierBuildRam`. Internal storage was about 14 GiB free at launch. Preserve simulator data; cleanup has not been approved. Installation/native startup remain unverified.
-**Status:** 🟡 Yellow — CocoaPods 1.17.0 and Rust/Cargo 1.94.1 now verify successfully (OH-3 done). Two Mac dependency-install attempts were interrupted before disk exhaustion; Yarn cache cleanup restored about 15 GiB free. The SSD worktree attempt failed with permission denied on a Time Machine volume. Windows SSH is verified with about 165 GiB free; locked dependency installation completed on `josh-pc` at `C:\Users\Admin\Developer\Projects\Omnia\happier`. Windows launcher checks: 18 pass, 3 fail, 1 skipped; actual startup found an unbuilt cli-common export. The canonical builder successfully compiled all five shared stack dependencies; rerunning launcher checks retains the same result. Full builds and device acceptance remain unrun.
+### [x] Verify Mac dependency and launcher setup
+**Description:** Install locked dependencies and execute the relevant launcher checks.
+**Context:** macOS desktop is the immediate priority; iOS is deferred.
+**Status:** 🟢 Green — locked Mac installation completed in 471.66 seconds using a temporary RAM cache, which was detached afterward. Free disk now verifies around 55 GiB. Shared dependencies are already current; all 22 launcher/provider/stack-identity checks pass. No simulator data, tests or app source were changed. Native/live acceptance remains a separate next step.
+
+### [ ] Run and validate the macOS desktop app
+**Description:** Start the isolated source stack and real Tauri window, then verify core session behavior.
+**Context:** OH-4 and OH-6 own live/native acceptance. Preserve the existing daily installation and accounts.
+**Status:** 🟡 Yellow — canonical dry run resolves repo-happier-42a434c316. Automatic account seeding and credential migration are disabled in its environment; desktop title is Happier Omnia Dev. Native target uses persistent scoped storage. Startup and real-session acceptance are next.
 
 ### [x] Document and checkpoint the development process
 **Description:** Write the fork runbook, review source-backed commands and signing requirements, commit and push.
 **Context:** Future sessions need a repeatable route to platform acceptance and safe daily-use cutover.
-**Status:** 🟢 Green — runbook committed and pushed; independent source review found no material errors in commands, isolation, identity or release caveats. All three local runbook links resolve; `git diff --check` passes. Runtime readiness remains blocked separately above.
+**Status:** 🟢 Green — runbook committed and pushed; independent source review found no material errors in commands, isolation, identity or release caveats. All three local runbook links resolve; `git diff --check` passes. Runtime readiness remains pending separately above.
 
 ### [x] Establish OH planning in Linear
 **Description:** Create a fork-adoption project, three milestones, and actionable issues with acceptance criteria and dependencies in the new Happier team.
 **Context:** Team OH is verified and initially empty. Track development readiness, native platform validation, safe daily-use adoption, release tracking and ongoing upstream maintenance. Do not set invented dates, mark untested builds done, or mutate GitHub outside feature-branch pushes.
-**Status:** 🟢 Green — project P-OH-57 created with three milestones and issues OH-1 through OH-12; issue statuses and milestone assignments read back. Completed clone/docs are OH-1; Mac storage remains constrained in OH-2; Windows dependency setup is progressing; OH-10 tracks release-pipeline setup; OH-12 tracks ongoing upstream maintenance. No release pipeline or release date is claimed configured.
+**Status:** 🟢 Green — project P-OH-57 created with three milestones and issues OH-1 through OH-12; issue statuses and milestone assignments read back. Completed clone/docs are OH-1; Mac dependencies and launcher checks now pass in OH-2; OH-4/OH-6 own the next live and native checks; OH-10 tracks release-pipeline setup; OH-12 tracks ongoing upstream maintenance. No release pipeline or release date is claimed configured.

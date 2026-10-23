@@ -160,12 +160,22 @@ The launcher dry run resolves `repo-happier-181979f2a7` and its scoped CLI/state
 
 ## Current priority — macOS desktop first
 
-Josh confirmed macOS desktop is his primary interface. Prioritize launching and validating the fork on this Mac, then refine the desktop workflow from his feedback. Defer iOS builds, simulator work, signing and App Store setup. Windows setup is available for later work, but does not establish Mac readiness. The immediate Mac prerequisite is enough writable space for dependencies and native compilation.
+Josh confirmed macOS desktop is his primary interface. Prioritize launching and validating the fork on this Mac, then refine the desktop workflow from his feedback. Defer iOS builds, simulator work, signing and App Store setup. Windows setup is available for later work, but does not establish Mac readiness. Mac dependency installation and launcher checks are now verified; native startup and live acceptance are next.
 
-The Mac has 64 GiB of RAM with substantial observed memory headroom. A new, empty 16 GiB RAM disk was created and mounted at `/Volumes/HappierBuildRam`; no existing disk or simulator data was erased. Locked installation is now running with its cache on that temporary volume:
+The Mac has 64 GiB of RAM with substantial observed memory headroom. A new, empty 16 GiB RAM disk was created and mounted at `/Volumes/HappierBuildRam`; no existing disk or simulator data was erased. Locked installation completed successfully in 471.66 seconds with its cache on that temporary volume:
 
 ```sh
 yarn install --frozen-lockfile --link-duplicates --cache-folder /Volumes/HappierBuildRam/yarn-cache --network-timeout 600000
 ```
 
-This keeps downloaded cache files off the nearly full internal disk. Dependencies still install into this checkout. The install has reached package fetching; it is not yet verified complete. After installation, reclaim this task's RAM cache before native compilation and use temporary native build output where the canonical launcher permits it. RAM-disk contents disappear on detach or reboot, so this is a development workaround, not durable build storage. The proposed simulator cleanup remains unapproved and has not run.
+The install kept downloaded cache files off the internal disk and installed dependencies into this checkout. Free disk space increased during installation and now verifies at approximately 55 GiB. The temporary RAM disk was detached after Yarn exited successfully. A temporary empty native-target link was removed, so the native target remains on persistent storage under the scoped stack. No simulator cleanup was needed or performed.
+
+The canonical shared-package build command reported all stack dependencies already current after installation. All 22 checks in `root_package_repo_local_scripts.test.mjs`, `repo_local_wrapper.test.mjs`, `utils/stack/repo_stack_identity.test.mjs`, and `repo_local_effective_db_provider.test.mjs` passed on Mac. No tests or application source were changed.
+
+The Mac dry run resolves stack `repo-happier-42a434c316` and state under `/Users/Josh/.happier/stacks/repo-happier-42a434c316`. Its environment explicitly disables automatic account seeding and credential migration, and names the dev window `Happier Omnia Dev`. Native target directory: `tauri-target` within that scoped stack. Next launch:
+
+```sh
+node apps/stack/scripts/repo_local.mjs dev --tauri --no-browser --no-dev-targets --loopback
+```
+
+This is an attempt at live development startup, not yet proof of a running desktop app or a daily-use release.
