@@ -1153,6 +1153,10 @@ test.describe('ui e2e: session list attention', () => {
         baseUrl: server.baseUrl, token, socket: publishers[1]!, sessionId: input.id,
         kind: 'user_action', requestId: 'oh49-current-input', question: 'Should OH49 continue?',
       });
+      const permissionServerState = await fetchSessionV2(server.baseUrl, token, permission.id);
+      const inputServerState = await fetchSessionV2(server.baseUrl, token, input.id);
+      expect(permissionServerState).toMatchObject({ active: true, pendingPermissionRequestCount: 1 });
+      expect(inputServerState).toMatchObject({ active: true, pendingUserActionRequestCount: 1 });
 
       const inboxButton = page.getByTestId('sidebar-inbox-button');
       await expect(page.getByTestId('sidebar-inbox-attention-dot')).toHaveCount(1, { timeout: 60_000 });
