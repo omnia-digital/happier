@@ -1,5 +1,16 @@
 # Agent Constitution
 
+## Omnia production checkout
+
+`happier-production`, or a clone with local Git configuration
+`happier.productionCheckout=true`, is the daily-use checkout. Never edit source,
+stage, commit, change branches, rebase, create worktrees, or disable its filesystem
+or Git guards. Its only source update is a fast-forward from this fork's GitHub
+`production` branch through `scripts/fork/production-checkout.mjs update`, invoked
+from a development checkout. Do all implementation in feature worktrees based on
+`dev`. Keep the permanent `happier-dev` clone on `dev`. See
+[the fork production runbook](docs/fork-production.md).
+
 This file is the canonical cross-tool constitution for this repository.
 
 ## What Happier is

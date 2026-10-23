@@ -1,0 +1,136 @@
+# Omnia development and production
+
+The Omnia fork uses `dev` for integration and `production` for the daily-use
+source. `main` follows the parent project's main line and is not our release
+destination. Feature branches and pull requests target `dev`.
+
+This is a source promotion workflow. It does not publish upstream npm packages,
+update feeds, app-store builds, Docker images, or GitHub release artifacts.
+Signing and distribution are separate release work. The hosted Happier account,
+relay, installed CLI and daemon remain the existing daily services.
+
+## Permanent local checkouts
+
+| Checkout | Branch | Purpose |
+| --- | --- | --- |
+| `/Users/Josh/Developer/Projects/Omnia/apps/happier-dev` | `dev` | Integration baseline and starting point for feature worktrees |
+| `/Users/Josh/Developer/Projects/Omnia/apps/happier-production` | `production` | Pull-only daily-use source |
+| `/Users/Josh/Developer/Projects/Omnia/apps/happier` | Existing feature branch | Preserved existing development and running stack |
+
+The first two are independent clones. Production never shares a Git directory,
+working source, or a mutable `node_modules` symlink with development. The existing
+feature checkout is preserved until its work is integrated; do not switch it or
+delete it during setup. A branch name alone does not certify its starting commit
+as a tested release.
+
+Create ticket-named worktrees through the existing Stack owner, from `happier-dev`:
+
+```sh
+git pull --ff-only origin dev
+node apps/stack/scripts/repo_local.mjs wt new OH-123-description --from=origin --base=origin/dev --deps=none
+```
+
+Use an explicitly named stack for concurrent feature runtimes. Linked worktrees
+can share the repo-local stack identity; the permanent production clone has its
+own Git identity and therefore a separate repo-local stack.
+
+## Production protection on this Mac
+
+Run the following from a development checkout containing this change, never by
+editing the production copy:
+
+```sh
+node scripts/fork/production-checkout.mjs protect /Users/Josh/Developer/Projects/Omnia/apps/happier-production
+node scripts/fork/production-checkout.mjs status /Users/Josh/Developer/Projects/Omnia/apps/happier-production
+node scripts/fork/production-checkout.mjs update /Users/Josh/Developer/Projects/Omnia/apps/happier-production
+```
+
+`protect` requires a clean independent clone, the `production` branch, and the
+exact fork GitHub origin. It refuses to replace an existing local hooks path.
+It marks tracked source, its parent directories, the index, HEAD, local Git
+configuration and guard hooks immutable with macOS file flags. Commits, rebases
+and pushes are blocked by hooks; the push destination is disabled. Generated
+runtime state and installed dependencies are not source and are not locked.
+
+`update` fetches only `origin/production`, checks ancestry, then temporarily
+unlocks the source for a fast-forward to that fetched commit. It locks the new
+tree again in `finally`, including after a failed merge. No reset, rebase,
+force-push, automatic cleanup, or stash is used. A dirty or divergent checkout
+stops for investigation. Network failure occurs before unlocking. Stop the
+production app before updating; reopen it after the update and any necessary
+build. A failed or interrupted update is not a verified running release.
+
+Install dependencies and create required ignored build/cache directories before
+first protection. Upgrades that change dependency or build prerequisites need
+the normal build/validation workflow before daily adoption. This helper does not
+certify a native app or silently refresh a running app. It currently supports
+macOS only and does not change Windows or Linux runtime paths.
+
+These are strong accidental-edit safeguards, not an OS security boundary against
+the owning account or an administrator deliberately removing them. Agents must
+not remove the guards. After an abrupt process/OS interruption, rerun `protect`
+from development to reapply file flags before using the checkout.
+
+## Nightly promotion
+
+`.github/workflows/omnia-production.yml` runs at **02:17 America/Los_Angeles**,
+including daylight-saving changes, on the fork's default `dev` branch. GitHub
+schedules are best effort. A manual run is admitted only from this fork's `dev`.
+
+1. Bind the triggering `dev` commit.
+2. Find a successful canonical `tests.yml` **push** run for that exact SHA.
+3. Use `verify-existing-ci.mjs` to validate the repository, workflow, event,
+   branch, source SHA and required lane artifact. A green unrelated/manual run
+   does not qualify. Missing or failed CI leaves production untouched.
+4. Create a narrowly scoped token from the fork's release GitHub App.
+5. Use the existing `promote-branch.mjs` owner to fast-forward `production` to
+   the certified commit. Divergence fails; it is never reset. Newer `dev` commits
+   arriving during the run are not silently included.
+
+GitHub's normal repository-write permission controls manual dispatch. The
+fork/repository and `dev` guards, exact-source CI verifier and App scope protect
+promotion. There is no extra organization team requirement. Upstream scheduled
+publication and extra nightly suites remain defined, but their scheduled jobs
+are admitted only in `happier-dev/happier`; their manual/reusable behavior remains.
+
+## GitHub activation and first acceptance
+
+At setup inspection the fork had no registered Actions workflows/runs, repository
+secrets, release environments or production branch protection. Local checks and
+a pushed feature branch do not activate a nightly release.
+
+The repository's external-write rule permits feature-branch pushes only, so the
+following GitHub changes require Josh's explicit exception or his own action:
+
+1. Merge the setup feature work and this OH-10 change into `dev` through reviewed
+   PRs. Keep `dev` the default branch; do not merge into `main`.
+2. Enable GitHub Actions for the fork and verify that canonical `tests.yml` push
+   CI registers and succeeds on the resulting exact `dev` SHA.
+3. Install a fork-owned GitHub App on **only** `omnia-digital/happier`, with
+   Contents and Workflows write permissions. Configure its ID/private key as
+   `RELEASE_BOT_APP_ID` and `RELEASE_BOT_PRIVATE_KEY` repository Actions secrets.
+   Never reuse the parent's credentials or commit the key.
+4. Add a production ruleset preventing ordinary updates, deletion and non-fast-
+   forward updates. Allow only the installed release App to bypass update
+   restriction. Do not add a PR requirement that would prevent its fast-forward
+   promotion. Keep administrators' ability to change rules separate and explicit.
+5. Dispatch the new workflow on `dev`, verify successful terminal CI/promotion,
+   and read back `production` at the certified SHA. Exercise a no-green-CI attempt
+   and confirm production remains unchanged.
+6. Update the guarded local production clone, build and launch its Mac UI through
+   the existing repo-local Stack launcher, and verify hosted login/session
+   continuity before replacing the current daily app.
+
+Native signing, updater feeds and app installation are not established by branch
+promotion. Existing fork UI changes must reach `dev` before they can reach
+production. The fetched parent `dev` is reviewed independently; nightly promotion
+does not automatically merge parent updates or certify their compatibility.
+
+The changes here are fork-specific repository operations, not a 0.2 protocol or
+product fix to copy into the parent's `v0.3` branch. The fork has no active `v0.3`
+release branch in this setup. Retain this workflow and its owners when the fork
+eventually upgrades its development line.
+
+References: [GitHub scheduling](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onschedule),
+[enabling fork workflows](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/disable-and-enable-workflows),
+and [GitHub App installation tokens](https://docs.github.com/en/apps/creating-github-apps/authenticating-with-a-github-app/authenticating-as-a-github-app-installation).
