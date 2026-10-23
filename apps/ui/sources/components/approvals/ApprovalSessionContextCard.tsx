@@ -42,7 +42,7 @@ export const ApprovalSessionContextCard = React.memo(function ApprovalSessionCon
                 <View style={styles.titleColumn}>
                     {sessionTitle ? <Text style={styles.title}>{sessionTitle}</Text> : null}
                     <View style={styles.contextChips}>
-                        <SessionContextChips machineLabel={machineLabel} pathLabel={pathLabel} />
+                        <SessionContextChips machineLabel={machineLabel} machineId={props.machine?.id} serverId={props.session?.serverId} pathLabel={pathLabel} />
                     </View>
                 </View>
 

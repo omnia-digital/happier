@@ -44,6 +44,8 @@ export const InboxSessionAttentionGroupCard = React.memo(function InboxSessionAt
             <InboxSessionAttentionHeader
                 sessionTitle={getSessionName(props.session)}
                 machineLabel={props.machineLabel}
+                machineId={props.session.metadata?.machineId}
+                serverId={props.serverId}
                 workspaceLabel={props.workspaceName}
                 session={props.session}
                 identityDisplay={props.identityDisplay}

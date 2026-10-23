@@ -316,6 +316,7 @@ export function SessionHandoffPickerModal({ onClose, setChrome, onResolve, sessi
                 <ItemList style={{ paddingTop: 0 }} pointerEvents={awaitingAdmission ? 'none' : 'auto'} importantForAccessibility={awaitingAdmission ? 'no-hide-descendants' : 'auto'}>
                     <MachineSelector
                         machines={machines as any}
+                        serverId={serverId}
                         selectedMachine={selectedMachine as any}
                         recentMachines={recentMachines as any}
                         favoriteMachines={favoriteMachines as any}

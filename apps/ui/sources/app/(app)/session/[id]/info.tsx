@@ -49,6 +49,7 @@ import {
     resolveSessionHandoffUiAvailability,
 } from '@/sync/domains/sessionHandoff/resolveSessionHandoffUiAvailability';
 import { readDisplayMachineTargetForSession } from '@/sync/ops/sessionMachineTarget';
+import { MachineDisplayGlyph } from '@/components/sessions/SessionMachineIdentity';
 import { useSessionMachineTarget } from '@/components/sessions/model/useSessionMachineTarget';
 import { getActionSpec } from '@happier-dev/protocol';
 import { SessionRetentionNotice } from '@/components/sessions/info/SessionRetentionNotice';
@@ -1246,7 +1247,7 @@ function SessionInfoContent({ session, sessionServerId, sourceMachineIdForHandof
                         <Item
                             title={t('sessionInfo.host')}
                             subtitle={session.metadata.host}
-                            icon={<Icon name="desktop" size={29} color={theme.colors.accent.indigo} />}
+                            icon={<MachineDisplayGlyph serverId={sessionServerId ?? routeScope.serverId} machineId={displayMachineId} size={29} color={theme.colors.accent.indigo} />}
                             showChevron={false}
                         />
                         <Item

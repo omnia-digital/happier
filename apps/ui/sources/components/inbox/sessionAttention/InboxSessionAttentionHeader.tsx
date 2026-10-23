@@ -20,6 +20,8 @@ export const InboxSessionAttentionHeader = React.memo(function InboxSessionAtten
     identityDisplay: SessionListIdentityDisplay;
     sessionTitle: string;
     machineLabel: string | null;
+    machineId?: string | null;
+    serverId?: string | null;
     workspaceLabel: string | null;
     onOpenSession: () => void;
 }>) {
@@ -39,7 +41,7 @@ export const InboxSessionAttentionHeader = React.memo(function InboxSessionAtten
                 <Text style={styles.title} numberOfLines={1}>
                     {props.sessionTitle}
                 </Text>
-                <SessionContextChips machineLabel={props.machineLabel} pathLabel={props.workspaceLabel} />
+                <SessionContextChips machineLabel={props.machineLabel} machineId={props.machineId} serverId={props.serverId} pathLabel={props.workspaceLabel} />
             </View>
 
             <IconAction

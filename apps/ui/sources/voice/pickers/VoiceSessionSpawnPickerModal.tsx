@@ -14,6 +14,7 @@ import { RoundButton } from '@/components/ui/buttons/RoundButton';
 import { machineMetadataPlatformToTarget } from '@/utils/path/machinePlatform';
 
 import { useAllMachines, useSessions, useSetting, useSettingMutable } from '@/sync/domains/state/storage';
+import { getActiveServerId } from '@/sync/domains/server/serverProfiles';
 import { getRecentMachinesFromSessions } from '@/utils/sessions/recentMachines';
 import {
   useStableRecentPathsForMachine,
@@ -189,6 +190,7 @@ export function VoiceSessionSpawnPickerModal(props: Props) {
           <ItemList style={{ paddingTop: 0 }}>
             <MachineSelector
               machines={machines as any}
+              serverId={getActiveServerId()}
               selectedMachine={selectedMachine as any}
               recentMachines={recentMachines as any}
               favoriteMachines={favoriteMachines as any}
