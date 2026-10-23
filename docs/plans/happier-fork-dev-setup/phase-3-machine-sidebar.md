@@ -16,6 +16,10 @@ For machine grouping, add a discoverable view-menu choice using the existing pro
 
 ## OH-19 execution
 
+**Latest fixture gate:** Josh approved the shared and two direct fixture additions, then removed the approval requirement globally (OH-51). Exactly `machineLabel: null` and `showMachineIdentity: true` were added at those three literals; existing assertions/expectations are unchanged. UI typecheck and five affected row suites / 49 tests pass. Earlier pending-approval/typecheck observations below are historical.
+
+Native narrow-window follow-through at 900×700 logical pixels shows the machine identifier beside the type badge without covering the title or existing controls; compact sidebar rows retain readable MacBook, Mac mini and Windows identifiers with truncated titles. The private native screenshot `/tmp/happier-oh19-narrow-native.jpg` was inspected locally, not published. The prior physical 3840×2100 window size was restored immediately. OH-19 development acceptance is complete; broader OH-14 organization and packaged release remain separate.
+
 - [x] 🟢 Added new focused regressions for default-on/missing metadata, preference persistence, header identity and preserved controls, using canonical testkit. No preexisting tests or assertions edited. Tooltip RED/GREEN checks and 107 adjacent UI checks pass through `4363ad3bb6`.
 - [x] 🟢 Carried resolved machine identity through the existing row model/projection with existing canonical reachability resolution and virtualized presentation inputs. Native rows show three distinct machines, including Pinned. No per-row RPC or new registry.
 - [x] 🟢 Added a localized local default-on Session preference. Native off/on updates rows immediately; each value survives full WebView reload. The installed client's hosted settings remain unchanged.

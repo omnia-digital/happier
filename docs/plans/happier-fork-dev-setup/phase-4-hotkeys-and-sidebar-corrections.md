@@ -36,3 +36,11 @@ The locked offline native Rust window-frame test passed against the actual scope
 ## Current state
 
 OH-14 machine view and OH-19 identities are pushed and natively exercised, but their broader ordering and fixture/typecheck closeout remain open. Five additional project requests OH-45 through OH-49 are now included in the live backlog: prefilled new session, folder order clarity, machine customization, empty Active headers and Inbox clarity. Keep all requested outcomes; this batch does not replace that backlog.
+
+## Subsequent closeout and global policy
+
+Josh approved the three OH-19 fixture updates, then explicitly removed the approval requirement globally. Exactly two defaults (`machineLabel: null`, `showMachineIdentity: true`) were added to the shared row factory and the activity-time/loading-title literals. Assertions and expectations are unchanged. `yarn --cwd apps/ui typecheck` now passes, as do five affected row suites / 49 tests. Logs: `/tmp/happier-oh19-approved-fixture-{typecheck,tests}.log`. Earlier pending-approval/typecheck observations above are historical and superseded by these results. The original root suite remains failed separately; this is not a full-suite or release claim.
+
+OH-17's menu correction is pushed as `077d313e42`: the provider observes the existing canonical Escape/popover layer registry rather than querying DOM or adding per-row listeners. A new regression exercises the actual searchless DropdownMenu. Adjacent provider/escape/dropdown/popover/i18n suites pass 83/83; independent finding-delta review passed 9/9 and found no remaining source blocker. Physical foreground keyboard acceptance remains open. Source locale integrity passed; the earlier pre-write JSON-map verifier usage error is not treated as success.
+
+OH-51 owns the global instruction update. Codex and Claude instruction files were updated and read back on the current Mac, Cassian Mac mini and Josh-PC. The Mac files retain mode 0600; the PC's two discovered Admin-profile files retain all preexisting bytes with the policy appended. The exact new policy explicitly supersedes older project/global confirmation rules while preserving meaningful coverage and underlying defect diagnosis. The requested persistent preference was saved through the supported ad-hoc memory note mechanism. OH-51 is Done.

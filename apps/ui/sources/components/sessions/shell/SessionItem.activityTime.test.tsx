@@ -231,6 +231,8 @@ function createSessionRowModel(overrides: Partial<SessionListRowModel> = {}): Se
         sessionId,
         serverId,
         serverName: 'Server A',
+        machineLabel: null,
+        showMachineIdentity: true,
         treeRowId: `session:${serverId ?? 'local'}:${sessionId}`,
         testID: `session-list-item-${sessionId}`,
         session,
