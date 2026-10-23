@@ -10947,9 +10947,11 @@ settingsSession: {
     displayAppearanceTitle: '外観',
     displayLabelTitle: '表示名',
     displayIconTitle: '表示アイコン',
-    displayLocalOnlySubtitle: 'アイコンの選択はこの端末に保存されます。',
+    displayColorTitle: 'アイコンの色',
+    displayColors: { automatic: '自動', blue: '青', purple: '紫', red: '赤' },
+    displayLocalOnlySubtitle: 'アイコンと色の選択はこの端末に保存されます。',
     displayResetTitle: '外観をリセット',
-    displayResetSubtitle: 'ホスト名と標準のアイコンを使用します。',
+    displayResetSubtitle: 'ホスト名、標準のアイコン、自動の色を使用します。',
     displayIcons: {
         desktop: 'デスクトップ',
         laptop: 'ノートパソコン',

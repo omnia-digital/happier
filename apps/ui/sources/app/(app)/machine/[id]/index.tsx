@@ -57,9 +57,13 @@ import { resolveMachineSpawnReadiness } from '@/sync/domains/machines/identity/r
 import { Icon } from '@/components/ui/icons/Icon';
 import {
     MachineDisplayIconSchema,
+    MachineDisplayColorSchema,
+    readMachineDisplayColor,
+    withMachineDisplayColor,
     readMachineDisplayIcon,
     withMachineDisplayIcon,
 } from '@/sync/domains/machines/machineDisplayIconPreference';
+import { resolveMachineDisplayColor } from '@/components/sessions/machineDisplayColor';
 import { useApplyLocalSettings } from '@/sync/store/settingsWriters';
 import {
     MachineReplacementPickerModal,
@@ -174,6 +178,7 @@ export default function MachineDetailScreen() {
     const [isStoppingDaemon, setIsStoppingDaemon] = useState(false);
     const [isRenamingMachine, setIsRenamingMachine] = useState(false);
     const [openMachineIconMenu, setOpenMachineIconMenu] = useState(false);
+    const [openMachineColorMenu, setOpenMachineColorMenu] = useState(false);
     const [isUpdatingWindowsConsoleMode, setIsUpdatingWindowsConsoleMode] = useState(false);
     const [openWindowsRemoteSessionLaunchModeMenu, setOpenWindowsRemoteSessionLaunchModeMenu] = useState(false);
     const [openTerminalHostOverrideMenu, setOpenTerminalHostOverrideMenu] = useState(false);
@@ -201,8 +206,12 @@ export default function MachineDetailScreen() {
     const applySettings = useApplySettings();
     const activeServerId = getActiveServerId();
     const machineDisplayIconByMachineV1 = useLocalSetting('machineDisplayIconByMachineV1');
+    const machineDisplayColorByMachineV1 = useLocalSetting('machineDisplayColorByMachineV1');
     const applyLocalSettings = useApplyLocalSettings();
     const selectedMachineDisplayIcon = readMachineDisplayIcon(machineDisplayIconByMachineV1, activeServerId, machineId);
+    const selectedMachineDisplayColor = readMachineDisplayColor(machineDisplayColorByMachineV1, activeServerId, machineId);
+    const machineGlyphColor = resolveMachineDisplayColor(theme, selectedMachineDisplayColor, theme.colors.text.secondary);
+    const headerMachineGlyphColor = resolveMachineDisplayColor(theme, selectedMachineDisplayColor, theme.colors.chrome.header.foreground);
     const [executionRunsState, setExecutionRunsState] = useState<
         | { status: 'idle' | 'loading'; runs: readonly DaemonExecutionRunEntry[] }
         | { status: 'loaded'; runs: readonly DaemonExecutionRunEntry[] }
@@ -712,6 +721,9 @@ export default function MachineDetailScreen() {
                 machineDisplayIconByMachineV1: withMachineDisplayIcon(
                     machineDisplayIconByMachineV1, activeServerId, machineId, 'desktop',
                 ),
+                machineDisplayColorByMachineV1: withMachineDisplayColor(
+                    machineDisplayColorByMachineV1, activeServerId, machineId, 'automatic',
+                ),
             });
         } catch (error) {
             Modal.alert(t('common.error'), error instanceof Error ? error.message : t('machine.renameFailed'));
@@ -882,7 +894,7 @@ export default function MachineDetailScreen() {
                     <Icon
                         name={selectedMachineDisplayIcon}
                         size={16}
-                        color={theme.colors.chrome.header.foreground}
+                        color={headerMachineGlyphColor}
                         style={{ marginRight: 6 }}
                     />
                     <Text style={[Typography.default('semiBold'), { fontSize: 17, color: theme.colors.chrome.header.foreground }]}>
@@ -906,7 +918,7 @@ export default function MachineDetailScreen() {
                 </View>
             </View>
         );
-    }, [machineIsOnline, machine, machineName, selectedMachineDisplayIcon, theme.colors.chrome.header.foreground]);
+    }, [machineIsOnline, machine, machineName, selectedMachineDisplayIcon, headerMachineGlyphColor, theme.colors.chrome.header.foreground]);
 
     const headerRight = React.useCallback(() => {
         if (!machine) return null;
@@ -1066,8 +1078,8 @@ export default function MachineDetailScreen() {
                             disabled={isRenamingMachine}
                         />
                         <DropdownMenu
-                            open={openMachineIconMenu}
-                            onOpenChange={setOpenMachineIconMenu}
+                            open={openMachineIconMenu && !isRenamingMachine}
+                            onOpenChange={(open) => { if (!isRenamingMachine) setOpenMachineIconMenu(open); }}
                             items={MachineDisplayIconSchema.options.map((icon) => ({
                                 id: icon,
                                 title: t(`machine.displayIcons.${icon}`),
@@ -1075,6 +1087,7 @@ export default function MachineDetailScreen() {
                             }))}
                             selectedId={selectedMachineDisplayIcon}
                             onSelect={(id) => {
+                                if (isRenamingMachine) return;
                                 const parsed = MachineDisplayIconSchema.safeParse(id);
                                 if (!parsed.success) return;
                                 applyLocalSettings({
@@ -1087,8 +1100,38 @@ export default function MachineDetailScreen() {
                             itemTrigger={{
                                 title: t('machine.displayIconTitle'),
                                 subtitle: t('machine.displayLocalOnlySubtitle'),
-                                icon: <Icon name={selectedMachineDisplayIcon} size={20} color={theme.colors.text.secondary} />,
-                                itemProps: { testID: 'machine-display-icon' },
+                                icon: <Icon name={selectedMachineDisplayIcon} size={20} color={machineGlyphColor} />,
+                                itemProps: { testID: 'machine-display-icon', disabled: isRenamingMachine },
+                            }}
+                            rowKind="item"
+                            connectToTrigger
+                            variant="default"
+                        />
+                        <DropdownMenu
+                            open={openMachineColorMenu && !isRenamingMachine}
+                            onOpenChange={(open) => { if (!isRenamingMachine) setOpenMachineColorMenu(open); }}
+                            items={MachineDisplayColorSchema.options.map((color) => ({
+                                id: color,
+                                title: t(`machine.displayColors.${color}`),
+                                icon: <Icon name={selectedMachineDisplayIcon} size={20} color={resolveMachineDisplayColor(theme, color, theme.colors.text.secondary)} />,
+                            }))}
+                            selectedId={selectedMachineDisplayColor}
+                            onSelect={(id) => {
+                                if (isRenamingMachine) return;
+                                const parsed = MachineDisplayColorSchema.safeParse(id);
+                                if (!parsed.success) return;
+                                applyLocalSettings({
+                                    machineDisplayColorByMachineV1: withMachineDisplayColor(
+                                        machineDisplayColorByMachineV1, activeServerId, machineId, parsed.data,
+                                    ),
+                                });
+                                setOpenMachineColorMenu(false);
+                            }}
+                            itemTrigger={{
+                                title: t('machine.displayColorTitle'),
+                                subtitle: t(`machine.displayColors.${selectedMachineDisplayColor}`),
+                                icon: <Icon name={selectedMachineDisplayIcon} size={20} color={machineGlyphColor} />,
+                                itemProps: { testID: 'machine-display-color', disabled: isRenamingMachine },
                             }}
                             rowKind="item"
                             connectToTrigger
@@ -1100,7 +1143,7 @@ export default function MachineDetailScreen() {
                             subtitle={t('machine.displayResetSubtitle')}
                             leftElement={<Icon name="arrow-clockwise" size={20} color={theme.colors.text.secondary} />}
                             onPress={() => void handleResetMachineDisplay()}
-                            disabled={isRenamingMachine || (!machine.metadata?.displayName && selectedMachineDisplayIcon === 'desktop')}
+                            disabled={isRenamingMachine || (!machine.metadata?.displayName && selectedMachineDisplayIcon === 'desktop' && selectedMachineDisplayColor === 'automatic')}
                         />
                     </ItemGroup>
                 )}

@@ -23,7 +23,7 @@ import {
 } from '../domains/artifacts/approvalArtifacts';
 import { isAutomationLinkedToSession } from '../domains/automations/automationSessionLink';
 import type { LocalSettings } from '../domains/settings/localSettings';
-import { readMachineDisplayIcon } from '../domains/machines/machineDisplayIconPreference';
+import { readMachineDisplayColor, readMachineDisplayIcon } from '../domains/machines/machineDisplayIconPreference';
 import type { AgentTextMessage, Message } from '../domains/messages/messageTypes';
 import type { Settings } from '../domains/settings/settings';
 import { settingsDefaults } from '../domains/settings/settings';
@@ -1971,6 +1971,14 @@ export function useLocalSetting<K extends keyof LocalSettings>(name: K): LocalSe
 export function useMachineDisplayIcon(serverId?: string | null, machineId?: string | null) {
   return getStorage()((state) => readMachineDisplayIcon(
     state.localSettings.machineDisplayIconByMachineV1,
+    serverId,
+    machineId,
+  ));
+}
+
+export function useMachineDisplayColor(serverId?: string | null, machineId?: string | null) {
+  return getStorage()((state) => readMachineDisplayColor(
+    state.localSettings.machineDisplayColorByMachineV1,
     serverId,
     machineId,
   ));

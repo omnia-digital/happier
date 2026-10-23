@@ -10009,9 +10009,11 @@ settingsSession: {
         displayAppearanceTitle: 'Aparença',
         displayLabelTitle: 'Nom visible',
         displayIconTitle: 'Icona visible',
-        displayLocalOnlySubtitle: 'La icona es desa en aquest dispositiu.',
+        displayColorTitle: 'Color de la icona',
+        displayColors: { automatic: 'Automàtic', blue: 'Blau', purple: 'Porpra', red: 'Vermell' },
+        displayLocalOnlySubtitle: 'La icona i el color es desen en aquest dispositiu.',
         displayResetTitle: 'Restableix l’aparença',
-        displayResetSubtitle: 'Utilitza el nom de l’equip i la icona predeterminada.',
+        displayResetSubtitle: 'Utilitza el nom de l’equip, la icona predeterminada i el color automàtic.',
         displayIcons: {
             desktop: 'Escriptori',
             laptop: 'Portàtil',

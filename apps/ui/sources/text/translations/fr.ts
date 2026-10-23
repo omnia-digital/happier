@@ -10060,9 +10060,11 @@ settingsSession: {
         displayAppearanceTitle: 'Apparence',
         displayLabelTitle: 'Nom affiché',
         displayIconTitle: 'Icône affichée',
-        displayLocalOnlySubtitle: 'Le choix de l’icône est enregistré sur cet appareil.',
+        displayColorTitle: 'Couleur de l’icône',
+        displayColors: { automatic: 'Automatique', blue: 'Bleu', purple: 'Violet', red: 'Rouge' },
+        displayLocalOnlySubtitle: 'L’icône et la couleur sont enregistrées sur cet appareil.',
         displayResetTitle: 'Réinitialiser l’apparence',
-        displayResetSubtitle: 'Utiliser le nom d’hôte et l’icône par défaut.',
+        displayResetSubtitle: 'Utiliser le nom d’hôte, l’icône par défaut et la couleur automatique.',
         displayIcons: {
             desktop: 'Ordinateur',
             laptop: 'Portable',

@@ -10073,9 +10073,11 @@ settingsSession: {
         displayAppearanceTitle: 'Darstellung',
         displayLabelTitle: 'Anzeigename',
         displayIconTitle: 'Anzeigesymbol',
-        displayLocalOnlySubtitle: 'Das Symbol wird auf diesem Gerät gespeichert.',
+        displayColorTitle: 'Symbolfarbe',
+        displayColors: { automatic: 'Automatisch', blue: 'Blau', purple: 'Violett', red: 'Rot' },
+        displayLocalOnlySubtitle: 'Symbol und Farbe werden auf diesem Gerät gespeichert.',
         displayResetTitle: 'Darstellung zurücksetzen',
-        displayResetSubtitle: 'Hostname und Standardsymbol verwenden.',
+        displayResetSubtitle: 'Hostname, Standardsymbol und automatische Farbe verwenden.',
         displayIcons: {
             desktop: 'Desktop',
             laptop: 'Laptop',

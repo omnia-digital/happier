@@ -11043,9 +11043,11 @@ settingsSession: {
     displayAppearanceTitle: 'Aspetto',
     displayLabelTitle: 'Nome visualizzato',
     displayIconTitle: 'Icona visualizzata',
-    displayLocalOnlySubtitle: 'L’icona viene salvata su questo dispositivo.',
+    displayColorTitle: 'Colore dell’icona',
+    displayColors: { automatic: 'Automatico', blue: 'Blu', purple: 'Viola', red: 'Rosso' },
+    displayLocalOnlySubtitle: 'L’icona e il colore vengono salvati su questo dispositivo.',
     displayResetTitle: 'Ripristina aspetto',
-    displayResetSubtitle: 'Usa il nome host e l’icona predefinita.',
+    displayResetSubtitle: 'Usa il nome host, l’icona predefinita e il colore automatico.',
     displayIcons: {
         desktop: 'Desktop',
         laptop: 'Portatile',

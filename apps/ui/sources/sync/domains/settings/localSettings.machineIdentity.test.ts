@@ -37,3 +37,23 @@ describe('local machine display icons', () => {
         expect(readMachineDisplayIcon(reset.machineDisplayIconByMachineV1, 'server-b', 'machine-a')).toBe('cloud');
     });
 });
+
+
+describe('local machine display colors', () => {
+    it('defaults to no overrides and persists independent colors without changing icon choices', () => {
+        const defaults = localSettingsParse(null);
+        expect(defaults.machineDisplayColorByMachineV1).toEqual({});
+        const saved = applyLocalSettings(defaults, {
+            machineDisplayIconByMachineV1: { '["server-a","machine-a"]': 'cloud' },
+            machineDisplayColorByMachineV1: {
+                '["server-a","machine-a"]': 'blue',
+                '["server-b","machine-a"]': 'purple',
+                '["server-a","machine-b"]': 'red',
+            },
+        });
+        const reloaded = localSettingsParse(JSON.parse(JSON.stringify(saved)));
+        expect(reloaded.machineDisplayColorByMachineV1).toEqual(saved.machineDisplayColorByMachineV1);
+        expect(reloaded.machineDisplayColorByMachineV1['["server-b","machine-a"]']).toBe('purple');
+        expect(reloaded.machineDisplayIconByMachineV1['["server-a","machine-a"]']).toBe('cloud');
+    });
+});

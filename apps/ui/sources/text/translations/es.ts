@@ -10727,9 +10727,11 @@ settingsSession: {
     displayAppearanceTitle: 'Apariencia',
     displayLabelTitle: 'Nombre visible',
     displayIconTitle: 'Icono visible',
-    displayLocalOnlySubtitle: 'El icono se guarda en este dispositivo.',
+    displayColorTitle: 'Color del icono',
+    displayColors: { automatic: 'Automático', blue: 'Azul', purple: 'Morado', red: 'Rojo' },
+    displayLocalOnlySubtitle: 'El icono y el color se guardan en este dispositivo.',
     displayResetTitle: 'Restablecer apariencia',
-    displayResetSubtitle: 'Usar el nombre del equipo y el icono predeterminado.',
+    displayResetSubtitle: 'Usar el nombre del equipo, el icono predeterminado y el color automático.',
     displayIcons: {
         desktop: 'Escritorio',
         laptop: 'Portátil',

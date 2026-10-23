@@ -3,8 +3,9 @@ import { Platform, View } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Typography } from '@/constants/Typography';
 import { Icon } from '@/components/ui/icons/Icon';
-import { useMachineDisplayIcon } from '@/sync/domains/state/storage';
+import { useMachineDisplayColor, useMachineDisplayIcon } from '@/sync/domains/state/storage';
 import { Text } from '@/components/ui/text/Text';
+import { resolveMachineDisplayColor } from './machineDisplayColor';
 import { DeferredAnchoredTooltip } from '@/components/ui/overlays/DeferredAnchoredTooltip';
 
 /** A compact name from the canonical machine presentation, with its full value available on hover. */
@@ -17,7 +18,9 @@ export const MachineDisplayGlyph = React.memo(function MachineDisplayGlyph({
     color: string;
 }>) {
     const icon = useMachineDisplayIcon(serverId, machineId);
-    return <Icon name={icon} size={size} color={color} />;
+    const selectedColor = useMachineDisplayColor(serverId, machineId);
+    const { theme } = useUnistyles();
+    return <Icon name={icon} size={size} color={resolveMachineDisplayColor(theme, selectedColor, color)} />;
 });
 
 export const SessionMachineIdentity = React.memo(function SessionMachineIdentity({

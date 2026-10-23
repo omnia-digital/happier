@@ -10348,9 +10348,11 @@ settingsSession: {
     displayAppearanceTitle: '外观',
     displayLabelTitle: '显示名称',
     displayIconTitle: '显示图标',
-    displayLocalOnlySubtitle: '图标选择保存在此设备上。',
+    displayColorTitle: '图标颜色',
+    displayColors: { automatic: '自动', blue: '蓝色', purple: '紫色', red: '红色' },
+    displayLocalOnlySubtitle: '图标和颜色选择保存在此设备上。',
     displayResetTitle: '重置外观',
-    displayResetSubtitle: '使用主机名和默认图标。',
+    displayResetSubtitle: '使用主机名、默认图标和自动颜色。',
     displayIcons: {
         desktop: '台式电脑',
         laptop: '笔记本电脑',

@@ -8738,9 +8738,11 @@ settingsSession: {
         displayAppearanceTitle: '外觀',
         displayLabelTitle: '顯示名稱',
         displayIconTitle: '顯示圖示',
-        displayLocalOnlySubtitle: '圖示選擇儲存在此裝置上。',
+        displayColorTitle: '圖示顏色',
+        displayColors: { automatic: '自動', blue: '藍色', purple: '紫色', red: '紅色' },
+        displayLocalOnlySubtitle: '圖示和顏色選擇儲存在此裝置上。',
         displayResetTitle: '重設外觀',
-        displayResetSubtitle: '使用主機名稱和預設圖示。',
+        displayResetSubtitle: '使用主機名稱、預設圖示和自動顏色。',
         displayIcons: {
             desktop: '桌上型電腦',
             laptop: '筆記型電腦',

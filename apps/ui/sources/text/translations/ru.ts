@@ -10613,9 +10613,11 @@ settingsSession: {
     displayAppearanceTitle: 'Внешний вид',
     displayLabelTitle: 'Отображаемое имя',
     displayIconTitle: 'Значок',
-    displayLocalOnlySubtitle: 'Выбор значка сохраняется на этом устройстве.',
+    displayColorTitle: 'Цвет значка',
+    displayColors: { automatic: 'Автоматически', blue: 'Синий', purple: 'Фиолетовый', red: 'Красный' },
+    displayLocalOnlySubtitle: 'Значок и цвет сохраняются на этом устройстве.',
     displayResetTitle: 'Сбросить внешний вид',
-    displayResetSubtitle: 'Использовать имя хоста и значок по умолчанию.',
+    displayResetSubtitle: 'Использовать имя хоста, значок по умолчанию и автоматический цвет.',
     displayIcons: {
         desktop: 'Компьютер',
         laptop: 'Ноутбук',

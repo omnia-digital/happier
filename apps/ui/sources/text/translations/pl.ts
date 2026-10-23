@@ -10719,9 +10719,11 @@ settingsSession: {
     displayAppearanceTitle: 'Wygląd',
     displayLabelTitle: 'Nazwa wyświetlana',
     displayIconTitle: 'Ikona',
-    displayLocalOnlySubtitle: 'Wybór ikony jest zapisany na tym urządzeniu.',
+    displayColorTitle: 'Kolor ikony',
+    displayColors: { automatic: 'Automatyczny', blue: 'Niebieski', purple: 'Fioletowy', red: 'Czerwony' },
+    displayLocalOnlySubtitle: 'Ikona i kolor są zapisywane na tym urządzeniu.',
     displayResetTitle: 'Przywróć wygląd',
-    displayResetSubtitle: 'Użyj nazwy hosta i domyślnej ikony.',
+    displayResetSubtitle: 'Użyj nazwy hosta, domyślnej ikony i automatycznego koloru.',
     displayIcons: {
         desktop: 'Komputer',
         laptop: 'Laptop',

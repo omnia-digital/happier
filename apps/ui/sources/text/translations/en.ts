@@ -10105,9 +10105,11 @@ settingsSession: {
         displayAppearanceTitle: 'Appearance',
         displayLabelTitle: 'Display name',
         displayIconTitle: 'Display icon',
-        displayLocalOnlySubtitle: 'Icon choice is saved on this device.',
+        displayColorTitle: 'Icon color',
+        displayColors: { automatic: 'Automatic', blue: 'Blue', purple: 'Purple', red: 'Red' },
+        displayLocalOnlySubtitle: 'Icon and color choices are saved on this device.',
         displayResetTitle: 'Reset appearance',
-        displayResetSubtitle: 'Use the hostname and default desktop icon.',
+        displayResetSubtitle: 'Use the hostname, default desktop icon and automatic color.',
         displayIcons: {
             desktop: 'Desktop',
             laptop: 'Laptop',
