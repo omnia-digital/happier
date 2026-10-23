@@ -1,3 +1,4 @@
+import type { RepositoryHeaderPresentation } from './sessionRepositoryIdentity';
 import type { MachineDisplayRenderable } from '@/sync/domains/machines/machineDisplayRenderable';
 import type { SessionListRenderableSession } from './sessionListRenderable';
 import type { SessionListAttentionPromotionReason } from './attentionPromotion/sessionListAttentionPromotionTypes';
@@ -27,6 +28,7 @@ export type SessionListViewItem =
         headerKind?: 'date' | 'server' | 'active' | 'inactive' | 'sessions' | 'project' | 'pinned' | 'attention' | 'working' | 'shared' | 'folder' | 'machine';
         groupKey?: string;
         workspaceKey?: string;
+        repository?: RepositoryHeaderPresentation;
         workspace?: SessionFolderWorkspaceRefV1;
         renderWorkspaceKey?: string;
         folderId?: string;

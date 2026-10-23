@@ -1,3 +1,4 @@
+import { SessionRepositoryAssociationsSchema } from '@/sync/domains/session/listing/sessionRepositoryIdentity';
 import { buildSettingArtifacts, defineSettingDefinitions } from '@happier-dev/protocol';
 import { z } from 'zod';
 import { MachineDisplayColorSchema, MachineDisplayIconSchema } from '@/sync/domains/machines/machineDisplayIconPreference';
@@ -183,10 +184,16 @@ export const LOCAL_SETTING_DEFINITIONS = defineSettingDefinitions({
         description: 'Display icon color selections on this device, keyed by server and machine ID',
         storageScope: 'local',
     },
+    sessionRepositoryAssociationsV1: {
+        schema: SessionRepositoryAssociationsSchema,
+        default: {},
+        description: 'Local repository associations keyed by server, account, machine and workspace',
+        storageScope: 'local',
+    },
     sessionListMachineViewV1: {
-        schema: z.enum(['original', 'machine']).catch('original'),
+        schema: z.enum(['original', 'machine', 'repository']).catch('original'),
         default: 'original',
-        description: 'Local session list presentation by original groups or hosting machine',
+        description: 'Local session list presentation by original groups, hosting machine or repository',
         storageScope: 'local',
     },
     themePreference: {

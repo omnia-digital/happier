@@ -312,10 +312,10 @@ function collectDirectFolderOrderEntries(items: ReadonlyArray<SessionListIndexIt
     return entries;
 }
 
-function reorderEntriesByKeys(entries: ReadonlyArray<ChildOrderEntry>, keys: ReadonlyArray<string>): ChildOrderEntry[] {
+export function reorderSessionListEntriesByKeys<T extends { key: string }>(entries: ReadonlyArray<T>, keys: ReadonlyArray<string>): T[] {
     const byKey = new Map(entries.map((entry) => [entry.key, entry]));
-    const used = new Set<ChildOrderEntry>();
-    const out: ChildOrderEntry[] = [];
+    const used = new Set<T>();
+    const out: T[] = [];
     for (const key of keys) {
         const normalized = typeof key === 'string' ? key.trim() : '';
         if (!normalized) continue;
@@ -354,7 +354,7 @@ function applyChildOrderEntriesByRuns(
     let didChange = false;
     for (const run of splitChildOrderEntriesIntoContiguousRuns(entries)) {
         if (run.length < 2) continue;
-        const reordered = reorderEntriesByKeys(run, keys);
+        const reordered = reorderSessionListEntriesByKeys(run, keys);
         if (reordered.every((entry, index) => entry === run[index])) continue;
 
         const firstEntry = run[0]!;
