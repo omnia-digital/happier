@@ -22,6 +22,7 @@ vi.mock('@/log', () => ({
 
 vi.mock('@/voice/context/voiceHooks', () => ({
     voiceHooks: {
+        onAgentRequest: vi.fn(),
         onSessionFocus: vi.fn(),
         onSessionOffline: vi.fn(),
         onSessionOnline: vi.fn(),
@@ -1235,7 +1236,13 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
             .toEqual(expect.objectContaining({ agentType: 'claude', selectedProfileId: 'next-profile' }));
     });
 
-    it('does not commit a foreign account session after credentials change during hydration', async () => {
+    it.each(['new-account', 'old-account', 'active-reset'])('commits foreign hydration only while the captured account is current (%s)', async (nextAccount) => {
+        const { createDeferred } = await import('@/dev/testkit');
+        const { voiceHooks } = await import('@/voice/context/voiceHooks');
+        vi.mocked(voiceHooks.onAgentRequest).mockClear();
+        const validationStarted = createDeferred<void>();
+        const validationReady = createDeferred<void>();
+        let credentialReads = 0;
         const sessionId = 'foreign_account_changed_during_hydration';
         const activeServer = upsertServerProfile({ serverUrl: 'https://active.example', name: 'Active' });
         const foreignServer = upsertServerProfile({ serverUrl: 'https://foreign.example', name: 'Foreign' });
@@ -1252,7 +1259,13 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
         };
         requestMock.mockRejectedValue(new Error('active request should not be used'));
         let foreignToken = buildTokenWithSub('old-account');
-        getCredentialsForServerUrlMock.mockImplementation(async () => ({ token: foreignToken, secret: 'foreign-secret' }));
+        getCredentialsForServerUrlMock.mockImplementation(async () => {
+            if (++credentialReads === 2 && nextAccount === 'active-reset') {
+                validationStarted.resolve();
+                await validationReady.promise;
+            }
+            return { token: foreignToken, secret: 'foreign-secret' };
+        });
         createEncryptionFromAuthCredentialsMock.mockResolvedValue({
             decryptEncryptionKey: async () => null,
             initializeSessions: async () => {},
@@ -1273,21 +1286,96 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
             forceRefresh: true,
         });
         await requestStarted;
-        foreignToken = buildTokenWithSub('new-account');
+        foreignToken = buildTokenWithSub(nextAccount === 'active-reset' ? 'old-account' : nextAccount) + '-rotated';
         finishRequest?.(new Response(JSON.stringify({
             session: {
                 id: sessionId, createdAt: 1, updatedAt: 2, seq: 3,
                 active: true, activeAt: 2, encryptionMode: 'plain', dataEncryptionKey: null,
                 metadataVersion: 1,
                 metadata: JSON.stringify({ path: '/old-account', host: 'foreign.example', machineId: 'old-machine' }),
-                agentStateVersion: 0, agentState: null, share: null,
+                agentStateVersion: 1, agentState: JSON.stringify({ requests: { req: { tool: 'AskUserQuestion', kind: 'user_action', arguments: { question: 'Proceed?' }, createdAt: 1 } } }), share: null,
             },
         }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
 
+        if (nextAccount === 'active-reset') {
+            await validationStarted.promise;
+            sync.disconnectServer();
+            (sync as any).sessionDataKeys.set(sessionId, new Uint8Array([7]));
+            (sync as any).sessionDataKeyEnvelopes.set(sessionId, 'current-envelope');
+            validationReady.resolve();
+        }
         const result = await hydration;
-        expect(storage.getState().sessions[sessionId]).toBeUndefined();
-        expect(result).toMatchObject({ kind: 'retryable_failure' });
+        if (nextAccount === 'old-account') {
+            expect(storage.getState().sessions[sessionId]?.metadata?.path).toBe('/old-account');
+            expect(result).toMatchObject({ kind: 'available' });
+            expect(voiceHooks.onAgentRequest).toHaveBeenCalledOnce();
+        } else {
+            expect(storage.getState().sessions[sessionId]).toBeUndefined();
+            expect(result).toMatchObject({ kind: 'retryable_failure' });
+            expect(voiceHooks.onAgentRequest).not.toHaveBeenCalled();
+        }
+        if (nextAccount === 'active-reset') {
+            expect((sync as any).sessionDataKeys.get(sessionId)).toEqual(new Uint8Array([7]));
+            expect((sync as any).sessionDataKeyEnvelopes.get(sessionId)).toBe('current-envelope');
+        }
         expect(requestMock).not.toHaveBeenCalled();
+    });
+
+    it.each(['new-account', 'old-account', 'declined'])('stages encrypted hydration keys through account validation after decryption (%s)', async (nextAccount) => {
+        const { createDeferred } = await import('@/dev/testkit');
+        const { voiceHooks } = await import('@/voice/context/voiceHooks');
+        vi.mocked(voiceHooks.onAgentRequest).mockClear();
+        const { fetchSessionByIdWithServerScope } = await import('./runtime/orchestration/serverScopedRpc/fetchSessionByIdWithServerScope');
+        const active = upsertServerProfile({ serverUrl: 'https://active.example', name: 'Active' });
+        const foreign = upsertServerProfile({ serverUrl: 'https://foreign.example', name: 'Foreign' });
+        setActiveServerId(active.id, { scope: 'device' });
+        let token = buildTokenWithSub('old-account');
+        getCredentialsForServerUrlMock.mockImplementation(async () => ({ token, secret: 'foreign-secret' }));
+        const decryptStarted = createDeferred<void>();
+        const metadata = createDeferred<{ path: string; host: string }>();
+        createEncryptionFromAuthCredentialsMock.mockResolvedValue({
+            decryptEncryptionKey: async () => new Uint8Array([9]),
+            initializeSessions: async () => {},
+            getSessionEncryption: () => ({
+                decryptMetadata: async () => { decryptStarted.resolve(); return await metadata.promise; },
+                decryptAgentState: async () => ({ requests: { req: { tool: 'AskUserQuestion', kind: 'user_action', arguments: { question: 'Proceed?' }, createdAt: 1 } } }),
+            }),
+        });
+        const sessionId = 'foreign_encrypted_pending';
+        runtimeFetchMock.mockResolvedValue(new Response(JSON.stringify({ session: {
+            id: sessionId, createdAt: 1, updatedAt: 2, seq: 3, active: true, activeAt: 2,
+            encryptionMode: 'e2ee', dataEncryptionKey: 'new-envelope', metadataVersion: 1,
+            metadata: 'encrypted', agentStateVersion: 0, agentState: null, share: null,
+        } }), { status: 200 }));
+        const keys = new Map([[sessionId, new Uint8Array([1])], ['unrelated', new Uint8Array([2])]]);
+        const envelopes = new Map([[sessionId, 'old-envelope'], ['unrelated', 'other-envelope']]);
+        const applySessions = vi.fn(() => nextAccount === 'declined' ? false : undefined);
+        const hydration = fetchSessionByIdWithServerScope({
+            sessionId, serverId: foreign.id, activeCredentials: { token: 'unused', secret: '' },
+            sessionDataKeys: keys, sessionDataKeyEnvelopes: envelopes,
+            activeRequest: requestMock, applySessions, log: { log: vi.fn() }, includeTurnsProjection: false,
+        });
+        await decryptStarted.promise;
+        expect(keys.get(sessionId)).toEqual(new Uint8Array([1]));
+        expect(envelopes.get(sessionId)).toBe('old-envelope');
+        token = buildTokenWithSub(nextAccount === 'declined' ? 'old-account' : nextAccount) + '-rotated';
+        metadata.resolve({ path: '/old-account', host: 'foreign.example' });
+        const result = await hydration;
+        expect(result.ok).toBe(nextAccount === 'old-account');
+        if (nextAccount === 'old-account') {
+            expect(applySessions).toHaveBeenCalledOnce();
+            expect(voiceHooks.onAgentRequest).toHaveBeenCalledOnce();
+            expect(keys.get(sessionId)).toEqual(new Uint8Array([9]));
+            expect(envelopes.get(sessionId)).toBe('new-envelope');
+        } else {
+            expect(result.errorCode).toBe('stale_context');
+            expect(applySessions).toHaveBeenCalledTimes(nextAccount === 'declined' ? 1 : 0);
+            expect(voiceHooks.onAgentRequest).not.toHaveBeenCalled();
+            expect(keys.get(sessionId)).toEqual(new Uint8Array([1]));
+            expect(envelopes.get(sessionId)).toBe('old-envelope');
+        }
+        expect(keys.get('unrelated')).toEqual(new Uint8Array([2]));
+        expect(envelopes.get('unrelated')).toBe('other-envelope');
     });
 
     it('ignores localStorage read errors while evaluating debug hydration logging', async () => {

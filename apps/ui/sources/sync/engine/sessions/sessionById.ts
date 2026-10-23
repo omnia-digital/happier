@@ -181,7 +181,8 @@ export async function fetchAndApplySessionById(params: Readonly<{
   sessionDataKeys: Map<string, Uint8Array>;
   sessionDataKeyEnvelopes?: SessionDataKeyEnvelopeCache;
   request: (path: string, init: RequestInit) => Promise<Response>;
-  applySessions: (sessions: Array<Omit<Session, 'presence'> & { presence?: 'online' | number }>) => void;
+  // A scoped publisher can reject an awaited response before it becomes visible or notifies voice.
+  applySessions: (sessions: Array<Omit<Session, 'presence'> & { presence?: 'online' | number }>) => void | boolean | Promise<void | boolean>;
   getExistingSession?: (sessionId: string) => Session | null | undefined;
   log: { log: (message: string) => void };
   timeoutMs?: number;
@@ -355,7 +356,9 @@ export async function fetchAndApplySessionById(params: Readonly<{
   };
 
   const previousSession = params.getExistingSession?.(sessionId);
-  params.applySessions([nextSession]);
+  if (await params.applySessions([nextSession]) === false) {
+    return { ok: false, session: null, errorCode: 'stale_context' };
+  }
   reportNewAgentRequestsFromSessionTransition(previousSession, nextSession);
 
   return {

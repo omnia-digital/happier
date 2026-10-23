@@ -2417,7 +2417,7 @@ class Sync {
                         activeRequest: (path, init) => apiSocket.request(path, init),
                         getExistingSession: (sessionId) => storage.getState().sessions[sessionId] ?? null,
                         applySessions: (sessions) => {
-                            if (!isRouteHydrationScopeCurrent()) return;
+                            if (!isRouteHydrationScopeCurrent()) return false;
                             this.applySessions(sessions);
                         },
                         log,
@@ -4258,7 +4258,7 @@ class Sync {
                     activeRequest: (path, init) => apiSocket.request(path, init),
                     getExistingSession: (targetSessionId) => storage.getState().sessions[targetSessionId] ?? null,
                     applySessions: (sessions) => {
-                        if (!shouldContinue()) return;
+                        if (!shouldContinue()) return false;
                         this.applySessions(sessions);
                     },
                     log,
@@ -7849,7 +7849,7 @@ class Sync {
                 activeRequest: (path, init) => apiSocket.request(path, init),
                 getExistingSession: (targetSessionId) => storage.getState().sessions[targetSessionId] ?? null,
                 applySessions: (sessions) => {
-                    if (!shouldContinue()) return;
+                    if (!shouldContinue()) return false;
                     this.applySessions(sessions);
                 },
                 log,

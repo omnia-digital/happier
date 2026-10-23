@@ -5,7 +5,7 @@ import { runtimeFetchWithServerReachability } from '@/sync/runtime/connectivity/
 import { storage } from '@/sync/domains/state/storage';
 import { resolveUiClientEncryptionRequirement } from '@/sync/domains/settings/clientEncryptionRequirement';
 
-import { resolveServerScopedSessionContext } from './resolveServerScopedSessionContext';
+import { isServerScopedSessionContextCurrent, resolveServerScopedSessionContext } from './resolveServerScopedSessionContext';
 
 type AppliedSession = Omit<Session, 'presence'> & { presence?: 'online' | number };
 
@@ -51,7 +51,7 @@ export async function fetchSessionByIdWithServerScope(params: Readonly<{
     sessionDataKeys: Map<string, Uint8Array>;
     sessionDataKeyEnvelopes?: Map<string, string>;
     activeRequest: (path: string, init: RequestInit) => Promise<Response>;
-    applySessions: (sessions: AppliedSession[]) => void;
+    applySessions: (sessions: AppliedSession[]) => void | boolean;
     getExistingSession?: (sessionId: string) => Session | null | undefined;
     log: { log: (message: string) => void };
     timeoutMs?: number;
@@ -88,13 +88,20 @@ export async function fetchSessionByIdWithServerScope(params: Readonly<{
         });
     }
 
+    // Scoped encryption belongs to the captured account. Keep its cache changes private until
+    // that account is still current at the session commit boundary.
+    const sessionId = params.sessionId.trim();
+    const cachedKey = params.sessionDataKeys.get(sessionId);
+    const cachedEnvelope = params.sessionDataKeyEnvelopes?.get(sessionId);
+    const stagedKeys = new Map(cachedKey ? [[sessionId, cachedKey]] : []);
+    const stagedEnvelopes = new Map(cachedEnvelope ? [[sessionId, cachedEnvelope]] : []);
     return await fetchAndApplySessionById({
         sessionId: params.sessionId,
         serverId: context.targetServerId,
         credentials: toScopedFetchCredentials(context.token),
         encryption: getScopedSessionByIdEncryption(context.encryption),
-        sessionDataKeys: params.sessionDataKeys,
-        sessionDataKeyEnvelopes: params.sessionDataKeyEnvelopes,
+        sessionDataKeys: stagedKeys,
+        sessionDataKeyEnvelopes: stagedEnvelopes,
         request: async (path: string, init: RequestInit) => {
             return await runtimeFetchWithServerReachability({
                 serverUrl: context.targetServerUrl,
@@ -109,7 +116,19 @@ export async function fetchSessionByIdWithServerScope(params: Readonly<{
                 },
             });
         },
-        applySessions: params.applySessions,
+        applySessions: async (sessions) => {
+            if (!await isServerScopedSessionContextCurrent(context)) {
+                params.log.log(`[sessionById] Ignoring session ${params.sessionId} after target account changed`);
+                return false;
+            }
+            if (params.applySessions(sessions) === false) return false;
+            const key = stagedKeys.get(sessionId);
+            if (key) params.sessionDataKeys.set(sessionId, key);
+            else params.sessionDataKeys.delete(sessionId);
+            const envelope = stagedEnvelopes.get(sessionId);
+            if (envelope) params.sessionDataKeyEnvelopes?.set(sessionId, envelope);
+            else params.sessionDataKeyEnvelopes?.delete(sessionId);
+        },
         getExistingSession: params.getExistingSession,
         log: params.log,
         timeoutMs: params.timeoutMs,

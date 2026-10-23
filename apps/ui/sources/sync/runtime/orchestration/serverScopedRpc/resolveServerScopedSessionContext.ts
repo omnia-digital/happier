@@ -82,3 +82,15 @@ export async function resolveServerScopedSessionContext(params: Readonly<{
     timeoutMs,
   });
 }
+
+/** Revalidate the captured Home/account before publishing an awaited scoped response. */
+export async function isServerScopedSessionContextCurrent(
+  context: Extract<ResolvedServerSessionRpcContext, { scope: 'scoped' }>,
+): Promise<boolean> {
+  const credentials = await TokenStorage.getCredentialsForServerUrl(context.targetServerUrl, {
+    serverId: context.targetServerId,
+  });
+  const profile = getServerProfileById(context.targetServerId);
+  return !!profile && profile.serverUrl === context.targetServerUrl
+    && !!credentials && parseToken(credentials.token) === context.targetAccountId;
+}
