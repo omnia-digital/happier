@@ -516,6 +516,7 @@ test.describe('ui e2e: session list ordering mode', () => {
     await expect(clickedRow).toHaveCount(1, { timeout: 120_000 });
     await selectedRow.click();
     await page.waitForURL((url) => url.pathname.endsWith(`/session/${selectedSessionId}`));
+    await page.mouse.move(1000, 500);
 
     async function expectBlankDraftAndCancel(): Promise<void> {
       await page.waitForURL((url) => url.pathname.endsWith('/new'), { timeout: 60_000 });

@@ -1235,6 +1235,61 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
             .toEqual(expect.objectContaining({ agentType: 'claude', selectedProfileId: 'next-profile' }));
     });
 
+    it('does not commit a foreign account session after credentials change during hydration', async () => {
+        const sessionId = 'foreign_account_changed_during_hydration';
+        const activeServer = upsertServerProfile({ serverUrl: 'https://active.example', name: 'Active' });
+        const foreignServer = upsertServerProfile({ serverUrl: 'https://foreign.example', name: 'Foreign' });
+        setActiveServerId(activeServer.id, { scope: 'device' });
+
+        const { sync } = await import('./sync');
+        (sync as any).credentials = { token: 'active-token', secret: 'active-secret' };
+        (sync as any).activeServerSessionIds = new Set<string>();
+        (sync as any).hasFetchedSessionsSnapshotForActiveServer = true;
+        (sync as any).encryption = {
+            decryptEncryptionKey: async () => null,
+            initializeSessions: async () => {},
+            getSessionEncryption: () => null,
+        };
+        requestMock.mockRejectedValue(new Error('active request should not be used'));
+        let foreignToken = buildTokenWithSub('old-account');
+        getCredentialsForServerUrlMock.mockImplementation(async () => ({ token: foreignToken, secret: 'foreign-secret' }));
+        createEncryptionFromAuthCredentialsMock.mockResolvedValue({
+            decryptEncryptionKey: async () => null,
+            initializeSessions: async () => {},
+            getSessionEncryption: () => null,
+        });
+
+        let startRequest: (() => void) | undefined;
+        const requestStarted = new Promise<void>((resolve) => { startRequest = resolve; });
+        let finishRequest: ((response: Response) => void) | undefined;
+        const pendingResponse = new Promise<Response>((resolve) => { finishRequest = resolve; });
+        runtimeFetchMock.mockImplementation(async () => {
+            startRequest?.();
+            return await pendingResponse;
+        });
+
+        const hydration = sync.ensureSessionVisibleForMessageRoute(sessionId, {
+            serverId: foreignServer.id,
+            forceRefresh: true,
+        });
+        await requestStarted;
+        foreignToken = buildTokenWithSub('new-account');
+        finishRequest?.(new Response(JSON.stringify({
+            session: {
+                id: sessionId, createdAt: 1, updatedAt: 2, seq: 3,
+                active: true, activeAt: 2, encryptionMode: 'plain', dataEncryptionKey: null,
+                metadataVersion: 1,
+                metadata: JSON.stringify({ path: '/old-account', host: 'foreign.example', machineId: 'old-machine' }),
+                agentStateVersion: 0, agentState: null, share: null,
+            },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+        const result = await hydration;
+        expect(storage.getState().sessions[sessionId]).toBeUndefined();
+        expect(result).toMatchObject({ kind: 'retryable_failure' });
+        expect(requestMock).not.toHaveBeenCalled();
+    });
+
     it('ignores localStorage read errors while evaluating debug hydration logging', async () => {
         const sessionId = 'deep_link_local_storage_error';
         storage.getState().applySessions([
