@@ -188,12 +188,11 @@ successful completion of the reusable desktop workflow.
 The three new Cassian workflow tests first failed on missing admission, routing,
 and build gating, then passed. They execute the real admission shell against
 trusted schedule/manual requests and reject PR contexts, other caller workflows,
-different source SHAs, and signing phases. The adjacent focused run passed 23 of
-24 tests: the prior source-promotion test still expects only two dependencies and
-must be updated to require the new build dependency. The existing persistent-
-runner security test also needs to recognize the conditional runner selection
-and explicitly admit this guarded job. Those existing-test updates await Josh's
-permission; this branch is not yet ready to merge. Actionlint passes for both
+different source SHAs, and signing phases. Josh approved the existing-test
+updates: the promotion contract now requires the native build dependency, and
+the persistent-runner scan recognizes conditional label selection and requires
+the guarded desktop build in its explicit allowlist. The focused run passed all
+24 tests. Actionlint passes for both
 changed workflows when the already documented inherited findings are ignored,
 including two SC2016 findings reproduced against the pre-Cassian workflow.
 The exact new Xcode selection shell also ran successfully over SSH on Cassian,
@@ -209,8 +208,11 @@ At setup inspection the fork had no registered Actions workflows/runs, repositor
 secrets, release environments or production branch protection. Local checks and
 a pushed feature branch do not activate a nightly release.
 
-The repository's external-write rule permits feature-branch pushes only, so the
-following GitHub changes require Josh's explicit exception or his own action:
+Josh approved the following GitHub activation steps for this setup. The inherited
+GitHub operations policy still selects `happier-bot` for API mutations, but its
+credential probe reports no configured token. Activation is blocked on that
+credential or an explicit actor exception; ordinary feature-branch commits and
+pushes continue using the machine's configured Git identity.
 
 1. Merge the setup feature work and this OH-10 change into `dev` through reviewed
    PRs. Keep `dev` the default branch; do not merge into `main`.

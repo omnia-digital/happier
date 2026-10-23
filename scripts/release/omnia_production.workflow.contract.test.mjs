@@ -39,7 +39,7 @@ test('Omnia nightly promotes only an exact successful canonical dev push CI sour
   assert.equal(verify.steps[0].with.ref, '${{ github.sha }}');
   assert.match(verify.steps.map((step) => step.run ?? '').join('\n'), /verify-existing-ci\.mjs/);
   assert.match(verify.steps.map((step) => step.run ?? '').join('\n'), /--source-branch dev/);
-  assert.deepEqual(promote.needs, ['candidate', 'verify_source_ci']);
+  assert.deepEqual(promote.needs, ['candidate', 'verify_source_ci', 'desktop_candidate']);
   assert.equal(promote.steps[0].with.repository, '${{ github.repository }}');
   assert.equal(promote.steps[0].with.ref, '${{ github.sha }}');
   assert.equal(promote.permissions.contents, 'read');
