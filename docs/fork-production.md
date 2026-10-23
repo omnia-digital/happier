@@ -174,15 +174,20 @@ build capacity certification.
 The official ARM64 GitHub Actions runner **2.338.1** was downloaded and extracted
 to `/Users/cassian/Developer/runners/happier-nightly`. Its published SHA-256
 `52c3fb801b931fbd454979bae5ec3443ea3da2c4a1b4c44fa546fb630d61a0a9` matched,
-and `bin/Runner.Listener --version` succeeded. It is **not registered or running
-as a service**. Existing Guitar Tricks and Omnia Church Platform runner services
-were inspected and left unchanged. They are registered to other repositories or
-organizations and cannot be assumed available to Happier.
+and `bin/Runner.Listener --version` succeeded. At the 2026-10-23 activation
+checkpoint it is registered as **cassian-happier-nightly**, runner ID **1446**, in
+**happier-nightly**, group ID **3**. Its dedicated launchd service is
+`actions.runner.omnia-digital.cassian-happier-nightly`; the service log reports
+connection to GitHub and **Listening for Jobs**. Existing Guitar Tricks and Omnia
+Church Platform runner services were left unchanged.
 
-The Happier repository runner list is empty. Organization runner administration
-returned HTTP 403 with the current local GitHub credentials, and Cassian's CLI
-has no authenticated GitHub API session. Registration remains part of the
-GitHub activation exception below; no credentials were copied between machines.
+Josh configured the organization runner group and confirmed both repository and
+workflow restrictions below. A short-lived organization registration token was
+used for setup; no personal access token was copied to Cassian. The selected
+`andorcassian` account has repository Write access but cannot query the runner
+inventory or administer runner groups through its PAT. Group restriction
+configuration is confirmed by Josh; the registered group identity and service
+connection were independently read back on Cassian.
 
 For registration, use a dedicated organization runner group restricted to this
 repository and `omnia-digital/happier/.github/workflows/build-tauri.yml@refs/heads/dev`,
@@ -205,9 +210,11 @@ and reusable-job behavior in its
 
 The selected `dev` source is trusted code and executes with the runner service
 account's filesystem permissions; a dedicated working directory does not isolate
-that account from the other CI services. The first live run must also verify the
-canonical actor guard: scheduled workflows can have a human actor, who must pass
-the existing repository-admin check when no release team credentials are passed.
+that account from the other CI services. The canonical actor guard explicitly
+trusts the selected `andorcassian` operator only after Cassian admission passes.
+Other desktop workflows retain their existing actor policy. Scheduled runs can
+have a human actor; an unlisted non-admin actor fails visibly. No release App or
+signing secrets are forwarded to the unsigned build workflow.
 
 The branch now wires native builds through the existing
 `.github/workflows/build-tauri.yml` candidate owner. Only its unsigned Apple
@@ -235,51 +242,72 @@ including two SC2016 findings reproduced against the pre-Cassian workflow.
 The exact new Xcode selection shell also ran successfully over SSH on Cassian,
 reporting Xcode 26.5 and the intended job-local `DEVELOPER_DIR`.
 
+The actor-admission follow-up first failed on the missing scoped trusted-actor
+input, then passed after configuring that existing input. It also executes the
+real actor guard without privileged credentials, accepting the named operator
+only with the Cassian actor list and rejecting an unlisted actor. All **23**
+focused Cassian, promotion, secret-hardening and actor-guard checks pass, as does
+workflow lint with the same inherited exclusions.
+
 After independently copying the matching dependency installation with APFS
 copy-on-write and rebuilding shared package outputs, the broader release-contract
 lane completed with **1,662 passed, 3 failed and 24 skipped** on macOS. Two failures
 require the unavailable Linux `dpkg-deb` command; the existing installer static-art
 PTY assertion also fails when run alone. The installer implementation and its
-test are unchanged by this branch. The complete local lane is not green; hosted
-CI remains a separate required gate.
+test are unchanged by this branch. The complete local lane is not green. The
+full hosted [PR CI run](https://github.com/omnia-digital/happier/actions/runs/40023454842)
+subsequently passed for `f999a3ec071d14ce69488301eac353f48c5e4fd1`, including Release
+Contracts and all selected platform/test lanes. Each later source commit still
+requires its own applicable CI evidence.
 
-No Cassian native build, runner registration, workflow dispatch, or nightly
-execution has been verified yet. The runner installation is preparation for
-that integration, not completion of the daily-driver release gate.
+No successful Cassian native build or production promotion has been verified at
+this checkpoint. The live [negative-case run](https://github.com/omnia-digital/happier/actions/runs/40031169026)
+was dispatched for `30762cf988708230cd4302d040f145c7f8a34209` while its canonical push
+CI was pending. It failed at the missing-successful-CI check, skipped all three
+downstream jobs, and a GitHub read-back confirmed production remained at
+`98dab9837ab4f918cb9be86095eca8ebe6136c25`.
 
 ## GitHub activation and first acceptance
 
-At setup inspection the fork had no registered Actions workflows/runs, repository
-secrets, release environments or production branch protection. Local checks and
-a pushed feature branch do not activate a nightly release.
+This section records the **2026-10-23 setup checkpoint before the first successful
+production release**, not a continuously updated deployment dashboard. Use the
+linked Actions runs and branch refs for current state.
 
 Josh approved the following GitHub activation steps and selected `andorcassian`
 as the GitHub API actor for this setup, overriding the inherited bot requirement.
-That credential's identity is verified, but GitHub currently reports only read
-access to this repository and rejects organization runner-group administration.
-Activation requires repository Admin access, organization runner administration,
-and the `admin:org` scope required by GitHub's runner-group API for a classic PAT.
+That credential's identity and repository Write access are verified. Josh elected
+to perform admin-only configuration himself, keeping the PAT at its existing
+permissions. Repository ruleset writes and organization runner administration
+remain outside this account's access; classic PAT runner-group API access also
+requires `admin:org`.
 Ordinary feature-branch commits and pushes continue using the machine's configured
 Git identity. No credential is stored in the repository.
 
-[PR #1](https://github.com/omnia-digital/happier/pull/1) is open as a draft against
-`dev`. The fork's canonical Tests workflow is now active and has started PR CI;
-this is not a successful CI or nightly-release result. Runner registration,
-release App configuration, production protection and first promotion remain
-pending.
+[PR #1](https://github.com/omnia-digital/happier/pull/1) merged into `dev` after its
+full CI passed, producing `30762cf988708230cd4302d040f145c7f8a34209`. The permanent
+dev clone fast-forwarded to that commit. Its separate canonical push CI and the
+scoped actor-admission follow-up are release gates.
 
-1. Merge the setup feature work and this OH-10 change into `dev` through reviewed
-   PRs. Keep `dev` the default branch; do not merge into `main`.
-2. Enable GitHub Actions for the fork and verify that canonical `tests.yml` push
-   CI registers and succeeds on the resulting exact `dev` SHA.
+The fork-owned **omnia-happier-release** App, ID **5448093**, has Contents and
+Workflows write permissions. Josh confirmed installation only on this repository;
+the two Actions secret names were read back successfully without reading values.
+Active **Production History** ruleset **25757440** protects `production` and
+`main` from deletion and non-fast-forward updates. **Production promotion**
+ruleset **25757480** restricts production updates; Josh confirmed its only bypass
+is the release App with Always allow. The effective production rules were read
+back through GitHub. This non-admin account cannot read the bypass list itself.
+
+1. Merge the actor-admission follow-up into `dev` through a reviewed, tested PR.
+   Keep `dev` the default branch; do not merge into `main`.
+2. Verify canonical `tests.yml` push CI succeeds on the resulting exact `dev` SHA.
 3. Install a fork-owned GitHub App on **only** `omnia-digital/happier`, with
    Contents and Workflows write permissions. Configure its ID/private key as
    `RELEASE_BOT_APP_ID` and `RELEASE_BOT_PRIVATE_KEY` repository Actions secrets.
    Never reuse the parent's credentials or commit the key.
-4. Add a production ruleset preventing ordinary updates, deletion and non-fast-
-   forward updates. Allow only the installed release App to bypass update
-   restriction. Do not add a PR requirement that would prevent its fast-forward
-   promotion. Keep administrators' ability to change rules separate and explicit.
+4. Keep production history protection in its own active ruleset with no bypass.
+   In a separate active ruleset, restrict updates and allow only the installed
+   release App to bypass that restriction. Each branch target is a separate
+   entry. Do not add a PR requirement that would prevent fast-forward promotion.
 5. Dispatch the new workflow on `dev`, verify successful terminal CI/promotion,
    and read back `production` at the certified SHA. Exercise a no-green-CI attempt
    and confirm production remains unchanged.
@@ -294,10 +322,13 @@ production. The fetched parent `dev` is reviewed independently; nightly promotio
 does not automatically merge parent updates or certify their compatibility.
 
 The release workflow and checkout guards are fork-specific repository operations.
-The updater environment read also fixes a product build defect. The fork has no
-active `v0.3` release branch in this setup; its disposition is blocked until an
-applicable destination exists. Retain the fork workflow and re-evaluate the
-updater owner when the fork upgrades its development line.
+The updater environment read also fixes a product build defect. Read-only
+inspection of upstream `v0.3` at `e82253f97ab991aebdf69ea16bb2ab209b59ccb8` found the
+same dynamic read in its evolved desktop updater owner. The fork has no active
+`v0.3` release branch, so that counterpart remains unported; carry the static-read
+fix through that owner when adopting it. The latest inspected parent `dev`,
+`413054f17c814f2b2a3ad6159d38eff2230b9c4d`, adds desktop setup upgrade-test changes
+outside this unsigned preparation path; it does not require a merge for this setup.
 
 References: [GitHub scheduling](https://docs.github.com/en/actions/reference/workflows-and-actions/workflow-syntax#onschedule),
 [enabling fork workflows](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/disable-and-enable-workflows),

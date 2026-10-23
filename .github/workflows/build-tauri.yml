@@ -213,6 +213,9 @@ jobs:
         uses: ./.github/actions/release-actor-guard
         with:
           team_slug: release-admins
+          # Cassian admission above binds this exception to the fork's exact,
+          # certified dev source and unsigned nightly preparation.
+          trusted_actors: ${{ inputs.cassian_build && 'github-actions[bot],github-actions,andorcassian' || 'github-actions[bot],github-actions' }}
           app_id: ${{ secrets.RELEASE_BOT_APP_ID }}
           private_key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
 

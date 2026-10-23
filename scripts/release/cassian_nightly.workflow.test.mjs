@@ -73,6 +73,38 @@ test('Cassian runs only the unsigned Apple Silicon candidate with a job-local Xc
   assert.equal(hostedXcode.with.xcode_version, '26.2');
 });
 
+test('the selected fork operator is trusted only after Cassian admission', () => {
+  const desktop = workflow('build-tauri.yml');
+  const guardJob = desktop.jobs.release_actor_guard;
+  assert.deepEqual(guardJob.needs, ['trusted_ref_guard']);
+  const guardStep = guardJob.steps.find((step) => step.uses === './.github/actions/release-actor-guard');
+  assert.equal(guardStep.with.trusted_actors,
+    "${{ inputs.cassian_build && 'github-actions[bot],github-actions,andorcassian' || 'github-actions[bot],github-actions' }}");
+
+  const guard = YAML.parse(readFileSync(new URL('../../.github/actions/release-actor-guard/action.yml', import.meta.url), 'utf8'));
+  const verify = guard.runs.steps.find((step) => step.env?.REPO_TOKEN);
+  for (const [actors, actor, allowed] of [
+    ['github-actions[bot],github-actions,andorcassian', 'andorcassian', true],
+    ['github-actions[bot],github-actions', 'andorcassian', false],
+    ['github-actions[bot],github-actions,andorcassian', 'untrusted-contributor', false],
+  ]) {
+    const result = spawnSync('bash', ['-c', verify.run], {
+      env: {
+        PATH: process.env.PATH,
+        INPUT_TRUSTED_ACTORS: actors,
+        ACTOR: actor,
+        ORG: 'omnia-digital',
+        REPO: 'omnia-digital/happier',
+        // No privileged token: only an explicitly trusted actor can pass this boundary.
+        APP_TOKEN: '',
+        REPO_TOKEN: '',
+      },
+      encoding: 'utf8',
+    });
+    assert.equal(result.status === 0, allowed, result.stdout + result.stderr);
+  }
+});
+
 test('nightly desktop builds consume certified source and must succeed before production promotion', () => {
   const nightly = workflow('omnia-production.yml');
   const build = nightly.jobs.desktop_candidate;
