@@ -1,6 +1,6 @@
 # Omnia Happier development and adoption
 
-This is the fork-specific runbook for `omnia-digital/happier`. Develop against an isolated local stack and qualify macOS desktop first for daily work. Windows and iOS remain later platform targets; iOS is explicitly deferred until the macOS app works the way Josh wants. Native Mac compilation, rendering and local test-account authentication across a full native restart are verified; real agent sessions and daily-use adoption remain unverified.
+This is the fork-specific runbook for `omnia-digital/happier`. Develop against an isolated local stack and qualify macOS desktop first for daily work. Windows and iOS remain later platform targets; iOS is explicitly deferred until the macOS app works the way Josh wants. Native Mac compilation, hosted session messaging, permission rejection and authentication/session reconnect across a full native restart are verified. Packaged distribution and daily-use cutover remain open.
 
 ## First adoption: custom macOS UI, existing Happier services
 
@@ -18,7 +18,13 @@ For permission QA, the user's Claude configuration defaults to bypass permission
 
 A second requested scratch write was rejected through the native card's **No** action. The provider transcript records an error result saying the tool use was rejected, pending requests return to zero, and `denied-once.txt` remains absent. This proves native request publication and rejection delivery without treating the test prompt's expected text as an agent acknowledgment. A private native screenshot is retained at `/tmp/happier-oh6-real-permission-pending.jpg`; it includes personal sidebar context and is not committed or uploaded.
 
-The initial process-level `--setting-sources project,local` attempt did not isolate settings: the inspected remote launch path forwards setting-source selection from its own mode metadata rather than that raw CLI argument. Scratch-local configuration is the verified QA recipe. One stopped test process exited through the canonical session-stop command; no daily daemon/service was stopped. Native terminal, OS deep links, dedicated-session resume/reconnect, and distribution/update acceptance remain open.
+The initial process-level `--setting-sources project,local` attempt did not isolate settings: the inspected remote launch path forwards setting-source selection from its own mode metadata rather than that raw CLI argument. Scratch-local configuration is the verified QA recipe. One stopped test process exited through the canonical session-stop command; no daily daemon/service was stopped.
+
+After a further canonical UI-only stop/start, hosted ping remains 200 and the dedicated QA process remains active with no pending permission requests. Opening that session reloads its transcript; a new message sent through the native composer received the exact agent response `HAPPIER_RECONNECT_OK`, verified both in provider history (`role=agent`) and as a visible native transcript element. The installed original app remains running and its CLI still reports authenticated with daemon running. Current UI typecheck passes (exit 0; `/tmp/happier-oh6-current-ui-typecheck.log`).
+
+The running native app also handles `deep-link://new-url` with a `happier:///session/...` payload and navigates to the target QA session, including after restart. The existing deep-link owner suite passes all six tests (`/tmp/happier-oh6-deep-links-tests.log`). This proves the warm native event handler; macOS URL-scheme registration and cold launch remain packaged-distribution checks.
+
+Josh explicitly chose **Keep it disabled; defer terminal QA**. Embedded Terminal stays disabled; no shared account experiment preference was changed. Terminal QA is deferred and is not an immediate UI-only adoption prerequisite. Packaged installation, signing/notarization, fork-owned update identity/feed and cold OS deep-link acceptance remain release gates.
 
 ### Launch only the forked Mac UI
 

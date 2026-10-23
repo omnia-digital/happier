@@ -9,6 +9,7 @@ Clone `omnia-digital/happier` here and establish a reproducible development and 
 - Updated adoption target: use the forked macOS UI/app with Josh's existing hosted relay, account, machines, CLI/daemons and sessions. Keep the original app available for rollback. The isolated relay/account remains a development test environment; neither self-hosting nor pairing the source CLI to that relay is a prerequisite for UI-only adoption. Verify hosted sign-in, existing-session continuity, approvals, native persistence and old/new client coexistence before daily use. Do not switch or replace existing machine services as part of this path.
 
 - Current user priority: macOS desktop first, then desktop workflow improvements. Defer iOS until macOS works the way Josh wants; Windows remains a later platform target. Mac daily-use acceptance does not wait for iOS acceptance.
+- Josh explicitly deferred Embedded Terminal QA and chose to keep it disabled. Do not enable the hosted account experiment for acceptance. Warm native deep-link handling and session reconnect after a full UI restart are verified; cold OS deep links remain a packaged-distribution gate.
 
 - Base this setup branch on `origin/dev`; PRs target the fork's `dev` branch.
 - Keep `origin` as the fork and `upstream` as `happier-dev/happier`.
