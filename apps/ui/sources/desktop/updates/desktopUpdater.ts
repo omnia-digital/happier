@@ -69,7 +69,6 @@ type UpdateMetadata = Readonly<{
 type DownloadProgressPayload = Readonly<{ version?: unknown; downloadedBytes?: unknown; totalBytes?: unknown }>;
 
 const DISMISS_KEY = 'desktop_update_dismissed_version';
-const UPDATE_CHECKS_ENABLED_ENV = 'EXPO_PUBLIC_HAPPIER_DESKTOP_UPDATES_ENABLED';
 export const DESKTOP_UPDATE_DOWNLOAD_PROGRESS_EVENT = 'desktop_update_download_progress';
 
 const IDLE: DesktopUpdaterSnapshot = {
@@ -96,7 +95,8 @@ function resolveUpdateChecksEnabled(): boolean {
     // The pet overlay is a second webview of the same app; a check from it would replace the one
     // pending update the Rust adapter holds for the main window.
     if (isDesktopPetOverlayWindowContext()) return false;
-    const override = parseOptionalBoolean(process.env[UPDATE_CHECKS_ENABLED_ENV]);
+    // Expo inlines public build settings only when accessed with static dot notation.
+    const override = parseOptionalBoolean(process.env.EXPO_PUBLIC_HAPPIER_DESKTOP_UPDATES_ENABLED);
     if (override !== null) return override;
     return (globalThis as { __DEV__?: unknown }).__DEV__ !== true;
 }
