@@ -139,6 +139,7 @@ interface BaseModalProps {
     zIndexBase?: number;
     webPortalTarget?: ModalPortalTarget;
     onWebKeyDownCapture?: (event: React.KeyboardEvent<HTMLDivElement>) => void;
+    onWebOpenAutoFocus?: (event: Event) => void;
 }
 
 function createWebModalPortalTarget(): HTMLElement | null {
@@ -168,6 +169,7 @@ export function BaseModal({
     zIndexBase,
     webPortalTarget = null,
     onWebKeyDownCapture,
+    onWebOpenAutoFocus,
 }: BaseModalProps) {
     const { theme } = useUnistyles();
     const uiBackdropBlurEnabled = useLocalSetting('uiBackdropBlurEnabled') !== false;
@@ -322,6 +324,7 @@ export function BaseModal({
                           <Dialog.Content
                               aria-describedby={undefined}
                               style={contentStyle}
+                              onOpenAutoFocus={onWebOpenAutoFocus}
                               onCloseAutoFocus={(event) => event.preventDefault()}
                               onKeyDownCapture={onWebKeyDownCapture}
                               onPointerDown={stopPropagation}

@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { useModalPortalTarget } from '@/modal/portal/ModalPortalTarget';
 import { installModalComponentCommonModuleMocks } from './modalComponentTestHelpers';
@@ -50,6 +50,30 @@ installModalComponentCommonModuleMocks({
         const AnimatedView = React.forwardRef<HTMLDivElement, any>(function AnimatedView(props, ref) {
             return React.createElement(View, { ...props, ref });
         });
+        const Pressable = React.forwardRef<HTMLButtonElement, any>(function Pressable(props, ref) {
+            const { children, testID, onPress, style, accessibilityRole, accessibilityLabel } = props;
+            return React.createElement('button', {
+                ref,
+                type: 'button',
+                'data-testid': testID,
+                'aria-label': accessibilityLabel,
+                style: flattenStyle(typeof style === 'function' ? style({ pressed: false }) : style),
+                onClick: onPress,
+                onKeyDown: (event: React.KeyboardEvent<HTMLButtonElement>) => {
+                    if (event.key === 'Enter' && !event.defaultPrevented) onPress?.();
+                },
+            }, children);
+        });
+        const Text = React.forwardRef<HTMLSpanElement, any>(function Text(props, ref) {
+            const { children, style, selectable, accessibilityLabel, testID, numberOfLines, ...rest } = props;
+            return React.createElement('span', {
+                ...rest,
+                ref,
+                'aria-label': accessibilityLabel,
+                'data-testid': testID,
+                style: flattenStyle(style),
+            }, children);
+        });
 
         return createReactNativeWebMock({
             Platform: {
@@ -58,6 +82,8 @@ installModalComponentCommonModuleMocks({
                     options.web ?? options.default ?? options.ios ?? options.android,
             },
             View,
+            Pressable,
+            Text,
             KeyboardAvoidingView,
             TouchableWithoutFeedback,
             Animated: {
@@ -82,10 +108,11 @@ installModalComponentCommonModuleMocks({
 const safeAreaInsets = { top: 0, right: 0, bottom: 0, left: 0 };
 
 describe('BaseModal (dom ref loop)', () => {
-    it('handles opt-in Enter at the dialog capture boundary before its focused Cancel button', async () => {
-        const { BaseModal } = await import('./BaseModal');
+    it('initially focuses Confirm and accepts Enter for the opted-in Archive dialog', async () => {
+        const { WebAlertModal } = await import('./WebAlertModal');
         const { SafeAreaInsetsContext } = await import('react-native-safe-area-context');
-        const calls: string[] = [];
+        const onConfirm = vi.fn();
+        const onClose = vi.fn();
         const container = document.createElement('div');
         document.body.appendChild(container);
         const root = createRoot(container);
@@ -93,23 +120,56 @@ describe('BaseModal (dom ref loop)', () => {
             await act(async () => {
                 root.render(
                     <SafeAreaInsetsContext.Provider value={safeAreaInsets}>
-                        <BaseModal visible={true} onWebKeyDownCapture={(event) => {
-                            if (event.key !== 'Enter') return;
-                            calls.push('confirm');
-                            event.preventDefault();
-                            event.stopPropagation();
-                        }}>
-                            <button data-testid="focused-cancel" onKeyDown={() => calls.push('cancel')}>Cancel</button>
-                        </BaseModal>
+                        <WebAlertModal
+                            config={{ id: 'archive', type: 'confirm', title: 'Archive', confirmOnEnter: true }}
+                            onConfirm={onConfirm}
+                            onClose={onClose}
+                        />
                     </SafeAreaInsetsContext.Provider>,
                 );
             });
-            const cancel = document.querySelector('[data-testid="focused-cancel"]');
+            const confirm = document.querySelector<HTMLButtonElement>('[data-testid="web-modal-confirm"]');
+            expect(confirm).not.toBeNull();
+            expect(document.activeElement).toBe(confirm);
+            await act(async () => {
+                confirm?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+            });
+            expect(onConfirm).toHaveBeenCalledExactlyOnceWith(true);
+            expect(onClose).toHaveBeenCalledOnce();
+        } finally {
+            await act(async () => root.unmount());
+            container.remove();
+        }
+    });
+    it('lets Enter on an explicitly focused Cancel button cancel the Archive dialog', async () => {
+        const { WebAlertModal } = await import('./WebAlertModal');
+        const { SafeAreaInsetsContext } = await import('react-native-safe-area-context');
+        const onConfirm = vi.fn();
+        const onClose = vi.fn();
+        const container = document.createElement('div');
+        document.body.appendChild(container);
+        const root = createRoot(container);
+        try {
+            await act(async () => {
+                root.render(
+                    <SafeAreaInsetsContext.Provider value={safeAreaInsets}>
+                        <WebAlertModal
+                            config={{ id: 'archive', type: 'confirm', title: 'Archive', confirmOnEnter: true }}
+                            onConfirm={onConfirm}
+                            onClose={onClose}
+                        />
+                    </SafeAreaInsetsContext.Provider>,
+                );
+            });
+            const cancel = document.querySelector<HTMLButtonElement>('[data-testid="web-modal-cancel"]');
             expect(cancel).not.toBeNull();
+            await act(async () => { cancel?.focus(); });
+            expect(document.activeElement).toBe(cancel);
             await act(async () => {
                 cancel?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
             });
-            expect(calls).toEqual(['confirm']);
+            expect(onConfirm).toHaveBeenCalledExactlyOnceWith(false);
+            expect(onClose).toHaveBeenCalledOnce();
         } finally {
             await act(async () => root.unmount());
             container.remove();
