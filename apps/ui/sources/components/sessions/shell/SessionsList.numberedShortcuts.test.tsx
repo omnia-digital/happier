@@ -42,10 +42,6 @@ vi.mock('@/hooks/server/useEffectiveServerSelection', async (importOriginal) => 
     }),
 }));
 
-vi.mock('@/hooks/session/useVisibleSessionListViewData', () => ({
-    useVisibleSessionListViewData: () => listViewData.items,
-}));
-
 vi.mock('@/hooks/session/useNavigateToSession', () => ({
     useNavigateToSession: () => navigateToSession,
 }));
@@ -120,8 +116,8 @@ describe('SessionsList numbered shortcuts', () => {
     afterEach(() => standardCleanup());
 
     it('uses displayed row order for both held hints and Command-number targets', async () => {
-        const { SessionsList } = await import('./SessionsList');
-        const screen = await renderScreen(<SessionsList />);
+        const { SessionsListContent } = await import('./SessionsList');
+        const screen = await renderScreen(<SessionsListContent data={listViewData.items} />);
         const hints = () => screen.root.findAllByType('SessionItem' as any)
             .map((row) => [row.props.session.id, row.props.shortcutHint]);
 
@@ -132,5 +128,46 @@ describe('SessionsList numbered shortcuts', () => {
         expect(navigateToSession).toHaveBeenLastCalledWith('s1', { serverId: 'server_a' });
         await act(async () => { keyboardState.onCommandHeldChange?.(false); });
         expect(hints()).toEqual([['s3', undefined], ['s1', undefined], ['s2', undefined]]);
+    });
+
+    it('clears held hints while the sidebar is inactive and keeps them clear on return', async () => {
+        const { SessionsListContent } = await import('./SessionsList');
+        const screen = await renderScreen(<SessionsListContent data={listViewData.items} />);
+        const hints = () => screen.root.findAllByType('SessionItem' as any)
+            .map((row) => row.props.shortcutHint);
+
+        await act(async () => { keyboardState.onCommandHeldChange?.(true); });
+        expect(hints()).toEqual([1, 2, 3]);
+
+        await act(async () => {
+            screen.tree.update(<SessionsListContent data={listViewData.items} surfaceOwnership={{ interactive: false, dataActive: true }} />);
+        });
+        expect(keyboardState.handlers).toEqual({});
+        expect(keyboardState.onCommandHeldChange).toBeNull();
+        expect(hints()).toEqual([undefined, undefined, undefined]);
+
+        await act(async () => { screen.tree.update(<SessionsListContent data={listViewData.items} />); });
+        expect(hints()).toEqual([undefined, undefined, undefined]);
+    });
+
+    it('reassigns numbers when the visible projection changes order or excludes rows', async () => {
+        const { SessionsListContent } = await import('./SessionsList');
+        const screen = await renderScreen(<SessionsListContent data={listViewData.items} />);
+        const hints = () => screen.root.findAllByType('SessionItem' as any)
+            .map((row) => [row.props.session.id, row.props.shortcutHint]);
+        await act(async () => { keyboardState.onCommandHeldChange?.(true); });
+
+        listViewData.items = [
+            { type: 'header', title: 'Active', headerKind: 'date', groupKey: 'group-b', serverId: 'server_a' },
+            sessionRow('s2'),
+            sessionRow('s3'),
+        ];
+        await act(async () => {
+            screen.tree.update(<SessionsListContent data={listViewData.items} />);
+        });
+        expect(hints()).toEqual([['s2', 1], ['s3', 2]]);
+        await act(async () => { keyboardState.handlers?.['session.number.1']?.(); });
+        expect(navigateToSession).toHaveBeenLastCalledWith('s2', { serverId: 'server_a' });
+        expect(keyboardState.handlers?.['session.number.3']).toBeUndefined();
     });
 });

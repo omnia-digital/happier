@@ -1519,6 +1519,9 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
     ), [numberedSessionEntries]);
     const [commandHeld, setCommandHeld] = React.useState(false);
     const showNumberedHints = surfaceOwnership.interactive && commandHeld && Platform.OS === 'web';
+    React.useEffect(() => {
+        if (!surfaceOwnership.interactive) setCommandHeld(false);
+    }, [surfaceOwnership.interactive]);
     const selectionScopeSessionNavigationEntries = React.useMemo(
         () => buildVisibleSessionNavigationEntries(selectionScopeListItems ?? EMPTY_SESSION_LIST_VIEW_ITEMS),
         [selectionScopeListItems],
@@ -1775,7 +1778,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         sessionListSelectionStore,
         surfaceOwnership.interactive,
         numberedSessionEntries,
-    ]), { onCommandHeldChange: setCommandHeld });
+    ]), { onCommandHeldChange: surfaceOwnership.interactive ? setCommandHeld : undefined });
     const handleSessionListKeyDown = React.useCallback((event: any) => {
         if (!surfaceOwnership.interactive) return;
         if (Platform.OS !== 'web') return;
