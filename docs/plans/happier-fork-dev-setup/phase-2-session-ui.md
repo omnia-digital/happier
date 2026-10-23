@@ -22,13 +22,25 @@ Reusing the existing dropdown is the direct way to guarantee parity. A second co
 
 **Files:** production `apps/ui/sources/components/sessions/shell/SessionItem.tsx`; new focused `SessionItem.rightClick.test.tsx` in the same folder. Reuse `sessionShellTestHelpers` and canonical `@/dev/testkit` boundaries.
 
-- [ ] 🔴 Add an interaction regression: unselected row context-menu event opens its existing dropdown, prevents native default/propagation, does not navigate, and a representative action still targets that row/server.
-- [ ] 🔴 Cover parity with the three-dot entry point, keyboard dismissal/ordinary activation, restricted actions, and unchanged native mobile handling. Run the new slice and verify meaningful RED before production edits.
-- [ ] 🟡 Add the minimal web context-menu handler at the row boundary; reuse the existing dropdown state and actions. Avoid a separate menu, DOM lookup, state owner or persistence.
-- [ ] 🟡 Run the new regression and adjacent row/action-menu tests; run UI typecheck at the integrated boundary. Preserve and report unrelated baseline failures.
-- [ ] 🟡 Reload the actual native dev app from current Metro source. In scratch rows, verify right-click/three-dot parity, no navigation, Escape, and a representative reversible action on the intended session. Never exercise actions on unrelated work sessions.
-- [ ] 🟡 Independently review the integrated change and deciding QA evidence. Update OH-15 from actual results and commit/push each completed step with context.
+- [x] 🟢 Added the interaction regression: unselected row opens its existing dropdown, prevents default/propagation, does not navigate, and Rename targets the row/server. Meaningful RED observed before production edits; minimal GREEN checkpoint `823c59ce7d` pushed.
+- [x] 🟢 Three new cases cover restricted selected/shared row parity, normal activation after dismissal, and native mobile long-press without a desktop handler. Only the new test file was edited; final tested checkpoint `0ed0585e79` pushed.
+- [x] 🟢 Production change reuses existing dropdown state/actions with a web-only context-menu handler; no menu, DOM lookup, persistence or policy owner added.
+- [x] 🟢 Four relevant files pass (23 tests), plus UI typecheck. The first typecheck exposed nullable test lookups, corrected in the new test only before the successful rerun. Original root-suite failures remain separately tracked.
+- [x] 🟢 Native app full page reload with Fast Refresh disabled: unselected right-click preserves the other selected route; same ten action IDs/labels/order as three-dot before/after reload; Escape removes the menu; Rename updates only the clicked scratch row, then restores through three-dot. Ordinary click selects the row and selected-row right-click works. Private screenshot `/tmp/happier-oh15-right-click.jpg` inspected, not published. Shared/restricted state is covered in the real canonical availability path in host tests; no suitable hosted view-only scratch session was available for live QA.
+- [x] 🟢 Independent review found no material introduced defect at `0ed0585e79` and independently passed the same 23 tests (`/tmp/happier-oh15-review-tests.log`). Existing handled clipboard warning is unchanged. Restricted-row host coverage is sufficient for this shared-owner development boundary; exact keyboard-origin focus return remains unobserved. Native mouse right-click acceptance is complete.
 
 ## Current state
 
-Planning/discovery complete; implementation not started. The setup branch is already based on fork `dev` and contains the validated Metro/process fixes. Continue on this existing feature branch to keep the live source stack coherent. Fetched parent `dev` remains `e7c3bd5584`; HEAD comparison reports 32 parent commits absent from this branch. The pending parent batch remains unmerged while its compatibility checks are open.
+OH-15 implementation, native QA and independent review are complete. The setup branch is already based on fork `dev` and contains the validated Metro/process fixes. Continue on this existing feature branch to keep the live source stack coherent. Fetched parent `dev` remains `e7c3bd5584`; HEAD comparison reports 32 parent commits absent from this branch. The pending parent batch remains unmerged while its compatibility checks are open.
+
+## Next: OH-16 hover Archive
+
+**Goal:** Add an Archive icon alongside existing hover actions, retaining their functionality and canonical archive semantics.
+
+**Approach:** Consume `SessionActionTarget.canArchive`, current mutating/archiving state and `handleMoreMenuSelect(SESSION_ACTION_ARCHIVE_ID)`. Use canonical themed archive icon, localized label and tooltip primitive. Keep existing confirmation preferences and stop/archive safeguards; OH-18 separately requires a confirmation for its keyboard shortcut.
+
+- [ ] 🔴 Add a new `SessionItem.hoverArchive.test.tsx` using the shared UI testkit. Verify eligible rows expose Archive alongside existing actions, restricted/archived rows do not, pending work prevents repeat activation, and activation targets the row/server without navigation through the real canonical action owner.
+- [ ] 🟡 Implement the smallest consumed hover entry point in `SessionItem.tsx`. Support keyboard focus as well as pointer hover so the new control is reachable; reuse existing interaction owners rather than adding a parallel archive flow.
+- [ ] 🟡 Run focused/adjacent row and archive-flow checks, plus UI typecheck. Do not edit preexisting tests or shared preferences.
+- [ ] 🟡 Full-reload native QA: active/inactive scratch sessions, stop/confirmation safeguard, correct target/no navigation, pointer tooltip and keyboard reachability. Restricted/shared path uses deterministic owner tests when no safe hosted test fixture exists; report the live coverage limit.
+- [ ] 🟡 Independent review, documented results, Linear readback and commit/push. No daily-use release claim.

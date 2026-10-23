@@ -2,7 +2,7 @@
 
 ## Current execution checkpoint
 
-- 🟡 OH-15 is the first post-baseline implementation task: desktop right-click reuses the existing three-dot dropdown. Design, scope and TDD/native QA steps are in [phase-2-session-ui.md](phase-2-session-ui.md). Existing tests and installed clients remain unchanged.
+- 🟢 OH-15 is implemented, natively verified and independently reviewed at `0ed0585e79`: right-click uses the same menu, keeps the selected session unchanged, and targets the clicked scratch session. Escape and reversible Rename passed; 23 adjacent checks and UI typecheck pass. Existing tests and installed clients remain unchanged. Details and the next OH-16 hover Archive plan are in [phase-2-session-ui.md](phase-2-session-ui.md).
 
 - 🟢 Restarted the scoped native app in UI-only mode against `https://api.happier.dev`, with `--no-server --no-daemon`; installed daily app remains running. Hosted authentication now returns ping 200, existing session/machine groups load, and selecting this work session opens 42 message elements plus its composer. No message was sent to an existing session.
 - 🟢 Eight previously failing CLI files pass unchanged (86 tests) with canonical TMPDIR and isolated fixture Git config. Four server Sharp checks pass with canonical TMPDIR and the pinned Bun 1.4.2. The original root suite remains failed; no existing tests were edited.

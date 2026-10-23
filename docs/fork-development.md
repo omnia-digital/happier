@@ -50,6 +50,10 @@ Fetched parent `dev` at `e7c3bd5584`: 31 new commits are not integrated yet. Rea
 
 OH-6 now owns the hosted UI-only acceptance gate. OH-14 through OH-19 follow that stable Mac gate; their former OH-4 local-stack prerequisite was removed, preserving their other UI dependencies. OH-9 hosting/migration is deferred and OH-11 remains a later all-platform rollout. Keep shared settings and session writes compatible with the installed clients; negotiate unavailable hosted features rather than require a server/daemon migration.
 
+## Session workflow improvements
+
+OH-15 is implemented through `0ed0585e79` on the setup feature branch. Desktop/web session right-click opens the same dropdown as the three-dot button without navigating. Actual native QA compared all ten action IDs/labels/order, exercised selected and unselected rows, dismissed with Escape, and renamed only the right-clicked scratch session before restoring its title. Full reload with Fast Refresh disabled loaded the change. The four relevant test files pass (23 tests), UI typecheck passes, and independent review reran those tests with no material findings (`/tmp/happier-oh15-review-tests.log`). Restricted shared-row availability is host-tested; no suitable hosted view-only QA fixture was available for live testing. Exact keyboard-origin focus return was not observed. This feature is pushed for development; it is not merged or distributed as a release.
+
 ## Repository and change flow
 
 Planning lives in Linear team **Happier (OH)**, in [Happier fork — development and first stable release](https://linear.app/omniachurchapps/project/happier-fork-development-and-first-stable-release-9a3eb3200232). Use OH issue IDs for future task branches and link evidence to the owning issue. The initial backlog is OH-1 through OH-12, with milestones for development readiness, native app validation, and daily-use release readiness. OH-12 owns ongoing upstream maintenance. OH-10 tracks CI and Linear release-pipeline setup; no release pipeline is configured yet.
