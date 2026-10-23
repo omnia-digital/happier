@@ -675,6 +675,45 @@ describe('SessionsList session folders shell', () => {
         expect(screen.findByTestId('session-folder-header-folder_a')).toBeTruthy();
     });
 
+    it('chooses a real checkout for Repository actions and persists or resets manual association from its header menu', async () => {
+        const { storage } = await import('@/sync/domains/state/storage');
+        const { repositoryWorkspaceKey, readRepositoryAssociation } = await import('@/sync/domains/session/listing/sessionRepositoryIdentity');
+        const { resetBrowserSessionDraftPersistenceForTest } = await import('@/dev/testkit');
+        await resetBrowserSessionDraftPersistenceForTest();
+        const previous = storage.getState();
+        const scope = { serverId: 'server_a', accountId: 'profile-1' };
+        const first = { ...scope, machineId: 'machine_a', path: '/repo' };
+        const second = { ...scope, machineId: 'machine_b', path: '/other' };
+        const associations = Object.fromEntries([first, second].map(checkout => [repositoryWorkspaceKey(checkout), {
+            identity: 'example.com/team/repo', label: 'Repository', rootPath: checkout.path, worktreePaths: [],
+        }]));
+        storage.setState({ profileScope: scope, localSettings: { ...previous.localSettings, sessionRepositoryAssociationsV1: associations } });
+        try {
+            sessionListMachineViewV1 = 'repository';
+            sessionFoldersV1 = { v: 1, folders: [] };
+            resetProjectDataWithoutFolders();
+            mockVisibleSessionListViewData.push(
+                { ...mockVisibleSessionListViewData[1], workspaceScopeHint: { serverId: 'server_a', machineId: 'machine_b', rootPath: '/other' } },
+                { ...mockVisibleSessionListViewData[2], session: { ...sessionA, id: 'sess_c', metadata: { machineId: 'machine_b', path: '/other' } } },
+            );
+            const screen = await renderSessionsList();
+            const menuForRepository = () => screen.findAllByType('DropdownMenu' as React.ElementType).find(node => node.findAll(child => typeof child.props.testID === 'string' && child.props.testID.startsWith('session-workspace-menu-trigger:repository-v1:')).length > 0);
+            expect(menuForRepository()).toBeTruthy();
+            await act(async () => { menuForRepository()?.props.onOpenChange(true); });
+            const launch = menuForRepository()?.props.items.find((item: any) => item.id === 'repository-new-session');
+            expect(launch?.submenu.items).toHaveLength(2);
+            await act(async () => { await menuForRepository()?.props.onSelect('repository-new-session:1'); });
+            expect(routerPushSpy).toHaveBeenLastCalledWith({ pathname: '/new', params: expect.objectContaining({ machineId: 'machine_b', directory: '/other', spawnServerId: 'server_a' }) });
+            modalPromptSpy.mockResolvedValueOnce('My project');
+            await act(async () => { await menuForRepository()?.props.onSelect('repository-associate:0:new'); });
+            expect(readRepositoryAssociation(storage.getState().localSettings.sessionRepositoryAssociationsV1, first)?.manual?.label).toBe('My project');
+            expect(readRepositoryAssociation(storage.getState().localSettings.sessionRepositoryAssociationsV1, second)?.manual).toBeUndefined();
+            const manualMenu = screen.findAllByType('DropdownMenu' as React.ElementType).find(node => node.findAll(child => child.props.accessibilityLabel === 'My project').length > 0) ?? menuForRepository();
+            await act(async () => { await manualMenu?.props.onSelect('repository-associate:0:automatic'); });
+            expect(readRepositoryAssociation(storage.getState().localSettings.sessionRepositoryAssociationsV1, first)?.manual).toBeUndefined();
+        } finally { standardCleanup(); storage.setState(previous, true); }
+    });
+
     it('persists folder sort mode selections from the view menu', async () => {
         const screen = await renderSessionsList();
         const dropdown = screen.findAllByType('DropdownMenu' as React.ElementType)

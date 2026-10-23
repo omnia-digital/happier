@@ -1,3 +1,4 @@
+import { parseToken } from '@/utils/auth/parseToken';
 import { TokenStorage, type AuthCredentials } from '@/auth/storage/tokenStorage';
 import { getServerProfileById, resolveServerProfileScopeId } from '@/sync/domains/server/serverProfiles';
 
@@ -28,6 +29,7 @@ export type SessionOrganizationMutationScopeResult =
  */
 export async function resolveSessionOrganizationMutationScope(
     serverIdRaw: string | null | undefined,
+    expectedAccountId?: string,
 ): Promise<SessionOrganizationMutationScopeResult> {
     const requestedServerId = typeof serverIdRaw === 'string' ? serverIdRaw.trim() : '';
     if (!requestedServerId) return { ok: false, reason: 'server-id' };
@@ -37,6 +39,7 @@ export async function resolveSessionOrganizationMutationScope(
         serverId: serverProfile.id,
     });
     if (!credentials) return { ok: false, reason: 'credentials' };
+    if (expectedAccountId && parseToken(credentials.token) !== expectedAccountId) return { ok: false, reason: 'credentials' };
     return {
         ok: true,
         scope: {

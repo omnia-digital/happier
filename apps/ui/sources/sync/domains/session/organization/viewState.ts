@@ -166,6 +166,32 @@ export function buildSessionOrganizationReorderRequestFromWorkspaceOrder(params:
     return { scopeKind: 'workspace', scopeKey, entries };
 }
 
+export function buildSessionOrganizationOrderViewState(serverId: string, orderEntriesByScopeKey: SessionOrganizationProjection['orderEntriesByScopeKey']) {
+    const sessionListGroupOrderV1: Record<string, string[]> = {};
+    const sessionWorkspaceOrderV1: Record<string, string[]> = {};
+    for (const entries of Object.values(orderEntriesByScopeKey)) {
+        const orderedEntries = [...entries].sort((a, b) => compareBySortKey(a, b) || a.itemKey.localeCompare(b.itemKey));
+        for (const entry of orderedEntries) {
+            if (entry.scopeKind === 'workspace') {
+                const itemKey = normalizeWorkspaceItemKey(entry.itemKey);
+                if (!itemKey) continue;
+                appendOrderedValue(sessionWorkspaceOrderV1, normalizeWorkspaceScopeKey(serverId, entry.scopeKey), itemKey);
+                continue;
+            }
+            const scopeKey = entry.scopeKind === 'pinned' ? PINNED_GROUP_KEY_V1 : entry.scopeKey.trim();
+            const itemKey = entry.itemKind === 'session'
+                ? buildServerSessionKey(serverId, entry.itemKey)
+                : entry.itemKind === 'folder'
+                    ? `folder:${entry.itemKey.trim().replace(/^folder:/, '')}`
+                    : entry.itemKey.trim();
+            if (scopeKey && itemKey) {
+                appendOrderedValue(sessionListGroupOrderV1, scopeKey, itemKey);
+            }
+        }
+    }
+    return { sessionListGroupOrderV1, sessionWorkspaceOrderV1 };
+}
+
 export function buildSessionOrganizationListViewState(params: Readonly<{
     serverId: string;
     projection: SessionOrganizationProjection | null;
@@ -225,29 +251,8 @@ export function buildSessionOrganizationListViewState(params: Readonly<{
         .filter((folder): folder is NonNullable<typeof folder> => folder != null)
         .sort((a, b) => compareBySortKey(a, b) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 
-    const sessionListGroupOrderV1: Record<string, string[]> = {};
-    const sessionWorkspaceOrderV1: Record<string, string[]> = {};
+    const { sessionListGroupOrderV1, sessionWorkspaceOrderV1 } = buildSessionOrganizationOrderViewState(serverId, projection.orderEntriesByScopeKey);
     const workspaceLabelsV1: Record<string, string> = {};
-    for (const entries of Object.values(projection.orderEntriesByScopeKey)) {
-        const orderedEntries = [...entries].sort((a, b) => compareBySortKey(a, b) || a.itemKey.localeCompare(b.itemKey));
-        for (const entry of orderedEntries) {
-            if (entry.scopeKind === 'workspace') {
-                const itemKey = normalizeWorkspaceItemKey(entry.itemKey);
-                if (!itemKey) continue;
-                appendOrderedValue(sessionWorkspaceOrderV1, normalizeWorkspaceScopeKey(serverId, entry.scopeKey), itemKey);
-                continue;
-            }
-            const scopeKey = entry.scopeKind === 'pinned' ? PINNED_GROUP_KEY_V1 : entry.scopeKey.trim();
-            const itemKey = entry.itemKind === 'session'
-                ? buildServerSessionKey(serverId, entry.itemKey)
-                : entry.itemKind === 'folder'
-                    ? `folder:${entry.itemKey.trim().replace(/^folder:/, '')}`
-                    : entry.itemKey.trim();
-            if (scopeKey && itemKey) {
-                appendOrderedValue(sessionListGroupOrderV1, scopeKey, itemKey);
-            }
-        }
-    }
     for (const label of Object.values(projection.labelsByLabelKey)) {
         if (label.labelKind !== 'workspace' || label.archivedAt != null) continue;
         const displayLabel = readLabel(label.display);

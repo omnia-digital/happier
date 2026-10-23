@@ -25,7 +25,6 @@ import {
 } from '@/sync/domains/session/listing/sessionListOrderingRules';
 import {
     buildSessionOrganizationListViewState,
-    buildSessionOrganizationReorderRequestFromGroupOrder,
     buildSessionOrganizationReorderRequestFromWorkspaceOrder,
 } from '@/sync/domains/session/organization/viewState';
 import {
@@ -69,6 +68,7 @@ import {
 } from '../sessionListFilters';
 import { useSessionListSnapshotWhenInactive } from '../surface/useSessionListSnapshotWhenInactive';
 import { resolveSessionOrganizationMutationScope, type SessionOrganizationMutationScope } from '@/sync/domains/session/organization/mutationScope';
+import { persistSessionListGroupOrder } from '../commit/persistSessionListGroupOrder';
 import { projectSessionListMachineView } from './projectSessionListMachineView';
 import { useSessionRepositoryView, type SessionListViewMode } from './useSessionRepositoryView';
 
@@ -218,7 +218,7 @@ export function useSessionListViewState({
     const sessionListGroupOrderV1 = organizationListViewState.sessionListGroupOrderV1;
     const sessionWorkspaceOrderV1 = organizationListViewState.sessionWorkspaceOrderV1;
     const workspaceLabelsV1 = organizationListViewState.workspaceLabelsV1;
-    const currentGroupOrderMap = sessionListGroupOrderV1 ?? EMPTY_SESSION_LIST_GROUP_ORDER;
+    const activeGroupOrderMap = sessionListGroupOrderV1 ?? EMPTY_SESSION_LIST_GROUP_ORDER;
     const currentWorkspaceOrderMap = sessionWorkspaceOrderV1 ?? EMPTY_SESSION_WORKSPACE_ORDER;
 
     const pinnedKeySet = React.useMemo(() => {
@@ -289,20 +289,6 @@ export function useSessionListViewState({
         });
     }, [getOrganizationMutationContext, runOrganizationMutation, sessionTagsV1]);
 
-    const setSessionListGroupOrderV1 = React.useCallback((nextOrder: Record<string, readonly string[] | undefined>) => {
-        runOrganizationMutation(async () => {
-            const mutation = await getOrganizationMutationContext();
-            if (!mutation) return;
-            const requests = Object.entries(nextOrder ?? {})
-                .map(([scopeKey, itemKeys]) => buildSessionOrganizationReorderRequestFromGroupOrder({
-                    serverId: mutation.serverId,
-                    scopeKey,
-                    itemKeys: itemKeys ?? [],
-                }))
-                .filter((request): request is NonNullable<typeof request> => request != null);
-            await Promise.all(requests.map((request) => reorderSessionOrganization({ ...mutation, request })));
-        });
-    }, [getOrganizationMutationContext, runOrganizationMutation]);
 
     const setSessionWorkspaceOrderV1 = React.useCallback((nextOrder: Record<string, readonly string[] | undefined>) => {
         runOrganizationMutation(async () => {
@@ -416,11 +402,18 @@ export function useSessionListViewState({
         mode: sessionListMachineViewMode,
         setMode: persistSessionListMachineViewV1,
         onFailure: reportRepositoryDiscoveryFailure,
-        groupOrder: currentGroupOrderMap,
+        groupOrder: activeGroupOrderMap,
         orderingMode: sessionListOrderingMode,
         sectionMode: sessionListSectionMode,
         folderSortMode: sessionListFolderSortMode,
     });
+    const currentGroupOrderMap = repositoryView.groupOrder;
+    const setSessionListGroupOrderV1 = React.useCallback((nextOrder: Record<string, readonly string[] | undefined>) => {
+        runOrganizationMutation(() => persistSessionListGroupOrder({
+            currentOrder: currentGroupOrderMap, nextOrder, defaultServerId: activeOrganizationServerId,
+            repositoryScopes: repositoryView.orderScopes,
+        }));
+    }, [activeOrganizationServerId, currentGroupOrderMap, repositoryView.orderScopes, runOrganizationMutation]);
     const folderPresentedData = repositoryView.items;
     const setSessionListMachineViewV1 = repositoryView.selectMode;
 

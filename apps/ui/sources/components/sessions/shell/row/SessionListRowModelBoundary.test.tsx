@@ -165,7 +165,7 @@ function createBoundaryProps() {
         dataIndex: 0,
         dragEnabled: true,
         draggingSessionKey: null,
-        folderViewEnabled: false,
+        reorderActionsEnabled: false,
         folderActionsEnabled: false,
         getRowMoveActionHandlers: vi.fn(() => ({})),
         getRowNativeContextMenuOpenChangeHandler: vi.fn(() => vi.fn()),
@@ -246,6 +246,15 @@ describe('SessionListRowModelBoundary', () => {
         const onMoveToFolder = vi.fn();
         await renderScreen(<SessionListRowModelBoundary {...createBoundaryProps()} folderActionsEnabled getRowMoveActionHandlers={() => ({ onMoveToFolder })} />);
         expect(rowRenderProps.at(-1)?.onMoveToFolder).toBe(onMoveToFolder);
+    });
+
+    it('exposes display reordering independently from physical folder actions', async () => {
+        const { SessionListRowModelBoundary } = await import('./SessionListRowModelBoundary');
+        const onMoveDown = vi.fn();
+        const onMoveToFolder = vi.fn();
+        await renderScreen(<SessionListRowModelBoundary {...createBoundaryProps()} reorderActionsEnabled folderActionsEnabled={false} getRowMoveActionHandlers={() => ({ onMoveDown, onMoveToFolder })} />);
+        expect(rowRenderProps.at(-1)?.onMoveDown).toBe(onMoveDown);
+        expect(rowRenderProps.at(-1)?.onMoveToFolder).toBeUndefined();
     });
 
     it('updates one row from its row-store subscription without a parent rerender', async () => {

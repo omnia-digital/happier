@@ -20,9 +20,9 @@ const onFailure = vi.fn();
 const snapshot = { projectKey: 'hook-repo', fetchedAt: 1, repo: { isRepo: true, rootPath: '/repo', remotes: [{ name: 'origin', fetchUrl: 'git@example.com:team/repo.git' }] },
     branch: { head: 'main', upstream: null, ahead: 0, behind: 0, detached: false }, entries: [], hasConflicts: false, stashCount: 0,
     totals: { includedFiles: 0, pendingFiles: 0, untrackedFiles: 0, includedAdded: 0, includedRemoved: 0, pendingAdded: 0, pendingRemoved: 0 } };
-function useView() {
+function useView(source = items) {
     const [mode, setMode] = useLocalSettingMutable('sessionListMachineViewV1');
-    return useSessionRepositoryView({ items, mode, setMode, onFailure });
+    return useSessionRepositoryView({ items: source, mode, setMode, onFailure });
 }
 let previous: ReturnType<typeof storage.getState>;
 beforeEach(() => {
@@ -42,6 +42,28 @@ describe('Repository view intent lifecycle', () => {
         await vi.waitFor(() => expect(machineScmStatusSnapshot).toHaveBeenCalledTimes(1));
         await act(async () => { finish({ success: true, snapshot }); });
         await vi.waitFor(() => expect(storage.getState().localSettings.sessionRepositoryAssociationsV1[repositoryWorkspaceKey(workspace)]?.identity).toBe('example.com/team/repo'));
+    });
+
+    it('reacts to canonical organization hydration and preserves the order across view changes', async () => {
+        const first = items[0];
+        if (first.type !== 'session') throw new Error('Expected session');
+        const second = { ...first, session: { ...first.session, id: 'second' } };
+        const source = [first, second];
+        const associations = { [repositoryWorkspaceKey(workspace)]: { identity: 'example.com/team/repo', label: 'Known repository', rootPath: '/repo', worktreePaths: [] } };
+        storage.setState(state => ({ localSettings: { ...state.localSettings, sessionRepositoryAssociationsV1: associations } }));
+        const hook = await renderHook(() => useView(source));
+        const groupKey = hook.getCurrent().items?.find(item => item.type === 'header' && item.repository)?.groupKey!;
+        await act(async () => {
+            const recordId = storage.getState().applySessionOrganizationOrderScopeOptimistic(scope.serverId, {
+                scopeKind: 'group', scopeKey: groupKey, entries: ['session', 'second'].map((itemKey, index) => ({ scopeKind: 'group' as const, scopeKey: groupKey, itemKind: 'session' as const, itemKey, sortKey: String(index) })),
+            });
+            storage.getState().commitSessionOrganizationOptimistic(recordId);
+        });
+        expect(hook.getCurrent().items?.filter(item => item.type === 'session').map(item => item.session.id)).toEqual(['session', 'second']);
+        await act(async () => { hook.getCurrent().selectMode('machine'); });
+        await act(async () => { hook.getCurrent().selectMode('repository'); });
+        expect(hook.getCurrent().items?.filter(item => item.type === 'session').map(item => item.session.id)).toEqual(['session', 'second']);
+        expect(machineScmStatusSnapshot).not.toHaveBeenCalled();
     });
 
     it('renders persisted associations on restore without RPC or a preference write, then refreshes on explicit intent', async () => {

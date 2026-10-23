@@ -2257,7 +2257,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                 dragEnabled={dragEnabled}
                 draggingSessionKey={draggingSessionKey}
                 folderActionsEnabled={folderActionsEnabled}
-                folderViewEnabled={folderViewEnabled}
+                reorderActionsEnabled={folderViewEnabled || sessionListMachineViewMode === 'repository'}
                 forkActionContext={forkActionContext}
                 getRowMoveActionHandlers={getRowMoveActionHandlers}
                 onHoverArchiveTarget={surfaceOwnership.interactive && surfaceOwnership.dataActive ? handleHoverArchiveTarget : undefined}

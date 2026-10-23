@@ -59,7 +59,7 @@ export type SessionListRowModelBoundaryProps = Readonly<{
     dataIndex: number;
     dragEnabled: boolean;
     draggingSessionKey: string | null;
-    folderViewEnabled: boolean;
+    reorderActionsEnabled: boolean;
     folderActionsEnabled: boolean;
     forkActionContext?: SessionItemProps['forkActionContext'];
     getRowMoveActionHandlers: (input: Readonly<{
@@ -347,8 +347,8 @@ const SessionListRowModelBoundaryContent = React.memo(function SessionListRowMod
             forkActionContext={props.forkActionContext}
             onMoveToFolder={props.folderActionsEnabled ? moveActionHandlers.onMoveToFolder : undefined}
             onMoveToWorkspaceRoot={props.folderActionsEnabled ? moveActionHandlers.onMoveToWorkspaceRoot : undefined}
-            onMoveUp={props.folderViewEnabled ? moveActionHandlers.onMoveUp : undefined}
-            onMoveDown={props.folderViewEnabled ? moveActionHandlers.onMoveDown : undefined}
+            onMoveUp={props.reorderActionsEnabled ? moveActionHandlers.onMoveUp : undefined}
+            onMoveDown={props.reorderActionsEnabled ? moveActionHandlers.onMoveDown : undefined}
             secondaryLineMode={rowModel.secondaryLineMode}
             compact={rowModel.compact}
             compactMinimal={rowModel.compactMinimal}

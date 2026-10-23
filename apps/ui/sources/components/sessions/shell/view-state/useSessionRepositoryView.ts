@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { scmRepositoryService } from '@/scm/scmRepositoryService';
-import { useActiveServerAccountScope, useLocalSetting } from '@/sync/domains/state/storage';
+import { useActiveServerAccountScope, useLocalSetting, useSessionOrganizationGroupOrderByServer } from '@/sync/domains/state/storage';
 import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
 import type { SessionListOrderingModeV1, SessionListOrderingSectionMode } from '@/sync/domains/session/listing/sessionListOrderingRules';
@@ -90,8 +90,25 @@ export function useSessionRepositoryView(input: Input) {
         if (mode === 'repository') void run(false);
     }, [run]);
     const refresh = React.useCallback(() => run(true), [run]);
+    const orderServerIds = React.useMemo(() => input.mode === 'repository'
+        ? [...new Set(Object.values(scopes).flatMap(scope => scope ? [scope.serverId] : []))].sort() : [], [input.mode, scopes]);
+    const orderByServer = useSessionOrganizationGroupOrderByServer(orderServerIds);
+    const allGroupOrder = React.useMemo(() => Object.assign({}, input.groupOrder, ...Object.values(orderByServer)), [input.groupOrder, orderByServer]);
     const items = React.useMemo(() => input.mode === 'repository' && input.items
-        ? projectSessionListRepositoryView({ ...input, items: input.items, scopes, associations }) : input.items,
-    [input.items, input.mode, input.groupOrder, input.orderingMode, input.sectionMode, input.folderSortMode, scopes, associations]);
-    return { items, selectMode, refresh, refreshing: input.mode === 'repository' && refreshing, scopes, associations };
+        ? projectSessionListRepositoryView({ ...input, groupOrder: allGroupOrder, items: input.items, scopes, associations }) : input.items,
+    [input.items, input.mode, allGroupOrder, input.orderingMode, input.sectionMode, input.folderSortMode, scopes, associations]);
+    const orderState = React.useMemo(() => {
+        const groupOrder = { ...input.groupOrder };
+        const orderScopes: Record<string, ServerAccountScope | null> = {};
+        if (input.mode === 'repository') for (const item of items ?? []) {
+            if (item.type !== 'header' || !item.repository || !item.groupKey) continue;
+            const checkout = item.repository.checkouts[0];
+            for (const key of [item.groupKey, item.repository.orderScope]) {
+                orderScopes[key] = checkout ? { serverId: checkout.serverId, accountId: checkout.accountId } : null;
+                groupOrder[key] = allGroupOrder[key] ?? [];
+            }
+        }
+        return { groupOrder, orderScopes };
+    }, [allGroupOrder, input.groupOrder, input.mode, items]);
+    return { items, selectMode, refresh, refreshing: input.mode === 'repository' && refreshing, scopes, associations, ...orderState };
 }

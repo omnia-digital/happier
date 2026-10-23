@@ -1,3 +1,4 @@
+import { buildSessionOrganizationOrderViewState } from '../domains/session/organization/viewState';
 import React from 'react';
 import type { SessionMessagesTailBoundary } from '@/sync/runtime/sessionMessagesTailDiscontinuity';
 import { useShallow } from 'zustand/react/shallow';
@@ -348,6 +349,16 @@ export function useSessionOrganizationProjection(serverId: string | null | undef
     if (!normalizedServerId) return null;
     return buildSessionOrganizationProjection(snapshot, normalizedServerId);
   }, [normalizedServerId, snapshot]);
+}
+
+/** Reads only order entries; Repository view does not subscribe to unrelated organization data. */
+export function useSessionOrganizationGroupOrderByServer(serverIds: readonly string[]) {
+  const idsKey = JSON.stringify(serverIds);
+  const entries = getStorage()(state => serverIds.length > 0 ? state.sessionOrganizationOrderEntriesByScopeKey : null);
+  return React.useMemo(() => Object.fromEntries((JSON.parse(idsKey) as string[]).map(serverId => {
+    const scopedEntries = Object.fromEntries(Object.entries(entries ?? {}).filter(([key]) => key.startsWith(`${serverId}:`)));
+    return [serverId, buildSessionOrganizationOrderViewState(serverId, scopedEntries).sessionListGroupOrderV1];
+  })), [entries, idsKey]);
 }
 
 export function useSessionOrganizationPinnedSessionKeys(): readonly string[] {
