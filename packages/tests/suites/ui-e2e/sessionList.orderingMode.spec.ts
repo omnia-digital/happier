@@ -552,6 +552,22 @@ test.describe('ui e2e: session list ordering mode', () => {
       expect(mutatingSessionRequests).toEqual([]);
     }
 
+    const clickedRect = await clickedRow.boundingBox();
+    if (!clickedRect) throw new Error('clicked row has no bounds');
+    console.log('OH68 hit target diagnostic', await page.evaluate(({ x, y }) => {
+      const target = document.elementFromPoint(x, y);
+      const chain: Array<{ tag: string; testId: string | null; role: string | null; pointerEvents: string; style: string | null }> = [];
+      for (let node = target; node instanceof HTMLElement; node = node.parentElement) {
+        chain.push({
+          tag: node.tagName,
+          testId: node.getAttribute('data-testid'),
+          role: node.getAttribute('role'),
+          pointerEvents: getComputedStyle(node).pointerEvents,
+          style: node.getAttribute('style'),
+        });
+      }
+      return chain;
+    }, { x: clickedRect.x + clickedRect.width / 2, y: clickedRect.y + clickedRect.height / 2 }));
     await clickedRow.hover();
     await clickedRow.getByTestId('session-item-same-setup-action').click();
     await expectBlankDraftAndCancel();
