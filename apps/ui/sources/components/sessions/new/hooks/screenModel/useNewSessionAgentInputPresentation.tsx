@@ -141,7 +141,14 @@ export function useNewSessionAgentInputPresentation(params: Readonly<{
     ]);
     const selectedMachineReadinessStatus = params.selectedMachineSpawnReadiness?.status;
     const connectionStatus = React.useMemo(() => {
-        if (!params.selectedMachine) return undefined;
+        if (!params.selectedMachine) {
+            return params.selectedMachineId ? {
+                text: t('machine.notFound'),
+                color: params.theme.colors.state.danger.foreground,
+                dotColor: params.theme.colors.state.danger.foreground,
+                isPulsing: false,
+            } : undefined;
+        }
         const online = selectedMachineReadinessStatus === 'ready'
             || (
                 (
@@ -159,6 +166,7 @@ export function useNewSessionAgentInputPresentation(params: Readonly<{
             isPulsing: online,
         };
     }, [
+        params.selectedMachineId,
         params.selectedMachine?.id,
         selectedMachineOnline,
         selectedMachineReadinessStatus,

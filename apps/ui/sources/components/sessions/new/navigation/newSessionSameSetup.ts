@@ -75,7 +75,7 @@ export function buildNewSessionSameSetupRoute(params: Readonly<{
 
 type SameSetupPreparationResult =
     | Readonly<{ kind: 'ready'; route: SameSetupRoute }>
-    | Readonly<{ kind: 'missing' | 'unavailable' | 'target_unavailable' }>;
+    | Readonly<{ kind: 'missing' | 'unavailable' | 'machine_unavailable' | 'directory_unavailable' }>;
 
 /** Thin list rows acquire the full source only after the user asks to copy its setup. */
 export async function prepareNewSessionSameSetupFromRow(params: Readonly<{
@@ -158,7 +158,8 @@ export async function prepareNewSessionSameSetupFromRow(params: Readonly<{
             metadata: session.metadata,
         }),
     });
-    if (!target.machineId || !target.directory) return { kind: 'target_unavailable' };
+    if (!target.machineId) return { kind: 'machine_unavailable' };
+    if (!target.directory) return { kind: 'directory_unavailable' };
     return {
         kind: 'ready',
         route: buildNewSessionSameSetupRoute({

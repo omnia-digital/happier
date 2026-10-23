@@ -5,6 +5,8 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createSessionFixture, pressTestInstanceAsync, renderScreen, standardCleanup } from '@/dev/testkit';
 import { createSessionItemTestRowModel, installSessionShellCommonModuleMocks } from './sessionShellTestHelpers';
 import { SESSION_ACTION_RENAME_ID } from '@/components/sessions/actions/sessionActionIds';
+import { getActiveServerSnapshot } from '@/sync/domains/server/serverRuntime';
+import { clearTempData, peekTempData, type NewSessionData } from '@/utils/sessions/tempDataStore';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -32,6 +34,9 @@ vi.mock('@/utils/platform/responsive', () => ({ useIsTablet: () => false }));
 vi.mock('@/hooks/ui/useHappyAction', () => ({ useHappyAction: (fn: any) => [false, fn] }));
 
 const navigateToSessionSpy = vi.fn();
+const routerPushSpy = vi.fn();
+let storage: (typeof import('@/sync/domains/state/storage'))['storage'];
+let initialStorageState: ReturnType<typeof storage.getState>;
 vi.mock('@/hooks/session/useNavigateToSession', () => ({ useNavigateToSession: () => navigateToSessionSpy }));
 const renameSpy = vi.fn(async () => ({ success: true }));
 vi.mock('@/sync/ops', async (importOriginal) => {
@@ -41,6 +46,10 @@ vi.mock('@/sync/ops', async (importOriginal) => {
 const promptSpy = vi.fn(async () => 'Renamed');
 let platformOs: 'web' | 'ios' = 'web';
 installSessionShellCommonModuleMocks({
+    router: async () => {
+        const { createExpoRouterMock } = await import('@/dev/testkit/mocks/router');
+        return createExpoRouterMock({ router: { push: routerPushSpy } }).module;
+    },
     reactNative: async () => {
         const { createReactNativeWebMock } = await import('@/dev/testkit/mocks/reactNative');
         return createReactNativeWebMock({ Platform: { get OS() { return platformOs; } } });
@@ -75,12 +84,17 @@ type SessionItemProps = Omit<React.ComponentProps<(typeof import('./SessionItem'
 let SessionItem: React.ComponentType<SessionItemProps>;
 
 beforeAll(async () => {
+    storage = (await import('@/sync/domains/state/storage')).storage;
+    initialStorageState = storage.getState();
     const { SessionItem: ProductionSessionItem } = await import('./SessionItem');
     SessionItem = (props) => <ProductionSessionItem {...props} rowModel={props.rowModel ?? createSessionItemTestRowModel(props)} />;
 });
 
 afterEach(() => {
     standardCleanup();
+    storage.setState(initialStorageState, true);
+    clearTempData();
+    routerPushSpy.mockClear();
     navigateToSessionSpy.mockClear();
     renameSpy.mockClear();
     promptSpy.mockReset();
@@ -170,5 +184,51 @@ describe('SessionItem right-click menu (web)', () => {
 
         expect(row.props.onContextMenu).toBeUndefined();
         expect(row.props.onLongPress).toEqual(expect.any(Function));
+    });
+
+    it('opens the same blank draft for the clicked row from plus and right-click without selecting it', async () => {
+        const serverId = getActiveServerSnapshot().serverId;
+        const session = createSessionFixture({
+            id: 'clicked_session', serverId, active: true, encryptionMode: 'plain',
+            metadata: {
+                path: '/clicked/worktree', machineId: 'clicked-machine', host: 'clicked.local',
+                flavor: 'codex', profileId: 'clicked-profile',
+            },
+        });
+        storage.setState({ profileScope: { serverId, accountId: 'active-account' } });
+        storage.getState().applySessions([session]);
+        const screen = await renderScreen(
+            <SessionItem session={session} serverId={serverId} selected={false} isFirst isLast isSingle variant="default" compact={false} />,
+        );
+        const rightArea = screen.findByTestId('session-item-right-area');
+        if (!rightArea) throw new Error('session row action area not found');
+        await act(async () => rightArea.props.onPointerEnter());
+        const plus = screen.findByTestId('session-item-same-setup-action');
+        if (!plus) throw new Error('Same Setup plus action not found');
+        await act(async () => plus.props.onPress({ stopPropagation: vi.fn(), preventDefault: vi.fn() }));
+
+        const row = screen.findByTestId('session-list-item-clicked_session');
+        if (!row) throw new Error('session row not found');
+        await act(async () => row.props.onContextMenu({ preventDefault: vi.fn(), stopPropagation: vi.fn() }));
+        const menu = screen.findByType('DropdownMenu' as React.ElementType);
+        await act(async () => menu.props.onSelect('session.sameSetup'));
+
+        expect(routerPushSpy).toHaveBeenCalledTimes(2);
+        for (const [route] of routerPushSpy.mock.calls) {
+            expect(route).toEqual({
+                pathname: '/new',
+                params: expect.objectContaining({
+                    machineId: 'clicked-machine', directory: '/clicked/worktree',
+                    spawnServerId: serverId, dataId: expect.any(String),
+                }),
+            });
+            const seed = peekTempData<NewSessionData>(route.params.dataId);
+            expect(seed).toEqual(expect.objectContaining({
+                prompt: '', agentType: 'codex', selectedProfileId: 'clicked-profile',
+                replacePersistedDraftSelections: true,
+            }));
+            expect(seed?.sourceContext).toBeUndefined();
+        }
+        expect(navigateToSessionSpy).not.toHaveBeenCalled();
     });
 });

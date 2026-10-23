@@ -941,9 +941,11 @@ const SessionItemContent = React.memo(
             if (prepared.kind !== 'ready') {
                 const message = prepared.kind === 'missing'
                     ? t('errors.sessionNotFound')
-                    : prepared.kind === 'target_unavailable'
-                        ? t('machine.notFound')
-                        : t('errors.tryAgain');
+                    : prepared.kind === 'machine_unavailable'
+                        ? t('newSession.noMachineSelected')
+                        : prepared.kind === 'directory_unavailable'
+                            ? t('newSession.noPathSelected')
+                            : t('errors.tryAgain');
                 throw new HappyError(message, true);
             }
             router.push(prepared.route as any);

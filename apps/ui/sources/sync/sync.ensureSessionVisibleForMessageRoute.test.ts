@@ -1211,7 +1211,7 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
             token: buildTokenWithSub('next-foreign-account'), secret: 'next-foreign-secret',
         });
         runtimeFetchMock.mockClear();
-        runtimeFetchMock.mockResolvedValue(new Response(JSON.stringify({
+        runtimeFetchMock.mockImplementation(async () => new Response(JSON.stringify({
             session: {
                 id: sessionId, createdAt: 1, updatedAt: 3, seq: 4,
                 active: true, activeAt: 3, encryptionMode: 'plain', dataEncryptionKey: null,
@@ -1225,6 +1225,7 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
         }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
         const nextPrepared = await prepareNewSessionSameSetupFromRow({ sessionId, serverId: foreignServer.id });
         expect(runtimeFetchMock).toHaveBeenCalled();
+        expect(storage.getState().sessions[sessionId]?.metadata?.path).toBe('/foreign/next-account');
         expect(nextPrepared.kind).toBe('ready');
         if (nextPrepared.kind !== 'ready') return;
         expect(nextPrepared.route.params).toEqual(expect.objectContaining({

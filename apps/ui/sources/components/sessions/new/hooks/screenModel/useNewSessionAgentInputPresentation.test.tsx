@@ -396,6 +396,10 @@ describe('useNewSessionAgentInputPresentation', () => {
         const hook = await renderHook(renderPresentation, {
             flushOptions: { cycles: 1, turns: 4 },
         });
+        expect(hook.getCurrent().connectionStatus).toMatchObject({
+            text: 'machine.notFound',
+            isPulsing: false,
+        });
         const firstChips = hook.getCurrent().agentInputExtraActionChips;
 
         promptStore.setPrompt('hello');
