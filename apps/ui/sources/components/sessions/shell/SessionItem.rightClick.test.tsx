@@ -95,6 +95,7 @@ describe('SessionItem right-click menu (web)', () => {
             <SessionItem session={session} serverId="server_right_click" selected={false} isFirst isLast isSingle variant="default" compact={false} />,
         );
         const row = screen.findByTestId('session-list-item-sess_right_click');
+        if (!row) throw new Error('session row not found');
         const preventDefault = vi.fn();
         const stopPropagation = vi.fn();
 
@@ -125,8 +126,10 @@ describe('SessionItem right-click menu (web)', () => {
             <SessionItem session={session} serverId="server_view_only" selected={true} isFirst isLast isSingle variant="default" compact={false} />,
         );
         const row = screen.findByTestId('session-list-item-sess_view_only');
+        if (!row) throw new Error('session row not found');
         expect(row.props.accessibilityState).toMatchObject({ selected: true });
         const rightArea = screen.findByTestId('session-item-right-area');
+        if (!rightArea) throw new Error('session row action area not found');
         await act(async () => rightArea.props.onPointerEnter());
 
         await act(async () => row.props.onContextMenu({ preventDefault: vi.fn(), stopPropagation: vi.fn() }));
@@ -160,6 +163,7 @@ describe('SessionItem right-click menu (web)', () => {
             <SessionItem session={session} selected={false} isFirst isLast isSingle variant="default" compact={false} />,
         );
         const row = screen.findByTestId('session-list-item-sess_native_row');
+        if (!row) throw new Error('session row not found');
 
         expect(row.props.onContextMenu).toBeUndefined();
         expect(row.props.onLongPress).toEqual(expect.any(Function));
