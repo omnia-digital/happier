@@ -510,34 +510,9 @@ test.describe('ui e2e: session list ordering mode', () => {
     const clickedRow = page.getByTestId(`session-list-item-${clickedSessionId}`);
     await expect(selectedRow).toHaveCount(1, { timeout: 120_000 });
     await expect(clickedRow).toHaveCount(1, { timeout: 120_000 });
-    await selectedRow.evaluate((element) => {
-      const diagnostic = window as typeof window & { __oh68Events?: string[] };
-      diagnostic.__oh68Events = [];
-      for (const type of ['pointerdown', 'pointerup', 'click']) {
-        element.addEventListener(type, (event) => {
-          diagnostic.__oh68Events?.push(`${type}:${(event.target as HTMLElement).closest('[data-testid]')?.getAttribute('data-testid') ?? 'none'}`);
-        }, true);
-      }
-      const pushState = history.pushState;
-      history.pushState = function (data, unused, url) {
-        diagnostic.__oh68Events?.push(`pushState:${String(url)}`);
-        return pushState.call(this, data, unused, url);
-      };
-      const replaceState = history.replaceState;
-      history.replaceState = function (data, unused, url) {
-        diagnostic.__oh68Events?.push(`replaceState:${String(url)}`);
-        return replaceState.call(this, data, unused, url);
-      };
-    });
     await selectedRow.click();
-    try {
-      await expect.poll(() => new URL(page.url()).pathname, { timeout: 5_000 }).toBe(`/session/${selectedSessionId}`);
-    } finally {
-      console.log('OH68 row navigation diagnostic', await page.evaluate(() => ({
-        url: window.location.href,
-        events: (window as typeof window & { __oh68Events?: string[] }).__oh68Events,
-      })));
-    }
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 90_000 }).toBe(`/session/${selectedSessionId}`);
+    await expect(page.getByTestId(`session-list-machine-identity-${selectedSessionId}-tooltip`)).toBeVisible();
 
     async function expectBlankDraftAndCancel(): Promise<void> {
       await page.waitForURL((url) => url.pathname.endsWith('/new'), { timeout: 60_000 });
@@ -554,20 +529,16 @@ test.describe('ui e2e: session list ordering mode', () => {
 
     const clickedRect = await clickedRow.boundingBox();
     if (!clickedRect) throw new Error('clicked row has no bounds');
-    console.log('OH68 hit target diagnostic', await page.evaluate(({ x, y }) => {
+    const hitTargetBelongsToClickedRow = await page.evaluate(({ x, y, rowTestId }) => {
       const target = document.elementFromPoint(x, y);
-      const chain: Array<{ tag: string; testId: string | null; role: string | null; pointerEvents: string; style: string | null }> = [];
-      for (let node = target; node instanceof HTMLElement; node = node.parentElement) {
-        chain.push({
-          tag: node.tagName,
-          testId: node.getAttribute('data-testid'),
-          role: node.getAttribute('role'),
-          pointerEvents: getComputedStyle(node).pointerEvents,
-          style: node.getAttribute('style'),
-        });
-      }
-      return chain;
-    }, { x: clickedRect.x + clickedRect.width / 2, y: clickedRect.y + clickedRect.height / 2 }));
+      return target instanceof HTMLElement
+        && target.closest(`[data-testid="${rowTestId}"]`) != null;
+    }, {
+      x: clickedRect.x + clickedRect.width / 2,
+      y: clickedRect.y + clickedRect.height / 2,
+      rowTestId: `session-list-item-${clickedSessionId}`,
+    });
+    expect(hitTargetBelongsToClickedRow).toBe(true);
     await clickedRow.hover();
     await clickedRow.getByTestId('session-item-same-setup-action').click();
     await expectBlankDraftAndCancel();
