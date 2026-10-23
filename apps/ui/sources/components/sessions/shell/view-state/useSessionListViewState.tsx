@@ -9,7 +9,7 @@ import {
     useLocalSettingMutable,
     useMachineDisplayById,
     useProfile,
-    useSessionOrganizationProjection,
+    useSessionOrganizationProjections,
     useSetting,
     useSettingMutable,
 } from '@/sync/domains/state/storage';
@@ -25,7 +25,7 @@ import {
     resolveEffectiveSessionListFolderSortMode,
 } from '@/sync/domains/session/listing/sessionListOrderingRules';
 import {
-    buildSessionOrganizationListViewState,
+    buildSessionOrganizationListViewStateForServers,
     buildSessionOrganizationReorderRequestFromWorkspaceOrder,
 } from '@/sync/domains/session/organization/viewState';
 import {
@@ -163,11 +163,8 @@ export function useSessionListViewState({
     );
     const selection = useResolvedActiveServerSelection();
     const activeOrganizationServerId = selection.activeServerId ?? null;
-    const organizationProjection = useSessionOrganizationProjection(activeOrganizationServerId);
-    const organizationListViewState = React.useMemo(() => buildSessionOrganizationListViewState({
-        serverId: activeOrganizationServerId ?? '',
-        projection: organizationProjection,
-    }), [activeOrganizationServerId, organizationProjection]);
+    const organizationProjections = useSessionOrganizationProjections(selection.enabled ? selection.allowedServerIds : [selection.activeServerId]);
+    const organizationListViewState = React.useMemo(() => buildSessionOrganizationListViewStateForServers(organizationProjections), [organizationProjections]);
     const sessionFoldersDecision = useFeatureDecision('sessions.folders');
 
     const hideInactiveSessions = hideInactiveSessionsSetting === true;

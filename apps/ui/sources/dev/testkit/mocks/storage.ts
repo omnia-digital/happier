@@ -41,7 +41,18 @@ const testkitProfileDefaults = Object.freeze({
 } satisfies Profile);
 
 export async function createStorageModuleMock(options: CreateStorageModuleMockOptions): Promise<StorageModule> {
-    const mock = await mergeModuleMock<StorageModule>(options);
+    const overrides = options.overrides as Partial<StorageModule> | undefined;
+    const readOrganization = overrides?.useSessionOrganizationProjection;
+    const mock = await mergeModuleMock<StorageModule>({
+        ...options,
+        overrides: readOrganization && !overrides?.useSessionOrganizationProjections ? {
+            ...overrides,
+            useSessionOrganizationProjections: (serverIds: readonly string[]) => Object.fromEntries(serverIds.flatMap(serverId => {
+                const projection = readOrganization(serverId);
+                return projection ? [[serverId, projection]] : [];
+            })),
+        } : options.overrides,
+    });
     if (!('useActiveServerAccountScope' in mock)) {
         Object.defineProperty(mock, 'useActiveServerAccountScope', {
             value: () => null,
@@ -192,7 +203,11 @@ export function createStorageModuleStub<TOverrides extends object>(overrides: TO
         useAllSessionsForAttention: () => allAttentionSessions,
         useAllSessionListRenderablesForAttention: () => allAttentionSessionListRenderables,
         useSessionListViewDataByServerId: () => sessionListViewDataByServerId,
+        useSessionOrganizationGroupOrderByServer: () => ({}),
         useSessionOrganizationProjection: () => sessionOrganizationProjection,
+        useSessionOrganizationProjections: (serverIds: readonly string[]) => Object.fromEntries(serverIds.map(serverId => [
+            serverId, (overrides as Partial<StorageModule>).useSessionOrganizationProjection?.(serverId) ?? sessionOrganizationProjection,
+        ])),
         useMachine: () => null,
         useIsDataReady: () => true,
         useSocketStatus: () => socketStatus,

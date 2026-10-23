@@ -279,3 +279,28 @@ export function buildSessionOrganizationListViewState(params: Readonly<{
         workspaceLabelsV1,
     };
 }
+
+/** Combine selected Homes after each has been projected through its own scoped owner. */
+export function buildSessionOrganizationListViewStateForServers(
+    projections: Readonly<Record<string, SessionOrganizationProjection | null>>,
+): SessionOrganizationListViewState {
+    const states = Object.entries(projections).map(([serverId, projection]) =>
+        buildSessionOrganizationListViewState({ serverId, projection }));
+    if (states.length === 1) return states[0];
+    const groupOrder: Record<string, readonly string[]> = {};
+    for (const state of states) {
+        for (const [key, values] of Object.entries(state.sessionListGroupOrderV1)) {
+            groupOrder[key] = [...new Set([...(groupOrder[key] ?? []), ...values])];
+        }
+    }
+    return {
+        pinnedSessionKeysV1: states.flatMap(state => state.pinnedSessionKeysV1),
+        sessionFoldersV1: { v: 1, folders: states.flatMap(state => state.sessionFoldersV1.folders) },
+        sessionFolderAssignmentsBySessionKey: Object.assign({}, ...states.map(state => state.sessionFolderAssignmentsBySessionKey)),
+        sessionTagsV1: Object.assign({}, ...states.map(state => state.sessionTagsV1)),
+        attentionStandingOverridesBySessionKey: Object.assign({}, ...states.map(state => state.attentionStandingOverridesBySessionKey)),
+        sessionListGroupOrderV1: groupOrder,
+        sessionWorkspaceOrderV1: Object.assign({}, ...states.map(state => state.sessionWorkspaceOrderV1)),
+        workspaceLabelsV1: Object.assign({}, ...states.map(state => state.workspaceLabelsV1)),
+    };
+}

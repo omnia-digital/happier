@@ -41,6 +41,9 @@ function makeRenderableSession(id: string, overrides: Partial<SessionListRendera
 
 const sourceData = vi.hoisted(() => ({
     activeData: [] as unknown[],
+    dataByServerId: {} as Record<string, SessionListViewItem[]>,
+    allowedServerIds: ['server-a'],
+    folderTree: false,
     sessionListAttentionPromotionMode: 'global' as 'off' | 'global' | 'withinGroups',
     hideInactiveSessions: false,
     setSessionAttentionStandingApi: vi.fn(),
@@ -70,7 +73,7 @@ vi.mock('@/sync/domains/state/storage', async (importOriginal) => {
         importOriginal,
         overrides: {
             useSessionListViewData: () => sourceData.activeData as SessionListViewItem[],
-            useSessionListViewDataByServerId: () => ({}),
+            useSessionListViewDataByServerId: () => sourceData.dataByServerId,
             useOpenApprovalSessionIds: () => [],
             useSessionFolderAssignmentsBySessionKey: () => ({}),
             useSetting: (key: string) => {
@@ -80,7 +83,7 @@ vi.mock('@/sync/domains/state/storage', async (importOriginal) => {
                 if (key === 'sessionListWorkingPlacementModeV1') return 'off';
                 if (key === 'sessionListOrderingModeV1') return 'custom';
                 if (key === 'sessionListSectionModeV1') return 'activity';
-                if (key === 'sessionFolderViewModeV1') return 'off';
+                if (key === 'sessionFolderViewModeV1') return sourceData.folderTree ? 'tree' : 'off';
                 if (key === 'sessionFoldersV1') return { v: 1, folders: [] };
                 return null;
             },
@@ -92,18 +95,19 @@ vi.mock('@/sync/domains/state/storage', async (importOriginal) => {
 
 vi.mock('@/hooks/server/useEffectiveServerSelection', () => ({
     useResolvedActiveServerSelection: () => ({
-        enabled: false,
+        enabled: sourceData.allowedServerIds.length > 1,
         activeServerId: SERVER_ID,
-        allowedServerIds: [SERVER_ID],
+        allowedServerIds: sourceData.allowedServerIds,
         presentation: 'grouped',
     }),
 }));
 
 vi.mock('@/hooks/server/useFeatureEnabled', () => ({
-    useFeatureEnabled: () => false,
+    useFeatureEnabled: () => sourceData.folderTree,
 }));
 
-vi.mock('@/sync/domains/server/serverProfiles', () => ({
+vi.mock('@/sync/domains/server/serverProfiles', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@/sync/domains/server/serverProfiles')>(),
     getServerProfileById: (serverId: string) => (serverId === SERVER_ID
         ? { id: SERVER_ID, serverUrl: 'https://server-a.test' }
         : null),
@@ -137,6 +141,9 @@ function describeRows(items: SessionListViewItem[] | null): string[] {
 describe('attention standing reaches the visible session list through the real store subscription', () => {
     afterEach(() => {
         sourceData.hideInactiveSessions = false;
+        sourceData.allowedServerIds = [SERVER_ID];
+        sourceData.dataByServerId = {};
+        sourceData.folderTree = false;
         sourceData.setSessionAttentionStandingApi.mockReset();
         standardCleanup();
     });
@@ -260,4 +267,35 @@ describe('attention standing reaches the visible session list through the real s
 
         await hook.unmount();
     });
+    it('paints a selected foreign Home pin and empty folder from the canonical organization store', async () => {
+        const { getStorage } = await import('@/sync/domains/state/storageStore');
+        const { useVisibleSessionListViewData } = await import('./useVisibleSessionListViewData');
+        const workspace = { t: 'workspaceScope' as const, serverId: 'server-b', machineId: 'machine-b', rootPath: '/repo-b' };
+        sourceData.allowedServerIds = [SERVER_ID, 'server-b'];
+        sourceData.folderTree = true;
+        sourceData.dataByServerId = { 'server-b': [
+            { type: 'header', headerKind: 'project', title: 'Repo B', groupKey: 'server-b:repo',
+                serverId: 'server-b', workspaceScopeHint: workspace, workspaceKey: 'machine-b:/repo-b' },
+            { type: 'session', session: makeRenderableSession('foreign-pin'), section: 'inactive',
+                groupKind: 'project', groupKey: 'server-b:repo', serverId: 'server-b' },
+        ] };
+        getStorage().getState().applySessionOrganizationSnapshot('server-b', {
+            schemaVersion: 1, version: 100, pins: [{ sessionId: 'foreign-pin', pinnedAt: 1, sortKey: 'a' }],
+            folders: [{ folderId: 'foreign-empty', folderKey: 'foreign-empty', parentFolderId: null, parentFolderKey: null,
+                sortKey: 'a', display: { t: 'plain', v: { name: 'Foreign empty', workspace } },
+                archivedAt: null, createdAt: 1, updatedAt: 1 }],
+            folderAssignments: [], tags: [], tagAssignments: [], orderEntries: [], labels: [],
+        });
+        const hook = await renderHook(() => useVisibleSessionListViewData());
+        const rows = hook.getCurrent() ?? [];
+        expect(rows.find(item => item.type === 'session' && item.session.id === 'foreign-pin')).toMatchObject({
+            serverId: 'server-b', groupKind: 'pinned',
+        });
+        expect(rows.find(item => item.type === 'header' && item.headerKind === 'folder')).toMatchObject({
+            folderId: 'foreign-empty', workspace, serverId: 'server-b',
+        });
+        await hook.unmount();
+        getStorage().getState().clearSessionOrganizationForServer('server-b');
+    });
+
 });

@@ -329,9 +329,8 @@ export function useSessionFolderAssignmentsBySessionKey(): Record<string, string
   return getStorage()(useShallow((state) => state.sessionFolderAssignmentsBySessionKey));
 }
 
-export function useSessionOrganizationProjection(serverId: string | null | undefined): SessionOrganizationProjection | null {
-  const normalizedServerId = typeof serverId === 'string' && serverId.trim().length > 0 ? serverId.trim() : null;
-  const snapshot = getStorage()(
+function useSessionOrganizationProjectionSnapshot() {
+  return getStorage()(
     useShallow((state) => ({
       schemaVersionByServerId: state.sessionOrganizationSchemaVersionByServerId,
       snapshotVersionByServerId: state.sessionOrganizationSnapshotVersionByServerId,
@@ -345,11 +344,24 @@ export function useSessionOrganizationProjection(serverId: string | null | undef
       labelsByLabelKey: state.sessionOrganizationLabelsByLabelKey,
     })),
   );
+}
+
+export function useSessionOrganizationProjection(serverId: string | null | undefined): SessionOrganizationProjection | null {
+  const normalizedServerId = typeof serverId === 'string' && serverId.trim().length > 0 ? serverId.trim() : null;
+  const snapshot = useSessionOrganizationProjectionSnapshot();
 
   return React.useMemo(() => {
     if (!normalizedServerId) return null;
     return buildSessionOrganizationProjection(snapshot, normalizedServerId);
   }, [normalizedServerId, snapshot]);
+}
+
+export function useSessionOrganizationProjections(serverIds: readonly string[]): Readonly<Record<string, SessionOrganizationProjection>> {
+  const snapshot = useSessionOrganizationProjectionSnapshot();
+  const serverIdsKey = JSON.stringify([...new Set(serverIds.map(id => id.trim()).filter(Boolean))]);
+  return React.useMemo(() => Object.fromEntries((JSON.parse(serverIdsKey) as string[]).map(serverId => [
+    serverId, buildSessionOrganizationProjection(snapshot, serverId),
+  ])), [snapshot, serverIdsKey]);
 }
 
 export function readSessionOrganizationFolders(serverId: string) {
