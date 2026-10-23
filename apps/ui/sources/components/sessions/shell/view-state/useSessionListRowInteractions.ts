@@ -155,6 +155,7 @@ export type UseSessionListRowInteractionsInput = Readonly<{
     folderSortMode?: SessionListFolderSortMode;
     sessionListOrderingModeV1: SessionListOrderingModeV1;
     sessionListSectionModeV1: SessionListOrderingSectionMode;
+    structuralWritesEnabled?: boolean;
     sessionFoldersV1: SessionFoldersV1;
     sessionListGroupOrderV1: Readonly<Record<string, ReadonlyArray<string> | undefined>>;
     sessionWorkspaceOrderV1: Readonly<Record<string, ReadonlyArray<string> | undefined>>;
@@ -188,6 +189,7 @@ export function useSessionListRowInteractions({
     folderSortMode,
     sessionListOrderingModeV1,
     sessionListSectionModeV1,
+    structuralWritesEnabled,
     sessionFoldersV1,
     sessionListGroupOrderV1,
     sessionWorkspaceOrderV1,
@@ -266,6 +268,8 @@ export function useSessionListRowInteractions({
     sessionListOrderingModeV1Ref.current = sessionListOrderingModeV1;
     const sessionListSectionModeV1Ref = React.useRef(sessionListSectionModeV1);
     sessionListSectionModeV1Ref.current = sessionListSectionModeV1;
+    const structuralWritesEnabledRef = React.useRef(structuralWritesEnabled !== false);
+    structuralWritesEnabledRef.current = structuralWritesEnabled !== false;
     const setSessionListGroupOrderV1Ref = React.useRef(setSessionListGroupOrderV1);
     setSessionListGroupOrderV1Ref.current = setSessionListGroupOrderV1;
     const setSessionWorkspaceOrderV1Ref = React.useRef(setSessionWorkspaceOrderV1);
@@ -490,6 +494,7 @@ export function useSessionListRowInteractions({
                 folderSortMode: folderSortModeRef.current,
                 sessionListOrderingModeV1: sessionListOrderingModeV1Ref.current,
                 sessionListSectionModeV1: sessionListSectionModeV1Ref.current,
+                structuralWritesEnabled: structuralWritesEnabledRef.current,
                 setSessionFoldersV1: setSessionFoldersV1Ref.current,
                 setSessionListGroupOrderV1: setSessionListGroupOrderV1Ref.current,
                 setSessionWorkspaceOrderV1: setSessionWorkspaceOrderV1Ref.current,
@@ -542,6 +547,7 @@ export function useSessionListRowInteractions({
                 folderSortMode: folderSortModeRef.current,
                 sessionListOrderingModeV1: sessionListOrderingModeV1Ref.current,
                 sessionListSectionModeV1: sessionListSectionModeV1Ref.current,
+                structuralWritesEnabled: structuralWritesEnabledRef.current,
                 setSessionFoldersV1: setSessionFoldersV1Ref.current,
                 setSessionListGroupOrderV1: setSessionListGroupOrderV1Ref.current,
                 setSessionWorkspaceOrderV1: setSessionWorkspaceOrderV1Ref.current,

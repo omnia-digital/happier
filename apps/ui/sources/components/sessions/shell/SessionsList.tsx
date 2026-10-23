@@ -717,6 +717,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         folderSortMode: sessionListFolderSortMode,
         sessionListOrderingModeV1: sessionListOrderingMode,
         sessionListSectionModeV1: sessionListSectionMode,
+        structuralWritesEnabled: sessionListMachineViewMode !== 'machine',
         sessionFoldersV1,
         sessionListGroupOrderV1: currentGroupOrderMap,
         sessionWorkspaceOrderV1: currentWorkspaceOrderMap,
@@ -1931,8 +1932,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                         onAddSubfolder={() => handleAddSessionSubfolder(folderHeader)}
                         onRename={() => handleRenameSessionFolder(folderHeader)}
                         onDelete={() => handleDeleteSessionFolder(folderHeader)}
-                        onMove={moveActionHandlers.onMoveToFolder}
-                        onMoveToWorkspaceRoot={moveActionHandlers.onMoveToWorkspaceRoot}
+                        onMove={sessionListMachineViewMode === 'machine' ? undefined : moveActionHandlers.onMoveToFolder}
+                        onMoveToWorkspaceRoot={sessionListMachineViewMode === 'machine' ? undefined : moveActionHandlers.onMoveToWorkspaceRoot}
                         onMoveUp={moveActionHandlers.onMoveUp}
                         onMoveDown={moveActionHandlers.onMoveDown}
                         disabled={!folderActionsEnabled}

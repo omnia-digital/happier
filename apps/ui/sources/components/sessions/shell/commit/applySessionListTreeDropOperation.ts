@@ -43,6 +43,7 @@ export type ApplySessionListTreeDropOperationContext = Readonly<{
     folderSortMode?: SessionListFolderSortMode;
     sessionListOrderingModeV1?: SessionListOrderingModeV1;
     sessionListSectionModeV1?: SessionListOrderingSectionMode;
+    structuralWritesEnabled?: boolean;
     setSessionFoldersV1: (next: SessionFoldersV1) => void;
     setSessionListGroupOrderV1: (next: Record<string, string[]>) => void;
     setSessionWorkspaceOrderV1?: (next: Record<string, string[]>) => void;
@@ -331,6 +332,10 @@ export async function applySessionListTreeDropOperation(params: Readonly<{
         currentParentFolderId,
     });
 
+    if (params.context.structuralWritesEnabled === false && params.source.metadata.kind !== 'session') {
+        return { ok: false, operationKind, reason: 'structural-writes-disabled' };
+    }
+
     if (params.source.metadata.kind === 'session') {
         const effectiveOrderingMode = resolveEffectiveOrderingModeForSessionSource({
             source: params.source,
@@ -349,7 +354,7 @@ export async function applySessionListTreeDropOperation(params: Readonly<{
                 source: params.source,
                 destination,
                 context: params.context,
-                writeGroupOrder: effectiveOrderingMode === 'custom',
+                writeGroupOrder: effectiveOrderingMode === 'custom' && params.context.structuralWritesEnabled !== false,
             }),
             operationKind,
         };

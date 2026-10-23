@@ -1,7 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { MachineDisplayRenderable } from '@/sync/domains/machines/machineDisplayRenderable';
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
+import { buildSessionListIndexItemFromViewItem } from '@/sync/domains/session/listing/sessionListIndex';
+import { buildSessionListDragSource } from '../drop-resolution/buildSessionListDragSource';
+import { applySessionListTreeDropOperation } from '../commit/applySessionListTreeDropOperation';
+import { buildSessionListTreeRows } from '../drop-resolution/buildSessionListTreeRows';
+import { treeRowId } from '../drop-resolution/treeRowId';
+import { buildSessionListMoveSheetTargets } from '../move-sheet/buildSessionListMoveSheetTargets';
 import { filterCollapsedSessionListItems } from '../sessionListCollapsedItems';
 import { filterSessionListItemsByFocusedFolder } from '../sessionFolderShellTypes';
 import { filterSessionListItemsForHeaderControls } from '../sessionListFilters';
@@ -13,7 +19,7 @@ const machines = {
     macB: { id: 'macB', metadata: { displayName: 'Studio Mac' } },
 } as unknown as Record<string, MachineDisplayRenderable>;
 
-function header(kind: NonNullable<Extract<SessionListViewItem, { type: 'header' }>['headerKind']>, groupKey: string, serverId?: string): SessionListViewItem {
+function header(kind: NonNullable<Extract<SessionListViewItem, { type: 'header' }>['headerKind']>, groupKey: string, serverId?: string): Extract<SessionListViewItem, { type: 'header' }> {
     return { type: 'header', title: groupKey, headerKind: kind, groupKey, serverId };
 }
 
@@ -96,6 +102,21 @@ describe('projectSessionListMachineView', () => {
         expect(collapsed.filter((item) => item.type === 'header' && item.headerKind === 'machine')).toHaveLength(2);
     });
 
+    it('keeps Active machine collapse scoped when a Pinned band appears earlier', () => {
+        const active = [header('active', 'active'), row('active-one', 'server1', 'macA', 'active')];
+        const before = projectSessionListMachineView(active, machines);
+        const activeMachineKey = before.find((item) => item.type === 'header' && item.headerKind === 'machine')!.groupKey!;
+        const after = projectSessionListMachineView([
+            header('pinned', 'pinned'),
+            row('pinned-one', 'server1', 'macA', 'pinned', { pinned: true, groupKind: 'pinned' }),
+            ...active,
+        ], machines);
+        expect(after.filter(isHeader).filter((item) => item.headerKind === 'machine').map((item) => item.groupKey)).toEqual([
+            expect.not.stringMatching(/^$/), activeMachineKey,
+        ]);
+        expect(filterCollapsedSessionListItems(after, { [activeMachineKey]: true }).filter(isRow).map((item) => item.session.id)).toEqual(['pinned-one']);
+    });
+
     it('keeps the containing machine header in focused folders and omits empty machines during search', () => {
         const folder = {
             type: 'header', title: 'Tests', headerKind: 'folder', groupKey: 'folder:1', folderId: '1', depth: 0,
@@ -160,5 +181,66 @@ describe('projectSessionListMachineView', () => {
         expect(machineHeader?.title).toBe(display!.machineLabel);
         const focused = filterSessionListItemsByFocusedFolder(projectSessionListMachineView(source, machines), 'direct-folder');
         expect(focused.filter(isHeader).map((item) => item.headerKind)).toEqual(['active', 'machine', 'project', 'folder']);
+    });
+
+    it('keeps row workspace scope and folder move targets behind machine headers', () => {
+        const workspace = { t: 'workspaceScope' as const, serverId: 'server1', machineId: 'macA', rootPath: '/repo' };
+        const source = [
+            header('pinned', 'pinned'),
+            row('pinned', 'server1', 'macA', 'pinned', { workspace, pinned: true, groupKind: 'pinned' }),
+            header('active', 'active'),
+            { ...header('project', 'project:/repo', 'server1'), workspaceKey: 'project-workspace', workspaceScopeHint: workspace },
+            { ...header('folder', 'folder:a', 'server1'), folderId: 'a', depth: 0, workspace },
+            row('folder-session', 'server1', 'macA', 'folder:a', { workspace, folderId: 'a', folderDepth: 1, groupKind: 'folder' }),
+            { ...header('folder', 'folder:b', 'server1'), folderId: 'b', depth: 0, workspace },
+        ] satisfies SessionListViewItem[];
+        const projected = projectSessionListMachineView(source, machines);
+        const tree = buildSessionListTreeRows({ items: projected.map(buildSessionListIndexItemFromViewItem) });
+        expect(tree.rowMetadataById.get(treeRowId.session('server1', 'pinned'))?.workspace).toEqual(workspace);
+        const sessionSource = buildSessionListDragSource({ tree, sourceRowId: treeRowId.session('server1', 'folder-session') });
+        const targets = buildSessionListMoveSheetTargets({ tree, source: sessionSource });
+        expect(targets.find((target) => target.kind === 'root')).toMatchObject({
+            disabled: false,
+            result: { instruction: { kind: 'move-to-root', containerId: treeRowId.workspaceRoot(
+                projected.find((item) => item.type === 'header' && item.headerKind === 'project')!.groupKey!,
+            ) } },
+        });
+        expect(targets.find((target) => target.id === 'folder:b')).toMatchObject({ disabled: false });
+    });
+
+    it('assigns a session to a folder without persisting synthetic machine-view order keys', async () => {
+        const workspace = { t: 'workspaceScope' as const, serverId: 'server1', machineId: 'macA', rootPath: '/repo' };
+        const source = [
+            header('active', 'active'),
+            { ...header('project', 'project:/repo', 'server1'), workspaceKey: 'project-workspace', workspaceScopeHint: workspace },
+            { ...header('folder', 'folder:a', 'server1'), folderId: 'a', depth: 0, workspace },
+            row('root', 'server1', 'macA', 'project:/repo', { workspace, groupKind: 'project' }),
+        ] satisfies SessionListViewItem[];
+        const projected = projectSessionListMachineView(source, machines);
+        const tree = buildSessionListTreeRows({ items: projected.map(buildSessionListIndexItemFromViewItem) });
+        const dragSource = buildSessionListDragSource({ tree, sourceRowId: treeRowId.session('server1', 'root') });
+        const setSessionFolderAssignment = vi.fn(async () => {});
+        const setSessionListGroupOrderV1 = vi.fn();
+        const outcome = await applySessionListTreeDropOperation({
+            tree,
+            source: dragSource,
+            result: {
+                instruction: { kind: 'nest-into', targetId: treeRowId.folder('a'), containerId: treeRowId.folder('a'), parentId: treeRowId.folder('a'), depth: 1 },
+                visual: { kind: 'outline', targetId: treeRowId.folder('a') },
+            },
+            context: {
+                sessionFoldersV1: { v: 1, folders: [{ id: 'a', workspace, parentId: null, name: 'A', createdAt: 1, updatedAt: 1 }] },
+                sessionListGroupOrderV1: {},
+                now: () => 1,
+                sessionListOrderingModeV1: 'custom',
+                structuralWritesEnabled: false,
+                setSessionFoldersV1: vi.fn(),
+                setSessionListGroupOrderV1,
+                setSessionFolderAssignment,
+            },
+        });
+        expect(outcome.ok).toBe(true);
+        expect(setSessionFolderAssignment).toHaveBeenCalledWith({ serverId: 'server1', sessionId: 'root', folderId: 'a' });
+        expect(setSessionListGroupOrderV1).not.toHaveBeenCalled();
     });
 });
