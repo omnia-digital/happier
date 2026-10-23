@@ -1030,6 +1030,10 @@ const SessionItemContent = React.memo(
             if (e && typeof e.stopPropagation === 'function') e.stopPropagation();
             if (e && typeof e.preventDefault === 'function') e.preventDefault();
         }, []);
+        const handleRowContextMenu = React.useCallback((event: unknown) => {
+            stopRowPressPropagation(event);
+            setMoreMenuOpen(true);
+        }, [setMoreMenuOpen, stopRowPressPropagation]);
         const handleEnterSelectionMode = React.useCallback(() => {
             if (!resolvedSelectionKey) return;
             rowSelection.replace();
@@ -1333,6 +1337,8 @@ const SessionItemContent = React.memo(
                     embedded && !embeddedIsLast ? styles.embeddedSeparator : null,
                 ]}
                 onPress={handleRowPress}
+                // @ts-expect-error - react-native types do not model the web context-menu event; RN Web supports onContextMenu.
+                onContextMenu={isWeb ? handleRowContextMenu : undefined}
                 onPressIn={enableLongPressContextMenu ? () => {
                     clearContextMenuPressInTimer();
                     contextMenuPressInTimerRef.current = setTimeout(() => {
