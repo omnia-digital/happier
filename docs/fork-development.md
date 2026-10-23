@@ -179,3 +179,5 @@ node apps/stack/scripts/repo_local.mjs dev --tauri --no-browser --no-dev-targets
 ```
 
 This is an attempt at live development startup, not yet proof of a running desktop app or a daily-use release.
+
+Startup is populating the canonical stack-specific package-manager cache and admitting dependencies before starting services. Keep following that active process rather than launching a duplicate. The separate locked Cargo fetch completed successfully. Another 21 existing Tauri launcher/configuration checks passed, covering native target scoping, dev URL/configuration, identity overrides, and Cargo discovery. These checks do not establish native compilation or window behavior. The active startup log is `/tmp/happier-oh-6-macos-dev.log`.

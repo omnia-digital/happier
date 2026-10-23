@@ -13,7 +13,7 @@
 ### [ ] Run and validate the macOS desktop app
 **Description:** Start the isolated source stack and real Tauri window, then verify core session behavior.
 **Context:** OH-4 and OH-6 own live/native acceptance. Preserve the existing daily installation and accounts.
-**Status:** 🟡 Yellow — canonical dry run resolves repo-happier-42a434c316. Automatic account seeding and credential migration are disabled in its environment; desktop title is Happier Omnia Dev. Native target uses persistent scoped storage. Startup and real-session acceptance are next.
+**Status:** 🟡 Yellow — canonical dry run resolves repo-happier-42a434c316. Automatic account seeding and credential migration are disabled in its environment; desktop title is Happier Omnia Dev. Native target uses persistent scoped storage. Startup is running its first stack-specific dependency admission. Locked Cargo fetch completed and 21 Tauri launcher/configuration checks passed. Native compilation, window behavior and real-session acceptance remain unverified.
 
 ### [x] Document and checkpoint the development process
 **Description:** Write the fork runbook, review source-backed commands and signing requirements, commit and push.
