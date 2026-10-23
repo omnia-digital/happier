@@ -60,6 +60,7 @@ installMachineDetailsCommonModuleMocks({
             useLocalSetting: (name: string) => {
                 React.useMemo(() => 0, [name]);
                 if (name === 'uiFontScale') return 1;
+                if (name === 'machineDisplayIconByMachineV1') return {};
                 return null;
             },
         });
