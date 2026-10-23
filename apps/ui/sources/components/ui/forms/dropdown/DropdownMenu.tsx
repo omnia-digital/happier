@@ -241,6 +241,9 @@ export function DropdownMenu(props: DropdownMenuProps) {
     const selectableItems = React.useMemo((): SelectableMenuItem[] => {
         return props.items.map((item) => {
             const hasSubmenu = Boolean(item.submenu && item.submenu.items.length > 0);
+            const adornment = item.rightElement
+                ?? (hasSubmenu ? <Icon name="caret-right" size={16} color={theme.colors.text.secondary} /> : null);
+            const shortcutHint = item.shortcut ? <KeyHint label={item.shortcut} /> : null;
             return {
                 id: item.id,
                 testID: item.testID,
@@ -250,13 +253,9 @@ export function DropdownMenu(props: DropdownMenuProps) {
                 disabled: item.disabled,
                 left: item.icon ?? null,
                 rowContainerStyle: item.rowContainerStyle,
-                right: item.rightElement
-                    ? item.rightElement
-                    : hasSubmenu
-                        ? <Icon name="caret-right" size={16} color={theme.colors.text.secondary} />
-                        : item.shortcut
-                            ? <KeyHint label={item.shortcut} />
-                            : null,
+                right: shortcutHint && adornment
+                    ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>{shortcutHint}{adornment}</View>
+                    : adornment ?? shortcutHint,
                 hasSubmenu,
             };
         });
@@ -426,23 +425,7 @@ export function DropdownMenu(props: DropdownMenuProps) {
         schedule(() => props.onSelect(itemId), DROPDOWN_ACTION_FRAME_FALLBACK_MS);
     }, [closeOnSelect, props, schedule]);
 
-    const handleKeyDown = React.useCallback((e: any) => {
-        if (Platform.OS !== 'web') return;
-        const key = e?.nativeEvent?.key;
-        if (typeof key !== 'string') return;
-        if (!['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(key)) return;
-        if (e?.nativeEvent?.isComposing === true || e?.isComposing === true) return;
-        e.preventDefault?.();
-        e.stopPropagation?.();
-        handleKeyPress(key, (item) => {
-            if (item.id === CREATE_ITEM_ID) {
-                handleCreate();
-                return;
-            }
-            if (item.hasSubmenu) return;
-            commitSelection(item.id);
-        });
-    }, [commitSelection, handleCreate, handleKeyPress]);
+    const submenuAnchorRefs = React.useRef(new Map<string, React.RefObject<unknown>>());
     const handleOpenSubmenu = React.useCallback((itemId: string, itemAnchorRef: React.RefObject<unknown>) => {
         const item = props.items.find((candidate) => candidate.id === itemId);
         if (!item?.submenu || item.disabled) return;
@@ -467,6 +450,37 @@ export function DropdownMenu(props: DropdownMenuProps) {
         };
         retryWhenAnchorSettles(0);
     }, [props.items]);
+    const handleKeyDown = React.useCallback((e: any) => {
+        if (Platform.OS !== 'web' || activeSubmenu || e?.defaultPrevented === true) return;
+        const key = e?.nativeEvent?.key ?? e?.key;
+        if (typeof key !== 'string') return;
+        if (!['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(key)) return;
+        if (e?.nativeEvent?.isComposing === true || e?.isComposing === true) return;
+        e.preventDefault?.();
+        e.stopPropagation?.();
+        handleKeyPress(key, (item) => {
+            if (item.id === CREATE_ITEM_ID) {
+                handleCreate();
+                return;
+            }
+            if (item.hasSubmenu) {
+                const anchorRef = submenuAnchorRefs.current.get(item.id);
+                if (anchorRef) handleOpenSubmenu(item.id, anchorRef);
+                return;
+            }
+            commitSelection(item.id);
+        });
+    }, [activeSubmenu, commitSelection, handleCreate, handleKeyPress, handleOpenSubmenu]);
+    React.useEffect(() => {
+        if (Platform.OS !== 'web' || !props.open || typeof window === 'undefined') return;
+        const onWindowKeyDown = (event: KeyboardEvent) => {
+            const target = event.target as HTMLElement | null;
+            if (target?.isContentEditable || target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+            handleKeyDown(event);
+        };
+        window.addEventListener('keydown', onWindowKeyDown, true);
+        return () => window.removeEventListener('keydown', onWindowKeyDown, true);
+    }, [handleKeyDown, props.open]);
     const handlePressMenuItem = React.useCallback((item: SelectableMenuItem) => {
         if (item.id === CREATE_ITEM_ID) {
             handleCreate();
@@ -490,6 +504,8 @@ export function DropdownMenu(props: DropdownMenuProps) {
     return (
         <View
             ref={anchorRef}
+            // @ts-expect-error React Native ViewProps omit the web-only keyboard event.
+            onKeyDown={props.open && Platform.OS === 'web' ? handleKeyDown : undefined}
             // Ensure this wrapper exists in the native hierarchy so `measureInWindow` is reliable.
             // Without this, RN can "collapse" the View and measurement can return 0x0, causing
             // dropdowns to overlap their trigger (notably on iOS).
@@ -587,6 +603,9 @@ export function DropdownMenu(props: DropdownMenuProps) {
                                         handlePressMenuItem(item);
                                     }}
                                     onOpenSubmenu={handleOpenSubmenu}
+                                    onRegisterSubmenuAnchor={(itemId, itemAnchorRef) => {
+                                        submenuAnchorRefs.current.set(itemId, itemAnchorRef);
+                                    }}
                                     rowVariant={rowVariant}
                                     emptyLabel={emptyLabel}
                                     showCategoryTitles={props.showCategoryTitles ?? false}

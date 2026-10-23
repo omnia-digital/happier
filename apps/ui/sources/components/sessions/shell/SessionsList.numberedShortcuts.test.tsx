@@ -13,7 +13,7 @@ const keyboardState = vi.hoisted(() => ({
     onCommandHeldChange: null as ((held: boolean) => void) | null,
 }));
 const navigateToSession = vi.hoisted(() => vi.fn());
-const archiveActionSpy = vi.hoisted(() => vi.fn(async (): Promise<void> => undefined));
+const archiveActionSpy = vi.hoisted(() => vi.fn(async (_params?: unknown): Promise<void> => undefined));
 const listViewData = vi.hoisted(() => ({ items: null as any[] | null }));
 
 installSessionShellCommonModuleMocks({
@@ -134,6 +134,41 @@ describe('SessionsList numbered shortcuts', () => {
         expect(hints()).toEqual([['s3', undefined], ['s1', undefined], ['s2', undefined]]);
     });
 
+    it('targets the open menu row before the hovered or selected row and declines a disabled action', async () => {
+        const { SessionsListContent } = await import('./SessionsList');
+        const screen = await renderScreen(<SessionsListContent data={listViewData.items} />);
+        const rows = screen.root.findAllByType('SessionItem' as any);
+        const first = rows.find((row) => row.props.session.id === 's1')!;
+        const second = rows.find((row) => row.props.session.id === 's2')!;
+        const firstAction = vi.fn(async () => undefined);
+        const secondAction = vi.fn(async () => undefined);
+        const renameItem = { id: 'ui.session.rename', title: 'Rename' };
+
+        await act(async () => {
+            first.props.onShortcutTargetChange?.('server_a:s1', {
+                target: { sessionId: 's1', serverId: 'server_a' }, items: [renameItem], execute: firstAction, mutating: false,
+            });
+            second.props.onShortcutTargetChange?.('server_a:s2', {
+                target: { sessionId: 's2', serverId: 'server_a' }, items: [renameItem], execute: secondAction, mutating: false,
+            });
+            first.props.onShortcutPresenceChange?.('server_a:s1', 'hover', true);
+            second.props.onShortcutPresenceChange?.('server_a:s2', 'menu', true);
+        });
+        expect(keyboardState.handlers?.['session.menu.rename']?.()).toBe(true);
+        await act(async () => undefined);
+        expect(secondAction).toHaveBeenCalledWith('ui.session.rename', undefined);
+        expect(firstAction).not.toHaveBeenCalled();
+
+        await act(async () => {
+            second.props.onShortcutTargetChange?.('server_a:s2', {
+                target: { sessionId: 's2', serverId: 'server_a' },
+                items: [{ ...renameItem, disabled: true }], execute: secondAction, mutating: false,
+            });
+        });
+        expect(keyboardState.handlers?.['session.menu.rename']?.()).toBe(false);
+        expect(secondAction).toHaveBeenCalledTimes(1);
+    });
+
     it('clears held hints while the sidebar is inactive and keeps them clear on return', async () => {
         const { SessionsListContent } = await import('./SessionsList');
         const screen = await renderScreen(<SessionsListContent data={listViewData.items} />);
@@ -184,9 +219,25 @@ describe('SessionsList numbered shortcuts', () => {
         let finishArchive: (() => void) | undefined;
         archiveActionSpy.mockImplementation(() => new Promise<void>((resolve) => { finishArchive = resolve; }));
 
-        await act(async () => { rows()[0]?.props.onHoverArchiveTarget('server_a:s3', targetA); });
+        await act(async () => {
+            rows()[0]?.props.onShortcutTargetChange('server_a:s3', {
+                target: targetA,
+                items: [{ id: 'ui.session.archive', title: 'Archive' }],
+                execute: (_itemId: string, options: unknown) => archiveActionSpy({ target: targetA, context: options }),
+                mutating: false,
+            });
+            rows()[0]?.props.onShortcutPresenceChange('server_a:s3', 'hover', true);
+        });
         await act(async () => { keyboardState.handlers?.['session.hovered.archive']?.(); });
-        await act(async () => { rows()[1]?.props.onHoverArchiveTarget('server_a:s1', targetB); });
+        await act(async () => {
+            rows()[1]?.props.onShortcutTargetChange('server_a:s1', {
+                target: targetB,
+                items: [{ id: 'ui.session.archive', title: 'Archive' }],
+                execute: (_itemId: string, options: unknown) => archiveActionSpy({ target: targetB, context: options }),
+                mutating: false,
+            });
+            rows()[1]?.props.onShortcutPresenceChange('server_a:s1', 'hover', true);
+        });
         await act(async () => { keyboardState.handlers?.['session.hovered.archive']?.(); });
         expect(archiveActionSpy).toHaveBeenCalledTimes(1);
         expect(archiveActionSpy).toHaveBeenCalledWith(expect.objectContaining({
@@ -201,14 +252,22 @@ describe('SessionsList numbered shortcuts', () => {
         const { SessionsListContent } = await import('./SessionsList');
         const screen = await renderScreen(<SessionsListContent data={listViewData.items} />);
         const target = { sessionId: 's3', serverId: 'server_a', canArchive: true, isArchived: false } as any;
-        const hover = () => screen.root.findAllByType('SessionItem' as any)[0]?.props.onHoverArchiveTarget('server_a:s3', target);
+        const hover = () => {
+            const row = screen.root.findAllByType('SessionItem' as any)[0];
+            row?.props.onShortcutTargetChange('server_a:s3', {
+                target, items: [{ id: 'ui.session.archive', title: 'Archive' }],
+                execute: (_itemId: string, options: unknown) => archiveActionSpy({ target, context: options }),
+                mutating: false,
+            });
+            row?.props.onShortcutPresenceChange('server_a:s3', 'hover', true);
+        };
         await act(async () => { hover(); });
         await act(async () => { screen.root.findByType('FlashListCompat' as any).props.onScroll({ nativeEvent: {} }); });
         expect(keyboardState.handlers?.['session.hovered.archive']?.()).toBe(false);
         expect(archiveActionSpy).not.toHaveBeenCalled();
 
         await act(async () => { hover(); });
-        await act(async () => { screen.root.findAllByType('SessionItem' as any)[0]?.props.onHoverArchiveTarget('server_a:s3', null); });
+        await act(async () => { screen.root.findAllByType('SessionItem' as any)[0]?.props.onShortcutPresenceChange('server_a:s3', 'hover', false); });
         expect(keyboardState.handlers?.['session.hovered.archive']?.()).toBe(false);
         expect(archiveActionSpy).not.toHaveBeenCalled();
 

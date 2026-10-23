@@ -26,13 +26,18 @@ function isPopoverOrHigherEscapeLayerActive(): boolean {
 }
 
 type KeyboardShortcutRegistrationContextValue = Readonly<{
-    registerHandlers: (handlers: KeyboardShortcutHandlers, onCommandHeldChange?: (held: boolean) => void) => () => void;
+    registerHandlers: (
+        handlers: KeyboardShortcutHandlers,
+        onCommandHeldChange?: (held: boolean) => void,
+        isOwnedSessionRowMenuActive?: () => boolean,
+    ) => () => void;
     executeCommand: (commandId: KeyboardCommandId) => boolean;
 }>;
 
 type ScopedHandlerEntry = Readonly<{
     handlers: KeyboardShortcutHandlers;
     onCommandHeldChange?: (held: boolean) => void;
+    isOwnedSessionRowMenuActive?: () => boolean;
 }>;
 
 const KeyboardShortcutRegistrationContext = React.createContext<KeyboardShortcutRegistrationContextValue | null>(null);
@@ -59,13 +64,18 @@ function buildNativeHardwareAllowlistSignature(allowlist: NativeHardwareKeyboard
 
 export function useKeyboardShortcutHandlers(
     handlers: KeyboardShortcutHandlers,
-    options?: Readonly<{ onCommandHeldChange?: (held: boolean) => void }>,
+    options?: Readonly<{
+        onCommandHeldChange?: (held: boolean) => void;
+        isOwnedSessionRowMenuActive?: () => boolean;
+    }>,
 ): boolean {
     const registration = React.useContext(KeyboardShortcutRegistrationContext);
     const latestHandlersRef = React.useRef(handlers);
     latestHandlersRef.current = handlers;
     const latestCommandHeldChangeRef = React.useRef(options?.onCommandHeldChange);
     latestCommandHeldChangeRef.current = options?.onCommandHeldChange;
+    const latestOwnedSessionRowMenuRef = React.useRef(options?.isOwnedSessionRowMenuActive);
+    latestOwnedSessionRowMenuRef.current = options?.isOwnedSessionRowMenuActive;
     const wantsCommandHeldChange = options?.onCommandHeldChange != null;
     const handlerKeySignature = buildHandlerKeySignature(handlers);
     const registeredHandlers = React.useMemo<KeyboardShortcutHandlers>(() => {
@@ -86,6 +96,7 @@ export function useKeyboardShortcutHandlers(
         return registration.registerHandlers(
             registeredHandlers,
             wantsCommandHeldChange ? (held) => latestCommandHeldChangeRef.current?.(held) : undefined,
+            () => latestOwnedSessionRowMenuRef.current?.() === true,
         );
     }, [handlerKeySignature, registeredHandlers, registration, wantsCommandHeldChange]);
 
@@ -100,6 +111,10 @@ export function useKeyboardCommand(): (commandId: KeyboardCommandId) => boolean 
 
 export function useKeyboardShortcutLabel(commandId: KeyboardCommandId): string | undefined {
     return React.useContext(KeyboardShortcutLabelsContext)[commandId];
+}
+
+export function useKeyboardShortcutLabels(): Partial<Record<KeyboardCommandId, string>> {
+    return React.useContext(KeyboardShortcutLabelsContext);
 }
 
 function buildHelpBody(shortcutLabels: Partial<Record<string, string>>): string {
@@ -147,12 +162,16 @@ export function KeyboardShortcutProvider(props: React.PropsWithChildren<Readonly
         commandHeldRef.current = held;
         for (const listener of commandHeldListenersRef.current) listener(held);
     }, []);
-    const registerHandlers = React.useCallback((handlers: KeyboardShortcutHandlers, onCommandHeldChange?: (held: boolean) => void) => {
+    const registerHandlers = React.useCallback((
+        handlers: KeyboardShortcutHandlers,
+        onCommandHeldChange?: (held: boolean) => void,
+        isOwnedSessionRowMenuActive?: () => boolean,
+    ) => {
         const id = nextScopedHandlerIdRef.current;
         nextScopedHandlerIdRef.current += 1;
         setScopedHandlerEntries((current) => {
             const next = new Map(current);
-            next.set(id, { handlers, onCommandHeldChange });
+            next.set(id, { handlers, onCommandHeldChange, isOwnedSessionRowMenuActive });
             return next;
         });
         if (commandHeldRef.current) onCommandHeldChange?.(true);
@@ -172,6 +191,8 @@ export function KeyboardShortcutProvider(props: React.PropsWithChildren<Readonly
         }
         return next;
     }, [scopedHandlerEntries]);
+    const scopedEntriesRef = React.useRef(scopedHandlerEntries);
+    scopedEntriesRef.current = scopedHandlerEntries;
     const rootHandlers = React.useMemo<KeyboardShortcutHandlers>(() => ({
         ...props.handlers,
         ...scopedHandlers,
@@ -319,12 +340,17 @@ export function KeyboardShortcutProvider(props: React.PropsWithChildren<Readonly
                 handlers: latestShortcutRuntime.handlers,
                 getContext: () => {
                     const context = readKeyboardContextFromEventTarget(event.target);
+                    const highestEscapeLayer = getMaxEscapeKeyBlockerPriority();
+                    const ownedSessionRowMenuActive = !isModalActiveRef.current
+                        && highestEscapeLayer <= ESCAPE_LAYER_PRIORITIES.popover
+                        && Array.from(scopedEntriesRef.current.values()).some((entry) => entry.isOwnedSessionRowMenuActive?.() === true);
                     return {
                         ...context,
                         isComposing: event.isComposing === true,
                         isOverlayActive: isModalActiveRef.current
                             || context.isOverlayActive
-                            || isPopoverOrHigherEscapeLayerActive(),
+                            || highestEscapeLayer >= ESCAPE_LAYER_PRIORITIES.popover,
+                        isOwnedSessionRowMenuActive: ownedSessionRowMenuActive,
                     };
                 },
             });

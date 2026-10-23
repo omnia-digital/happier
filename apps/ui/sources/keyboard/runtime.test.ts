@@ -28,6 +28,26 @@ function keyEvent(event: Partial<NormalizedKeyboardEvent>): NormalizedKeyboardEv
 }
 
 describe('createKeyboardShortcutDispatcher', () => {
+    it('dispatches a row action only outside unrelated overlays or inside its owned menu', () => {
+        const rename = vi.fn();
+        let currentContext: KeyboardContext = context;
+        const dispatcher = createKeyboardShortcutDispatcher({
+            enabled: true, platform: 'macos', surface: 'web', singleKeyShortcutsEnabled: false,
+            disabledCommandIds: [], overrides: {},
+            handlers: { 'session.menu.rename': rename }, getContext: () => currentContext,
+        });
+        const chord = keyEvent({ key: 'e', code: 'KeyE', altKey: true, shiftKey: true });
+        expect(dispatcher(chord)).toBe(true);
+        currentContext = { ...context, isOverlayActive: true };
+        expect(dispatcher(chord)).toBe(false);
+        currentContext = { ...context, isOverlayActive: true, isOwnedSessionRowMenuActive: true };
+        expect(dispatcher(chord)).toBe(true);
+        currentContext = { ...context, isEditableTarget: true, isOwnedSessionRowMenuActive: true };
+        expect(dispatcher(chord)).toBe(false);
+        expect(dispatcher({ ...chord, repeat: true })).toBe(false);
+        expect(rename).toHaveBeenCalledTimes(2);
+    });
+
     it('dispatches hovered Archive A with single-key preference off, but never in editable, overlay, composition or repeat contexts', () => {
         const archive = vi.fn();
         const help = vi.fn();

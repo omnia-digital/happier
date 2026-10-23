@@ -98,6 +98,11 @@ import {
     prepareNewSessionSameSetupFromRow,
     SESSION_NEW_SAME_SETUP_ACTION_ID,
 } from '@/components/sessions/new/navigation/newSessionSameSetup';
+import {
+    SESSION_DELETE_DRAFT_MENU_ITEM_ID,
+    SESSION_ROW_MENU_FORK_ID,
+    type SessionRowShortcutTarget,
+} from './row/actionMenu/sessionRowMenuKeyboard';
 
 const SESSION_LIST_MINIMAL_IDENTITY_GAP = 8;
 const CONTEXT_MENU_PRESS_SUPPRESSION_TIMEOUT_MS = 600;
@@ -106,7 +111,6 @@ const SESSION_IDENTITY_SKELETON_ANIMATION_MS = 900;
 const SESSION_FOLDER_ROW_CHROME_INDENT_BASE = 38;
 const SESSION_FOLDER_ROW_CHROME_INDENT_STEP = 12;
 const SESSION_FOLDER_ROW_INDENT_CAP = 3;
-const SESSION_DELETE_DRAFT_MENU_ITEM_ID = 'session-draft.delete';
 
 let sessionForkStrategyFlowModulePromise:
     Promise<typeof import('@/components/sessions/fork/openSessionForkStrategyFlow')> | null = null;
@@ -173,6 +177,8 @@ type SessionItemBaseProps = Readonly<{
     onMoveToWorkspaceRoot?: () => void;
     onMoveUp?: () => void;
     onHoverArchiveTarget?: (key: string, target: SessionActionTarget | null) => void;
+    onShortcutTargetChange?: (key: string, target: SessionRowShortcutTarget | null) => void;
+    onShortcutPresenceChange?: (key: string, kind: 'hover' | 'focus' | 'menu', active: boolean) => void;
     forkActionContext?: Readonly<{
         replayEnabled: boolean;
         executionRunsEnabled: boolean;
@@ -743,6 +749,8 @@ const SessionItemContent = React.memo(
         onMoveToWorkspaceRoot,
         onMoveUp,
         onHoverArchiveTarget,
+        onShortcutTargetChange,
+        onShortcutPresenceChange,
         forkActionContext,
         sessionStatus,
         sessionNameResolved,
@@ -972,7 +980,7 @@ const SessionItemContent = React.memo(
             }
             if (showForkAction) {
                 items.push({
-                    id: 'session.fork',
+                    id: SESSION_ROW_MENU_FORK_ID,
                     title: t('sessionInfo.forkSession'),
                     subtitle: undefined,
                     icon: <Icon name="git-branch" size={16} color={rowActionIconColor} />,
@@ -989,7 +997,7 @@ const SessionItemContent = React.memo(
                 await confirmDeleteDraft();
                 return;
             }
-            if (itemId === 'session.fork') {
+            if (itemId === SESSION_ROW_MENU_FORK_ID) {
                 openForkFlow();
                 return;
             }
@@ -1218,6 +1226,43 @@ const SessionItemContent = React.memo(
         });
 
         const hoverArchiveKey = `${sessionActionTarget.serverId ?? ''}:${sessionActionTarget.sessionId}`;
+        React.useEffect(() => {
+            if (!onShortcutTargetChange) return;
+            onShortcutTargetChange(hoverArchiveKey, {
+                target: sessionActionTarget,
+                items: isNativeMobile ? contextMenuItems : moreMenuItems,
+                execute: isNativeMobile ? handleContextMenuSelect : handleMoreMenuSelect,
+                mutating: mutatingSession || openingSameSetup || sessionStatus.state === 'archiving',
+            });
+            return () => onShortcutTargetChange(hoverArchiveKey, null);
+        }, [
+            contextMenuItems,
+            handleContextMenuSelect,
+            handleMoreMenuSelect,
+            hoverArchiveKey,
+            isNativeMobile,
+            moreMenuItems,
+            mutatingSession,
+            onShortcutTargetChange,
+            openingSameSetup,
+            sessionActionTarget,
+            sessionStatus.state,
+        ]);
+        React.useEffect(() => {
+            if (!isWeb || !isRowHovered) return;
+            onShortcutPresenceChange?.(hoverArchiveKey, 'hover', true);
+            return () => onShortcutPresenceChange?.(hoverArchiveKey, 'hover', false);
+        }, [hoverArchiveKey, isRowHovered, isWeb, onShortcutPresenceChange]);
+        React.useEffect(() => {
+            if (!isWeb || !isRowFocused) return;
+            onShortcutPresenceChange?.(hoverArchiveKey, 'focus', true);
+            return () => onShortcutPresenceChange?.(hoverArchiveKey, 'focus', false);
+        }, [hoverArchiveKey, isRowFocused, isWeb, onShortcutPresenceChange]);
+        React.useEffect(() => {
+            if (!(isNativeMobile ? contextMenuOpen : moreMenuOpen)) return;
+            onShortcutPresenceChange?.(hoverArchiveKey, 'menu', true);
+            return () => onShortcutPresenceChange?.(hoverArchiveKey, 'menu', false);
+        }, [contextMenuOpen, hoverArchiveKey, isNativeMobile, moreMenuOpen, onShortcutPresenceChange]);
         React.useEffect(() => {
             if (!isWeb || !isRowHovered || !canArchiveSession || mutatingSession || sessionStatus.state === 'archiving') return;
             onHoverArchiveTarget?.(hoverArchiveKey, sessionActionTarget);

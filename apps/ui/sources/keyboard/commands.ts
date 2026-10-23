@@ -1,4 +1,36 @@
-import type { KeyboardCommand, KeyboardCommandId, KeybindingRule } from './types';
+import type { KeyboardCommand, KeyboardCommandId, KeyboardContext, KeybindingRule } from './types';
+
+function whenSessionRowActionAllowed(context: KeyboardContext): boolean {
+    return !context.isEditableTarget
+        && (!context.isOverlayActive || context.isOwnedSessionRowMenuActive === true);
+}
+
+const sessionRowMenuCommands: readonly KeyboardCommand[] = ([
+    ['session.menu.select', 'Alt+Shift+T', 'sessionsList.selectionSelectAction'],
+    ['session.menu.rename', 'Alt+Shift+E', 'sessionInfo.renameSession'],
+    ['session.menu.readState', 'Alt+Shift+U', 'sessionInfo.markSessionUnread'],
+    ['session.menu.attentionStanding', 'Alt+Shift+K', 'sessionInfo.keepInAttention'],
+    ['session.menu.reminder', 'Alt+Shift+D', 'sessionsList.reminders.title'],
+    ['session.menu.reminderOneHour', 'Alt+Shift+1', 'sessionsList.reminders.inOneHour'],
+    ['session.menu.reminderThreeHours', 'Alt+Shift+2', 'sessionsList.reminders.inThreeHours'],
+    ['session.menu.reminderTomorrow', 'Alt+Shift+3', 'sessionsList.reminders.tomorrowMorning'],
+    ['session.menu.reminderNextWeek', 'Alt+Shift+4', 'sessionsList.reminders.nextWeek'],
+    ['session.menu.reminderCustom', 'Alt+Shift+5', 'sessionsList.reminders.custom'],
+    ['session.menu.reminderManage', 'Alt+Shift+6', 'sessionsList.reminders.managePresets'],
+    ['session.menu.reminderRemove', 'Alt+Shift+7', 'sessionsList.reminders.remove'],
+    ['session.menu.sameSetup', 'Alt+Shift+N', 'sessionInfo.newSessionSameSetup'],
+    ['session.menu.deleteDraft', 'Alt+Shift+Y', 'sessionDrafts.delete.action'],
+    ['session.menu.copyInformation', 'Alt+Shift+I', undefined],
+    ['session.menu.fork', 'Alt+Shift+B', 'sessionInfo.forkSession'],
+    ['session.menu.stop', 'Alt+Shift+X', 'sessionInfo.stopSession'],
+    ['session.menu.tags', 'Alt+Shift+G', 'sessionTags.editTagsLabel'],
+    ['session.menu.pinState', 'Alt+Shift+P', 'sessionInfo.pinSession'],
+] as const).map(([id, binding, settingsTitleKey]) => ({
+    id,
+    defaultBinding: { binding },
+    ...(settingsTitleKey ? { settingsTitleKey } : {}),
+    when: whenSessionRowActionAllowed,
+}));
 
 export const defaultKeyboardCommands: readonly KeyboardCommand[] = [
     {
@@ -59,11 +91,12 @@ export const defaultKeyboardCommands: readonly KeyboardCommand[] = [
     },
     {
         id: 'session.hovered.archive',
-        defaultBinding: { binding: 'A', platforms: ['macos'] },
+        defaultBinding: { binding: 'A' },
         allowWhenSingleKeyShortcutsDisabled: true,
         settingsTitleKey: 'sessionInfo.archiveSession',
-        when: (context) => !context.isEditableTarget && !context.isOverlayActive,
+        when: whenSessionRowActionAllowed,
     },
+    ...sessionRowMenuCommands,
     ...([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((number): KeyboardCommand => ({
         id: `session.number.${number}`,
         settingsTitleKey: `settingsKeyboard.commands.sessionNumber${number}`,

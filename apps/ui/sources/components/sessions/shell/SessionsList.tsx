@@ -43,10 +43,14 @@ import {
 import { sessionTagKey } from './sessionTagUtils';
 import { t } from '@/text';
 import { Modal } from '@/modal';
-import { executeSessionAction } from '@/components/sessions/actions/sessionActionExecution';
 import { SESSION_ACTION_ARCHIVE_ID } from '@/components/sessions/actions/sessionActionIds';
-import type { SessionActionTarget } from '@/components/sessions/actions/sessionActionTypes';
 import { isSessionArchivePending } from '@/components/sessions/sessionStopArchiveFlow';
+import {
+    findVisibleSessionRowMenuItemForCommand,
+    sessionRowMenuCommandIds,
+    type SessionRowShortcutTarget,
+} from './row/actionMenu/sessionRowMenuKeyboard';
+import type { KeyboardCommandId } from '@/keyboard/types';
 import type { DropdownMenuItem } from '@/components/ui/forms/dropdown/DropdownMenu';
 import { Item } from '@/components/ui/lists/Item';
 import { ItemGroup } from '@/components/ui/lists/ItemGroup';
@@ -510,14 +514,19 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
     const data = useSessionListSnapshotWhenInactive(liveData, surfaceOwnership.dataActive);
     const surfaceDataActiveRef = React.useRef(surfaceOwnership.dataActive);
     surfaceDataActiveRef.current = surfaceOwnership.dataActive;
-    const hoveredArchiveTargetRef = React.useRef<{ key: string; target: SessionActionTarget } | null>(null);
+    const rowShortcutTargetsRef = React.useRef(new Map<string, SessionRowShortcutTarget>());
+    const rowShortcutPresenceRef = React.useRef<{ hover: string | null; focus: string | null; menu: string | null }>({
+        hover: null, focus: null, menu: null,
+    });
+    const pendingRowShortcutRef = React.useRef(new Set<string>());
     const archiveShortcutPendingRef = React.useRef(false);
-    const handleHoverArchiveTarget = React.useCallback((key: string, target: SessionActionTarget | null) => {
-        if (target) {
-            hoveredArchiveTargetRef.current = { key, target };
-        } else if (hoveredArchiveTargetRef.current?.key === key) {
-            hoveredArchiveTargetRef.current = null;
-        }
+    const handleShortcutTargetChange = React.useCallback((key: string, target: SessionRowShortcutTarget | null) => {
+        if (target) rowShortcutTargetsRef.current.set(key, target);
+        else rowShortcutTargetsRef.current.delete(key);
+    }, []);
+    const handleShortcutPresenceChange = React.useCallback((key: string, kind: 'hover' | 'focus' | 'menu', active: boolean) => {
+        if (active) rowShortcutPresenceRef.current[kind] = key;
+        else if (rowShortcutPresenceRef.current[kind] === key) rowShortcutPresenceRef.current[kind] = null;
     }, []);
     const sessionListPaneSourceScopeKey = useSessionListPaneSourceScopeKey();
     const currentPathname = usePathname();
@@ -1022,7 +1031,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         }
     }, []);
     const handleVirtualizedListScroll = React.useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
-        hoveredArchiveTargetRef.current = null;
+        rowShortcutPresenceRef.current.hover = null;
         if (surfaceDataActiveRef.current) {
             sync.markSessionListScrollActivity();
         }
@@ -1751,28 +1760,43 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         }
         sessionListSelectionStore.selectRange(targetKey);
     }, [resolveSelectionKeyboardCurrentKey, sessionListSelectionStore, visibleSessionNavigationEntries]);
-    const handleHoveredArchiveShortcut = React.useCallback(() => {
-        if (archiveShortcutPendingRef.current) return false;
-        const hovered = hoveredArchiveTargetRef.current;
-        if (!hovered || !hovered.target.canArchive || hovered.target.isArchived) return false;
+    const handleSessionRowMenuShortcut = React.useCallback((commandId: KeyboardCommandId): boolean => {
+        const presence = rowShortcutPresenceRef.current;
+        const selectedEntry = visibleSessionNavigationEntries.find((entry) => entry.sessionKey === activeSessionKey);
+        const selectedKey = selectedEntry ? `${selectedEntry.serverId ?? ''}:${selectedEntry.sessionId}` : null;
+        const keys = presence.menu
+            ? [presence.menu]
+            : [presence.hover, presence.focus, selectedKey];
+        const key = keys.find((candidate) => candidate != null && rowShortcutTargetsRef.current.has(candidate));
+        if (!key) return false;
         if (!renderedListItems.some((item) => item.type === 'session'
-            && `${item.serverId ?? ''}:${item.session.id}` === hovered.key)) return false;
-        const target = hovered.target;
-        if (isSessionArchivePending(target.sessionId, target.serverId)) return false;
-        archiveShortcutPendingRef.current = true;
-        void executeSessionAction({
-            actionId: SESSION_ACTION_ARCHIVE_ID,
-            target,
-            context: { hideInactiveSessions, forceArchiveConfirmation: true },
-        }).catch(showMoveError).finally(() => {
-            archiveShortcutPendingRef.current = false;
+            && `${item.serverId ?? ''}:${item.session.id}` === key)) return false;
+        const registration = rowShortcutTargetsRef.current.get(key);
+        if (!registration || registration.mutating) return false;
+        const item = findVisibleSessionRowMenuItemForCommand(registration.items, commandId);
+        if (!item) return false;
+        const pendingKey = `${key}:${commandId}`;
+        if (pendingRowShortcutRef.current.has(pendingKey)) return false;
+        if (commandId === 'session.hovered.archive' && archiveShortcutPendingRef.current) return false;
+        if (item.id === SESSION_ACTION_ARCHIVE_ID
+            && isSessionArchivePending(registration.target.sessionId, registration.target.serverId)) return false;
+        pendingRowShortcutRef.current.add(pendingKey);
+        if (commandId === 'session.hovered.archive') archiveShortcutPendingRef.current = true;
+        void registration.execute(
+            item.id,
+            item.id === SESSION_ACTION_ARCHIVE_ID ? { forceArchiveConfirmation: true } : undefined,
+        ).catch(showMoveError).finally(() => {
+            pendingRowShortcutRef.current.delete(pendingKey);
+            if (commandId === 'session.hovered.archive') archiveShortcutPendingRef.current = false;
         });
         return true;
-    }, [hideInactiveSessions, renderedListItems, showMoveError]);
+    }, [activeSessionKey, renderedListItems, showMoveError, visibleSessionNavigationEntries]);
     useKeyboardShortcutHandlers(React.useMemo(() => {
         if (!surfaceOwnership.interactive) return {};
         return {
-            'session.hovered.archive': handleHoveredArchiveShortcut,
+            ...Object.fromEntries(sessionRowMenuCommandIds
+                .filter((commandId) => commandId !== 'sessions.row.moveToFolder')
+                .map((commandId) => [commandId, () => handleSessionRowMenuShortcut(commandId)])),
             ...Object.fromEntries(numberedSessionEntries.map((_, index) => [
                 `session.number.${index + 1}`,
                 () => handleNumberedSessionShortcut(index + 1),
@@ -1791,9 +1815,11 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                 }
                 : {}),
             'sessions.row.moveToFolder': () => {
+                if (handleSessionRowMenuShortcut('sessions.row.moveToFolder')) return true;
                 const rowId = resolveSessionTreeRowId(activeSessionKey);
-                if (!rowId) return;
+                if (!rowId) return false;
                 void openMoveSheetForTreeRow(rowId, rowLabelByTreeRowId.get(rowId) ?? t('sessionsList.sessionFallbackLabel'));
+                return true;
             },
             'sessions.row.moveToWorkspaceRoot': () => {
                 const rowId = resolveSessionTreeRowId(activeSessionKey);
@@ -1816,7 +1842,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
     }, [
         activeSessionKey,
         handleMruSessionShortcut,
-        handleHoveredArchiveShortcut,
+        handleSessionRowMenuShortcut,
         handleNumberedSessionShortcut,
         handleSessionSelectionExtend,
         handleSessionSelectionToggleFocused,
@@ -1830,7 +1856,10 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         sessionListSelectionStore,
         surfaceOwnership.interactive,
         numberedSessionEntries,
-    ]), { onCommandHeldChange: surfaceOwnership.interactive ? setCommandHeld : undefined });
+    ]), {
+        onCommandHeldChange: surfaceOwnership.interactive ? setCommandHeld : undefined,
+        isOwnedSessionRowMenuActive: () => surfaceOwnership.interactive && rowShortcutPresenceRef.current.menu != null,
+    });
     const handleSessionListKeyDown = React.useCallback((event: any) => {
         if (!surfaceOwnership.interactive) return;
         if (Platform.OS !== 'web') return;
@@ -2283,7 +2312,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                 reorderActionsEnabled={folderViewEnabled || sessionListMachineViewMode === 'repository'}
                 forkActionContext={forkActionContext}
                 getRowMoveActionHandlers={getRowMoveActionHandlers}
-                onHoverArchiveTarget={surfaceOwnership.interactive && surfaceOwnership.dataActive ? handleHoverArchiveTarget : undefined}
+                onShortcutTargetChange={surfaceOwnership.interactive && surfaceOwnership.dataActive ? handleShortcutTargetChange : undefined}
+                onShortcutPresenceChange={surfaceOwnership.interactive && surfaceOwnership.dataActive ? handleShortcutPresenceChange : undefined}
                 getRowNativeContextMenuOpenChangeHandler={getRowNativeContextMenuOpenChangeHandler}
                 getRowSetTagsHandler={getRowSetTagsHandler}
                 getRowTogglePinnedHandler={getRowTogglePinnedHandler}
@@ -2323,7 +2353,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         folderActionsEnabled,
         folderViewEnabled,
         getRowMoveActionHandlers,
-        handleHoverArchiveTarget,
+        handleShortcutTargetChange,
+        handleShortcutPresenceChange,
         handleA11yDragStart,
         handleA11yTreeDropResult,
         handleStableDragCancel,

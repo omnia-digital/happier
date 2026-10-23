@@ -250,6 +250,39 @@ describe('DropdownMenu', () => {
         expect(events).toEqual(['close', 'select']);
     });
 
+    it('routes Arrow and Enter through the existing selectable-menu owner without requiring search', async () => {
+        const { DropdownMenu } = await import('./DropdownMenu');
+        const screen = await renderScreen(React.createElement(DropdownMenu, {
+            open: true,
+            onOpenChange: vi.fn(),
+            items: [{ id: 'saved-preset', title: 'Saved preset' }],
+            onSelect: vi.fn(),
+            trigger: React.createElement('View'),
+        }));
+        const event = {
+            nativeEvent: { key: 'ArrowDown' },
+            preventDefault: vi.fn(),
+            stopPropagation: vi.fn(),
+        };
+        act(() => screen.findByType('View' as any)?.props?.onKeyDown?.(event));
+        expect(handleSelectableKeyPressSpy).toHaveBeenCalledWith('ArrowDown', expect.any(Function));
+        expect(event.preventDefault).toHaveBeenCalledOnce();
+    });
+
+    it('keeps shortcut hints visible beside submenu and checked-state adornments', async () => {
+        const { DropdownMenu } = await import('./DropdownMenu');
+        await renderScreen(React.createElement(DropdownMenu, {
+            open: true, onOpenChange: vi.fn(), onSelect: vi.fn(), trigger: React.createElement('View'),
+            items: [
+                { id: 'remind', title: 'Remind me', shortcut: '⌥⇧D', submenu: { items: [{ id: 'one-hour', title: 'One hour' }] } },
+                { id: 'checked', title: 'Checked', shortcut: '⌥⇧1', rightElement: React.createElement('Check') },
+            ],
+        }));
+        const items = useSelectableMenuSpy.mock.lastCall?.[0]?.items ?? [];
+        expect(React.Children.count(items[0]?.right?.props?.children)).toBe(2);
+        expect(React.Children.count(items[1]?.right?.props?.children)).toBe(2);
+    });
+
     it('still commits a closing selection when requestAnimationFrame does not run', async () => {
         vi.stubGlobal('requestAnimationFrame', vi.fn(() => 1));
         const { DropdownMenu } = await import('./DropdownMenu');

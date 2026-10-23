@@ -13,6 +13,25 @@ export type KeyboardCommandId =
     | 'shortcutsHelp.open'
     | 'session.new'
     | 'session.hovered.archive'
+    | 'session.menu.select'
+    | 'session.menu.rename'
+    | 'session.menu.readState'
+    | 'session.menu.attentionStanding'
+    | 'session.menu.reminder'
+    | 'session.menu.reminderOneHour'
+    | 'session.menu.reminderThreeHours'
+    | 'session.menu.reminderTomorrow'
+    | 'session.menu.reminderNextWeek'
+    | 'session.menu.reminderCustom'
+    | 'session.menu.reminderManage'
+    | 'session.menu.reminderRemove'
+    | 'session.menu.sameSetup'
+    | 'session.menu.deleteDraft'
+    | 'session.menu.copyInformation'
+    | 'session.menu.fork'
+    | 'session.menu.stop'
+    | 'session.menu.tags'
+    | 'session.menu.pinState'
     | 'session.number.1'
     | 'session.number.2'
     | 'session.number.3'
@@ -51,6 +70,7 @@ export type KeyboardContext = Readonly<{
     isEditableTarget: boolean;
     isComposing: boolean;
     isOverlayActive?: boolean;
+    isOwnedSessionRowMenuActive?: boolean;
 }>;
 
 export type NormalizedKeyboardEvent = Readonly<{
