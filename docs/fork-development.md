@@ -1,6 +1,6 @@
 # Omnia Happier development and adoption
 
-This is the fork-specific runbook for `omnia-digital/happier`. Develop against an isolated local stack and qualify macOS desktop first for daily work. Windows and iOS remain later platform targets; iOS is explicitly deferred until the macOS app works the way Josh wants. Native Mac compilation, welcome rendering and local test-account authentication across a WebView reload are verified; real agent sessions and daily-use adoption remain unverified.
+This is the fork-specific runbook for `omnia-digital/happier`. Develop against an isolated local stack and qualify macOS desktop first for daily work. Windows and iOS remain later platform targets; iOS is explicitly deferred until the macOS app works the way Josh wants. Native Mac compilation, rendering and local test-account authentication across a full native restart are verified; real agent sessions and daily-use adoption remain unverified.
 
 ## Repository and change flow
 
@@ -261,6 +261,14 @@ node apps/stack/bin/hstack.mjs stack env repo-happier-42a434c316 set \
   HAPPIER_BUN_PATH=/Users/Josh/.happier/stacks/repo-happier-42a434c316/toolchains/bun-1.4.2/bun --json
 ```
 
-The value was read back through `stack env ... get`; the global Bun installation is unchanged. Canonical native rebuild/restart and computer-setup replay remain the next live gate.
+The value was read back through `stack env ... get`; the global Bun installation is unchanged. Canonical native rebuild/restart and computer-setup replay subsequently passed as recorded below.
 
 Required Git signing recovered: the accumulated lifecycle/installer fixes and account evidence are committed/pushed in `bc255a9dad`. The fetched upstream `dev` had one new commit, `f3ce78a2bf`, changing only remote-daemon release-smoke CLI-profile selection. Reviewed its diff, passed `bash -n` before/after integration, and merged/pushed it on the feature branch in `0d2b5db214`. No shared branch or GitHub API was mutated.
+
+## Native restart and local computer connection
+
+The initial one-step `dev --restart` attempt was rejected by the lifecycle owner guard; no ownership checks were bypassed. Canonical repo-local `stop --json` then stopped only the scoped runner, with no port-based kills or cleanup errors. A new canonical launch reused the pinned server/UI ports, the same scoped state and the private Bun override. Native compilation passed in 12.92 seconds; the Tauri copy of `hsetup` also passed `codesign --verify`.
+
+The account remained signed in after the complete native stop/start. Authenticated local-relay ping returned 200 again after the new session shell rendered. Setup now reached its normal relay/account choice. Selected **Connect to localhost:52263 too**, whose canonical coordinator uses a separate pinned service and leaves the other relay's account in place. Setup completed; the native shell shows a green local relay and a connected-machine badge: [local test account in the native app](verification/OH-6-macos-local-account.jpg).
+
+Independently verified the default installed CLI still reports its original `cloud` profile on `api.happier.dev`, authenticated with its registered machine and daemon running. The installed native app PID 3744 also remains running. This establishes coexistence for this setup action. The repository-scoped source CLI profile still reports `not_authenticated`; pairing that source runtime and verifying a real agent session remain separate next steps. No daily-use cutover or all-green test claim is made. Current native stack log: `/tmp/happier-oh-6-pinned-bun-native.log`.
