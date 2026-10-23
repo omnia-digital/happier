@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SessionListRenderableSession } from '@/sync/domains/session/listing/sessionListRenderable';
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
 import { buildSessionListRowModel } from './buildSessionListRowModel';
+import { buildCachedSessionListRowModel, createSessionListRowModelsCache } from './buildSessionListRowModels';
 import type { SessionListRowPresentationSettings } from './sessionListRowModelTypes';
 
 const session = {
@@ -43,18 +44,42 @@ describe('session row machine identity', () => {
         expect(row.machineLabel).toBe('Replacement Mac');
         expect(row.showMachineIdentity).toBe(true);
         expect(row.isPinned).toBe(true);
+        expect(row.subtitle).toBe('project');
     });
 
     it('hides the indicator on opt-out without changing the canonical machine or workspace subtitle', () => {
         const row = build({ showMachineIdentity: false });
         expect(row.machineLabel).toBe('Replacement Mac');
         expect(row.showMachineIdentity).toBe(false);
-        expect(row.subtitle).toContain('project');
+        expect(row.subtitle).toBe('project');
     });
 
     it('does not guess a different machine when the resolved projection is missing', () => {
-        const row = build({ reachableSessionDisplayByKey: {} });
+        const row = build({ reachableSessionDisplayByKey: {
+            'server-b:session-a': { machineLabel: 'Wrong server Mac', workspaceSubtitle: 'other' },
+        } });
         expect(row.machineLabel).toBeNull();
         expect(row.sessionId).toBe('session-a');
+    });
+
+    it('keeps the identity when the list currently has only one known machine', () => {
+        const row = build({ hasMultipleMachines: false });
+        expect(row.machineLabel).toBe('Replacement Mac');
+    });
+
+    it('rebuilds the mounted row on local preference changes without losing the resolved name', () => {
+        const item = {
+            type: 'session', session, serverId: 'server-a', groupKey: 'pinned', groupKind: 'pinned', pinned: true,
+        } as Extract<SessionListViewItem, { type: 'session' }>;
+        const cache = createSessionListRowModelsCache();
+        const base = {
+            item, cache, snapshot: { session: undefined, renderable: undefined, messages: undefined, pending: undefined },
+            adjacency: { isFirst: true, isLast: true, isSingle: true },
+        } as const;
+        const shown = buildCachedSessionListRowModel({ ...base, settings });
+        const hidden = buildCachedSessionListRowModel({ ...base, settings: { ...settings, showMachineIdentity: false } });
+        expect(hidden).not.toBe(shown);
+        expect(hidden.machineLabel).toBe('Replacement Mac');
+        expect(hidden.showMachineIdentity).toBe(false);
     });
 });
