@@ -23,6 +23,7 @@ import {
 import {
   buildSessionOrganizationImportRequestFromFolderSettings,
   importSessionOrganization,
+  setSessionOrganizationPin,
 } from '../../src/testkit/uiE2e/sessionOrganization';
 import { waitForInitialAppUi } from '../../src/testkit/uiE2e/waitForInitialAppUi';
 
@@ -242,27 +243,22 @@ test.describe('ui e2e: session list ordering mode', () => {
     await expect(sessionRow).toHaveCount(1, { timeout: 120_000 });
     await expect(dateHeaders).toHaveCount(1);
 
-    await importSessionOrganization({
+    await setSessionOrganizationPin({
       baseUrl: server.baseUrl,
       token,
-      request: {
-        pins: [{ sessionId, sortKey: '00000001' }],
-        folders: [],
-        tags: [],
-        tagAssignments: [],
-        orderEntries: [],
-        labels: [],
-      },
+      sessionId,
+      pinned: true,
     });
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
     await expect(page.getByTestId('session-list-header:pinned-v1')).toHaveCount(1, { timeout: 120_000 });
     await expect(sessionRow).toHaveCount(1);
     await expect(dateHeaders).toHaveCount(0);
 
-    await importSessionOrganization({
+    await setSessionOrganizationPin({
       baseUrl: server.baseUrl,
       token,
-      request: { pins: [], folders: [], tags: [], tagAssignments: [], orderEntries: [], labels: [] },
+      sessionId,
+      pinned: false,
     });
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
     await expect(dateHeaders).toHaveCount(1, { timeout: 120_000 });
