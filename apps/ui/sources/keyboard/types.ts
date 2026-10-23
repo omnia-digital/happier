@@ -12,6 +12,15 @@ export type KeyboardCommandId =
     | 'permission.cycle'
     | 'shortcutsHelp.open'
     | 'session.new'
+    | 'session.number.1'
+    | 'session.number.2'
+    | 'session.number.3'
+    | 'session.number.4'
+    | 'session.number.5'
+    | 'session.number.6'
+    | 'session.number.7'
+    | 'session.number.8'
+    | 'session.number.9'
     | 'session.mru.next'
     | 'session.mru.previous'
     | 'sessions.row.moveDown'
@@ -40,6 +49,7 @@ export type KeyboardCommandId =
 export type KeyboardContext = Readonly<{
     isEditableTarget: boolean;
     isComposing: boolean;
+    isOverlayActive?: boolean;
 }>;
 
 export type NormalizedKeyboardEvent = Readonly<{

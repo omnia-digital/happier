@@ -128,6 +128,7 @@ type SessionItemBaseProps = Readonly<{
     embeddedIsLast?: boolean;
     session: Session | SessionListRenderableSession;
     selectionKey?: string | null;
+    shortcutHint?: number;
     subtitleOverride?: string | null;
     subtitleEllipsizeMode?: 'head' | 'tail';
     serverId?: string;
@@ -424,6 +425,18 @@ const stylesheet = StyleSheet.create((theme) => ({
         marginBottom: 1,
         gap: 6,
     },
+    shortcutHint: {
+        minWidth: 18,
+        height: 18,
+        borderRadius: 5,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: theme.colors.surface.elevated,
+    },
+    shortcutHintText: {
+        color: theme.colors.text.secondary,
+        ...Typography.default('semiBold'),
+    },
     sessionTitle: {
         ...SESSION_LIST_ROW_TITLE_TEXT_METRICS.default,
         flex: 1,
@@ -714,6 +727,7 @@ const SessionItemContent = React.memo(
         sessionSubtitle,
         machineLabel,
         showMachineIdentity,
+        shortcutHint,
         pendingCount,
         hasUnreadMessages,
         draft,
@@ -1462,6 +1476,11 @@ const SessionItemContent = React.memo(
                                 <Text style={styles.serverBadgeText} numberOfLines={1}>
                                     {serverName}
                                 </Text>
+                            </View>
+                        ) : null}
+                        {shortcutHint != null ? (
+                            <View testID={`session-list-shortcut-hint-${resolvedSession.id}`} style={styles.shortcutHint} accessible={false}>
+                                <Text style={styles.shortcutHintText}>{String(shortcutHint)}</Text>
                             </View>
                         ) : null}
                         {draft ? (

@@ -83,6 +83,7 @@ export type SessionListRowModelBoundaryProps = Readonly<{
     rowStoreSubscriptionEnabled: boolean;
     rowStoreSubscriptionMode: SessionListRowStoreSubscriptionMode;
     settings: SessionListRowPresentationSettings;
+    shortcutHint?: number;
     viewableSessionRowKeys: ReadonlySet<string> | null;
 }>;
 
@@ -319,6 +320,7 @@ const SessionListRowModelBoundaryContent = React.memo(function SessionListRowMod
             dataIndex={props.dataIndex}
             overlayShared={props.overlayShared}
             rowModel={rowModel}
+            shortcutHint={props.shortcutHint}
             session={rowModel.session}
             subtitleOverride={rowModel.subtitle ?? null}
             subtitleEllipsizeMode={rowModel.subtitleEllipsizeMode}

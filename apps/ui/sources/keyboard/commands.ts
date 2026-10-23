@@ -57,6 +57,11 @@ export const defaultKeyboardCommands: readonly KeyboardCommand[] = [
         settingsTitleKey: 'settingsKeyboard.commands.sessionNew',
         when: (context) => !context.isEditableTarget,
     },
+    ...([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((number): KeyboardCommand => ({
+        id: `session.number.${number}`,
+        defaultBinding: { binding: `Mod+${number}`, platforms: ['macos'] },
+        when: (context) => !context.isEditableTarget && !context.isOverlayActive,
+    })),
     {
         id: 'session.mru.next',
         defaultBindings: [

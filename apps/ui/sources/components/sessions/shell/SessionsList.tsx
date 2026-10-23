@@ -1507,9 +1507,18 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         reorderEnabled: sessionListMachineViewMode !== 'machine',
     });
     const visibleSessionNavigationEntries = React.useMemo(
-        () => buildVisibleSessionNavigationEntries(listItems),
-        [listItems],
+        () => buildVisibleSessionNavigationEntries(renderedListItems),
+        [renderedListItems],
     );
+    const numberedSessionEntries = React.useMemo(
+        () => visibleSessionNavigationEntries.slice(0, 9),
+        [visibleSessionNavigationEntries],
+    );
+    const numberByVisibleRowIndex = React.useMemo(() => new Map(
+        numberedSessionEntries.map((entry, index) => [entry.index, index + 1]),
+    ), [numberedSessionEntries]);
+    const [commandHeld, setCommandHeld] = React.useState(false);
+    const showNumberedHints = surfaceOwnership.interactive && commandHeld && Platform.OS === 'web';
     const selectionScopeSessionNavigationEntries = React.useMemo(
         () => buildVisibleSessionNavigationEntries(selectionScopeListItems ?? EMPTY_SESSION_LIST_VIEW_ITEMS),
         [selectionScopeListItems],
@@ -1644,6 +1653,12 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         if (!target) return;
         void navigateToSession(target.sessionId, target.serverId ? { serverId: target.serverId } : undefined);
     }, [navigateToSession]);
+    const handleNumberedSessionShortcut = React.useCallback((number: number) => {
+        const target = numberedSessionEntries[number - 1] ?? null;
+        if (!target) return;
+        cursorSessionKeyRef.current = target.sessionKey;
+        navigateToSessionTarget(target);
+    }, [navigateToSessionTarget, numberedSessionEntries]);
     const handleVisibleSessionShortcut = React.useCallback((direction: 'previous' | 'next') => {
         const target = resolveVisibleSessionNavigation({
             visibleEntries: visibleSessionNavigationEntries,
@@ -1704,6 +1719,10 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
     useKeyboardShortcutHandlers(React.useMemo(() => {
         if (!surfaceOwnership.interactive) return {};
         return {
+            ...Object.fromEntries(numberedSessionEntries.map((_, index) => [
+                `session.number.${index + 1}`,
+                () => handleNumberedSessionShortcut(index + 1),
+            ])),
             'session.visible.previous': () => handleVisibleSessionShortcut('previous'),
             'session.visible.next': () => handleVisibleSessionShortcut('next'),
             'session.mru.previous': () => handleMruSessionShortcut('next'),
@@ -1743,6 +1762,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
     }, [
         activeSessionKey,
         handleMruSessionShortcut,
+        handleNumberedSessionShortcut,
         handleSessionSelectionExtend,
         handleSessionSelectionToggleFocused,
         handleVisibleSessionShortcut,
@@ -1754,7 +1774,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         sessionListMachineViewMode,
         sessionListSelectionStore,
         surfaceOwnership.interactive,
-    ]));
+        numberedSessionEntries,
+    ]), { onCommandHeldChange: setCommandHeld });
     const handleSessionListKeyDown = React.useCallback((event: any) => {
         if (!surfaceOwnership.interactive) return;
         if (Platform.OS !== 'web') return;
@@ -2078,6 +2099,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         headerSearchQuery: searchQuery,
         headerSelectedTagsSignature: selectedHeaderTagsSignature,
         headerSearchLoading: memorySearch.isSearchingMemory,
+        numberedSessionHintsVisible: showNumberedHints,
+        numberedSessionEntries,
         // Stable renderItem refs do not update mounted engine cells. Viewport membership
         // must reach the row boundary before its local store subscription can activate.
         rowStoreSubscriptionKeys,
@@ -2124,6 +2147,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         searchQuery,
         selectedHeaderTagsSignature,
         memorySearch.isSearchingMemory,
+        numberedSessionEntries,
+        showNumberedHints,
         rowStoreSubscriptionKeys,
         selection.activeServerId,
         allKnownTagsSignature,
@@ -2194,6 +2219,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                 getRowTogglePinnedHandler={getRowTogglePinnedHandler}
                 groupKey={groupKey}
                 item={item}
+                shortcutHint={showNumberedHints ? numberByVisibleRowIndex.get(index) : undefined}
                 nativeContextMenuSessionKey={nativeContextMenuSessionKey}
                 onDragStart={handleA11yDragStart}
                 onDropResult={handleA11yTreeDropResult}
@@ -2215,6 +2241,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         selection.activeServerId,
         surfaceOwnership.dataActive,
         nativeContextMenuSessionKey,
+        numberByVisibleRowIndex,
         prioritySessionRowKeys,
         renderedListItems,
         rowPresentationSettings,
@@ -2237,6 +2264,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         sessionListMachineViewMode,
         sessionListSectionMode,
         showStructuralDragHandles,
+        showNumberedHints,
         unregisterTreeRowBounds,
     ]);
 

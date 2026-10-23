@@ -275,6 +275,7 @@ export function readKeyboardContextFromEventTarget(target: EventTarget | null): 
     return {
         isEditableTarget,
         isComposing: false,
+        isOverlayActive: element?.closest?.('[role="dialog"], [role="menu"]') != null,
     };
 }
 

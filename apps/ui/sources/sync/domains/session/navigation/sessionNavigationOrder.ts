@@ -71,15 +71,20 @@ export function buildVisibleSessionNavigationEntries(
     if (!items) return [];
 
     const entries: VisibleSessionNavigationEntry[] = [];
+    const seenSessionKeys = new Set<string>();
     items.forEach((item, index) => {
         if (item.type !== 'session') return;
         const sessionId = normalizeSessionKeyPart(item.session?.id);
         if (!sessionId) return;
+        const serverId = normalizeSessionKeyPart(item.serverId);
+        const sessionKey = buildServerScopedSessionKey(sessionId, serverId);
+        if (seenSessionKeys.has(sessionKey)) return;
+        seenSessionKeys.add(sessionKey);
         entries.push({
             index,
             sessionId,
-            sessionKey: buildServerScopedSessionKey(sessionId, normalizeSessionKeyPart(item.serverId)),
-            ...(normalizeSessionKeyPart(item.serverId) ? { serverId: normalizeSessionKeyPart(item.serverId) } : null),
+            sessionKey,
+            ...(serverId ? { serverId } : null),
         });
     });
     return entries;
