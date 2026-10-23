@@ -2,6 +2,9 @@
 
 ## Current execution checkpoint
 
+- 🟡 Josh prioritized OH-19 machine identifiers (including compact Pinned rows) and OH-14 machine grouping after supplying the sidebar screenshot. Both are In Progress in Linear; see [phase-3-machine-sidebar.md](phase-3-machine-sidebar.md). Every fork work item must have an owning OH task before work starts.
+- 🟡 OH-16 hover Archive is pushed at `e4fa63e1d6`; 41 adjacent checks/typecheck and independent source review pass. Native tooltip and cancel safeguard pass, but confirmed active QA1 archive ends with an error and remains unarchived. Cause is unproven; keyboard QA also awaits foreground focus. The issue remains open while machine work takes priority. No original app/daemon replacement or shared experiment change.
+
 - 🟢 OH-15 is implemented, natively verified and independently reviewed at `0ed0585e79`: right-click uses the same menu, keeps the selected session unchanged, and targets the clicked scratch session. Escape and reversible Rename passed; 23 adjacent checks and UI typecheck pass. Existing tests and installed clients remain unchanged. Details and the next OH-16 hover Archive plan are in [phase-2-session-ui.md](phase-2-session-ui.md).
 
 - 🟢 Restarted the scoped native app in UI-only mode against `https://api.happier.dev`, with `--no-server --no-daemon`; installed daily app remains running. Hosted authentication now returns ping 200, existing session/machine groups load, and selecting this work session opens 42 message elements plus its composer. No message was sent to an existing session.

@@ -58,6 +58,8 @@ OH-15 is implemented through `0ed0585e79` on the setup feature branch. Desktop/w
 
 Planning lives in Linear team **Happier (OH)**, in [Happier fork — development and first stable release](https://linear.app/omniachurchapps/project/happier-fork-development-and-first-stable-release-9a3eb3200232). Use OH issue IDs for future task branches and link evidence to the owning issue. The initial backlog is OH-1 through OH-12, with milestones for development readiness, native app validation, and daily-use release readiness. OH-12 owns ongoing upstream maintenance. OH-10 tracks CI and Linear release-pipeline setup; no release pipeline is configured yet.
 
+Josh requires every work item on this fork to have an OH task before work starts. Reuse the owning issue for its implementation, investigation, testing and review; create a task first for work outside existing issue scope. Keep its status and actual verification evidence current. Current priority is OH-19 machine identifiers throughout the sidebar and detail header, plus OH-14's machine grouping view, following Josh's pinned-list screenshot.
+
 Current external-write policy allows Linear planning and git pushes to the task's feature/PR branch. GitHub UI/API writes, including PR creation, merges, settings and workflow dispatch, remain user-owned unless separately authorized.
 
 - `origin`: `https://github.com/omnia-digital/happier.git`
