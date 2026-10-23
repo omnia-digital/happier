@@ -521,7 +521,7 @@ test.describe('ui e2e: session list ordering mode', () => {
       expect(route.searchParams.get('directory')).toBe(rootPath);
       expect(route.searchParams.get('dataId')).toEqual(expect.any(String));
       await expect(page.getByTestId('new-session-composer-input')).toHaveValue('', { timeout: 60_000 });
-      await page.getByTestId('new-session-cancel').click();
+      await page.getByTestId('new-session-composer-close').click();
       await page.waitForURL((url) => !url.pathname.endsWith('/new'), { timeout: 60_000 });
       await expect(clickedRow).toHaveCount(1, { timeout: 60_000 });
       expect(mutatingSessionRequests).toEqual([]);
