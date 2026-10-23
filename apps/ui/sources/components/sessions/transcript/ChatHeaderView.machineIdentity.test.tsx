@@ -1,4 +1,5 @@
 import React from 'react';
+import { act } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -121,5 +122,16 @@ describe('ChatHeaderView machine identity', () => {
         const label = screen.findByTestId('session-header-machine-identity');
         expect(label?.props.accessibilityLabel).toBe('Long named build workstation');
         expect(label?.findAllByType('Text' as never).some(node => node.props.numberOfLines === 1 && node.props.children === 'Long named build workstation')).toBe(true);
+    });
+
+    it('opens the full machine name through the web tooltip on hover', async () => {
+        platformOs = 'web';
+        const { ChatHeaderView } = await import('./ChatHeaderView');
+        const screen = await renderScreen(<ChatHeaderView title="Title" machineLabel="Long named build workstation" />);
+        const indicator = screen.findByTestId('session-header-machine-identity');
+        expect(typeof indicator?.props.onPointerEnter).toBe('function');
+        await act(async () => indicator?.props.onPointerEnter());
+        const tooltip = screen.root.findAll((node) => node.props?.label === 'Long named build workstation');
+        expect(tooltip.length).toBeGreaterThan(0);
     });
 });

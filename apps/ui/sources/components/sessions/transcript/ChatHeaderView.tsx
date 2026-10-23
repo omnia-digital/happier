@@ -15,6 +15,7 @@ import { t } from '@/text';
 import { resolveOptionalSessionScreenTestId, useSessionScreenTestIdsEnabled } from '../shell/sessionScreenTestIds';
 import { resolveChatHeaderContentInsets } from './chatHeaderLayout';
 import { Icon } from '@/components/ui/icons/Icon';
+import { SessionMachineIdentity } from '@/components/sessions/SessionMachineIdentity';
 import { resolveSessionHeaderActionTargetPx } from '@/components/sessions/actions/sessionHeaderIconMetrics';
 
 
@@ -217,19 +218,11 @@ export const ChatHeaderView = React.memo(function ChatHeaderView({
                             ))
                         ) : null}
                         {machineLabel ? (
-                            <View
+                            <SessionMachineIdentity
                                 testID="session-header-machine-identity"
-                                accessible={true}
-                                accessibilityRole="text"
-                                accessibilityLabel={machineLabel}
-                                {...(Platform.OS === 'web' ? { title: machineLabel } : {})}
-                                style={styles.machineIdentity}
-                            >
-                                <Icon name="desktop" size={12} color={theme.colors.chrome.header.foreground} />
-                                <Text style={[styles.machineIdentityText, { color: theme.colors.chrome.header.foreground }]} numberOfLines={1} ellipsizeMode="tail">
-                                    {machineLabel}
-                                </Text>
-                            </View>
+                                label={machineLabel}
+                                variant="header"
+                            />
                         ) : null}
                     </View>
                     {subtitle && (
@@ -366,19 +359,6 @@ const styles = StyleSheet.create(() => ({
     badgeText: {
         fontSize: 10,
         lineHeight: 14,
-    },
-    machineIdentity: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        maxWidth: 150,
-        minWidth: 0,
-        flexShrink: 1,
-    },
-    machineIdentityText: {
-        ...Typography.default(),
-        fontSize: 11,
-        flexShrink: 1,
     },
     rightElementContainer: {
         flexDirection: 'row',

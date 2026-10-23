@@ -17,6 +17,7 @@ import {
 import { resolveAgentIdFromSessionMetadata } from '@happier-dev/agents';
 import { Typography } from '@/constants/Typography';
 import { formatPendingCountBadge } from '@/components/sessions/pendingBadge';
+import { SessionMachineIdentity } from '@/components/sessions/SessionMachineIdentity';
 import { useNavigateToSession } from '@/hooks/session/useNavigateToSession';
 import { t } from '@/text';
 import type { SessionListSecondaryLineMode } from '@/sync/domains/session/listing/deriveSessionListActivity';
@@ -422,20 +423,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         alignItems: 'center',
         marginBottom: 1,
         gap: 6,
-    },
-    machineIdentity: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 3,
-        maxWidth: 112,
-        minWidth: 0,
-        flexShrink: 1,
-    },
-    machineIdentityText: {
-        color: theme.colors.text.secondary,
-        fontSize: 10,
-        ...Typography.default(),
-        flexShrink: 1,
     },
     sessionTitle: {
         ...SESSION_LIST_ROW_TITLE_TEXT_METRICS.default,
@@ -1464,19 +1451,11 @@ const SessionItemContent = React.memo(
                             </Text>
                         )}
                         {showMachineIdentity && machineLabel ? (
-                            <View
+                            <SessionMachineIdentity
                                 testID={`session-list-machine-identity-${resolvedSession.id}`}
-                                accessible={true}
-                                accessibilityRole="text"
-                                accessibilityLabel={machineLabel}
-                                {...(Platform.OS === 'web' ? { title: machineLabel } : {})}
-                                style={styles.machineIdentity}
-                            >
-                                <Icon name="desktop" size={11} color={theme.colors.text.secondary} />
-                                <Text style={styles.machineIdentityText} numberOfLines={1} ellipsizeMode="tail">
-                                    {machineLabel}
-                                </Text>
-                            </View>
+                                label={machineLabel}
+                                variant="row"
+                            />
                         ) : null}
                         {showServerBadge && serverName ? (
                             <View style={styles.serverBadgeContainer}>

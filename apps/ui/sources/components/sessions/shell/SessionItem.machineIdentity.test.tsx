@@ -1,4 +1,5 @@
 import React from 'react';
+import { act } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { renderScreen, standardCleanup } from '@/dev/testkit';
@@ -156,5 +157,14 @@ describe('SessionItem machine identity', () => {
         const screen = await renderMachineRow(false);
         expect(screen.findByTestId(`session-list-machine-identity-${SESSION_ID}`)).toBeNull();
         expect(screen.getTextContent()).toContain('Review');
+    });
+
+    it('opens the full machine name through the web tooltip on hover', async () => {
+        const screen = await renderMachineRow(true);
+        const indicator = screen.findByTestId(`session-list-machine-identity-${SESSION_ID}`);
+        expect(typeof indicator?.props.onPointerEnter).toBe('function');
+        await act(async () => indicator?.props.onPointerEnter());
+        const tooltip = screen.root.findAll((node) => node.props?.label === 'Long named studio workstation');
+        expect(tooltip.length).toBeGreaterThan(0);
     });
 });
