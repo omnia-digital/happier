@@ -246,4 +246,21 @@ Josh explicitly authorized account creation. In the native dev window connected 
 
 The separate desktop computer-setup flow stopped with `executor_ended_without_result`: “System task executor exited without a final result.” Its details showed no additional stderr preview. The scoped CLI still reports `not_authenticated`; daemon pairing and real agent-session acceptance remain open. Account creation and reload persistence are verified, not computer setup, full native restart persistence or daily-use readiness. The prior root unit run has now exited 1, reporting failures in shared-packages, CLI, server and stack lanes; it is no longer running.
 
-After the correction, the full shared CLI package suite ran with an isolated subprocess home and canonical temporary root: 101 files passed, 2 failed; 592 tests passed, 9 failed and 5 skipped (exit 1). The remaining failures are the CLI-choice expectation against macOS's intentional home-bin discovery and eight Windows-simulation case/path expectations. The installer regression and original memory-pressure test pass in this complete package run. Log: `/tmp/happier-oh-6-cli-common-full-isolated.log`. Do not report this suite as green or change those existing tests without approval. The original full root run is separate and still active.
+After the correction, the full shared CLI package suite ran with an isolated subprocess home and canonical temporary root: 101 files passed, 2 failed; 592 tests passed, 9 failed and 5 skipped (exit 1). The remaining failures are the CLI-choice expectation against macOS's intentional home-bin discovery and eight Windows-simulation case/path expectations. The installer regression and original memory-pressure test pass in this complete package run. Log: `/tmp/happier-oh-6-cli-common-full-isolated.log`. Do not report this suite as green or change those existing tests without approval. The original full root run is separate and has now exited 1 as recorded above.
+
+## Match the macOS helper compiler to CI
+
+The setup failure was an invalid signature on the Bun-compiled `hsetup` executable. Both the bootstrap output and Tauri copy failed `codesign --verify`; macOS killed a harmless unknown-task probe before it emitted output. Rebuilding with the old local Bun 1.2.17 reproduced the invalid signature immediately. A temporary ad-hoc-signed copy ran the same probe correctly, confirming the failing boundary without changing the live helper or weakening OS checks.
+
+The repository's native/release CI pins Bun 1.4.2. Installed that exact official release under the isolated stack's `toolchains/bun-1.4.2/`, verifying the archive SHA-256 against the GitHub release asset digest (`90987a3a16d7db556d886ac3d551e7b6d3edf0a1cf43acaed622e8676be1d12f`). The canonical bootstrap build with this compiler passed, its signature verified, and the harmless unknown-task probe returned the expected protocol `unknown_kind` result. No product/build source correction was needed. Logs: `/tmp/happier-oh-6-pinned-bun-hsetup-build.log`.
+
+Persisted the supported compiler override only in the isolated stack using:
+
+```sh
+node apps/stack/bin/hstack.mjs stack env repo-happier-42a434c316 set \
+  HAPPIER_BUN_PATH=/Users/Josh/.happier/stacks/repo-happier-42a434c316/toolchains/bun-1.4.2/bun --json
+```
+
+The value was read back through `stack env ... get`; the global Bun installation is unchanged. Canonical native rebuild/restart and computer-setup replay remain the next live gate.
+
+Required Git signing recovered: the accumulated lifecycle/installer fixes and account evidence are committed/pushed in `bc255a9dad`. The fetched upstream `dev` had one new commit, `f3ce78a2bf`, changing only remote-daemon release-smoke CLI-profile selection. Reviewed its diff, passed `bash -n` before/after integration, and merged/pushed it on the feature branch in `0d2b5db214`. No shared branch or GitHub API was mutated.
