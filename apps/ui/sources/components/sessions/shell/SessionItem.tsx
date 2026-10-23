@@ -79,6 +79,7 @@ import {
 } from '@/components/sessions/debug/sessionDebugInformation';
 import { copySessionDebugInformationToClipboard } from '@/components/sessions/debug/sessionDebugClipboard';
 import { Icon } from '@/components/ui/icons/Icon';
+import { PressableSurface } from '@/components/ui/interaction/PressableSurface';
 import { Modal } from '@/modal';
 import {
     createCopySessionDebugInformationMenuItem,
@@ -790,6 +791,7 @@ const SessionItemContent = React.memo(
         const canArchiveSession = sessionActionTarget.canArchive;
         const swipeEnabled = Platform.OS !== 'web' && nativeInlineDragEnabled !== true && canArchiveSession;
         const [isRowHovered, setIsRowHovered] = React.useState(false);
+        const [isRowFocused, setIsRowFocused] = React.useState(false);
         const [isActionsHovered, setIsActionsHovered] = React.useState(false);
         const [tagMenuOpen, setTagMenuOpen] = React.useState(false);
         const [tagMenuEverOpened, setTagMenuEverOpened] = React.useState(false);
@@ -805,7 +807,7 @@ const SessionItemContent = React.memo(
             isTablet,
             platform: Platform.OS,
         });
-        const showRowActions = isWeb && (isRowHovered || isActionsHovered || tagMenuOpen || moreMenuOpen || isBeingDragged === true);
+        const showRowActions = isWeb && (isRowHovered || isRowFocused || isActionsHovered || tagMenuOpen || moreMenuOpen || isBeingDragged === true);
         const rowActionIconColor = theme.colors.text.secondary;
         const resolveSessionDebugInformation = React.useCallback(() => {
             const fullSession = storage.getState().sessions[resolvedSession.id];
@@ -1005,6 +1007,16 @@ const SessionItemContent = React.memo(
         const handleRowPointerLeave = React.useCallback(() => {
             setIsRowHovered(false);
             setIsActionsHovered(false);
+        }, []);
+
+        const handleRowFocus = React.useCallback(() => {
+            setIsRowFocused(true);
+        }, []);
+
+        const handleRowBlur = React.useCallback((event: unknown) => {
+            const e = event as { currentTarget?: { contains?: (target: unknown) => boolean }; relatedTarget?: unknown };
+            if (e.currentTarget?.contains?.(e.relatedTarget)) return;
+            setIsRowFocused(false);
         }, []);
 
         const handleActionsHoverIn = React.useCallback(() => {
@@ -1704,6 +1716,24 @@ const SessionItemContent = React.memo(
                                     )}
                                 />
                             ) : null}
+                            {canArchiveSession ? (
+                                <PressableSurface
+                                    testID="session-item-archive-action"
+                                    style={styles.rowActionButton}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={t('sessionInfo.archiveSession')}
+                                    webTooltip={t('sessionInfo.archiveSession')}
+                                    tooltipPlacement="left"
+                                    disabled={mutatingSession}
+                                    hitSlop={8}
+                                    onPress={(event) => {
+                                        stopRowPressPropagation(event);
+                                        void handleMoreMenuSelect(SESSION_ACTION_ARCHIVE_ID);
+                                    }}
+                                >
+                                    <Icon name="archive" size={14} color={rowActionIconColor} />
+                                </PressableSurface>
+                            ) : null}
                         </View>
                     ) : showTrailingAttentionIndicator || showTrailingActivityTime ? (
                         <View style={styles.trailingMetaRow}>
@@ -1813,6 +1843,8 @@ const SessionItemContent = React.memo(
                     style={containerStyles}
                     onPointerEnter={isWeb ? handleRowPointerEnter : undefined}
                     onPointerLeave={isWeb ? handleRowPointerLeave : undefined}
+                    onFocus={isWeb ? handleRowFocus : undefined}
+                    onBlur={isWeb ? handleRowBlur : undefined}
                 >
                     {itemContent}
                     {menuNodes}
@@ -1836,6 +1868,8 @@ const SessionItemContent = React.memo(
                 style={containerStyles}
                 onPointerEnter={isWeb ? handleRowPointerEnter : undefined}
                 onPointerLeave={isWeb ? handleRowPointerLeave : undefined}
+                onFocus={isWeb ? handleRowFocus : undefined}
+                onBlur={isWeb ? handleRowBlur : undefined}
             >
                 <Swipeable
                     ref={swipeableRef}
