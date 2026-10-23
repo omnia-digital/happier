@@ -39,7 +39,7 @@ describe('InboxSessionAttentionGroupCard', () => {
             sessionByKey: new Map([['server-a:session-1', { serverId: 'server-a', sessionId: session.id, session }]]),
             machines: {
                 'machine-old': createMachineFixture({ id: 'machine-old', replacedByMachineId: 'machine-successor' }),
-                'machine-successor': createMachineFixture({ id: 'machine-successor', metadata: { displayName: 'Successor' } }),
+                'machine-successor': createMachineFixture({ id: 'machine-successor', metadata: { ...createMachineFixture().metadata!, displayName: 'Successor' } }),
             },
             workspaceLabelsByServerId: new Map(),
         }).get('server-a:session-1')!;
