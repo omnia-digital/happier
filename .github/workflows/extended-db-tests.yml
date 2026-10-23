@@ -40,7 +40,7 @@ concurrency:
 
 jobs:
   ui-e2e-nightly:
-    if: ${{ github.event_name == 'schedule' }}
+    if: ${{ github.event_name == 'schedule' && github.repository == 'happier-dev/happier' }}
     name: Full UI E2E nightly
     permissions:
       contents: read
@@ -63,7 +63,7 @@ jobs:
       run_binary_smoke: false
 
   e2e-postgres:
-    if: ${{ !inputs.select_jobs_explicitly || inputs.run_e2e_postgres }}
+    if: ${{ (github.event_name != 'schedule' || github.repository == 'happier-dev/happier') && (!inputs.select_jobs_explicitly || inputs.run_e2e_postgres) }}
     name: Core E2E (Postgres)
     runs-on: ubuntu-22.04
     timeout-minutes: 120
@@ -148,7 +148,7 @@ jobs:
             .project/logs/e2e/**/*.txt
 
   e2e-mysql:
-    if: ${{ !inputs.select_jobs_explicitly || inputs.run_e2e_mysql }}
+    if: ${{ (github.event_name != 'schedule' || github.repository == 'happier-dev/happier') && (!inputs.select_jobs_explicitly || inputs.run_e2e_mysql) }}
     name: Core E2E (MySQL)
     runs-on: ubuntu-22.04
     timeout-minutes: 120
@@ -232,7 +232,7 @@ jobs:
             .project/logs/e2e/**/*.txt
 
   db-contract-postgres:
-    if: ${{ !inputs.select_jobs_explicitly || inputs.run_db_contract_postgres }}
+    if: ${{ (github.event_name != 'schedule' || github.repository == 'happier-dev/happier') && (!inputs.select_jobs_explicitly || inputs.run_db_contract_postgres) }}
     name: DB Contract (Postgres)
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -286,7 +286,7 @@ jobs:
         run: yarn --cwd apps/server test:db-contract
 
   db-contract-mysql:
-    if: ${{ !inputs.select_jobs_explicitly || inputs.run_db_contract_mysql }}
+    if: ${{ (github.event_name != 'schedule' || github.repository == 'happier-dev/happier') && (!inputs.select_jobs_explicitly || inputs.run_db_contract_mysql) }}
     name: DB Contract (MySQL)
     runs-on: ubuntu-latest
     timeout-minutes: 120

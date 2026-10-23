@@ -45,8 +45,8 @@ function assertInheritedSecretsRequireTrustedRefGuard(file, parsed) {
 }
 
 function usesPersistentSelfHostedRunner(job) {
-  const labels = Array.isArray(job?.['runs-on']) ? job['runs-on'] : [job?.['runs-on']];
-  return labels.includes('self-hosted');
+  // Include conditional expressions and label objects as well as literal arrays.
+  return JSON.stringify(job?.['runs-on'] ?? '').includes('self-hosted');
 }
 
 test('every persistent self-hosted job waits for trusted workflow admission', async () => {
@@ -78,7 +78,7 @@ test('every persistent self-hosted job waits for trusted workflow admission', as
     }
   }
 
-  assert.deepEqual(persistentJobs, ['tests-dispatch.yml:ui-e2e-wsrepl-lima']);
+  assert.deepEqual(persistentJobs, ['build-tauri.yml:build', 'tests-dispatch.yml:ui-e2e-wsrepl-lima']);
 });
 
 test('release workflows scope shared signing/publishing secrets to release-shared environment', async () => {
