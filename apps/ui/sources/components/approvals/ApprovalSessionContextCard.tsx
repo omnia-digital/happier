@@ -13,6 +13,7 @@ import { Icon } from '@/components/ui/icons/Icon';
 import { useNavigateToSession } from '@/hooks/session/useNavigateToSession';
 
 export const ApprovalSessionContextCard = React.memo(function ApprovalSessionContextCard(props: Readonly<{
+    serverId: string | null;
     session: Session | null;
     machine: Machine | null;
     requesterAgentId: string | null;
@@ -42,7 +43,7 @@ export const ApprovalSessionContextCard = React.memo(function ApprovalSessionCon
                 <View style={styles.titleColumn}>
                     {sessionTitle ? <Text style={styles.title}>{sessionTitle}</Text> : null}
                     <View style={styles.contextChips}>
-                        <SessionContextChips machineLabel={machineLabel} machineId={props.machine?.id} serverId={props.session?.serverId} pathLabel={pathLabel} />
+                        <SessionContextChips machineLabel={machineLabel} machineId={props.machine?.id} serverId={props.serverId} pathLabel={pathLabel} />
                     </View>
                 </View>
 

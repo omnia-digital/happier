@@ -244,6 +244,7 @@ export const ApprovalDetailScreen = React.memo((props: Readonly<{ artifactId: st
 
         <View style={styles.cardStack}>
           <ApprovalSessionContextCard
+            serverId={approvalServerId}
             session={session}
             machine={machine}
             requesterAgentId={parsed.createdBy.agentId ?? null}

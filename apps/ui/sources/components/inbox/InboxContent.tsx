@@ -159,6 +159,7 @@ export const InboxContent = React.memo(function InboxContent(props: Readonly<{
                                     permissionRequests={entry.pendingPermissions}
                                     userActionRequests={entry.pendingUserActions}
                                     machineLabel={context?.machineLabel ?? null}
+                                    machineId={context?.machineId ?? null}
                                     workspaceName={context?.workspaceName ?? null}
                                     identityDisplay={model.sessionListIdentityDisplay}
                                     onOpenSession={() => openSession(entry.sessionId, entry.serverId)}
