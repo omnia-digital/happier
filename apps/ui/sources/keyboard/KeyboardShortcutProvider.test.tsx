@@ -258,6 +258,26 @@ describe('KeyboardShortcutProvider', () => {
         expect(newSession).toHaveBeenCalledTimes(1);
     });
 
+    it('leaves A unconsumed when the scoped hovered Archive handler declines without a target', async () => {
+        testState.settings = { ...testState.settings, keyboardSingleKeyShortcutsEnabled: false };
+        let eligible = false;
+        const { renderScreen } = await import('@/dev/testkit');
+        const { KeyboardShortcutProvider, useKeyboardShortcutHandlers } = await import('./KeyboardShortcutProvider');
+        function SessionListShortcuts() {
+            useKeyboardShortcutHandlers({ 'session.hovered.archive': () => eligible });
+            return <Child />;
+        }
+        await renderScreen(<KeyboardShortcutProvider handlers={{}}><SessionListShortcuts /></KeyboardShortcutProvider>);
+
+        const withoutHover = createKeyboardEvent({ key: 'a', code: 'KeyA' });
+        await act(async () => { window.dispatchEvent(withoutHover); });
+        expect(withoutHover.preventDefault).not.toHaveBeenCalled();
+        eligible = true;
+        const withHover = createKeyboardEvent({ key: 'a', code: 'KeyA' });
+        await act(async () => { window.dispatchEvent(withHover); });
+        expect(withHover.preventDefault).toHaveBeenCalledOnce();
+    });
+
     it('keeps the web keydown listener mounted when descendant scoped handlers register', async () => {
         const newSession = vi.fn();
         let showRegisteredChild: (() => void) | null = null;
