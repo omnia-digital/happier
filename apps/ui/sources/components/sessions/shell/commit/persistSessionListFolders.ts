@@ -1,3 +1,5 @@
+import { parseToken } from '@/utils/auth/parseToken';
+import { readSessionOrganizationFolders } from '@/sync/domains/state/storage';
 import type { SessionFolderV1, SessionFoldersV1 } from '@/sync/domains/session/folders';
 import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import { resolveSessionOrganizationMutationScope } from '@/sync/domains/session/organization/mutationScope';
@@ -18,6 +20,16 @@ function areFolderDefinitionsEqual(left: SessionFolderV1, right: SessionFolderV1
         && left.parentId === right.parentId
         && (left.sortKey ?? null) === (right.sortKey ?? null)
         && JSON.stringify(left.workspace) === JSON.stringify(right.workspace);
+}
+
+/** Capture the folder's account before opening an edit prompt; the writer rechecks it. */
+export async function resolveSessionListFolderMutationTarget(serverId: string | null | undefined, expectedAccountId?: string) {
+    const resolved = await resolveSessionOrganizationMutationScope(serverId, expectedAccountId);
+    if (!resolved.ok) return null;
+    return {
+        scope: { serverId: resolved.scope.serverId, accountId: parseToken(resolved.scope.credentials.token) },
+        current: readSessionOrganizationFolders(resolved.scope.serverId),
+    };
 }
 
 export async function persistSessionListFolders(input: Readonly<{

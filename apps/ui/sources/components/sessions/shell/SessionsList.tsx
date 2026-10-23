@@ -1,4 +1,4 @@
-import { readSessionOrganizationFolders } from '@/sync/domains/state/storage';
+import { resolveSessionListFolderMutationTarget } from './commit/persistSessionListFolders';
 import React from 'react';
 import type { SessionListReachabilityModels } from './sessionListReachabilityModels';
 import { normalizeSessionListBackgroundWorkAttentionMode } from '@/sync/domains/session/listing/sessionListBackgroundWorkAttention';
@@ -1155,6 +1155,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         if (!folderActionsEnabled) return;
         const workspace = checkout ? { t: 'workspaceScope' as const, serverId: checkout.serverId, machineId: checkout.machineId, rootPath: checkout.path } : resolveDurableWorkspaceRefForSessionListHeader(item);
         if (!workspace) return;
+        const target = await resolveSessionListFolderMutationTarget(workspace.serverId, checkout?.accountId);
+        if (!target) return;
         const name = await Modal.prompt(
             t('sessionsList.addFolderPromptTitle'),
             undefined,
@@ -1165,7 +1167,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
             },
         );
         if (name === null) return;
-        const current = checkout ? readSessionOrganizationFolders(checkout.serverId) : sessionFoldersV1;
+        const current = target.current;
         const created = createSessionFolder({
             current,
             workspace,
@@ -1174,11 +1176,13 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
             name,
             now: Date.now(),
         });
-        setSessionFoldersV1(created.next, checkout ? { scope: checkout, current } : undefined);
-    }, [folderActionsEnabled, sessionFoldersV1, setSessionFoldersV1]);
+        setSessionFoldersV1(created.next, target);
+    }, [folderActionsEnabled, setSessionFoldersV1]);
 
     const handleAddSessionSubfolder = React.useCallback(async (folder: ReturnType<typeof asSessionFolderHeaderItem>) => {
         if (!folderActionsEnabled || !folder?.workspace) return;
+        const target = await resolveSessionListFolderMutationTarget(folder.workspace.serverId);
+        if (!target) return;
         const name = await Modal.prompt(
             t('sessionsList.addSubfolderPromptTitle'),
             undefined,
@@ -1190,18 +1194,20 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         );
         if (name === null) return;
         const created = createSessionFolder({
-            current: sessionFoldersV1,
+            current: target.current,
             workspace: folder.workspace,
             renderWorkspaceKey: folder.renderWorkspaceKey,
             parentId: folder.folderId,
             name,
             now: Date.now(),
         });
-        setSessionFoldersV1(created.next);
-    }, [folderActionsEnabled, sessionFoldersV1, setSessionFoldersV1]);
+        setSessionFoldersV1(created.next, target);
+    }, [folderActionsEnabled, setSessionFoldersV1]);
 
     const handleRenameSessionFolder = React.useCallback(async (folder: ReturnType<typeof asSessionFolderHeaderItem>) => {
-        if (!folderActionsEnabled || !folder) return;
+        if (!folderActionsEnabled || !folder?.workspace) return;
+        const target = await resolveSessionListFolderMutationTarget(folder.workspace.serverId);
+        if (!target) return;
         const name = await Modal.prompt(
             t('sessionsList.renameFolderPromptTitle'),
             undefined,
@@ -1214,16 +1220,18 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         );
         if (name === null) return;
         const renamed = renameSessionFolder({
-            current: sessionFoldersV1,
+            current: target.current,
             folderId: folder.folderId,
             name,
             now: Date.now(),
         });
-        setSessionFoldersV1(renamed.next);
-    }, [folderActionsEnabled, sessionFoldersV1, setSessionFoldersV1]);
+        setSessionFoldersV1(renamed.next, target);
+    }, [folderActionsEnabled, setSessionFoldersV1]);
 
     const handleDeleteSessionFolder = React.useCallback(async (folder: ReturnType<typeof asSessionFolderHeaderItem>) => {
-        if (!folderActionsEnabled || !folder) return;
+        if (!folderActionsEnabled || !folder?.workspace) return;
+        const target = await resolveSessionListFolderMutationTarget(folder.workspace.serverId);
+        if (!target) return;
         const confirmed = await Modal.confirm(
             t('sessionsList.deleteFolderPromptTitle'),
             t('sessionsList.deleteFolderPromptDescription'),
@@ -1235,17 +1243,15 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         );
         if (!confirmed) return;
         const deleted = deleteSessionFolder({
-            current: sessionFoldersV1,
+            current: target.current,
             folderId: folder.folderId,
         });
         if (deleted.deletedFolderIds.length === 0) return;
-        const resolved = await resolveSessionOrganizationMutationScope(folder.serverId);
-        if (!resolved.ok) return;
-        setSessionFoldersV1(deleted.next);
+        setSessionFoldersV1(deleted.next, target);
         if (focusedFolderId && deleted.deletedFolderIds.includes(focusedFolderId)) {
             handleClearSessionFolderFocus();
         }
-    }, [focusedFolderId, folderActionsEnabled, handleClearSessionFolderFocus, sessionFoldersV1, setSessionFoldersV1]);
+    }, [focusedFolderId, folderActionsEnabled, handleClearSessionFolderFocus, setSessionFoldersV1]);
 
     const handleToggleCollapse = React.useCallback((collapseKey: string) => {
         const current = collapsedGroupKeysV1 ?? {};

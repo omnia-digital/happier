@@ -28,7 +28,8 @@ const modalPromptSpy = vi.hoisted(() => vi.fn(async () => null as string | null)
 const modalConfirmSpy = vi.hoisted(() => vi.fn(async () => false));
 const modalShowSpy = vi.hoisted(() => vi.fn((_config: unknown) => 'move-sheet-modal'));
 const modalHideSpy = vi.hoisted(() => vi.fn());
-const getCredentialsForServerUrlSpy = vi.hoisted(() => vi.fn(async () => ({ accessToken: 'token-a' })));
+const organizationCredentials = vi.hoisted(() => ({ token: `header.${Buffer.from(JSON.stringify({ sub: 'profile-1' })).toString('base64')}.signature` }));
+const getCredentialsForServerUrlSpy = vi.hoisted(() => vi.fn(async () => organizationCredentials));
 const serverProfileState = vi.hoisted(() => ({
     activeServerId: 'server_a',
     profileId: 'server_a',
@@ -190,11 +191,10 @@ vi.mock('@/hooks/session/useNavigateToSession', () => ({
     useNavigateToSession: () => vi.fn(),
 }));
 
-vi.mock('@/auth/storage/tokenStorage', () => ({
-    TokenStorage: {
-        getCredentialsForServerUrl: getCredentialsForServerUrlSpy,
-    },
-}));
+vi.mock('@/auth/storage/tokenStorage', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@/auth/storage/tokenStorage')>();
+    return { ...actual, TokenStorage: { ...actual.TokenStorage, getCredentialsForServerUrl: getCredentialsForServerUrlSpy } };
+});
 
 vi.mock('@/sync/domains/server/serverProfiles', () => ({
     resolveServerProfileScopeId: (profile: { id: string; serverIdentityId?: string | null }) => (
@@ -372,6 +372,14 @@ function resetProjectDataWithoutFolders() {
 }
 
 async function renderSessionsList() {
+    const { storage } = await import('@/sync/domains/state/storage');
+    const { buildSessionOrganizationSnapshotFromProjection } = await import('@/sync/domains/session/organization');
+    for (const serverId of new Set<string>([serverProfileState.activeServerId, ...sessionFoldersV1.folders.map((folder: any) => folder.workspace.serverId)])) {
+        storage.getState().clearSessionOrganizationForServer(serverId);
+        const folders = { v: 1, folders: sessionFoldersV1.folders.filter((folder: any) => folder.workspace.serverId === serverId) };
+        const snapshot = buildSessionOrganizationSnapshotFromProjection(buildOrganizationProjectionFromFolders(folders));
+        if (snapshot) storage.getState().applySessionOrganizationSnapshot(serverId, snapshot);
+    }
     const { SessionsList } = await import('./SessionsList');
     return renderScreen(<SessionsList />);
 }
@@ -442,8 +450,12 @@ describe('SessionsList session folders shell', () => {
         modalShowSpy.mockReset();
         modalShowSpy.mockReturnValue('move-sheet-modal');
         modalHideSpy.mockReset();
-        getCredentialsForServerUrlSpy.mockClear();
+        getCredentialsForServerUrlSpy.mockReset();
+        getCredentialsForServerUrlSpy.mockResolvedValue(organizationCredentials);
         getServerProfileByIdSpy.mockClear();
+        getServerProfileByIdSpy.mockImplementation(serverId => serverId === serverProfileState.activeServerId || serverId === serverProfileState.profileId
+            ? { id: serverProfileState.profileId, serverIdentityId: serverProfileState.activeServerId, serverUrl: 'https://server-a.test' }
+            : null);
         setSessionFolderAssignmentSpy.mockClear();
         moveSessionFolderAssignmentsSpy.mockClear();
         reorderSessionOrganizationSpy.mockClear();
@@ -1000,7 +1012,7 @@ describe('SessionsList session folders shell', () => {
         expect(getServerProfileByIdSpy).toHaveBeenCalledWith('server_a');
         expect(getCredentialsForServerUrlSpy).toHaveBeenCalledWith('https://server-a.test', { serverId: 'server_a' });
         expect(setSessionFolderAssignmentSpy).toHaveBeenCalledWith({
-            credentials: { accessToken: 'token-a' },
+            credentials: organizationCredentials,
             serverId: 'server_a',
             serverUrl: 'https://server-a.test',
             sessionId: 'sess_b',
@@ -1032,7 +1044,7 @@ describe('SessionsList session folders shell', () => {
 
         expect(getCredentialsForServerUrlSpy).toHaveBeenCalledWith('https://server-a.test', { serverId: 'server_profile_a' });
         expect(setSessionFolderAssignmentSpy).toHaveBeenCalledWith({
-            credentials: { accessToken: 'token-a' },
+            credentials: organizationCredentials,
             serverId: 'server_a',
             serverUrl: 'https://server-a.test',
             sessionId: 'sess_b',
@@ -1060,7 +1072,7 @@ describe('SessionsList session folders shell', () => {
 
         await vi.waitFor(() => {
             expect(reorderSessionOrganizationSpy).toHaveBeenCalledWith({
-                credentials: { accessToken: 'token-a' },
+                credentials: organizationCredentials,
                 serverId: 'server_a',
                 serverUrl: 'https://server-a.test',
                 request: {
@@ -1096,7 +1108,7 @@ describe('SessionsList session folders shell', () => {
 
         await vi.waitFor(() => {
             expect(reorderSessionOrganizationSpy).toHaveBeenCalledWith({
-                credentials: { accessToken: 'token-a' },
+                credentials: organizationCredentials,
                 serverId: 'server_a',
                 serverUrl: 'https://server-a.test',
                 request: {
@@ -1254,7 +1266,7 @@ describe('SessionsList session folders shell', () => {
 
         await vi.waitFor(() => {
             expect(upsertSessionFolderSpy).toHaveBeenCalledWith(expect.objectContaining({
-                credentials: { accessToken: 'token-a' },
+                credentials: organizationCredentials,
                 serverId: 'server_a',
                 serverUrl: 'https://server-a.test',
                 request: expect.objectContaining({
@@ -1270,6 +1282,52 @@ describe('SessionsList session folders shell', () => {
                 }),
             }));
         });
+    });
+
+    it('keeps foreign folder rename, child creation and deletion on the folder Home', async () => {
+        const foreignWorkspace = { ...workspace, serverId: 'server_b' };
+        sessionFoldersV1 = { v: 1, folders: sessionFoldersV1.folders.map((folder: any) => ({ ...folder, workspace: foreignWorkspace })) };
+        mockVisibleSessionListViewData = mockVisibleSessionListViewData.map(item => ({ ...item, serverId: 'server_b',
+            ...(item.workspace ? { workspace: foreignWorkspace } : {}),
+            ...(item.workspaceScopeHint ? { workspaceScopeHint: { ...item.workspaceScopeHint, serverId: 'server_b' } } : {}),
+        }));
+        getServerProfileByIdSpy.mockImplementation(serverId => serverId === 'server_b'
+            ? { id: 'server_b', serverIdentityId: 'server_b', serverUrl: 'https://server-b.test' }
+            : { id: 'server_a', serverIdentityId: 'server_a', serverUrl: 'https://server-a.test' });
+        const screen = await renderSessionsList();
+        const folderMenu = screen.findAllByType('DropdownMenu' as React.ElementType)
+            .find(node => node.props?.items?.some((item: any) => item.id === 'add-subfolder'));
+        modalPromptSpy.mockResolvedValueOnce('Foreign renamed');
+        await act(async () => { await folderMenu?.props.onSelect('rename'); });
+        await vi.waitFor(() => expect(upsertSessionFolderSpy).toHaveBeenCalledWith(expect.objectContaining({
+            serverId: 'server_b', serverUrl: 'https://server-b.test',
+            request: expect.objectContaining({ folderId: 'folder_a', display: { t: 'plain', v: { name: 'Foreign renamed', workspace: foreignWorkspace } } }),
+        })));
+        upsertSessionFolderSpy.mockClear();
+        modalPromptSpy.mockResolvedValueOnce('Foreign child');
+        await act(async () => { await folderMenu?.props.onSelect('add-subfolder'); });
+        await vi.waitFor(() => expect(upsertSessionFolderSpy).toHaveBeenCalledWith(expect.objectContaining({
+            serverId: 'server_b', request: expect.objectContaining({ parentFolderId: 'folder_a' }),
+        })));
+        modalConfirmSpy.mockResolvedValueOnce(true);
+        await act(async () => { await folderMenu?.props.onSelect('delete'); });
+        await vi.waitFor(() => expect(deleteSessionFolderSpy).toHaveBeenCalledWith(expect.objectContaining({ serverId: 'server_b' })));
+    });
+
+    it('rejects a folder edit when its account changes while the name prompt is open', async () => {
+        const { Modal } = await import('@/modal');
+        const alert = vi.spyOn(Modal, 'alert');
+        const screen = await renderSessionsList();
+        const folderMenu = screen.findAllByType('DropdownMenu' as React.ElementType)
+            .find(node => node.props?.items?.some((item: any) => item.id === 'add-subfolder'));
+        modalPromptSpy.mockImplementationOnce(async () => {
+            getCredentialsForServerUrlSpy.mockResolvedValue({ token: `header.${Buffer.from(JSON.stringify({ sub: 'replacement-account' })).toString('base64')}.signature` });
+            return 'Wrong account';
+        });
+        await act(async () => { await folderMenu?.props.onSelect('rename'); });
+        await vi.waitFor(() => expect(alert).toHaveBeenCalled());
+        expect(upsertSessionFolderSpy).not.toHaveBeenCalled();
+        alert.mockRestore();
     });
 
     it('creates and renames subfolders from the folder menu', async () => {
@@ -1332,7 +1390,7 @@ describe('SessionsList session folders shell', () => {
         expect(moveSessionFolderAssignmentsSpy).not.toHaveBeenCalled();
         await vi.waitFor(() => {
             expect(deleteSessionFolderSpy).toHaveBeenCalledWith({
-                credentials: { accessToken: 'token-a' },
+                credentials: organizationCredentials,
                 serverId: 'server_a',
                 serverUrl: 'https://server-a.test',
                 request: {
