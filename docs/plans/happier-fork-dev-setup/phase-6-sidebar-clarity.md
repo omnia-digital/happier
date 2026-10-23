@@ -6,18 +6,19 @@ Continue the authorized macOS source work on the existing branch, with each chan
 
 Inspect the actual menu, ordering rules and visible index. Establish what Folders first and Mixed with sessions do in Custom order and date modes, whether choices persist, and how users can discover the dependency and change a mixed order. Existing menu copy already mentions the date-mode lock; do not assume it is missing or redesign ordering without evidence.
 
-- [ ] 🟡 Read the menu, ordering owner, persistence and current tests; identify deciding user-visible cases.
-- [ ] 🔴 Reproduce any no-op, misleading selection/disabled feedback or ordering/persistence defect. Correct the smallest coherent owner with meaningful coverage, preserving machine view and custom order.
-- [ ] 🟡 Update existing discoverability/documentation where evidence requires it, run focused/adjacent checks and typecheck, independent review, commit and push.
+- [x] 🟢 Source discovery established Custom mixed interleaving, date-mode forced Folders first and existing local persistence. Existing projection tests cover both modes.
+- [x] 🟢 RED reproduced misleading enabled Folders first with a handler that ignores all folder-sort selections in date modes. Pushed `1b93cf17b5` corrects sidebar and Session Settings, explains date-mode lock and project/folder scope/manual dragging in Original layout. Existing preference/ordering algorithms and machine view are preserved; returning to Custom restores saved Mixed.
+- [x] 🟢 Author adjacent 113 tests and typecheck pass. Root independently reviewed the delta and replayed five deciding menu/settings cases (44 unrelated tests intentionally filtered), all pass. Native folder/restart acceptance is not run, not waived by the separate hotkey deferral.
 - [ ] 🟡 Native representative folder/session ordering and restart acceptance remains a distinct gate; do not interrupt the user's active app.
 
 ## OH-47: Remaining icon color acceptance
 
-Latest Linear acceptance includes a chosen icon color for recognizing machines without text labels. Icon shape and label work alone does not satisfy this requirement. Final canonical Inbox/approval identity corrections currently run on Astra/high; finish that bounded delta before layering appearance state.
+Latest Linear acceptance includes a chosen icon color for recognizing machines without text labels. Canonical Inbox/approval identity corrections are pushed in `19dfe8b315`/`a69c3ac1ea` and independently verified (20 tests); the subsequent color correction is pushed in `270b230f62`.
 
-- [ ] 🔴 Reuse the existing local server+machine preference owner and shared glyph. Choose a bounded theme-aware color palette with sensible automatic default, persist/reset and retain readable selected/hovered states. Avoid arbitrary unvalidated color strings or a second identity owner.
-- [ ] 🔴 Cover real local persistence, server/machine isolation, reset and shared glyph rendering; preserve leaf subscription scope and existing labels/tooltips.
-- [ ] 🟡 Discoverable machine-detail color control, independent review, relevant suites/typecheck and native multi-machine/restart acceptance.
+- [x] 🟢 Existing shared glyph consumes scalar local server+machine color. Palette Automatic/Blue/Purple/Red reuses existing theme accents that measure at least 3:1 on eight actual light/dark ordinary/selected/hovered surfaces, with iOS accent coverage. Automatic preserves caller foreground. No agent/status/name recoloring or new wire field.
+- [x] 🟢 Real MMKV-boundary save/load verifies independent server/machine choices and resetting only the selected override; real store/hook coverage proves unrelated machine changes do not rerender the scalar subscriber. Machine-detail color-only Reset is enabled. RED also reproduced interactive pickers during pending synced reset; both pickers now disable/guard through that existing busy lifecycle. Failed name reset retains icon/color choices.
+- [x] 🟢 Source controls/review and relevant checks complete: author focused 110, adjacent 35, expanded contrast 4 and integrated UI typecheck pass (overlapping totals). Root independently reviewed the diff and replayed 10 deciding cases across four suites; 98 unrelated tests intentionally filtered. Counters remain 2 failed Sol review cycles / 0 failed Astra cycles.
+- [ ] 🟡 Native multi-machine customization/reset and full restart remain pending, not waived by the explicit hotkey deferral. OH-47 stays In Progress. Label-free right-side card layout remains OH-54.
 
 ## Remaining backlog coverage
 
