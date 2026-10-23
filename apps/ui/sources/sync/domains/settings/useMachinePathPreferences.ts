@@ -65,7 +65,8 @@ export function useMachinePathTargetScope(serverIdInput?: string | null): Target
         return () => { cancelled = true; };
     }, [serverId, targetsActive, viewerScope?.accountId, viewerScope?.serverId]);
 
-    return activeBinding ?? (!targetsActive && foreignBinding?.scope.serverId === serverId
+    return activeBinding ?? (!targetsActive && foreignBinding
+        && areServerProfileIdentifiersEquivalent(foreignBinding.scope.serverId, serverId)
         && areServerAccountScopesEqual(foreignBinding.viewerScope, viewerScope) ? foreignBinding : null);
 }
 
@@ -89,37 +90,41 @@ export function useMachinePathPreferences(params: Readonly<{
         ? { ...scopeBinding.scope, machineId: canonicalMachineId }
         : null,
     [canonicalMachineId, scopeBinding?.scope.accountId, scopeBinding?.scope.serverId]);
-    const bindingRef = React.useRef<{ binding: TargetBinding; target: MachinePathTarget } | null>(null);
-    bindingRef.current = scopeBinding && target ? { binding: scopeBinding, target } : null;
     const targetKey = target ? machinePathTargetKey(target) : null;
+    const capturedBinding = React.useMemo(() => scopeBinding && target
+        ? { binding: scopeBinding, target }
+        : null,
+    [scopeBinding?.context, scopeBinding?.viewerScope.accountId, scopeBinding?.viewerScope.serverId, target]);
+    const bindingRef = React.useRef<typeof capturedBinding>(null);
+    bindingRef.current = capturedBinding;
 
     const revalidate = React.useCallback(async (captured: { binding: TargetBinding; target: MachinePathTarget }): Promise<boolean> => {
         const current = bindingRef.current;
         if (!current || machinePathTargetKey(current.target) !== machinePathTargetKey(captured.target)) return false;
+        if (!areServerAccountScopesEqual(current.binding.viewerScope, captured.binding.viewerScope)) return false;
         if (!areServerAccountScopesEqual(captured.binding.viewerScope, getActiveServerAccountScope())) return false;
         return captured.binding.context ? isServerScopedSessionContextCurrent(captured.binding.context) : true;
     }, []);
     const getVerifiedTarget = React.useCallback(async (): Promise<MachinePathTarget | null> => {
-        const captured = bindingRef.current;
-        return captured && await revalidate(captured) ? captured.target : null;
-    }, [revalidate]);
+        return capturedBinding && await revalidate(capturedBinding) ? capturedBinding.target : null;
+    }, [capturedBinding, revalidate]);
 
     const toggleFavorite = React.useCallback(async (path: string) => {
-        const captured = bindingRef.current;
+        const captured = capturedBinding;
         if (!captured || !await revalidate(captured)) return;
         const current = storage.getState().settings.machinePathPreferencesByTargetV1;
         applySettings({ machinePathPreferencesByTargetV1: toggleFavoriteForTarget(current, captured.target, path, params.machineHomeDir) });
-    }, [applySettings, params.machineHomeDir, revalidate]);
+    }, [applySettings, capturedBinding, params.machineHomeDir, revalidate]);
 
     const replaceFavorites = React.useCallback(async (paths: ReadonlyArray<string>) => {
-        const captured = bindingRef.current;
+        const captured = capturedBinding;
         if (!captured || !await revalidate(captured)) return;
         const current = storage.getState().settings.machinePathPreferencesByTargetV1;
         applySettings({ machinePathPreferencesByTargetV1: replaceFavoritePathsForTarget(current, captured.target, paths, params.machineHomeDir) });
-    }, [applySettings, params.machineHomeDir, revalidate]);
+    }, [applySettings, capturedBinding, params.machineHomeDir, revalidate]);
 
     const assignLegacyFavorite = React.useCallback(async (path: string) => {
-        const captured = bindingRef.current;
+        const captured = capturedBinding;
         if (!captured || !await revalidate(captured)) return;
         const settings = storage.getState().settings;
         const next = assignLegacyFavoriteToTarget(
@@ -131,7 +136,7 @@ export function useMachinePathPreferences(params: Readonly<{
         );
         if (next.preferences === settings.machinePathPreferencesByTargetV1) return;
         applySettings({ machinePathPreferencesByTargetV1: next.preferences });
-    }, [applySettings, params.machineHomeDir, revalidate]);
+    }, [applySettings, capturedBinding, params.machineHomeDir, revalidate]);
 
     return {
         target,

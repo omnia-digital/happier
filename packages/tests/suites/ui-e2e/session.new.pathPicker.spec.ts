@@ -14,6 +14,8 @@
  *     / walk-up (and is suppressed on touch-only viewports — covered by
  *     unit tests, not asserted here because the e2e harness uses a desktop
  *     viewport with a hardware keyboard).
+ *   - a folder listed by the isolated daemon can be favorited for the selected
+ *     machine and remains visible after reloading the Account settings reader.
  *
  * R2 path-picker correctness fixes (Bug 4a-e) are covered as follows:
  *   - Bug 4a (double-commit): asserted via the vitest case
@@ -76,6 +78,7 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
 
     const suiteDir = run.testDir('new-session-path-picker-suite');
     const cliHomeDir = resolve(join(suiteDir, 'cli-home'));
+    const favoriteDir = resolve(join(suiteDir, 'oh64-favorite-dir'));
 
     let server: StartedServer | null = null;
     let ui: StartedUiWeb | null = null;
@@ -85,6 +88,7 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
     test.beforeAll(async () => {
         test.setTimeout(540_000);
         await mkdir(cliHomeDir, { recursive: true });
+        await mkdir(favoriteDir, { recursive: true });
 
         server = await startServerLight({ testDir: suiteDir });
         ui = await startUiWeb({
@@ -103,7 +107,7 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         try { await server?.stop?.(); } catch { /* best-effort */ }
     });
 
-    test('the path popover renders the new PathSelectionList surface with the open-tree-browser button', async ({ page }) => {
+    test('the path popover browses and persists a selected-machine favorite', async ({ page }) => {
         if (!server || !ui || !uiBaseUrl) {
             throw new Error('test infra failed to start');
         }
@@ -140,5 +144,19 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         await expect(activePopover.getByTestId('path-selection-list:open-tree-browser')).toBeVisible();
         // The legacy PathSelector testIDs are gone.
         await expect(page.getByTestId('path-selector-input')).toHaveCount(0);
+
+        // Browse the isolated test directory through the actual daemon, then save a
+        // favorite through the selected machine's Account settings writer.
+        await activePopover.getByTestId('path-selection-list:header:input').fill(suiteDir);
+        const directoryRow = activePopover.getByTestId(`path-selection-list:path-root:option:in-folder:${favoriteDir}`);
+        await expect(directoryRow).toBeVisible({ timeout: 60_000 });
+        await activePopover.getByTestId(`path-selection-list:path-root:option:in-folder:${favoriteDir}:favorite-toggle`).click();
+        await expect(activePopover.getByTestId(`path-selection-list:path-root:option:favorite:${favoriteDir}`)).toBeVisible({ timeout: 60_000 });
+
+        await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/new?happier_hmr=0`, 60_000);
+        await page.getByTestId('agent-input-path-chip').click();
+        await expect(page.getByTestId('agent-input-content-popover')
+            .getByTestId(`path-selection-list:path-root:option:favorite:${favoriteDir}`))
+            .toBeVisible({ timeout: 60_000 });
     });
 });
