@@ -123,6 +123,48 @@ promotion. There is no extra organization team requirement. Upstream scheduled
 publication and extra nightly suites remain defined, but their scheduled jobs
 are admitted only in `happier-dev/happier`; their manual/reusable behavior remains.
 
+## Cassian nightly build host
+
+Josh selected Cassian for the nightly build. SSH access was verified to its Apple
+Silicon Mac: 48 GiB RAM, 14 CPU cores, Rust 1.94.1, Xcode 26.5, and Git/GitHub CLI/
+Node/unzip available with `/opt/homebrew/bin` on PATH. At inspection it had about
+15 GiB free and substantial existing load; those are observations, not a native
+build capacity certification.
+
+The official ARM64 GitHub Actions runner **2.338.1** was downloaded and extracted
+to `/Users/cassian/Developer/runners/happier-nightly`. Its published SHA-256
+`52c3fb801b931fbd454979bae5ec3443ea3da2c4a1b4c44fa546fb630d61a0a9` matched,
+and `bin/Runner.Listener --version` succeeded. It is **not registered or running
+as a service**. Existing Guitar Tricks and Omnia Church Platform runner services
+were inspected and left unchanged. They are registered to other repositories or
+organizations and cannot be assumed available to Happier.
+
+The Happier repository runner list is empty. Organization runner administration
+returned HTTP 403 with the current local GitHub credentials, and Cassian's CLI
+has no authenticated GitHub API session. Registration remains part of the
+GitHub activation exception below; no credentials were copied between machines.
+
+For registration, use a dedicated organization runner group restricted to this
+repository and the trusted nightly workflow on `dev`. This fork is public, so
+do not expose Cassian's persistent runner to pull-request workflows. Give the
+runner a Cassian-specific label and its own `_work` directory under the installed
+runner. Register with `/opt/homebrew/bin` on PATH, then install/start its own
+service and verify that GitHub reports it online before dispatch.
+
+The native build must be wired through the existing
+`.github/workflows/build-tauri.yml` candidate owner. Its macOS build selection
+currently uses hosted runners and pins Xcode **26.2**. Resolve that toolchain
+requirement and route only the unsigned Mac candidate build to Cassian, preserving
+exact-source CI admission. Linux/Windows and signing/publication jobs keep their
+existing owners and environments. The persistent-runner admission contract must
+cover the added route; changing its existing test requires Josh's test-change
+approval. The current `omnia-production.yml` still performs source promotion
+only: moving its three jobs would not create or relocate a native app build.
+
+No Cassian native build, runner registration, workflow dispatch, or nightly
+execution has been verified yet. The runner installation is preparation for
+that integration, not completion of the daily-driver release gate.
+
 ## GitHub activation and first acceptance
 
 At setup inspection the fork had no registered Actions workflows/runs, repository
