@@ -25,3 +25,9 @@ Investigate existing machine settings, rename/display-name resolution, icon meta
 ## Current gates
 
 OH-19 and OH-48 development acceptance are complete and the integrated UI typecheck is green at `1c5450f7f0`. OH-17's reviewed source is complete, but physical foreground keyboard acceptance remains open. OH-16 has a fresh successful real active stop/archive lifecycle; inactive/keyboard checks and the disposition of its old unrootcaused failure remain open. OH-50 expands the full menu hotkey inventory later and must share OH-18's Archive path rather than replace it. Broader OH-14 repository/custom order and all release/platform tasks remain required.
+
+### OH-17 integration discovery
+
+The current settings owner filters commands without `settingsTitleKey`; the nine numbered commands are consequently absent from Settings and cannot be disabled/rebound there. The generated keyboard reference also parses only literal single-quoted command IDs and silently omits the mapped numbered commands, while its platform formatter does not identify macOS-only bindings. Correct this existing registry/settings/documentation corridor rather than hand-editing generated output or keeping a second list of binding facts. Add deciding regression coverage and regenerate the canonical reference. This is the second material Sol implementation/review discovery after the already corrected More-menu ownership finding; preserve cumulative attempt counters and use the recommended stronger lane for the closeout.
+
+Native event-injection QA has shown all nine hints and release cleanup. The CLI constructs KeyboardEvent `code` from its `key` argument, so canonical numbered bindings require tool key `Digit1` etc rather than `1`; earlier nonnavigation with key `1` was not a valid product failure. UI selection changed concurrently and the window did not stay focused, so a brief idle foreground testing window was requested. No physical-keyboard or navigation PASS is claimed yet.

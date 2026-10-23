@@ -74,6 +74,7 @@ export type SessionListRowModelBoundaryProps = Readonly<{
     nativeContextMenuSessionKey: string | null;
     onDragCancel: (event: UseSessionInlineDragCancelEvent) => void;
     onDragStart: (sessionKey: string) => void;
+    onHoverArchiveTarget?: SessionItemProps['onHoverArchiveTarget'];
     onDropResult: UseSessionInlineDragParams['onDropResult'];
     onRegisterTreeRowBounds: RegisterSessionListTreeRowBounds;
     onUnregisterTreeRowBounds: UnregisterSessionListTreeRowBounds;
@@ -320,6 +321,7 @@ const SessionListRowModelBoundaryContent = React.memo(function SessionListRowMod
             dataIndex={props.dataIndex}
             overlayShared={props.overlayShared}
             rowModel={rowModel}
+            onHoverArchiveTarget={props.onHoverArchiveTarget}
             shortcutHint={props.shortcutHint}
             session={rowModel.session}
             subtitleOverride={rowModel.subtitle ?? null}

@@ -124,6 +124,12 @@ export function WebAlertModal({ config, onClose, onConfirm, showBackdrop = true,
             closeOnBackdrop={false}
             showBackdrop={showBackdrop}
             zIndexBase={zIndexBase}
+            onWebKeyDownCapture={isConfirm && config.confirmOnEnter ? (event) => {
+                if (event.key !== 'Enter' || event.repeat || event.nativeEvent?.isComposing || event.defaultPrevented) return;
+                event.preventDefault();
+                event.stopPropagation();
+                handleButtonPress(1);
+            } : undefined}
         >
             <ModalCardFrame dimensions={{ width: 270, maxHeightRatio: 0.48 }}>
                 <View style={styles.content}>

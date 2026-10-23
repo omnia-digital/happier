@@ -12,6 +12,7 @@ export type KeyboardCommandId =
     | 'permission.cycle'
     | 'shortcutsHelp.open'
     | 'session.new'
+    | 'session.hovered.archive'
     | 'session.number.1'
     | 'session.number.2'
     | 'session.number.3'
@@ -84,6 +85,8 @@ export type ParsedKeybindingRule = KeybindingRule & Readonly<{
 
 export type KeyboardCommand = Readonly<{
     id: KeyboardCommandId;
+    /** A contextual command can remain available when unrelated single-key shortcuts are disabled. */
+    allowWhenSingleKeyShortcutsDisabled?: boolean;
     defaultBinding?: KeybindingRule;
     defaultBindings?: readonly KeybindingRule[];
     settingsTitleKey?: TranslationKey;

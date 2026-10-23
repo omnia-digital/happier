@@ -100,6 +100,26 @@ async function revealRowActions(screen: Awaited<ReturnType<typeof renderScreen>>
 }
 
 describe('SessionItem hover Archive action (web)', () => {
+    it('publishes only the eligible pointer-hovered target and clears it on leave and unmount', async () => {
+        const onHoverArchiveTarget = vi.fn();
+        const session = createSessionFixture({ id: 'sess_hover_target', active: false, metadata: null });
+        const screen = await renderScreen(
+            <SessionItem session={session} serverId="server_hover_target" selected={false}
+                isFirst isLast isSingle variant="default" compact={false}
+                onHoverArchiveTarget={onHoverArchiveTarget} />,
+        );
+        const row = await revealRowActions(screen, session.id);
+        expect(onHoverArchiveTarget).toHaveBeenCalledWith('server_hover_target:sess_hover_target', expect.objectContaining({
+            sessionId: session.id,
+            serverId: 'server_hover_target',
+            canArchive: true,
+        }));
+        await act(async () => row.parent?.props.onPointerLeave?.());
+        expect(onHoverArchiveTarget).toHaveBeenLastCalledWith('server_hover_target:sess_hover_target', null);
+        await act(async () => row.parent?.props.onPointerEnter?.());
+        await act(async () => screen.tree.unmount());
+        expect(onHoverArchiveTarget).toHaveBeenLastCalledWith('server_hover_target:sess_hover_target', null);
+    });
     it('shows an accessible Archive action with existing controls and archives the inactive row on its server', async () => {
         const session = createSessionFixture({ id: 'sess_hover_archive', active: false, metadata: null });
         const screen = await renderScreen(
@@ -183,14 +203,17 @@ describe('SessionItem hover Archive action (web)', () => {
 
     it('shows the keyboard-reachable action on row focus and disables repeat activation while archiving', async () => {
         const archiveDeferred = createDeferred<{ success: true; archivedAt: number }>();
+        const onHoverArchiveTarget = vi.fn();
         archiveSpy.mockImplementation(async () => archiveDeferred.promise);
         const session = createSessionFixture({ id: 'sess_archive_busy', active: false, metadata: null });
         const screen = await renderScreen(
-            <SessionItem session={session} serverId="server_busy_archive" selected={false} isFirst isLast isSingle variant="default" compact={false} />,
+            <SessionItem session={session} serverId="server_busy_archive" selected={false} isFirst isLast isSingle variant="default" compact={false} onHoverArchiveTarget={onHoverArchiveTarget} />,
         );
         const row = screen.findByTestId('session-list-item-sess_archive_busy');
         if (!row?.parent) throw new Error('session row container not found');
         await act(async () => row.parent?.props.onFocus?.({}));
+        await act(async () => row.parent?.props.onPointerEnter?.());
+        expect(onHoverArchiveTarget).toHaveBeenCalledWith('server_busy_archive:sess_archive_busy', expect.objectContaining({ canArchive: true }));
 
         const archiveButton = screen.findByTestId('session-item-archive-action');
         expect(archiveButton).toBeTruthy();
@@ -201,6 +224,7 @@ describe('SessionItem hover Archive action (web)', () => {
         await vi.waitFor(() => expect(archiveSpy).toHaveBeenCalledTimes(1));
         const busyButton = screen.findByTestId('session-item-archive-action');
         expect(busyButton?.props.disabled).toBe(true);
+        expect(onHoverArchiveTarget).toHaveBeenLastCalledWith('server_busy_archive:sess_archive_busy', null);
         await pressTestInstanceAsync(busyButton, 'Archive session while busy');
         expect(archiveSpy).toHaveBeenCalledTimes(1);
         expect(navigateToSessionSpy).not.toHaveBeenCalled();

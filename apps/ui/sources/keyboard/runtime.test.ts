@@ -28,6 +28,59 @@ function keyEvent(event: Partial<NormalizedKeyboardEvent>): NormalizedKeyboardEv
 }
 
 describe('createKeyboardShortcutDispatcher', () => {
+    it('dispatches hovered Archive A with single-key preference off, but never in editable, overlay, composition or repeat contexts', () => {
+        const archive = vi.fn();
+        const help = vi.fn();
+        let currentContext = context;
+        const dispatcher = createKeyboardShortcutDispatcher({
+            enabled: true,
+            platform: 'macos',
+            surface: 'web',
+            singleKeyShortcutsEnabled: false,
+            disabledCommandIds: [],
+            overrides: {},
+            handlers: { 'session.hovered.archive': archive, 'shortcutsHelp.open': help },
+            getContext: () => currentContext,
+        });
+        const a = keyEvent({ key: 'a', code: 'KeyA' });
+        expect(dispatcher(a)).toBe(true);
+        currentContext = { ...context, isEditableTarget: true };
+        expect(dispatcher(a)).toBe(false);
+        currentContext = { ...context, isOverlayActive: true };
+        expect(dispatcher(a)).toBe(false);
+        currentContext = context;
+        expect(dispatcher({ ...a, isComposing: true })).toBe(false);
+        expect(dispatcher({ ...a, repeat: true })).toBe(false);
+        expect(dispatcher(keyEvent({ key: '?', code: 'Slash', shiftKey: true }))).toBe(false);
+        expect(help).not.toHaveBeenCalled();
+        expect(archive).toHaveBeenCalledOnce();
+    });
+
+    it('honors disabling and rebinding the hovered Archive command', () => {
+        const archive = vi.fn();
+        const makeDispatcher = (disabledCommandIds: readonly string[], overrides: Readonly<Record<string, readonly { binding: string }[]>>) =>
+            createKeyboardShortcutDispatcher({
+                enabled: true, platform: 'macos', surface: 'web', singleKeyShortcutsEnabled: false,
+                disabledCommandIds, overrides, handlers: { 'session.hovered.archive': archive }, getContext: () => context,
+            });
+        const a = keyEvent({ key: 'a', code: 'KeyA' });
+        expect(makeDispatcher(['session.hovered.archive'], {})(a)).toBe(false);
+        const rebound = makeDispatcher([], { 'session.hovered.archive': [{ binding: 'Alt+A' }] });
+        expect(rebound(a)).toBe(false);
+        expect(rebound({ ...a, altKey: true })).toBe(true);
+        expect(archive).toHaveBeenCalledOnce();
+    });
+
+    it('does not consume A when the registered session-list handler has no eligible hovered target', () => {
+        const archive = vi.fn(() => false);
+        const dispatcher = createKeyboardShortcutDispatcher({
+            enabled: true, platform: 'macos', surface: 'web', singleKeyShortcutsEnabled: false,
+            disabledCommandIds: [], overrides: {},
+            handlers: { 'session.hovered.archive': archive }, getContext: () => context,
+        });
+        expect(dispatcher(keyEvent({ key: 'a', code: 'KeyA' }))).toBe(false);
+        expect(archive).toHaveBeenCalledOnce();
+    });
     it('does not dispatch registry commands when the kill switch is disabled', () => {
         const open = vi.fn();
         const dispatcher = createKeyboardShortcutDispatcher({

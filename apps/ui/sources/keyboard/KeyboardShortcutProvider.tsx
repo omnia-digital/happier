@@ -36,6 +36,7 @@ type ScopedHandlerEntry = Readonly<{
 }>;
 
 const KeyboardShortcutRegistrationContext = React.createContext<KeyboardShortcutRegistrationContextValue | null>(null);
+const KeyboardShortcutLabelsContext = React.createContext<Partial<Record<KeyboardCommandId, string>>>({});
 const HANDLER_KEY_SIGNATURE_SEPARATOR = '\u0000';
 
 function buildHandlerKeySignature(handlers: KeyboardShortcutHandlers): string {
@@ -73,7 +74,7 @@ export function useKeyboardShortcutHandlers(
         const keys = handlerKeySignature.split(HANDLER_KEY_SIGNATURE_SEPARATOR) as KeyboardCommandId[];
         for (const key of keys) {
             next[key] = () => {
-                latestHandlersRef.current[key]?.();
+                return latestHandlersRef.current[key]?.();
             };
         }
         return next;
@@ -97,6 +98,10 @@ export function useKeyboardCommand(): (commandId: KeyboardCommandId) => boolean 
     return React.useCallback((commandId: KeyboardCommandId) => registration?.executeCommand(commandId) ?? false, [registration]);
 }
 
+export function useKeyboardShortcutLabel(commandId: KeyboardCommandId): string | undefined {
+    return React.useContext(KeyboardShortcutLabelsContext)[commandId];
+}
+
 function buildHelpBody(shortcutLabels: Partial<Record<string, string>>): string {
     const numberedLabels = Array.from({ length: 9 }, (_, index) => shortcutLabels[`session.number.${index + 1}`])
         .filter((label): label is string => label != null);
@@ -112,6 +117,9 @@ function buildHelpBody(shortcutLabels: Partial<Record<string, string>>): string 
             : null,
         numberedLabels.length > 0
             ? `${t('commandPalette.shortcutsHelpVisibleSessions')}: ${numberedLabels.join(', ')}`
+            : null,
+        shortcutLabels['session.hovered.archive']
+            ? `${t('sessionInfo.archiveSession')}: ${shortcutLabels['session.hovered.archive']}`
             : null,
     ].filter((line): line is string => Boolean(line));
     if (lines.length === 0) return t('commandPalette.shortcutsHelpEmpty');
@@ -246,8 +254,7 @@ export function KeyboardShortcutProvider(props: React.PropsWithChildren<Readonly
     const executeCommand = React.useCallback((commandId: KeyboardCommandId): boolean => {
         const handler = latestShortcutRuntimeRef.current?.handlers[commandId];
         if (!handler) return false;
-        handler();
-        return true;
+        return handler() !== false;
     }, []);
     const registrationContextValue = React.useMemo<KeyboardShortcutRegistrationContextValue>(
         () => ({ registerHandlers, executeCommand }),
@@ -400,7 +407,9 @@ export function KeyboardShortcutProvider(props: React.PropsWithChildren<Readonly
 
     return (
         <KeyboardShortcutRegistrationContext.Provider value={registrationContextValue}>
-            <FocusReturnProvider>{props.children}</FocusReturnProvider>
+            <KeyboardShortcutLabelsContext.Provider value={shortcutLabels}>
+                <FocusReturnProvider>{props.children}</FocusReturnProvider>
+            </KeyboardShortcutLabelsContext.Provider>
         </KeyboardShortcutRegistrationContext.Provider>
     );
 }

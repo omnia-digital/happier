@@ -16,7 +16,7 @@ import type {
     NormalizedKeyboardEvent,
 } from './types';
 
-export type KeyboardShortcutHandlers = Partial<Record<KeyboardCommandId, () => void>>;
+export type KeyboardShortcutHandlers = Partial<Record<KeyboardCommandId, () => boolean | void>>;
 
 export type KeyboardShortcutDispatcherOptions = Readonly<{
     enabled: boolean;
@@ -98,6 +98,7 @@ export function isKeybindingRuleAvailable(
         platform: KeyboardPlatform;
         surface: KeyboardSurface;
         singleKeyShortcutsEnabled: boolean;
+        allowWhenSingleKeyShortcutsDisabled?: boolean;
     }>,
 ): boolean {
     const parsed = parseKeybindingRule(rule);
@@ -110,7 +111,7 @@ export function isKeybindingRuleAvailable(
     }
     if (parsed.blockedSurfaces?.includes(options.surface)) return false;
     if (!isNativeHardwareKeybindingAvailable(parsed, options.platform, options.surface)) return false;
-    if (!options.singleKeyShortcutsEnabled && isSingleKeyRule(parsed)) return false;
+    if (!options.singleKeyShortcutsEnabled && !options.allowWhenSingleKeyShortcutsDisabled && isSingleKeyRule(parsed)) return false;
     return true;
 }
 
@@ -184,6 +185,7 @@ export function buildNativeHardwareKeyboardAllowlist(options: Readonly<{
                 platform: options.platform,
                 surface: options.surface,
                 singleKeyShortcutsEnabled: options.singleKeyShortcutsEnabled,
+                allowWhenSingleKeyShortcutsDisabled: command.allowWhenSingleKeyShortcutsDisabled,
             })) continue;
             const allowedEvent = nativeAllowedEventForRule(rule, options.platform, options.surface);
             if (!allowedEvent) continue;
@@ -212,13 +214,14 @@ export function createKeyboardShortcutDispatcher(options: KeyboardShortcutDispat
                     platform: options.platform,
                     surface,
                     singleKeyShortcutsEnabled: options.singleKeyShortcutsEnabled,
+                    allowWhenSingleKeyShortcutsDisabled: command.allowWhenSingleKeyShortcutsDisabled,
                 })) continue;
                 if (!matchKeybindingRule(parseKeybindingRule(rule), event, {
                     platform: options.platform,
                     surface,
                     context,
                 })) continue;
-                handler();
+                if (handler() === false) continue;
                 return true;
             }
         }
@@ -295,6 +298,7 @@ export function buildKeyboardShortcutLabels(
                         platform,
                         surface,
                         singleKeyShortcutsEnabled: options.singleKeyShortcutsEnabled !== false,
+                        allowWhenSingleKeyShortcutsDisabled: command.allowWhenSingleKeyShortcutsDisabled,
                     }));
                 return binding ? [command.id, formatKeybindingLabel(binding, platform)] : null;
             })

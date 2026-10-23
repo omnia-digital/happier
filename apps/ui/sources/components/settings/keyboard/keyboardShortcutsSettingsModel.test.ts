@@ -55,6 +55,12 @@ describe('keyboardShortcutsSettingsModel', () => {
         });
 
         expect(model.commandRows.find((row) => row.commandId === 'shortcutsHelp.open')?.defaultLabel).toBe('?');
+        const archive = model.commandRows.find((row) => row.commandId === 'session.hovered.archive');
+        expect(archive).toMatchObject({
+            titleKey: 'sessionInfo.archiveSession',
+            defaultLabel: 'A',
+            disabled: false,
+        });
     });
 
     it('shows active web-safe defaults instead of browser-reserved native defaults', () => {

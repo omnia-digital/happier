@@ -123,11 +123,12 @@ async function runStopArchiveFlow(params: Readonly<{
     });
 }
 
-export async function confirmSessionStop(): Promise<boolean> {
+export async function confirmSessionStop(confirmOnEnter = false): Promise<boolean> {
     return await Modal.confirm(t('sessionInfo.stopSession'), t('sessionInfo.stopSessionConfirm'), {
         cancelText: t('common.cancel'),
         confirmText: t('sessionInfo.stopSession'),
         destructive: true,
+        confirmOnEnter,
     });
 }
 
@@ -137,7 +138,7 @@ async function executeArchiveAction(target: SessionActionTarget, context?: Sessi
     if (isSessionArchivePending(target.sessionId, target.serverId)) return false;
 
     if (target.isActive || target.hasStoppableTerminalHost) {
-        if (!await confirmSessionStop()) return false;
+        if (!await confirmSessionStop(context?.forceArchiveConfirmation === true)) return false;
         return await runStopArchiveFlow({ target, context, archiveAfterStop: 'always' });
     }
 
@@ -151,7 +152,7 @@ async function executeArchiveAction(target: SessionActionTarget, context?: Sessi
         if (isSessionActiveArchiveResult(result)) {
             // The server may know the session is active before this client does.
             // Waiving reversible archive confirmation never waives stopping it.
-            if (!await confirmSessionStop()) return false;
+            if (!await confirmSessionStop(context?.forceArchiveConfirmation === true)) return false;
             return await runStopArchiveFlow({ target, context, archiveAfterStop: 'always' });
         }
         throw new HappyError(result.message || t('sessionInfo.failedToArchiveSession'), false);
@@ -174,7 +175,7 @@ export async function executeSessionAction(params: Readonly<{
         if (!policy.enabled) return false;
         const willStop = params.actionId === SESSION_ACTION_ARCHIVE_ID
             && (params.target.isActive || params.target.hasStoppableTerminalHost);
-        if (policy.requiresConfirmation && !willStop) {
+        if ((policy.requiresConfirmation && !willStop) || (params.actionId === SESSION_ACTION_ARCHIVE_ID && params.context?.forceArchiveConfirmation === true)) {
             const isArchive = params.actionId === SESSION_ACTION_ARCHIVE_ID;
             const confirmed = await Modal.confirm(
                 isArchive ? t('sessionInfo.archiveSession') : t('sessionInfo.unarchiveSession'),
@@ -183,6 +184,7 @@ export async function executeSessionAction(params: Readonly<{
                     cancelText: t('common.cancel'),
                     confirmText: isArchive ? t('sessionInfo.archiveSession') : t('sessionInfo.unarchiveSession'),
                     destructive: policy.destructive,
+                    confirmOnEnter: params.context?.forceArchiveConfirmation === true,
                 },
             );
             if (!confirmed) return false;

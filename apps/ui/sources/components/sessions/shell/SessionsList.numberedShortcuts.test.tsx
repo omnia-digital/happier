@@ -9,10 +9,11 @@ import { installSessionShellCommonModuleMocks } from './sessionShellTestHelpers'
 
 const routeState = vi.hoisted(() => ({ pathname: '/' }));
 const keyboardState = vi.hoisted(() => ({
-    handlers: null as Record<string, () => void> | null,
+    handlers: null as Record<string, () => boolean | void> | null,
     onCommandHeldChange: null as ((held: boolean) => void) | null,
 }));
 const navigateToSession = vi.hoisted(() => vi.fn());
+const archiveActionSpy = vi.hoisted(() => vi.fn(async (): Promise<void> => undefined));
 const listViewData = vi.hoisted(() => ({ items: null as any[] | null }));
 
 installSessionShellCommonModuleMocks({
@@ -45,6 +46,7 @@ vi.mock('@/hooks/server/useEffectiveServerSelection', async (importOriginal) => 
 vi.mock('@/hooks/session/useNavigateToSession', () => ({
     useNavigateToSession: () => navigateToSession,
 }));
+vi.mock('@/components/sessions/actions/sessionActionExecution', () => ({ executeSessionAction: archiveActionSpy }));
 
 vi.mock('@/components/ui/lists/flashListCompat/SessionListVirtualizedList', async () => ({
     SessionListVirtualizedList: (await import('@/dev/testkit/mocks/flashList')).createCapturingFlashListMock({
@@ -56,7 +58,7 @@ vi.mock('@/components/ui/lists/flashListCompat/SessionListVirtualizedList', asyn
 
 vi.mock('@/keyboard/KeyboardShortcutProvider', () => ({
     useKeyboardShortcutHandlers: (
-        handlers: Record<string, () => void>,
+        handlers: Record<string, () => boolean | void>,
         options?: { onCommandHeldChange?: (held: boolean) => void },
     ) => {
         keyboardState.handlers = handlers;
@@ -104,6 +106,8 @@ describe('SessionsList numbered shortcuts', () => {
         keyboardState.handlers = null;
         keyboardState.onCommandHeldChange = null;
         navigateToSession.mockClear();
+        archiveActionSpy.mockReset();
+        archiveActionSpy.mockResolvedValue(undefined);
         listViewData.items = [
             { type: 'header', title: 'Pinned', headerKind: 'date', groupKey: 'group-a', serverId: 'server_a' },
             sessionRow('s3'),
@@ -169,5 +173,52 @@ describe('SessionsList numbered shortcuts', () => {
         await act(async () => { keyboardState.handlers?.['session.number.1']?.(); });
         expect(navigateToSession).toHaveBeenLastCalledWith('s2', { serverId: 'server_a' });
         expect(keyboardState.handlers?.['session.number.3']).toBeUndefined();
+    });
+
+    it('archives the hovered row instead of the selected row, captures the target, and rejects repeat dispatch', async () => {
+        const { SessionsListContent } = await import('./SessionsList');
+        const screen = await renderScreen(<SessionsListContent data={listViewData.items} />);
+        const rows = () => screen.root.findAllByType('SessionItem' as any);
+        const targetA = { sessionId: 's3', serverId: 'server_a', canArchive: true, isArchived: false } as any;
+        const targetB = { sessionId: 's1', serverId: 'server_a', canArchive: true, isArchived: false } as any;
+        let finishArchive: (() => void) | undefined;
+        archiveActionSpy.mockImplementation(() => new Promise<void>((resolve) => { finishArchive = resolve; }));
+
+        await act(async () => { rows()[0]?.props.onHoverArchiveTarget('server_a:s3', targetA); });
+        await act(async () => { keyboardState.handlers?.['session.hovered.archive']?.(); });
+        await act(async () => { rows()[1]?.props.onHoverArchiveTarget('server_a:s1', targetB); });
+        await act(async () => { keyboardState.handlers?.['session.hovered.archive']?.(); });
+        expect(archiveActionSpy).toHaveBeenCalledTimes(1);
+        expect(archiveActionSpy).toHaveBeenCalledWith(expect.objectContaining({
+            target: targetA,
+            context: expect.objectContaining({ forceArchiveConfirmation: true }),
+        }));
+        expect(navigateToSession).not.toHaveBeenCalled();
+        await act(async () => { finishArchive?.(); });
+    });
+
+    it('clears hovered Archive on leave, scroll, missing projection and inactive surface', async () => {
+        const { SessionsListContent } = await import('./SessionsList');
+        const screen = await renderScreen(<SessionsListContent data={listViewData.items} />);
+        const target = { sessionId: 's3', serverId: 'server_a', canArchive: true, isArchived: false } as any;
+        const hover = () => screen.root.findAllByType('SessionItem' as any)[0]?.props.onHoverArchiveTarget('server_a:s3', target);
+        await act(async () => { hover(); });
+        await act(async () => { screen.root.findByType('FlashListCompat' as any).props.onScroll({ nativeEvent: {} }); });
+        expect(keyboardState.handlers?.['session.hovered.archive']?.()).toBe(false);
+        expect(archiveActionSpy).not.toHaveBeenCalled();
+
+        await act(async () => { hover(); });
+        await act(async () => { screen.root.findAllByType('SessionItem' as any)[0]?.props.onHoverArchiveTarget('server_a:s3', null); });
+        expect(keyboardState.handlers?.['session.hovered.archive']?.()).toBe(false);
+        expect(archiveActionSpy).not.toHaveBeenCalled();
+
+        await act(async () => { hover(); });
+        listViewData.items = [sessionRow('s1')];
+        await act(async () => { screen.tree.update(<SessionsListContent data={listViewData.items} />); });
+        expect(keyboardState.handlers?.['session.hovered.archive']?.()).toBe(false);
+        expect(archiveActionSpy).not.toHaveBeenCalled();
+
+        await act(async () => { screen.tree.update(<SessionsListContent data={listViewData.items} surfaceOwnership={{ interactive: false, dataActive: false }} />); });
+        expect(keyboardState.handlers?.['session.hovered.archive']).toBeUndefined();
     });
 });
