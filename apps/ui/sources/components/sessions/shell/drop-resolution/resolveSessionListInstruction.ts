@@ -1,3 +1,4 @@
+import { isSessionListTreeDestinationCompatible } from './isSessionListTreeDestinationCompatible';
 import { resolveTreeInstruction, type TreeDropResult, type WindowPointer } from '@/components/ui/treeDragDrop';
 import { resolveSessionListIndexFolderDragEligibility } from '@/sync/domains/session/listing/sessionListIndex';
 import { SESSION_FOLDER_MAX_DEPTH } from '@/sync/domains/session/folders/constants';
@@ -61,14 +62,16 @@ export function resolveSessionListInstruction(params: Readonly<{
                     return params.tree.containerMetadataById.get(zone.containerId)?.kind === 'workspace-order'
                         && zone.containerId === params.source.metadata.containerId;
                 }
-                return zone.rootId === params.source.metadata.rootId;
+                const container = params.tree.containerMetadataById.get(zone.containerId);
+                return Boolean(container && isSessionListTreeDestinationCompatible(params.source.metadata, container));
             },
             canNestInto: (_source, targetId) => {
                 if (params.source.metadata.kind === 'workspace-root') return false;
                 const target = params.tree.rowMetadataById.get(targetId);
                 if (!target) return false;
                 if (target.kind === 'session') return false;
-                return target.rootId === params.source.metadata.rootId;
+                const container = target.childContainerId ? params.tree.containerMetadataById.get(target.childContainerId) : null;
+                return Boolean(container && isSessionListTreeDestinationCompatible(params.source.metadata, container));
             },
             canReorderAround: (_source, target) => {
                 const targetMetadata = params.tree.rowMetadataById.get(target.id);
@@ -78,7 +81,8 @@ export function resolveSessionListInstruction(params: Readonly<{
                         && targetMetadata.containerId === params.source.metadata.containerId;
                 }
                 if (targetMetadata.kind === 'workspace-root') return false;
-                return targetMetadata.rootId === params.source.metadata.rootId;
+                const container = params.tree.containerMetadataById.get(targetMetadata.containerId);
+                return Boolean(container && isSessionListTreeDestinationCompatible(params.source.metadata, container));
             },
         },
     });

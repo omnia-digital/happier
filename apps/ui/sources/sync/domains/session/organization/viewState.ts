@@ -126,14 +126,14 @@ export function buildSessionOrganizationReorderRequestFromGroupOrder(params: Rea
     for (const [index, rawItemKey] of params.itemKeys.entries()) {
         const trimmed = typeof rawItemKey === 'string' ? rawItemKey.trim() : '';
         if (!trimmed) continue;
-        const isFolder = trimmed.startsWith('folder:');
-        const itemKey = isFolder ? stripFolderItemKey(trimmed) : stripServerSessionKey(serverId, trimmed);
+        const itemKind = trimmed.startsWith('folder:') ? 'folder' : trimmed.startsWith('group:') ? 'group' : 'session';
+        const itemKey = itemKind === 'folder' ? stripFolderItemKey(trimmed) : itemKind === 'group' ? trimmed : stripServerSessionKey(serverId, trimmed);
         if (!itemKey) continue;
-        const dedupeKey = `${isFolder ? 'folder' : 'session'}:${itemKey}`;
+        const dedupeKey = `${itemKind}:${itemKey}`;
         if (seen.has(dedupeKey)) continue;
         seen.add(dedupeKey);
         entries.push({
-            itemKind: isFolder ? 'folder' : 'session',
+            itemKind,
             itemKey,
             sortKey: buildSortKey(index),
         });

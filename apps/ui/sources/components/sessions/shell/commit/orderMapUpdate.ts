@@ -74,8 +74,11 @@ export function buildOrderMapAfterMove(params: Readonly<{
     beforeKey?: string | null;
     afterKey?: string | null;
     maxKeys: number;
+    moveKind?: 'structural' | 'display';
 }>): Record<string, string[]> {
-    const currentMap = copyOrderMapWithoutMovedKey(params.currentMap, params.movedKey);
+    const currentMap = params.moveKind === 'display'
+        ? Object.fromEntries(Object.entries(params.currentMap).flatMap(([key, values]) => Array.isArray(values) ? [[key, [...values]]] : []))
+        : copyOrderMapWithoutMovedKey(params.currentMap, params.movedKey);
     const existingKeys = currentMap[params.scopeKey] ?? [];
     const existingKeySet = new Set(dedupeOrderKeys(existingKeys));
     const newlyVisibleKeys = dedupeOrderKeys(params.directKeys)

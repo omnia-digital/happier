@@ -1,7 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
 import { repositoryWorkspaceKey } from '@/sync/domains/session/listing/sessionRepositoryIdentity';
 import { projectSessionListRepositoryView } from './projectSessionListRepositoryView';
+
+import { buildSessionListIndexFromViewData } from '@/sync/domains/session/listing/sessionListIndex';
+import { buildSessionListTreeRows } from '../drop-resolution/buildSessionListTreeRows';
+import { buildSessionListDragSource } from '../drop-resolution/buildSessionListDragSource';
+import { resolveSessionListInstruction } from '../drop-resolution/resolveSessionListInstruction';
+import { applySessionListTreeDropOperation } from '../commit/applySessionListTreeDropOperation';
+import { treeRowId } from '../drop-resolution/treeRowId';
 
 const scope = { serverId: 'home', accountId: 'account' };
 const scopes = { home: scope };
@@ -16,6 +23,91 @@ const associations = Object.fromEntries(['m1', 'm2'].map(machineId => [repositor
 const band: SessionListViewItem = { type: 'header', headerKind: 'active', title: 'Active', groupKey: 'active' };
 
 describe('repository view projection', () => {
+    it('commits cross-checkout display order without erasing Original or Machine ranks or changing physical assignments', async () => {
+        const source = [band, row('A', 'm1'), row('A2', 'm1'), row('B', 'm2')];
+        const initial = projectSessionListRepositoryView({ items: source, scopes, associations });
+        const groupKey = initial.find(item => item.type === 'header' && item.repository)?.groupKey!;
+        const tree = buildSessionListTreeRows({ items: buildSessionListIndexFromViewData(initial)!, rowBoundsById: new Map([
+            [treeRowId.workspaceRoot(groupKey), { x: 0, y: 0, width: 320, height: 40 }],
+            ...['A', 'A2', 'B'].map((id, index) => [treeRowId.session('home', id), { x: 0, y: 40 + index * 40, width: 320, height: 40 }] as const),
+        ]) });
+        const drag = buildSessionListDragSource({ tree, sourceRowId: treeRowId.session('home', 'B') });
+        const result = resolveSessionListInstruction({ tree, source: drag, pointer: { x: 20, y: 82 }, foldersFeatureEnabled: true });
+        expect(result.instruction.kind).toBe('reorder-before');
+        const setOrder = vi.fn();
+        const setFolders = vi.fn();
+        const setAssignment = vi.fn(async () => undefined);
+        const original = { original: ['home:A', 'home:A2', 'home:B'], machine: ['home:B', 'home:A'], [groupKey]: ['home:A', 'home:A2', 'home:B'] };
+        expect(await applySessionListTreeDropOperation({ tree, source: drag, result, context: {
+            sessionFoldersV1: { v: 1, folders: [] }, sessionListGroupOrderV1: original, now: () => 100,
+            setSessionFoldersV1: setFolders, setSessionListGroupOrderV1: setOrder, setSessionFolderAssignment: setAssignment,
+        } })).toMatchObject({ ok: true });
+        expect(setAssignment).not.toHaveBeenCalled();
+        expect(setFolders).not.toHaveBeenCalled();
+        expect(setOrder).toHaveBeenCalledWith({ ...original, [groupKey]: ['home:A', 'home:B', 'home:A2'] });
+        const reloaded = JSON.parse(JSON.stringify(setOrder.mock.calls[0][0]));
+        expect(projectSessionListRepositoryView({ items: source, scopes, associations, groupOrder: reloaded })
+            .filter(item => item.type === 'session').map(item => item.session.id)).toEqual(['A', 'B', 'A2']);
+    });
+
+    it('rejects nesting a checkout session into another machine folder within the same repository', async () => {
+        const workspace = { t: 'workspaceScope' as const, serverId: 'home', machineId: 'm1', rootPath: '/repo' };
+        const folder: SessionListViewItem = { type: 'header', headerKind: 'folder', folderId: 'folder-one', groupKey: 'folder:folder-one', title: 'One', depth: 0, workspace, serverId: 'home' };
+        const initial = projectSessionListRepositoryView({ items: [band, folder, row('B', 'm2')], scopes, associations });
+        const groupKey = initial.find(item => item.type === 'header' && item.repository)?.groupKey!;
+        const tree = buildSessionListTreeRows({ items: buildSessionListIndexFromViewData(initial)!, rowBoundsById: new Map([
+            [treeRowId.workspaceRoot(groupKey), { x: 0, y: 0, width: 320, height: 40 }],
+            [treeRowId.folder('folder-one'), { x: 0, y: 40, width: 320, height: 40 }],
+            [treeRowId.session('home', 'B'), { x: 0, y: 80, width: 320, height: 40 }],
+        ]) });
+        const source = buildSessionListDragSource({ tree, sourceRowId: treeRowId.session('home', 'B') });
+        const result = resolveSessionListInstruction({ tree, source, pointer: { x: 80, y: 60 }, foldersFeatureEnabled: true });
+        expect(result.instruction.kind).toBe('blocked');
+    });
+
+    it('orders repository headers through organization groups without writing physical workspace order', async () => {
+        const splitAssociations = { ...associations, [repositoryWorkspaceKey({ ...scope, machineId: 'm2', path: '/repo' })]: { identity: 'example.com/other/repo', label: 'Other', rootPath: '/repo', worktreePaths: [] } };
+        const projected = projectSessionListRepositoryView({ items: [band, row('A', 'm1'), row('B', 'm2')], scopes, associations: splitAssociations });
+        const headers = projected.filter((item): item is Extract<SessionListViewItem, { type: 'header' }> => item.type === 'header' && Boolean(item.repository));
+        const tree = buildSessionListTreeRows({ items: buildSessionListIndexFromViewData(projected)!, rowBoundsById: new Map(headers.map((header, index) => [treeRowId.workspaceRoot(header.groupKey!), { x: 0, y: index * 80, width: 320, height: 40 }])) });
+        const source = buildSessionListDragSource({ tree, sourceRowId: treeRowId.workspaceRoot(headers[1].groupKey!) });
+        const result = resolveSessionListInstruction({ tree, source, pointer: { x: 20, y: 2 }, foldersFeatureEnabled: true });
+        expect(result.instruction.kind).toBe('reorder-before');
+        const setOrder = vi.fn(); const setWorkspaceOrder = vi.fn();
+        expect(await applySessionListTreeDropOperation({ tree, source, result, context: {
+            sessionFoldersV1: { v: 1, folders: [] }, sessionListGroupOrderV1: {}, now: () => 100,
+            setSessionFoldersV1: vi.fn(), setSessionListGroupOrderV1: setOrder, setSessionWorkspaceOrderV1: setWorkspaceOrder, setSessionFolderAssignment: vi.fn(async () => undefined),
+        } })).toMatchObject({ ok: true });
+        expect(setWorkspaceOrder).not.toHaveBeenCalled();
+        expect(setOrder).toHaveBeenCalledWith({ [headers[0].repository!.orderScope]: [`group:${headers[1].groupKey}`, `group:${headers[0].groupKey}`] });
+    });
+
+    it('moves a nested folder back to its real workspace root when dropped beside another checkout folder', async () => {
+        const firstWorkspace = { t: 'workspaceScope' as const, serverId: 'home', machineId: 'm1', rootPath: '/repo' };
+        const secondWorkspace = { ...firstWorkspace, machineId: 'm2' };
+        const folder = (id: string, depth: number, workspace = firstWorkspace): SessionListViewItem => ({ type: 'header', headerKind: 'folder', folderId: id, groupKey: `folder:${id}`, title: id, depth, workspace, serverId: 'home' });
+        const projected = projectSessionListRepositoryView({ items: [band, folder('parent', 0), folder('child', 1), folder('other', 0, secondWorkspace)], scopes, associations });
+        const groupKey = projected.find(item => item.type === 'header' && item.repository)?.groupKey!;
+        const tree = buildSessionListTreeRows({ items: buildSessionListIndexFromViewData(projected)!, rowBoundsById: new Map([
+            [treeRowId.workspaceRoot(groupKey), { x: 0, y: 0, width: 320, height: 40 }],
+            ...['parent', 'child', 'other'].map((id, index) => [treeRowId.folder(id), { x: 0, y: 40 + index * 40, width: 320, height: 40 }] as const),
+        ]) });
+        const source = buildSessionListDragSource({ tree, sourceRowId: treeRowId.folder('child') });
+        const result = resolveSessionListInstruction({ tree, source, pointer: { x: 20, y: 122 }, foldersFeatureEnabled: true });
+        expect(result.instruction.kind).toBe('reorder-before');
+        const setFolders = vi.fn();
+        expect(await applySessionListTreeDropOperation({ tree, source, result, context: {
+            sessionFoldersV1: { v: 1, folders: [
+                { id: 'parent', parentId: null, workspace: firstWorkspace, name: 'Parent', createdAt: 1, updatedAt: 1 },
+                { id: 'child', parentId: 'parent', workspace: firstWorkspace, name: 'Child', createdAt: 1, updatedAt: 1 },
+                { id: 'other', parentId: null, workspace: secondWorkspace, name: 'Other', createdAt: 1, updatedAt: 1 },
+            ] }, sessionListGroupOrderV1: {}, now: () => 100,
+            setSessionFoldersV1: setFolders, setSessionListGroupOrderV1: vi.fn(), setSessionFolderAssignment: vi.fn(async () => undefined),
+        } })).toMatchObject({ ok: true });
+        expect(setFolders).toHaveBeenCalledOnce();
+        expect(setFolders.mock.calls[0][0].folders.find((entry: { id: string }) => entry.id === 'child')).toMatchObject({ parentId: null, workspace: firstWorkspace });
+    });
+
     it('uses canonical date ordering when selected while retaining the saved custom rank', () => {
         const a = row('A', 'm1'); const b = row('B', 'm2');
         if (a.type !== 'session' || b.type !== 'session') throw new Error('Expected sessions');

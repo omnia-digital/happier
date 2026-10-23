@@ -241,6 +241,15 @@ export function buildSessionListTreeRows(params: BuildSessionListTreeRowsParams)
                 return;
             }
             const rowId = treeRowId.workspaceRoot(groupKey);
+            if (item.repository) {
+                const containerId = `repository-order:${item.repository.orderScope}`;
+                activeWorkspaceOrderContainer = {
+                    containerId, kind: 'workspace-order', displayOrderOnly: true,
+                    rootId: containerId, groupKey: item.repository.orderScope,
+                    parentRowId: null, folderId: null, depth: 0, workspace: null,
+                };
+                registerContainer(containerMetadataById, activeWorkspaceOrderContainer);
+            }
             if (!activeWorkspaceOrderContainer) {
                 const containerId = `workspace-order:${String(item.serverId ?? '').trim() || '__unknown_server__'}:default`;
                 activeWorkspaceOrderContainer = {
@@ -260,6 +269,7 @@ export function buildSessionListTreeRows(params: BuildSessionListTreeRowsParams)
                 kind: 'children',
                 rootId: rowId,
                 groupKey,
+                displayOrderOnly: Boolean(item.repository),
                 parentRowId: null,
                 folderId: null,
                 depth: 0,
@@ -277,7 +287,7 @@ export function buildSessionListTreeRows(params: BuildSessionListTreeRowsParams)
                 containerId: activeWorkspaceOrderContainer.containerId,
                 containerGroupKey: activeWorkspaceOrderContainer.groupKey,
                 parentRowId: null,
-                orderKey: buildSessionWorkspaceOrderItemKey(item.workspaceKey ?? groupKey),
+                orderKey: item.repository ? `group:${groupKey}` : buildSessionWorkspaceOrderItemKey(item.workspaceKey ?? groupKey),
                 serverId: typeof item.serverId === 'string' ? item.serverId : null,
                 sessionId: null,
                 folderId: null,
