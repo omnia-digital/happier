@@ -525,6 +525,7 @@ test.describe('ui e2e: session list ordering mode', () => {
       await page.waitForURL((url) => !url.pathname.endsWith('/new'), { timeout: 60_000 });
       await expect(clickedRow).toHaveCount(1, { timeout: 60_000 });
       expect(mutatingSessionRequests).toEqual([]);
+      await page.mouse.move(1000, 500);
     }
 
     await clickedRow.hover();
