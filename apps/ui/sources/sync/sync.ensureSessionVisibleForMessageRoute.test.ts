@@ -1073,6 +1073,54 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
         }));
     });
 
+    it('does not return a stored foreign session when the active Home owns the same id', async () => {
+        const sessionId = 'same_id_foreign_record';
+        const activeServer = upsertServerProfile({ serverUrl: 'https://active.example', name: 'Active' });
+        const foreignServer = upsertServerProfile({ serverUrl: 'https://foreign.example', name: 'Foreign' });
+        setActiveServerId(activeServer.id, { scope: 'device' });
+        storage.getState().applySessions([{
+            ...createSession({ sessionId }),
+            serverId: foreignServer.id,
+            encryptionMode: 'plain',
+            metadata: { path: '/foreign', machineId: 'foreign-machine' },
+        }]);
+
+        const { sync } = await import('./sync');
+        (sync as any).credentials = { token: 'active-token', secret: 'active-secret' };
+        (sync as any).activeServerSessionIds = new Set([sessionId]);
+        (sync as any).hasFetchedSessionsSnapshotForActiveServer = true;
+        (sync as any).encryption = {
+            decryptEncryptionKey: async () => null,
+            initializeSessions: async () => {},
+            getSessionEncryption: () => null,
+        };
+        requestMock.mockResolvedValue(new Response(JSON.stringify({
+            session: {
+                id: sessionId,
+                createdAt: 1,
+                updatedAt: 2,
+                seq: 3,
+                active: true,
+                activeAt: 2,
+                encryptionMode: 'plain',
+                dataEncryptionKey: null,
+                metadataVersion: 1,
+                metadata: JSON.stringify({ path: '/active', machineId: 'active-machine' }),
+                agentStateVersion: 0,
+                agentState: null,
+                share: null,
+            },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+        await expect(sync.ensureSessionVisibleForMessageRoute(sessionId, { serverId: activeServer.id }))
+            .resolves.toEqual(expect.objectContaining({ kind: 'available', serverId: activeServer.id }));
+        expect(requestMock).toHaveBeenCalled();
+        expect(storage.getState().sessions[sessionId]).toEqual(expect.objectContaining({
+            serverId: activeServer.id,
+            metadata: expect.objectContaining({ path: '/active', machineId: 'active-machine' }),
+        }));
+    });
+
     it('ignores localStorage read errors while evaluating debug hydration logging', async () => {
         const sessionId = 'deep_link_local_storage_error';
         storage.getState().applySessions([

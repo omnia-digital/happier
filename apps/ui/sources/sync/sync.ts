@@ -2360,7 +2360,13 @@ class Sync {
                 !!activeServerIdAtHydrationStart
                 && areServerProfileIdentifiersEquivalent(scopedServerId, activeServerIdAtHydrationStart)
             );
-            if (!forceRefresh && targetsActiveServer && this.isSessionKnownOnActiveServer(normalized) && existingSession) {
+            // The active-server membership set can still contain this id after a scoped fetch for
+            // another Home replaces sessions[id]. Never treat that foreign record as the active one.
+            const storedSessionMatchesActiveServer = !existingSession?.serverId || (
+                !!activeServerIdAtHydrationStart
+                && areServerProfileIdentifiersEquivalent(existingSession.serverId, activeServerIdAtHydrationStart)
+            );
+            if (!forceRefresh && targetsActiveServer && storedSessionMatchesActiveServer && this.isSessionKnownOnActiveServer(normalized) && existingSession) {
                 const encryptionMode: 'e2ee' | 'plain' = existingSession.encryptionMode === 'plain' ? 'plain' : 'e2ee';
                 const hasEncryption = encryptionMode === 'plain'
                     ? false
