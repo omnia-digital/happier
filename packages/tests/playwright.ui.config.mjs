@@ -11,6 +11,7 @@ export default defineConfig({
   outputDir: '.project/logs/e2e/ui-playwright',
   use: {
     testIdAttribute: 'data-testid',
+    channel: process.env.HAPPIER_E2E_UI_BROWSER_CHANNEL || undefined,
     // Keep UI e2e deterministic by avoiding responsive split-view layouts.
     // A phone-sized viewport ensures a single primary navigation stack on Expo web.
     viewport: { width: 390, height: 844 },
