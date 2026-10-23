@@ -525,7 +525,8 @@ test.describe('ui e2e: session list ordering mode', () => {
       await page.waitForURL((url) => !url.pathname.endsWith('/new'), { timeout: 60_000 });
       await expect(clickedRow).toHaveCount(1, { timeout: 60_000 });
       expect(mutatingSessionRequests).toEqual([]);
-      await page.mouse.move(1000, 500);
+      await page.mouse.click(1000, 500);
+      await expect(page.getByTestId('session-item-same-setup-action-tooltip')).toHaveCount(0);
     }
 
     await clickedRow.hover();
