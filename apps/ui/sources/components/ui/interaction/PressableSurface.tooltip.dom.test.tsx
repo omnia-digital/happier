@@ -3,6 +3,7 @@ import * as React from 'react';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
+import type { View } from 'react-native';
 
 vi.mock('react-native', async () => vi.importActual('react-native-web'));
 vi.mock('react-native-reanimated', async () => {
@@ -48,7 +49,12 @@ describe('PressableSurface web tooltip', () => {
         }
     });
 
-    it.each(['button', 'text'] as const)('reveals a portaled %s tooltip on hover and keyboard focus without moving focus', async (role) => {
+    it.each([
+        ['button', 'internal'],
+        ['button', 'external'],
+        ['text', 'internal'],
+        ['text', 'external'],
+    ] as const)('reveals a portaled %s tooltip on hover and keyboard focus with a %s anchor', async (role, anchorMode) => {
         vi.spyOn(document.documentElement, 'clientWidth', 'get').mockReturnValue(1024);
         vi.spyOn(document.documentElement, 'clientHeight', 'get').mockReturnValue(768);
         vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => window.setTimeout(() => callback(performance.now()), 0));
@@ -60,6 +66,7 @@ describe('PressableSurface web tooltip', () => {
         container.style.height = '28px';
         document.body.appendChild(container);
         const root = createRoot(container);
+        const anchorRef = React.createRef<View>();
         let richContentMounted = false;
         function TooltipDetails() {
             React.useEffect(() => { richContentMounted = true; return () => { richContentMounted = false; }; }, []);
@@ -67,10 +74,12 @@ describe('PressableSurface web tooltip', () => {
         }
         try {
             await act(async () => {
-                root.render(<PressableSurface accessibilityRole={role} testID="trigger" accessibilityLabel="Next file" webTooltip="Next file" tooltipContent={role === 'button' ? <TooltipDetails /> : undefined} />);
+                root.render(<PressableSurface {...(anchorMode === 'external' ? { anchorRef } : {})} accessibilityRole={role} testID="trigger" accessibilityLabel="Next file" webTooltip="Next file" tooltipContent={role === 'button' ? <TooltipDetails /> : undefined} />);
             });
             const trigger = container.querySelector<HTMLElement>('[data-testid="trigger"]');
             if (!trigger) throw new Error('Missing trigger');
+            if (anchorMode === 'external') expect(anchorRef.current).toBe(trigger);
+            else expect(anchorRef.current).toBeNull();
             vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue(new DOMRect(20, 20, 28, 28));
             expect(document.querySelector('[role="tooltip"]')).toBeNull();
             expect(richContentMounted).toBe(false);
