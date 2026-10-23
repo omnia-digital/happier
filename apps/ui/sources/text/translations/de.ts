@@ -4743,6 +4743,9 @@ export const de: TranslationStructure = {
             emptyInThisFolder: 'Keine Treffer in diesem Ordner',
             favoriteAdd: 'Zu Favoriten hinzufügen',
             favoriteRemove: 'Aus Favoriten entfernen',
+            reviewUnassignedFavorites: 'Nicht zugeordnete Favoriten prüfen',
+            unassignedFavoritesHint: 'Für diese älteren Favoriten ist kein Rechner bekannt. Weise nur Pfade dieses Rechners zu.',
+            assignToSelectedMachine: 'Ausgewähltem Rechner zuweisen',
             hints: {
                 navigate: 'navigieren',
                 commit: 'Commit-Pfad',

@@ -4806,6 +4806,9 @@ deps: {
             emptyInThisFolder: 'Sense coincidències en aquesta carpeta',
             favoriteAdd: 'Afegeix als preferits',
             favoriteRemove: 'Treu dels preferits',
+            reviewUnassignedFavorites: 'Revisa els preferits sense assignar',
+            unassignedFavoritesHint: 'Aquests preferits antics no tenen cap màquina coneguda. Assigna només els camins d’aquesta màquina.',
+            assignToSelectedMachine: 'Assigna a la màquina seleccionada',
             hints: {
                 navigate: 'navega',
                 commit: 'confirma el camí',

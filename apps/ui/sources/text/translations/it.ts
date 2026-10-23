@@ -5461,6 +5461,9 @@ export const it: TranslationStructure = {
       emptyInThisFolder: "Nessuna corrispondenza in questa cartella",
       favoriteAdd: "Aggiungi ai preferiti",
       favoriteRemove: "Rimuovi dai preferiti",
+      reviewUnassignedFavorites: 'Esamina i preferiti non assegnati',
+      unassignedFavoritesHint: 'Questi vecchi preferiti non hanno una macchina nota. Assegna solo i percorsi di questa macchina.',
+      assignToSelectedMachine: 'Assegna alla macchina selezionata',
       hints: {
         navigate: "naviga",
         commit: "conferma percorso",

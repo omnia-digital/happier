@@ -4512,6 +4512,9 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
             emptyInThisFolder: '此資料夾中沒有相符項目',
             favoriteAdd: '加入我的最愛',
             favoriteRemove: '從我的最愛移除',
+            reviewUnassignedFavorites: '檢視未指派的收藏路徑',
+            unassignedFavoritesHint: '這些舊收藏路徑沒有已知的機器。請只指派屬於此機器的路徑。',
+            assignToSelectedMachine: '指派給所選機器',
             hints: {
                 navigate: '導覽',
                 commit: '確認路徑',

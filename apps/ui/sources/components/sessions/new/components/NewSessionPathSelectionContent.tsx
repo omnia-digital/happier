@@ -45,8 +45,11 @@ export type NewSessionPathSelectionContentProps = Readonly<{
     onChangeDraftSelectedPath?: (path: string) => void;
     recentPaths: ReadonlyArray<string>;
     favoriteDirectories: ReadonlyArray<string>;
+    unassignedFavorites?: ReadonlyArray<string>;
+    onAssignUnassignedFavorite?: (path: string) => void;
     machineId: string | null;
     serverId?: string | null;
+    targetScopeKey?: string | null;
     /** Machine platform (NEVER `navigator.platform`). Defaults to 'auto'. */
     machinePlatform?: PathTargetPlatform;
     onRequestClose?: () => void;
@@ -163,10 +166,13 @@ export function NewSessionPathSelectionContent(props: NewSessionPathSelectionCon
                 initialValue={props.selectedPath}
                 initialSuggestionMode={props.initialSuggestionMode}
                 favorites={favorites}
+                unassignedFavorites={props.unassignedFavorites}
+                onAssignUnassignedFavorite={props.onAssignUnassignedFavorite}
                 recents={recents}
                 machineHomeDir={props.machineHomeDir}
                 machineId={props.machineId}
                 serverId={props.serverId ?? null}
+                targetScopeKey={props.targetScopeKey}
                 machinePlatform={props.machinePlatform ?? 'auto'}
                 onCommit={props.onCommit}
                 onChangeDraftPath={props.onChangeDraftSelectedPath}

@@ -12,8 +12,32 @@ import {
 (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 const pathSelectionListPropsRef: { current: Record<string, unknown> | null } = { current: null };
+const pathSettings = vi.hoisted(() => ({
+  preferences: {} as Record<string, { favorites: string[]; recentPaths: string[] }>,
+  legacy: [] as string[],
+  apply: vi.fn(),
+}));
 
-installMcpServersCommonModuleMocks();
+const installPathMocks = () => installMcpServersCommonModuleMocks({
+  storage: async () => {
+    const { createStorageModuleStub } = await import('@/dev/testkit/mocks/storage');
+    return createStorageModuleStub({
+      useAllMachines: () => [],
+      useActiveServerAccountScope: () => ({ serverId: 'home-a', accountId: 'viewer' }),
+      useSetting: (key: string) => key === 'favoriteDirectories' ? pathSettings.legacy : pathSettings.preferences,
+      storage: { getState: () => ({ settings: {
+        machinePathPreferencesByTargetV1: pathSettings.preferences,
+        favoriteDirectories: pathSettings.legacy,
+      } }) },
+    });
+  },
+});
+installPathMocks();
+
+vi.mock('@/sync/domains/scope/activeServerAccountScope', () => ({
+  getActiveServerAccountScope: () => ({ serverId: 'home-a', accountId: 'viewer' }),
+}));
+vi.mock('@/sync/store/settingsWriters', () => ({ useApplySettings: () => pathSettings.apply }));
 
 vi.mock('@/components/sessions/new/components/PathSelectionList', () => ({
   PathSelectionList: (props: Record<string, unknown>) => {
@@ -25,7 +49,11 @@ vi.mock('@/components/sessions/new/components/PathSelectionList', () => ({
 describe('McpWorkspaceRootPickerModal', () => {
   beforeEach(() => {
     resetMcpServersCommonModuleMockState();
+    installPathMocks();
     pathSelectionListPropsRef.current = null;
+    pathSettings.preferences = {};
+    pathSettings.legacy = [];
+    pathSettings.apply.mockClear();
   });
 
   it('passes the machine id and home dir into PathSelectionList when machine information is provided', async () => {
@@ -35,8 +63,6 @@ describe('McpWorkspaceRootPickerModal', () => {
           machineId="machine-1"
           machineHomeDir="/Users/test"
           selectedPath="/repo"
-          favoriteDirectories={[]}
-          onChangeFavoriteDirectories={() => {}}
           onSelectPath={() => {}}
           onClose={() => {}}
         />);
@@ -50,15 +76,15 @@ describe('McpWorkspaceRootPickerModal', () => {
   });
 
   it('forwards home-aware favorite toggles to PathSelectionList', async () => {
-    const onChangeFavoriteDirectories = vi.fn();
+    pathSettings.preferences = {
+      '["home-a","viewer","machine-1"]': { favorites: ['~/repo'], recentPaths: [] },
+    };
     const { McpWorkspaceRootPickerModal } = await import('./McpWorkspaceRootPickerModal');
 
     await renderScreen(<McpWorkspaceRootPickerModal
           machineId="machine-1"
           machineHomeDir="/Users/test"
           selectedPath="/repo"
-          favoriteDirectories={['~/repo']}
-          onChangeFavoriteDirectories={onChangeFavoriteDirectories}
           onSelectPath={() => {}}
           onClose={() => {}}
         />);
@@ -69,8 +95,12 @@ describe('McpWorkspaceRootPickerModal', () => {
     expect(typeof onToggleFavorite).toBe('function');
     expect((isFavorite as (path: string) => boolean)('/Users/test/repo')).toBe(true);
 
-    (onToggleFavorite as (path: string) => void)('/Users/test/repo');
+    await (onToggleFavorite as (path: string) => Promise<void>)('/Users/test/repo');
 
-    expect(onChangeFavoriteDirectories).toHaveBeenCalledWith([]);
+    expect(pathSettings.apply).toHaveBeenCalledWith({
+      machinePathPreferencesByTargetV1: {
+        '["home-a","viewer","machine-1"]': { favorites: [], recentPaths: [] },
+      },
+    });
   });
 });

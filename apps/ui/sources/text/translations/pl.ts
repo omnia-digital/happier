@@ -5137,6 +5137,9 @@ export const pl: TranslationStructure = {
       emptyInThisFolder: "Brak dopasowań w tym folderze",
       favoriteAdd: "Dodaj do ulubionych",
       favoriteRemove: "Usuń z ulubionych",
+      reviewUnassignedFavorites: 'Przejrzyj nieprzypisane ulubione',
+      unassignedFavoritesHint: 'Te starsze ulubione nie mają przypisanej maszyny. Przypisz tylko ścieżki z tej maszyny.',
+      assignToSelectedMachine: 'Przypisz do wybranej maszyny',
       hints: {
         navigate: "nawiguj",
         commit: "zatwierdź ścieżkę",

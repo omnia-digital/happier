@@ -46,7 +46,8 @@ import { buildProfileEnvironmentVariablesForSession, useProfileMap } from '@/com
 import { newSessionScreenStyles } from '@/components/sessions/new/newSessionScreenStyles';
 import { coerceNewSessionModelMode } from '@/components/sessions/new/hooks/newSessionModelModePolicy';
 import { useCreateNewSession } from '@/components/sessions/new/hooks/useCreateNewSession';
-import { toggleHomeAwareDirectoryFavorite } from '@/components/sessions/new/hooks/favoriteDirectoriesToggle';
+import { recentMachinePathsForScope } from '@/sync/domains/settings/machinePathPreferences';
+import { useMachinePathPreferences, useMachinePathTargetScope } from '@/sync/domains/settings/useMachinePathPreferences';
 import { useNewSessionSimplePanelProps } from '@/components/sessions/new/hooks/useNewSessionSimplePanelProps';
 import { useNewSessionWizardProps } from '@/components/sessions/new/hooks/useNewSessionWizardProps';
 import { buildNewSessionProfileSelectionPopover } from '@/components/sessions/new/components/buildNewSessionProfileSelectionPopover';
@@ -378,7 +379,6 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
     const newSessionDefaultCheckoutMode = useSetting('newSessionDefaultCheckoutModeV1');
     const [profiles, setProfiles] = useSettingMutable('profiles');
     const lastUsedProfile = useSetting('lastUsedProfile');
-    const [favoriteDirectories, setFavoriteDirectories] = useSettingMutable('favoriteDirectories');
     const [favoriteMachines, setFavoriteMachines] = useSettingMutable('favoriteMachines');
     const [favoriteProfileIds, setFavoriteProfileIds] = useSettingMutable('favoriteProfiles');
     const [favoriteModelSelections, setFavoriteModelSelections] = useSettingMutable('favoriteModelSelectionsV1');
@@ -690,6 +690,17 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         rememberCurrentEngineSelection({ sessionConfigOptionOverrides: nextOverrides });
     }, [rememberCurrentEngineSelection, sessionConfigOptionOverrides, setSessionConfigOptionOverrides]);
 
+    const pathTargetBinding = useMachinePathTargetScope(targetServerId);
+    const scopedRecentMachinePaths = React.useMemo(() => recentMachinePathsForScope(
+        settings.machinePathPreferencesByTargetV1,
+        pathTargetBinding?.scope ?? null,
+    ), [pathTargetBinding?.scope?.serverId, pathTargetBinding?.scope?.accountId, settings.machinePathPreferencesByTargetV1]);
+    const pathCacheScopeKey = pathTargetBinding?.scope
+        ? JSON.stringify([pathTargetBinding.scope.serverId, pathTargetBinding.scope.accountId])
+        : null;
+    const pathSessions = pathTargetBinding?.scope?.serverId === draftScope?.serverId
+        && pathTargetBinding?.scope?.accountId === draftScope?.accountId
+        ? sessionRecentPathEntries : null;
     const {
         selectedMachineId,
         setSelectedMachineId,
@@ -701,12 +712,13 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
     } = useNewSessionMachinePathState({
         machines,
         recentMachinePaths,
-        sessions: sessionRecentPathEntries,
+        pathRecentMachinePaths: scopedRecentMachinePaths,
+        sessions: pathSessions,
         machineIdParam: effectiveMachineIdParam,
         pathParam: effectivePathParam,
         persistedMachineId: persistedDraft?.selectedMachineId ?? null,
         persistedPath: hydratedPersistedAuthoringDraft?.directory ?? null,
-        cacheScopeKey: capabilityServerId,
+        cacheScopeKey: pathCacheScopeKey,
     });
 
     const emptyAutocompleteKinds = NEW_SESSION_COMPOSER_SUGGESTION_KINDS;
@@ -746,6 +758,19 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         return machines.find(m => m.id === selectedMachineId) ?? null;
     }, [selectedMachineId, machines]);
     const selectedMachineHomeDir = selectedMachine?.metadata?.homeDir ?? null;
+    const pathPreferences = useMachinePathPreferences({
+        binding: pathTargetBinding,
+        machineId: selectedMachineId,
+        machines,
+        machineHomeDir: selectedMachineHomeDir,
+    });
+    const favoriteDirectories = pathPreferences.favorites;
+    const setFavoriteDirectories = React.useCallback((next: string[]) => {
+        void pathPreferences.replaceFavorites(next);
+    }, [pathPreferences.replaceFavorites]);
+    const assignUnassignedFavorite = React.useCallback((path: string) => {
+        void pathPreferences.assignLegacyFavorite(path);
+    }, [pathPreferences.assignLegacyFavorite]);
     const composerWorkspace = React.useMemo(() => resolveNewSessionFileSuggestionScope({
         targetServerId, selectedMachineId, selectedMachineHomeDir, selectedPath,
     }), [selectedMachineId, selectedMachineHomeDir, selectedPath, targetServerId]);
@@ -1220,7 +1245,8 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         selectedMachineId,
         machines,
         recentMachinePaths,
-        sessions: sessionRecentPathEntries,
+        pathRecentMachinePaths: scopedRecentMachinePaths,
+        sessions: pathSessions,
         favoriteMachines,
         useEnhancedSessionWizard,
         refreshMachineEnvPresence,
@@ -1236,26 +1262,12 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         activeMachines: machines,
         refreshToken: activeServerSource.serverProfilesSignature,
     });
-    // RUX-3 + FR4-7: bridge `useSettingMutable('favoriteDirectories')` into the
-    // path popover so every row exposes a star toggle. The setter is the
-    // canonical settings-sync hook (it routes through `sealSecretsDeep` + the
-    // pending-delta machinery), so we just hand it the next array. The
-    // home-aware comparison is delegated to `toggleHomeAwareDirectoryFavorite`
-    // so a stored shorthand like `~/src/app` is correctly removed when the
-    // user toggles its absolute equivalent (and vice versa). The home dir is
-    // read from the bound machine at call time so the toggle stays correct
-    // even if the user switches machines while the popover is open.
     const handleToggleFavoriteDirectory = React.useCallback((absolutePath: string) => {
-        const homeDir = selectedMachine?.metadata?.homeDir ?? null;
-        const next = toggleHomeAwareDirectoryFavorite(
-            favoriteDirectories,
-            absolutePath,
-            homeDir,
-        );
-        setFavoriteDirectories([...next]);
-    }, [favoriteDirectories, selectedMachine?.metadata?.homeDir, setFavoriteDirectories]);
+        void pathPreferences.toggleFavorite(absolutePath);
+    }, [pathPreferences.toggleFavorite]);
     const pathPopoverSignature = React.useMemo(() => buildNewSessionPopoverSignature({
         favoriteDirectories,
+        unassignedFavorites: pathPreferences.unassignedFavorites,
         recentPaths,
         selectedMachineId: selectedMachine?.id ?? null,
         selectedMachineHomeDir: selectedMachine?.metadata?.homeDir ?? null,
@@ -1264,6 +1276,7 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         targetServerId: targetServerId ?? null,
     }), [
         favoriteDirectories,
+        pathPreferences.unassignedFavorites,
         recentPaths,
         selectedMachine?.id,
         selectedMachine?.metadata?.homeDir,
@@ -1285,9 +1298,12 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
                 onChangeDraftSelectedPath={setDraftSelectedPath}
                 recentPaths={recentPaths}
                 favoriteDirectories={favoriteDirectories}
+                unassignedFavorites={pathPreferences.unassignedFavorites}
+                onAssignUnassignedFavorite={assignUnassignedFavorite}
                 onToggleFavoriteDirectory={handleToggleFavoriteDirectory}
                 machineId={selectedMachine?.id ?? null}
                 serverId={targetServerId ?? null}
+                targetScopeKey={pathPreferences.targetKey}
                 machinePlatform={machineMetadataPlatformToTarget(selectedMachine?.metadata?.platform)}
                 onRequestClose={requestClose}
                 // FR3-10: do NOT pass requestClose as onBeforeBrowseMachinePath.
@@ -1311,6 +1327,8 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         keyboardShouldPersistTaps: 'handled',
     }), [
         pathPopoverSignature,
+        assignUnassignedFavorite,
+        handleToggleFavoriteDirectory,
         setDraftSelectedPath,
         setSelectedPath,
     ]);
@@ -1857,6 +1875,7 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         selectedProfileId,
         profileMap,
         recentMachinePaths,
+        getVerifiedMachinePathTarget: pathPreferences.getVerifiedTarget,
         agentType,
         backendTarget,
         permissionMode,
@@ -2068,6 +2087,9 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         usePathPickerSearch,
         favoriteDirectories,
         setFavoriteDirectories,
+        targetScopeKey: pathPreferences.targetKey,
+        unassignedFavorites: pathPreferences.unassignedFavorites,
+        onAssignUnassignedFavorite: assignUnassignedFavorite,
 
         promptStore,
         setSessionPrompt,

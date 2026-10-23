@@ -21,6 +21,7 @@ import type { SecretChoiceByProfileIdByEnvVarName } from '@/utils/secrets/secret
 import { getBuiltInProfile } from '@/sync/domains/profiles/profileUtils';
 import { isProfileCompatibleWithBackendTarget, type AIBackendProfile } from '@/sync/domains/profiles/profileCompatibility';
 import type { Settings } from '@/sync/domains/settings/settings';
+import { recordRecentPathForTarget, type MachinePathTarget } from '@/sync/domains/settings/machinePathPreferences';
 import type { SavedSecret } from '@/sync/domains/settings/savedSecretTypes';
 import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import { resolveEffectiveWindowsRemoteSessionLaunchMode } from '@/sync/domains/session/spawn/windowsRemoteSessionLaunchMode';
@@ -239,6 +240,7 @@ export function useCreateNewSession(params: Readonly<{
     profileMap: Map<string, AIBackendProfile>;
 
     recentMachinePaths: Array<{ machineId: string; path: string }>;
+    getVerifiedMachinePathTarget?: () => Promise<MachinePathTarget | null>;
 
     agentType: AgentId;
     backendTarget?: BackendTargetRefV1;
@@ -464,19 +466,21 @@ export function useCreateNewSession(params: Readonly<{
                 return;
             }
 
-            const updatedPaths = [
-                { machineId: current.selectedMachineId, path: effectiveSelectedPath },
-                ...current.recentMachinePaths.filter((rp) => (
-                    rp.machineId !== current.selectedMachineId || rp.path !== effectiveSelectedPath
-                )),
-            ].slice(0, 10);
+            const recentTarget = await current.getVerifiedMachinePathTarget?.() ?? null;
             const profilesActive = current.useProfiles;
 
             const settingsUpdate: MutableSettingsDelta = {
-                recentMachinePaths: updatedPaths,
                 lastUsedAgent: current.agentType,
                 lastUsedBackendTarget: current.backendTarget,
             };
+            if (recentTarget?.serverId === resolvedTargetServerId
+                && recentTarget.machineId === current.selectedMachineId) {
+                settingsUpdate.machinePathPreferencesByTargetV1 = recordRecentPathForTarget(
+                    storage.getState().settings.machinePathPreferencesByTargetV1,
+                    recentTarget,
+                    effectiveSelectedPath,
+                );
+            }
             if (profilesActive) {
                 settingsUpdate.lastUsedProfile = current.selectedProfileId;
             }

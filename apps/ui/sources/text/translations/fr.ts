@@ -4743,6 +4743,9 @@ export const fr: TranslationStructure = {
             emptyInThisFolder: 'Aucun résultat dans ce dossier',
             favoriteAdd: 'Ajouter aux favoris',
             favoriteRemove: 'Retirer des favoris',
+            reviewUnassignedFavorites: 'Examiner les favoris non attribués',
+            unassignedFavoritesHint: 'Ces anciens favoris n’ont pas de machine connue. N’attribuez que les chemins de cette machine.',
+            assignToSelectedMachine: 'Attribuer à la machine sélectionnée',
             hints: {
                 navigate: 'naviguer',
                 commit: 'valider le chemin',

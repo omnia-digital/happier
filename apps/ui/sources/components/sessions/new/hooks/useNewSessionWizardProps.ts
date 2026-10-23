@@ -140,6 +140,7 @@ export function useNewSessionWizardProps(params: Readonly<{
     // Machine section
     machines: ReadonlyArray<Machine>;
     targetServerId?: string | null;
+    targetScopeKey?: string | null;
     selectedMachine: Machine | null;
     recentMachines: ReadonlyArray<Machine>;
     favoriteMachineItems: ReadonlyArray<Machine>;
@@ -156,6 +157,8 @@ export function useNewSessionWizardProps(params: Readonly<{
     usePathPickerSearch: boolean;
     favoriteDirectories: ReadonlyArray<string>;
     setFavoriteDirectories: (dirs: string[]) => void;
+    unassignedFavorites?: ReadonlyArray<string>;
+    onAssignUnassignedFavorite?: (path: string) => void;
 
     // Footer section
     promptStore: NewSessionPromptStore;
@@ -309,6 +312,7 @@ export function useNewSessionWizardProps(params: Readonly<{
         return params.wizardInstallableDeps.map(({ entry, depStatus, detectResult }) => ({
             machineId: params.selectedMachineId!,
             serverId: params.targetServerId,
+            targetScopeKey: params.targetScopeKey,
             enabled: true,
             groupTitle: `${tNoParams(entry.groupTitleKey)}${entry.experimental ? ' (experimental)' : ''}`,
             depId: entry.capabilityId,
@@ -448,15 +452,20 @@ export function useNewSessionWizardProps(params: Readonly<{
             usePathPickerSearch: params.usePathPickerSearch,
             favoriteDirectories: params.favoriteDirectories,
             setFavoriteDirectories: params.setFavoriteDirectories,
+            unassignedFavorites: params.unassignedFavorites,
+            onAssignUnassignedFavorite: params.onAssignUnassignedFavorite,
         };
     }, [
         enabled,
         params.favoriteDirectories,
+        params.unassignedFavorites,
+        params.onAssignUnassignedFavorite,
         params.favoriteMachineItems,
         params.favoriteMachines,
         params.getBestPathForMachine,
         params.machines,
         params.targetServerId,
+        params.targetScopeKey,
         params.recentMachines,
         params.recentPaths,
         params.refreshMachineData,

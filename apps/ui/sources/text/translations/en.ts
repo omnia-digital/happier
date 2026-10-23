@@ -4764,6 +4764,9 @@ export const en = {
             emptyInThisFolder: 'No matches in this folder',
             favoriteAdd: 'Add to favorites',
             favoriteRemove: 'Remove from favorites',
+            reviewUnassignedFavorites: 'Review unassigned favorites',
+            unassignedFavoritesHint: 'These older favorites have no known machine. Assign only paths that belong on this machine.',
+            assignToSelectedMachine: 'Assign to selected machine',
             hints: {
                 navigate: 'navigate',
                 commit: 'commit path',

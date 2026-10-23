@@ -142,6 +142,7 @@ export interface NewSessionWizardAgentProps {
 export interface NewSessionWizardMachineProps {
     machines: ReadonlyArray<Machine>;
     serverId?: string | null;
+    targetScopeKey?: string | null;
     selectedMachine: Machine | null;
     recentMachines: ReadonlyArray<Machine>;
     favoriteMachineItems: ReadonlyArray<Machine>;
@@ -158,6 +159,8 @@ export interface NewSessionWizardMachineProps {
     usePathPickerSearch: boolean;
     favoriteDirectories: ReadonlyArray<string>;
     setFavoriteDirectories: (dirs: string[]) => void;
+    unassignedFavorites?: ReadonlyArray<string>;
+    onAssignUnassignedFavorite?: (path: string) => void;
 }
 
 export interface NewSessionWizardFooterProps {
@@ -398,6 +401,8 @@ export const NewSessionWizard = React.memo(function NewSessionWizard(props: NewS
         usePathPickerSearch,
         favoriteDirectories,
         setFavoriteDirectories,
+        unassignedFavorites,
+        onAssignUnassignedFavorite,
     } = props.machine;
     const selectedMachineIsOffline = React.useMemo(() => {
         if (!selectedMachine) return false;
@@ -1004,10 +1009,13 @@ export const NewSessionWizard = React.memo(function NewSessionWizard(props: NewS
                                             <PathSelectionList
                                                 initialValue={selectedPath}
                                                 favorites={favoriteDirectories.map((p) => ({ path: p }))}
+                                                unassignedFavorites={unassignedFavorites}
+                                                onAssignUnassignedFavorite={onAssignUnassignedFavorite}
                                                 recents={recentPaths.map((p, index) => ({ path: p, lastUsedAt: Date.now() - index }))}
                                                 machineHomeDir={selectedMachine?.metadata?.homeDir || '/home'}
                                                 machineId={selectedMachine?.id ?? null}
                                                 serverId={serverId ?? null}
+                                                targetScopeKey={props.machine.targetScopeKey}
                                                 machinePlatform={machineMetadataPlatformToTarget(selectedMachine?.metadata?.platform)}
                                                 onCommit={(nextPath) => {
                                                     setSelectedPath(nextPath);

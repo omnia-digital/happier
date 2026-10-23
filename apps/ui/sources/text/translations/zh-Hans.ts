@@ -4945,6 +4945,9 @@ export const zhHans: TranslationStructure = {
       emptyInThisFolder: "此文件夹内无匹配项",
       favoriteAdd: "添加到收藏",
       favoriteRemove: "从收藏中移除",
+      reviewUnassignedFavorites: '查看未分配的收藏路径',
+      unassignedFavoritesHint: '这些旧收藏路径没有已知的机器。请只分配属于此机器的路径。',
+      assignToSelectedMachine: '分配给所选机器',
       hints: {
         navigate: "导航",
         commit: "确认路径",

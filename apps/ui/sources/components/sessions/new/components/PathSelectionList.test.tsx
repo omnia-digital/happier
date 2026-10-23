@@ -380,6 +380,36 @@ describe('PathSelectionList', () => {
         act(() => screen.tree.unmount());
     });
 
+    it('does not commit a folder returned after the selected machine changes', async () => {
+        let resolveBrowse: (path: string) => void = () => {};
+        openMachinePathBrowserModalMock.mockImplementationOnce(() => new Promise<string>((resolve) => {
+            resolveBrowse = resolve;
+        }));
+        const onCommit = vi.fn();
+        const { PathSelectionList } = await import('./PathSelectionList');
+        const renderPicker = (machineId: string) => <PathSelectionList
+            initialValue=""
+            favorites={[]}
+            recents={[]}
+            machineHomeDir={machineId === 'm-1' ? '/Users/first' : '/Users/second'}
+            machineId={machineId}
+            serverId="srv-1"
+            machinePlatform="unix"
+            onCommit={onCommit}
+            onRequestClose={() => {}}
+        />;
+        const screen = await renderScreen(renderPicker('m-1'));
+        await act(async () => {
+            screen.findByTestId('path-selection-list:open-tree-browser')?.props.onPress();
+            await Promise.resolve();
+        });
+        expect(openMachinePathBrowserModalMock).toHaveBeenCalledTimes(1);
+        await act(async () => { screen.tree.update(renderPicker('m-2')); });
+        await act(async () => { resolveBrowse('/Users/first/repo'); });
+        expect(onCommit).not.toHaveBeenCalled();
+        act(() => screen.tree.unmount());
+    });
+
     it('opens the machine path browser modal inside the current modal portal target', async () => {
         const webPortalTarget = { nodeType: 1 } as Element;
         openMachinePathBrowserModalMock.mockResolvedValueOnce(null);

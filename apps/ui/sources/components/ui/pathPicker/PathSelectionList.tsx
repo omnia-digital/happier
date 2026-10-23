@@ -118,6 +118,9 @@ export type PathSelectionListProps = Readonly<{
     initialSuggestionMode?: PathSelectionInitialSuggestionMode;
     favorites: ReadonlyArray<PathSelectionListFavorite>;
     recents: ReadonlyArray<PathSelectionListRecent>;
+    /** Legacy paths have no host identity and are shown only after explicit review. */
+    unassignedFavorites?: ReadonlyArray<string>;
+    onAssignUnassignedFavorite?: (path: string) => void;
     machineHomeDir: string;
     /**
      * RUX-3: predicate that decides whether a given absolute path is currently
@@ -128,8 +131,8 @@ export type PathSelectionListProps = Readonly<{
     /**
      * RUX-3: callback invoked when the user presses the favorite-toggle
      * accessory on a row. Receives the absolute path. The orchestrator (parent)
-     * is responsible for persisting the change (e.g. via `useSettingMutable
-     * ('favoriteDirectories')`). When omitted (back-compat), the toggle is not
+     * is responsible for persisting the change in the selected target scope.
+     * When omitted (back-compat), the toggle is not
      * rendered.
      */
     onToggleFavorite?: (absolutePath: string) => void;
@@ -142,6 +145,8 @@ export type PathSelectionListProps = Readonly<{
      */
     machineId: string | null;
     serverId?: string | null;
+    /** Exact Home/account/machine identity; invalidates pending browse results after account changes. */
+    targetScopeKey?: string | null;
     /**
      * Target machine platform. MUST be derived from machine metadata, NEVER
      * from `navigator.platform`. Defaults to `'auto'` only when the caller has
@@ -321,6 +326,11 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
     const isFavoriteRef = React.useRef(isFavorite);
     const onToggleFavoriteRef = React.useRef(onToggleFavorite);
     const onChangeDraftPathRef = React.useRef(onChangeDraftPath);
+    const browseIdentity = JSON.stringify([
+        machineId, serverId ?? null, machineHomeDir, machinePlatform, props.targetScopeKey ?? null,
+    ]);
+    const browseIdentityRef = React.useRef(browseIdentity);
+    browseIdentityRef.current = browseIdentity;
     React.useEffect(() => { onCommitRef.current = onCommit; }, [onCommit]);
     React.useEffect(() => { machineHomeDirRef.current = machineHomeDir; }, [machineHomeDir]);
     React.useEffect(() => { serverIdRef.current = serverId; }, [serverId]);
@@ -413,9 +423,11 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
 
     const handleOpenTreeBrowser = React.useCallback(async () => {
         if (machineId === null) return;
+        const capturedIdentity = browseIdentity;
         if (onBeforeBrowseMachinePath) {
             await onBeforeBrowseMachinePath();
         }
+        if (browseIdentityRef.current !== capturedIdentity) return;
         const { openMachinePathBrowserModal } = await import('@/components/ui/pathBrowser/openMachinePathBrowserModal');
         const browseStart = inputValue.trim().length > 0
             ? inputValue
@@ -431,18 +443,19 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
             initialPath,
             webPortalTarget: modalPortalTarget,
         });
-        if (selectedPath !== null && selectedPath !== undefined) {
-            onCommit(selectedPath);
+        if (selectedPath !== null && selectedPath !== undefined
+            && browseIdentityRef.current === capturedIdentity) {
+            onCommitRef.current(selectedPath);
         }
     }, [
         inputValue,
+        browseIdentity,
         initialSuggestionMode,
         initialValue,
         machineHomeDir,
         machineId,
         modalPortalTarget,
         onBeforeBrowseMachinePath,
-        onCommit,
         serverId,
     ]);
 
@@ -586,6 +599,7 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
                     `home:${machineHomeDir ?? ''}`,
                     `platform:${machinePlatform}`,
                     `server:${serverId ?? ''}`,
+                    `target:${props.targetScopeKey ?? ''}`,
                 ].join('::'),
                 // Only show when the input shape suggests a path AND a machine
                 // is bound. NEVER infer the target platform from the local
@@ -623,6 +637,29 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
                 // RUX-9.2: same — recent rows have path subtitles.
                 disableSubtitleRanking: true,
             },
+            ...(props.onAssignUnassignedFavorite && props.unassignedFavorites?.length ? [{
+                kind: 'static' as const,
+                id: 'unassigned-favorites-review',
+                options: [{
+                    id: 'review-unassigned-favorites',
+                    label: t('newSession.pathPicker.reviewUnassignedFavorites'),
+                    subtitle: t('newSession.pathPicker.unassignedFavoritesHint'),
+                    openStep: {
+                        id: 'assign-unassigned-favorites',
+                        title: t('newSession.pathPicker.reviewUnassignedFavorites'),
+                        sections: [{
+                            kind: 'static' as const,
+                            id: 'unassigned-favorites',
+                            options: props.unassignedFavorites.map((path, index) => ({
+                                id: `assign-unassigned:${index}`,
+                                label: path,
+                                subtitle: t('newSession.pathPicker.assignToSelectedMachine'),
+                                onSelect: () => props.onAssignUnassignedFavorite?.(path),
+                            })),
+                        }],
+                    },
+                }],
+            }] : []),
         ];
         return {
             id: 'path-root',
@@ -646,10 +683,13 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
         onCommit,
         visibleFavorites,
         visibleRecents,
+        props.unassignedFavorites,
+        props.onAssignUnassignedFavorite,
         renderFavoriteAccessoryStatic,
         // FR4-9: the dynamic section's resolverKey reads `serverId` from the
         // current render, so make memoization depend on it too.
         serverId,
+        props.targetScopeKey,
     ]);
 
     const inputSuffix = (

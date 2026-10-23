@@ -5390,6 +5390,9 @@ localTailscale: {
       emptyInThisFolder: "このフォルダーに一致するものはありません",
       favoriteAdd: "お気に入りに追加",
       favoriteRemove: "お気に入りから削除",
+      reviewUnassignedFavorites: '未割り当てのお気に入りを確認',
+      unassignedFavoritesHint: '以前のお気に入りにはマシン情報がありません。このマシンのパスだけを割り当ててください。',
+      assignToSelectedMachine: '選択したマシンに割り当てる',
       hints: {
         navigate: "移動",
         commit: "パスを確定",

@@ -25,6 +25,7 @@ function normalizePathParam(raw: unknown): string {
 export function useNewSessionMachinePathState(params: Readonly<{
     machines: ReadonlyArray<Machine>;
     recentMachinePaths: unknown;
+    pathRecentMachinePaths?: ReadonlyArray<{ machineId: string; path: string }>;
     sessions?: ReadonlyArray<Session | string> | null | undefined;
     machineIdParam: unknown;
     pathParam: unknown;
@@ -44,7 +45,7 @@ export function useNewSessionMachinePathState(params: Readonly<{
         return Array.isArray(params.recentMachinePaths) ? (params.recentMachinePaths as any[]).slice() as any : [];
     }, [params.recentMachinePaths]);
     const resolveRecentPathsForMachine = useStableRecentPathsResolver({
-        recentMachinePaths,
+        recentMachinePaths: params.pathRecentMachinePaths ?? recentMachinePaths,
         sessions: params.sessions,
         cacheScopeKey: params.cacheScopeKey,
     });

@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { View, Pressable, Platform } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { Typography } from '@/constants/Typography';
-import { useAllMachines, useSessions, useSetting, useSettingMutable } from '@/sync/domains/state/storage';
+import { useActiveServerAccountScope, useAllMachines, useSessions } from '@/sync/domains/state/storage';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { t } from '@/text';
 import { ItemList } from '@/components/ui/lists/ItemList';
@@ -12,7 +12,7 @@ import { safeRouterBack } from '@/utils/navigation/safeRouterBack';
 import { NewSessionScreenPortalScope } from '@/components/sessions/new/navigation/newSessionContainedModalScreen';
 import { buildNewSessionPickerFallbackHref, setNewSessionPickerReturnParams } from '@/components/sessions/new/navigation/setNewSessionPickerReturnParams';
 import { NewSessionPathSelectionContent } from '@/components/sessions/new/components/NewSessionPathSelectionContent';
-import { toggleHomeAwareDirectoryFavorite } from '@/components/sessions/new/hooks/favoriteDirectoriesToggle';
+import { useMachinePathPreferences } from '@/sync/domains/settings/useMachinePathPreferences';
 import { machineMetadataPlatformToTarget } from '@/utils/path/machinePlatform';
 import { Icon } from '@/components/ui/icons/Icon';
 
@@ -34,9 +34,7 @@ export default React.memo(function PathPickerScreen() {
     const pickerFallbackHref = React.useMemo(() => buildNewSessionPickerFallbackHref(params), [params]);
     const machines = useAllMachines();
     const sessions = useSessions();
-    const recentMachinePaths = useSetting('recentMachinePaths');
-    const [favoriteDirectoriesRaw, setFavoriteDirectoriesRaw] = useSettingMutable('favoriteDirectories');
-    const favoriteDirectories = favoriteDirectoriesRaw ?? [];
+    const activeScope = useActiveServerAccountScope();
 
     const initialPath = typeof params.selectedPath === 'string' && params.selectedPath.length > 0
         ? params.selectedPath
@@ -60,30 +58,27 @@ export default React.memo(function PathPickerScreen() {
     }, [machines, params.machineId]);
 
     const machineHomeDir = machine?.metadata?.homeDir || '/home';
+    const pathPreferences = useMachinePathPreferences({
+        serverId: params.spawnServerId,
+        machineId: machine?.id ?? null,
+        machines,
+        machineHomeDir,
+    });
+    const favoriteDirectories = pathPreferences.favorites;
 
-    // RUX-3 + FR4-7: toggle membership of an absolute path in
-    // `favoriteDirectories`. The settings sync layer owns persistence (sealing
-    // /encrypting the blob, pushing the delta to the server) — we just hand it
-    // the next array via the `useSettingMutable` setter. The home-aware
-    // comparison is delegated to `toggleHomeAwareDirectoryFavorite` so a
-    // stored shorthand entry like `~/src/app` can be removed when the user
-    // clicks its absolute equivalent.
-    const favoriteHomeDir = machine?.metadata?.homeDir ?? null;
     const onToggleFavoriteDirectory = React.useCallback((absolutePath: string) => {
-        const next = toggleHomeAwareDirectoryFavorite(
-            favoriteDirectoriesRaw,
-            absolutePath,
-            favoriteHomeDir,
-        );
-        setFavoriteDirectoriesRaw([...next]);
-    }, [favoriteDirectoriesRaw, favoriteHomeDir, setFavoriteDirectoriesRaw]);
+        void pathPreferences.toggleFavorite(absolutePath);
+    }, [pathPreferences.toggleFavorite]);
 
     // Get recent paths for this machine - prioritize from settings, then fall back to sessions
     const recentPaths = useStableRecentPathsForMachine({
         machineId: params.machineId,
-        recentMachinePaths,
-        sessions,
-        cacheScopeKey: params.spawnServerId,
+        recentMachinePaths: pathPreferences.target
+            ? pathPreferences.recents.map((path) => ({ machineId: pathPreferences.target!.machineId, path }))
+            : [],
+        sessions: pathPreferences.target?.serverId === activeScope?.serverId
+            && pathPreferences.target?.accountId === activeScope?.accountId ? sessions : null,
+        cacheScopeKey: pathPreferences.targetKey,
     });
 
 
@@ -198,9 +193,12 @@ export default React.memo(function PathPickerScreen() {
                 }}
                 recentPaths={recentPaths}
                 favoriteDirectories={favoriteDirectories}
+                unassignedFavorites={pathPreferences.unassignedFavorites}
+                onAssignUnassignedFavorite={(path) => { void pathPreferences.assignLegacyFavorite(path); }}
                 onToggleFavoriteDirectory={onToggleFavoriteDirectory}
                 machineId={machine.id}
                 serverId={typeof params.spawnServerId === 'string' && params.spawnServerId.length > 0 ? params.spawnServerId : null}
+                targetScopeKey={pathPreferences.targetKey}
                 machinePlatform={machineMetadataPlatformToTarget(machine.metadata?.platform)}
             />
         </NewSessionScreenPortalScope>

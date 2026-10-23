@@ -46,6 +46,34 @@ export function recentPathsForTarget(preferences: MachinePathPreferencesByTarget
     return target ? preferences[machinePathTargetKey(target)]?.recentPaths ?? [] : [];
 }
 
+export function recentMachinePathsForScope(
+    preferences: MachinePathPreferencesByTargetV1,
+    scope: Readonly<{ serverId: string; accountId: string }> | null,
+): ReadonlyArray<Readonly<{ machineId: string; path: string }>> {
+    if (!scope) return [];
+    const entries: Array<{ machineId: string; path: string }> = [];
+    for (const [key, value] of Object.entries(preferences)) {
+        let parts: unknown;
+        try { parts = JSON.parse(key); } catch { continue; }
+        if (!Array.isArray(parts) || parts.length !== 3
+            || parts[0] !== scope.serverId || parts[1] !== scope.accountId
+            || typeof parts[2] !== 'string') continue;
+        for (const path of value.recentPaths) entries.push({ machineId: parts[2], path });
+    }
+    return entries;
+}
+
+export function unassignedLegacyFavoritesForTarget(
+    legacyFavorites: ReadonlyArray<string>,
+    preferences: MachinePathPreferencesByTargetV1,
+    target: MachinePathTarget | null,
+    homeDir: string | null | undefined,
+): ReadonlyArray<string> {
+    if (!target) return [];
+    const assigned = new Set(favoritePathsForTarget(preferences, target).map((path) => resolveDirectoryFavoriteComparisonKey(path, homeDir)));
+    return legacyFavorites.filter((path) => !assigned.has(resolveDirectoryFavoriteComparisonKey(path, homeDir)));
+}
+
 export function toggleFavoriteForTarget(preferences: MachinePathPreferencesByTargetV1, target: MachinePathTarget, path: string, homeDir: string | null | undefined): MachinePathPreferencesByTargetV1 {
     const key = machinePathTargetKey(target);
     const existing = preferences[key];
@@ -54,6 +82,17 @@ export function toggleFavoriteForTarget(preferences: MachinePathPreferencesByTar
         [key]: {
             favorites: [...toggleHomeAwareDirectoryFavorite(existing?.favorites, path, homeDir)],
             recentPaths: existing?.recentPaths ?? [],
+        },
+    };
+}
+
+export function replaceFavoritePathsForTarget(preferences: MachinePathPreferencesByTargetV1, target: MachinePathTarget, paths: ReadonlyArray<string>, homeDir: string | null | undefined): MachinePathPreferencesByTargetV1 {
+    const key = machinePathTargetKey(target);
+    return {
+        ...preferences,
+        [key]: {
+            favorites: [...normalizeDirectoryFavoritePaths(paths, homeDir)],
+            recentPaths: preferences[key]?.recentPaths ?? [],
         },
     };
 }
@@ -69,7 +108,7 @@ export function assignLegacyFavoriteToTarget(preferences: MachinePathPreferences
             ...preferences,
             [key]: { favorites: [...favorites], recentPaths: existing?.recentPaths ?? [] },
         },
-        legacyFavorites: legacyFavorites.filter((entry) => entry !== path),
+        legacyFavorites: [...legacyFavorites],
     };
 }
 
