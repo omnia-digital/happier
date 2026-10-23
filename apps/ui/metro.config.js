@@ -209,8 +209,15 @@ const transientGeneratedDirectoriesBlockList = /[\\/](?:\.tmp\.[^\\/]+|dist\.__f
 const cliRunnerSnapshotsBlockList = /[\\/]apps[\\/]cli[\\/]\.runner-snapshots(?:[\\/]|$)/;
 // Avoid scanning duplicate workspace-local `node_modules/**` trees (typically symlink-heavy) when Metro falls back
 // to the native `find` crawler (no Watchman). We still keep the monorepo root `node_modules` and `apps/ui/node_modules`.
-const workspaceNodeModulesBlockList =
-  /[\\/]apps[\\/](?!ui[\\/])[^\\/]+[\\/]node_modules[\\/]|[\\/]packages[\\/][^\\/]+[\\/]node_modules[\\/]/;
+// Anchor to this checkout: an ancestor such as `/Omnia/apps/happier` is not a workspace.
+const workspaceNodeModulesRootPattern = path.resolve(__dirname, "../..")
+  .replace(/\\/g, "/")
+  .split("/")
+  .map((segment) => segment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+  .join("[\\\\/]");
+const workspaceNodeModulesBlockList = new RegExp(
+  `^${workspaceNodeModulesRootPattern}[\\\\/](?:apps[\\\\/](?!ui[\\\\/])[^\\\\/]+[\\\\/]node_modules[\\\\/]|packages[\\\\/][^\\\\/]+[\\\\/]node_modules[\\\\/])`,
+);
 const existingBlockList = config.resolver.blockList;
 config.resolver.blockList = Array.isArray(existingBlockList)
   ? [...existingBlockList, testRouteBlockList, projectArtifactsBlockList, nextBuildArtifactsBlockList, transientGeneratedDirectoriesBlockList, cliRunnerSnapshotsBlockList, workspaceNodeModulesBlockList]
