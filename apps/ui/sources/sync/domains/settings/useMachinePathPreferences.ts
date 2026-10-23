@@ -99,11 +99,17 @@ export function useMachinePathPreferences(params: Readonly<{
     bindingRef.current = capturedBinding;
 
     const revalidate = React.useCallback(async (captured: { binding: TargetBinding; target: MachinePathTarget }): Promise<boolean> => {
-        const current = bindingRef.current;
-        if (!current || machinePathTargetKey(current.target) !== machinePathTargetKey(captured.target)) return false;
-        if (!areServerAccountScopesEqual(current.binding.viewerScope, captured.binding.viewerScope)) return false;
-        if (!areServerAccountScopesEqual(captured.binding.viewerScope, getActiveServerAccountScope())) return false;
-        return captured.binding.context ? isServerScopedSessionContextCurrent(captured.binding.context) : true;
+        const bindingAndSettingsAreCurrent = () => {
+            const current = bindingRef.current;
+            return !!current
+                && machinePathTargetKey(current.target) === machinePathTargetKey(captured.target)
+                && areServerAccountScopesEqual(current.binding.viewerScope, captured.binding.viewerScope)
+                && areServerAccountScopesEqual(captured.binding.viewerScope, getActiveServerAccountScope())
+                && areServerAccountScopesEqual(captured.binding.viewerScope, storage.getState().settingsScope);
+        };
+        if (!bindingAndSettingsAreCurrent()) return false;
+        if (captured.binding.context && !await isServerScopedSessionContextCurrent(captured.binding.context)) return false;
+        return bindingAndSettingsAreCurrent();
     }, []);
     const getVerifiedTarget = React.useCallback(async (): Promise<MachinePathTarget | null> => {
         return capturedBinding && await revalidate(capturedBinding) ? capturedBinding.target : null;

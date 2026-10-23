@@ -147,7 +147,7 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
 
         // Browse the isolated test directory through the actual daemon, then save a
         // favorite through the selected machine's Account settings writer.
-        await activePopover.getByTestId('path-selection-list:header:input').fill(suiteDir);
+        await activePopover.getByTestId('path-selection-list:header:input').fill(`${suiteDir}/`);
         const directoryRow = activePopover.getByTestId(`path-selection-list:path-root:option:in-folder:${favoriteDir}`);
         await expect(directoryRow).toBeVisible({ timeout: 60_000 });
         await activePopover.getByTestId(`path-selection-list:path-root:option:in-folder:${favoriteDir}:favorite-toggle`).click();
