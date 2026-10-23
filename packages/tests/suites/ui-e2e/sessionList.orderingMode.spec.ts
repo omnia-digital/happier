@@ -309,7 +309,7 @@ test.describe('ui e2e: session list ordering mode', () => {
 
   test('keeps the agent logo before the chosen machine icon on pinned and ordinary cards when labels are hidden', async ({ page }) => {
     test.setTimeout(180_000);
-    if (!server || !uiBaseUrl || !token) throw new Error('missing server/ui fixtures');
+    if (!server || !uiBaseUrl || !token || !uiServerUrl) throw new Error('missing server/ui fixtures');
 
     const machineId = `session-card-machine-${run.runId}`;
     const machineLabel = 'OH54 Studio';
@@ -382,10 +382,11 @@ test.describe('ui e2e: session list ordering mode', () => {
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/machine/${machineId}?happier_hmr=0`, 180_000);
     await page.getByTestId('machine-display-icon').click();
     await page.getByTestId('dropdown-option-laptop').click();
+    const iconPreferenceKey = JSON.stringify([await resolveCanonicalServerIdForUi(uiServerUrl), machineId]);
     await expect.poll(async () => {
       const settings = await readUiE2eLocalSettings({ page });
-      return Object.values((settings.machineDisplayIconByMachineV1 ?? {}) as Record<string, unknown>);
-    }).toContain('laptop');
+      return (settings.machineDisplayIconByMachineV1 as Record<string, unknown> | undefined)?.[iconPreferenceKey];
+    }).toBe('laptop');
 
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/settings/session?happier_hmr=0`, 180_000);
     const labelToggle = page.getByTestId('settings-session-machineLabel-toggle');
