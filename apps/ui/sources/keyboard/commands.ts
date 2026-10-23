@@ -66,6 +66,7 @@ export const defaultKeyboardCommands: readonly KeyboardCommand[] = [
     },
     ...([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((number): KeyboardCommand => ({
         id: `session.number.${number}`,
+        settingsTitleKey: `settingsKeyboard.commands.sessionNumber${number}`,
         defaultBinding: { binding: `Mod+${number}`, platforms: ['macos'] },
         when: (context) => !context.isEditableTarget && !context.isOverlayActive,
     })),

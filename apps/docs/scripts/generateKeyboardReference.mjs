@@ -8,14 +8,14 @@
  * not what the registry says on any platform; a generated page cannot repeat
  * that mistake.
  *
- * Commands are parsed from source because `apps/ui` is an Expo app with path
- * aliases and is not importable from a plain Node script. `parseKeyboardCommands`
- * throws if it finds nothing, so a shape change fails here rather than
- * publishing an empty table.
+ * Read the registry's literal entries and literal-array maps without executing UI
+ * code. Unsupported source shapes fail generation rather than omit commands.
+ * TypeScript is used only for its syntax tree, not compilation or transpilation.
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ts from 'typescript';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..', '..');
@@ -35,6 +35,7 @@ const GROUPS = [
     title: 'Moving between sessions',
     commands: {
       'session.new': 'Start a new session',
+      ...Object.fromEntries(Array.from({ length: 9 }, (_, index) => [`session.number.${index + 1}`, `Open session ${index + 1}`])),
       'session.mru.next': 'Next recently used session',
       'session.mru.previous': 'Previous recently used session',
       'session.visible.next': 'Next session in the list',
@@ -44,6 +45,7 @@ const GROUPS = [
   {
     title: 'The session list',
     commands: {
+      'session.hovered.archive': 'Archive the hovered session',
       'sessions.row.moveUp': 'Move the focused session up',
       'sessions.row.moveDown': 'Move the focused session down',
       'sessions.row.moveToFolder': 'Move to a folder',
@@ -91,25 +93,106 @@ const GROUPS = [
   },
 ];
 
+function unsupported(node) {
+  throw new Error(`Unsupported keyboard registry syntax: ${node?.getText() ?? 'missing value'}`);
+}
+
+function unwrap(node) {
+  while (node && (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node))) {
+    node = node.expression;
+  }
+  return node;
+}
+
+function properties(node) {
+  node = unwrap(node);
+  if (!node || !ts.isObjectLiteralExpression(node)) return unsupported(node);
+  const result = new Map();
+  for (const property of node.properties) {
+    if (!ts.isPropertyAssignment(property)
+      || !(ts.isIdentifier(property.name) || ts.isStringLiteral(property.name))
+      || result.has(property.name.text)) return unsupported(property);
+    result.set(property.name.text, property.initializer);
+  }
+  return result;
+}
+
+// Only literal data and interpolation of the literal-array map parameter are
+// supported. Predicates and other command behavior are never evaluated.
+function literal(node, parameter) {
+  node = unwrap(node);
+  if (node && (ts.isStringLiteralLike(node) || ts.isNumericLiteral(node))) return node.text;
+  if (node && ts.isTemplateExpression(node) && parameter) {
+    return node.head.text + node.templateSpans.map((span) => {
+      if (!ts.isIdentifier(span.expression) || span.expression.text !== parameter.name) return unsupported(span.expression);
+      return parameter.value + span.literal.text;
+    }).join('');
+  }
+  return unsupported(node);
+}
+
+function literalArray(node, parameter) {
+  node = unwrap(node);
+  if (!node || !ts.isArrayLiteralExpression(node)) return unsupported(node);
+  return node.elements.map((element) => literal(element, parameter));
+}
+
+function parseBindings(command, parameter) {
+  const multiple = command.get('defaultBindings');
+  const single = command.get('defaultBinding');
+  let rules = [];
+  if (multiple) {
+    const array = unwrap(multiple);
+    if (!ts.isArrayLiteralExpression(array)) return unsupported(array);
+    rules = [...array.elements];
+  }
+  if (!rules.length && single) rules = [single];
+  return rules.map((rule) => {
+    const fields = properties(rule);
+    const platforms = fields.has('platforms') ? literalArray(fields.get('platforms'), parameter) : [];
+    const blocked = fields.has('blockedSurfaces') ? literalArray(fields.get('blockedSurfaces'), parameter) : [];
+    const labels = { macos: 'macOS', ios: 'iOS', windows: 'Windows', linux: 'Linux', android: 'Android', web: 'web', native: 'native' };
+    const label = (value) => labels[value] ?? unsupported(rule);
+    const scope = [
+      platforms.length ? platforms.map(label).join(', ') : null,
+      blocked.length ? `everywhere except ${blocked.map(label).join(', ')}` : null,
+    ].filter(Boolean).join('; ') || null;
+    return { key: literal(fields.get('binding'), parameter), scope };
+  });
+}
+
 export function parseKeyboardCommands(source) {
+  const file = ts.createSourceFile('commands.ts', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  if (file.parseDiagnostics.length) throw new Error('Invalid keyboard registry syntax');
+  const declaration = file.statements.filter(ts.isVariableStatement)
+    .flatMap((statement) => [...statement.declarationList.declarations])
+    .find((entry) => ts.isIdentifier(entry.name) && entry.name.text === 'defaultKeyboardCommands');
+  const array = unwrap(declaration?.initializer);
+  if (!array || !ts.isArrayLiteralExpression(array)) return unsupported(array);
   const commands = new Map();
-  for (const block of source.split(/\n {4}\{\n/)) {
-    const id = /id: '([^']+)'/.exec(block);
-    if (!id) continue;
-    const bindings = [];
-    // `defaultBinding: { binding: 'X' }` or a `defaultBindings: [...]` array
-    // whose members may be scoped by platform.
-    for (const entry of block.split(/\{\s*binding:/).slice(1)) {
-      const key = /^\s*'([^']+)'/.exec(entry);
-      if (!key) continue;
-      const platforms = /platforms:\s*\[([^\]]*)\]/.exec(entry);
-      const blocked = /blockedSurfaces:\s*\[([^\]]*)\]/.exec(entry);
-      let scope = null;
-      if (platforms && platforms[1].includes('web')) scope = 'web';
-      else if (blocked && blocked[1].includes('web')) scope = 'everywhere else';
-      bindings.push({ key: key[1], scope });
+  const add = (node, parameter) => {
+    const command = properties(node);
+    const id = literal(command.get('id'), parameter);
+    if (commands.has(id)) throw new Error(`Duplicate keyboard registry command: ${id}`);
+    commands.set(id, parseBindings(command, parameter));
+  };
+  for (const entry of array.elements) {
+    if (!ts.isSpreadElement(entry)) {
+      add(entry);
+      continue;
     }
-    commands.set(id[1], bindings);
+    // The registry uses [...literalValues].map(value => ({ ...command })).
+    // Deliberately reject other calls/spreads rather than interpreting programs.
+    const call = unwrap(entry.expression);
+    if (!ts.isCallExpression(call) || !ts.isPropertyAccessExpression(call.expression)
+      || call.expression.name.text !== 'map' || call.arguments.length !== 1) return unsupported(entry);
+    const callback = call.arguments[0];
+    if (!ts.isArrowFunction(callback) || callback.parameters.length !== 1
+      || !ts.isIdentifier(callback.parameters[0].name)
+      || callback.parameters[0].initializer || callback.parameters[0].dotDotDotToken) return unsupported(callback);
+    for (const value of literalArray(call.expression.expression)) {
+      add(callback.body, { name: callback.parameters[0].name.text, value });
+    }
   }
   if (commands.size === 0) throw new Error('keyboard commands.ts parsed to zero commands');
   return commands;
@@ -149,7 +232,7 @@ export async function renderKeyboardReferenceMarkdown({
     paletteOn ? null : 'the command palette',
   ].filter(Boolean);
   const gateNotice = off.length
-    ? `${off.length === 2 ? 'Both' : 'This'} ${off.length === 2 ? 'features are' : 'feature is'} **off by default**: turn on ${off.join(' and ')} under **Settings → Keyboard shortcuts** before any binding below does anything.`
+    ? `${off.length === 2 ? 'Both' : 'This'} ${off.length === 2 ? 'features are' : 'feature is'} **off by default**: turn on ${off.join(' and ')} under **Settings → Keyboard shortcuts** to use those features.`
     : 'Shortcuts are on by default.';
 
   const covered = new Set(GROUPS.flatMap((g) => Object.keys(g.commands)));
@@ -166,9 +249,15 @@ title: Keyboard shortcuts
 description: Every rebindable shortcut and the command palette, with the defaults for web and native.
 ---
 
-Happier has ${commands.size} keyboard commands. Every one can be rebound, and the defaults
+Find the default bindings for ${commands.size} keyboard commands below. Defaults
 differ between the web client and the native apps where the platform already
 claims a key.
+
+<Callout>
+  This reference follows the current development source. Numbered session navigation
+  and hovered-session Archive are development additions with macOS defaults;
+  their availability in a stable release has not been verified.
+</Callout>
 
 <Callout type="warn">
   ${gateNotice}
@@ -196,10 +285,10 @@ relying on you leaving the field first.
 
 ## Changing them
 
-**Settings → Keyboard shortcuts** lists every command with its current binding
-and lets you set your own. Conflicts are detected as you assign them, and your
-choices are stored per device rather than synced, so a laptop and a desktop can
-differ.
+**Settings → Keyboard shortcuts** lists the configurable commands with their current
+bindings and lets you disable, rebind, or reset them. Numbered session shortcuts
+appear individually as Open session 1 through Open session 9. Conflicts are detected
+as you assign them, and your choices are saved to your account settings.
 
 ## Related
 
