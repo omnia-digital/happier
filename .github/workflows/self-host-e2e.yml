@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   self_host:
-    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    if: ${{ (github.event_name == 'schedule' && github.repository == 'happier-dev/happier') || github.event_name == 'workflow_dispatch' }}
     permissions:
       contents: read
       pull-requests: read

@@ -33,6 +33,7 @@ concurrency:
 jobs:
   resolve_resume:
     name: Resolve resumable nightly candidates
+    if: ${{ github.event_name != 'schedule' || github.repository == 'happier-dev/happier' }}
     uses: ./.github/workflows/resolve-release-resume.yml
     with:
       origin_run_id: ${{ inputs.resume_run_id }}
@@ -634,7 +635,7 @@ jobs:
 
   release_status:
     name: Project terminal nightly release status
-    if: ${{ always() }}
+    if: ${{ always() && (github.event_name != 'schedule' || github.repository == 'happier-dev/happier') }}
     needs: [prepare_release_candidate, nightly_waiting_for_ci, nightly_noop, cli, hstack, server_runtime, ui_web, release_verify, verify_resume_candidates, promote_server, promote_hstack, promote_cli, promote_ui_web, ui_mobile, ui_desktop, docker, verify_promoted, advance_source_issues_to_dev]
     runs-on: ubuntu-latest
     timeout-minutes: 15
