@@ -104,9 +104,11 @@ export function SessionListViewMenuButton(props: Readonly<{
             testID: 'session-folder-sort-mode-folders-first',
             category: t('sessionsList.folderSortMode'),
             title: t('sessionsList.folderSortFoldersFirst'),
-            subtitle: t('sessionsList.folderSortFoldersFirstDescription'),
+            subtitle: folderSortLockedByOrdering
+                ? t('sessionsList.folderSortDisabledInDateMode')
+                : t('sessionsList.folderSortFoldersFirstDescription'),
             icon: <Icon name="folder" size={ICON_SIZE.sm} color={iconColor} />,
-            disabled: props.disabled,
+            disabled: props.disabled || folderSortLockedByOrdering,
             rightElement: effectiveFolderSortMode === 'foldersFirst'
                 ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} />
                 : null,
@@ -117,8 +119,10 @@ export function SessionListViewMenuButton(props: Readonly<{
             category: t('sessionsList.folderSortMode'),
             title: t('sessionsList.folderSortMixed'),
             subtitle: folderSortLockedByOrdering
-                ? t('sessionsList.folderSortMixedDisabledInDateMode')
-                : t('sessionsList.folderSortMixedDescription'),
+                ? t('sessionsList.folderSortDisabledInDateMode')
+                : props.machineViewMode === 'machine'
+                    ? t('sessionsList.folderSortMixedDescriptionMachineView')
+                    : t('sessionsList.folderSortMixedDescription'),
             icon: <Icon name="arrows-down-up" size={ICON_SIZE.sm} color={iconColor} />,
             disabled: props.disabled || folderSortLockedByOrdering,
             rightElement: effectiveFolderSortMode === 'mixed'

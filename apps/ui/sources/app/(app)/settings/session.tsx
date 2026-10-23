@@ -348,13 +348,16 @@ export default React.memo(function SessionSettingsScreen() {
         {
             id: 'foldersFirst',
             title: t('settingsSession.sessionList.folderSortModeFoldersFirstTitle'),
-            subtitle: t('settingsSession.sessionList.folderSortModeFoldersFirstSubtitle'),
+            subtitle: sessionListFolderSortLockedByOrdering
+                ? t('sessionsList.folderSortDisabledInDateMode')
+                : t('settingsSession.sessionList.folderSortModeFoldersFirstSubtitle'),
+            disabled: sessionListFolderSortLockedByOrdering,
         },
         {
             id: 'mixed',
             title: t('settingsSession.sessionList.folderSortModeMixedTitle'),
             subtitle: sessionListFolderSortLockedByOrdering
-                ? t('sessionsList.folderSortMixedDisabledInDateMode')
+                ? t('sessionsList.folderSortDisabledInDateMode')
                 : t('settingsSession.sessionList.folderSortModeMixedSubtitle'),
             disabled: sessionListFolderSortLockedByOrdering,
         },

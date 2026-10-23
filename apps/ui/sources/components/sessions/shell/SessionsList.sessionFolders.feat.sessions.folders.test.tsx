@@ -49,6 +49,7 @@ let foldersFeatureEnabled = true;
 let sessionFolderViewModeV1: 'off' | 'tree' = 'tree';
 let sessionListFolderSortModeV1: 'foldersFirst' | 'mixed' = 'foldersFirst';
 let sessionListOrderingModeV1: 'custom' | 'created' | 'updated' = 'custom';
+let sessionListMachineViewV1: 'original' | 'machine' = 'original';
 let sessionFoldersV1: any = { v: 1, folders: [] };
 let sessionListFocusedFolderV1: any = null;
 let collapsedGroupKeysV1: Record<string, boolean> = {};
@@ -131,6 +132,9 @@ installSessionShellCommonModuleMocks({
             }
             if (key === 'sessionListFolderSortModeV1') {
                 return [sessionListFolderSortModeV1, setSessionListFolderSortModeV1];
+            }
+            if (key === 'sessionListMachineViewV1') {
+                return [sessionListMachineViewV1, vi.fn()];
             }
             if (key === 'collapsedGroupKeysV1') {
                 return [collapsedGroupKeysV1, setCollapsedGroupKeysV1];
@@ -406,6 +410,7 @@ describe('SessionsList session folders shell', () => {
         sessionFolderViewModeV1 = 'tree';
         sessionListFolderSortModeV1 = 'foldersFirst';
         sessionListOrderingModeV1 = 'custom';
+        sessionListMachineViewV1 = 'original';
         sessionFoldersV1 = {
             v: 1,
             folders: [{
@@ -706,12 +711,39 @@ describe('SessionsList session folders shell', () => {
 
         expect(mixedItem?.disabled).toBe(true);
         expect(mixedItem?.rightElement).toBeNull();
-        expect(mixedItem?.subtitle).toBe('sessionsList.folderSortMixedDisabledInDateMode');
-        expect(foldersFirstItem?.disabled).toBe(false);
+        expect(mixedItem?.subtitle).toBe('sessionsList.folderSortDisabledInDateMode');
+        expect(foldersFirstItem?.disabled).toBe(true);
+        expect(foldersFirstItem?.subtitle).toBe('sessionsList.folderSortDisabledInDateMode');
         expect(foldersFirstItem?.rightElement).toBeTruthy();
 
         dropdown?.props.onSelect('session-folder-sort-mode:mixed');
+        dropdown?.props.onSelect('session-folder-sort-mode:foldersFirst');
         expect(setSessionListFolderSortModeV1).not.toHaveBeenCalled();
+
+        sessionListOrderingModeV1 = 'custom';
+        await screen.unmount();
+        const reopenedScreen = await renderSessionsList();
+        const customDropdown = reopenedScreen.findAllByType('DropdownMenu' as React.ElementType)
+            .find((node) => node.props?.items?.some((item: any) => item.id === 'session-folder-sort-mode:mixed'));
+        const restoredMixed = customDropdown?.props.items.find((item: any) => item.id === 'session-folder-sort-mode:mixed');
+        const restoredFoldersFirst = customDropdown?.props.items.find((item: any) => item.id === 'session-folder-sort-mode:foldersFirst');
+        expect(restoredMixed?.disabled).toBe(false);
+        expect(restoredMixed?.rightElement).toBeTruthy();
+        expect(restoredFoldersFirst?.rightElement).toBeNull();
+    });
+
+    it('explains that mixed folder order is changed in Original layout when grouped by machine', async () => {
+        sessionListMachineViewV1 = 'machine';
+        sessionListFolderSortModeV1 = 'mixed';
+
+        const screen = await renderSessionsList();
+        const dropdown = screen.findAllByType('DropdownMenu' as React.ElementType)
+            .find((node) => node.props?.items?.some((item: any) => item.id === 'session-folder-sort-mode:mixed'));
+        const mixedItem = dropdown?.props.items.find((item: any) => item.id === 'session-folder-sort-mode:mixed');
+
+        expect(mixedItem?.disabled).toBe(false);
+        expect(mixedItem?.subtitle).toBe('sessionsList.folderSortMixedDescriptionMachineView');
+        expect(mixedItem?.rightElement).toBeTruthy();
     });
 
     it('passes folder indentation and resolves nested destinations on demand', async () => {
