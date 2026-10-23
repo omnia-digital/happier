@@ -159,6 +159,21 @@ runner a Cassian-specific label and its own `_work` directory under the installe
 runner. Register with `/opt/homebrew/bin` on PATH, then install/start its own
 service and verify that GitHub reports it online before dispatch.
 
+Verify the selected-workflow restriction is available and enforced for the
+organization before starting the service. Current credentials cannot administer
+or verify that policy. Do not fall back to a repository-only/default group: a
+separate PR workflow could request the same labels without passing this build
+workflow's guard. If workflow restriction is unavailable, resolve an isolated
+execution boundary before registration. GitHub documents the workflow allowlist
+and reusable-job behavior in its
+[runner-group access guide](https://docs.github.com/en/enterprise-cloud%40latest/actions/how-tos/manage-runners/self-hosted-runners/manage-access).
+
+The selected `dev` source is trusted code and executes with the runner service
+account's filesystem permissions; a dedicated working directory does not isolate
+that account from the other CI services. The first live run must also verify the
+canonical actor guard: scheduled workflows can have a human actor, who must pass
+the existing repository-admin check when no release team credentials are passed.
+
 The branch now wires native builds through the existing
 `.github/workflows/build-tauri.yml` candidate owner. Only its unsigned Apple
 Silicon candidate selects the `self-hosted`, `macOS`, `ARM64`,
