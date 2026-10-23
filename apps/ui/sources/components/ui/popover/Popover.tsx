@@ -1470,6 +1470,7 @@ export function Popover(props: PopoverWithBackdrop | PopoverWithoutBackdrop) {
                                 visible={motionVisible}
                                 kind="popover"
                                 direction={popoverMotionDirection}
+                                pointerEvents={contentPointerEvents === 'none' ? 'none' : undefined}
                             >
                                 {children(computed)}
                             </OverlayMotionFrame>
@@ -1480,6 +1481,7 @@ export function Popover(props: PopoverWithBackdrop | PopoverWithoutBackdrop) {
                         visible={motionVisible}
                         kind="popover"
                         direction={popoverMotionDirection}
+                        pointerEvents={contentPointerEvents === 'none' ? 'none' : undefined}
                     >
                         {children(computed)}
                     </OverlayMotionFrame>
