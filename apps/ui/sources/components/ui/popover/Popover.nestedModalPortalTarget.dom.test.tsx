@@ -104,4 +104,28 @@ describe('Popover nested modal portal target', () => {
             container.remove();
         }
     });
+
+    it('keeps ordinary popover content pointer-enabled', async () => {
+        const { Popover } = await import('./Popover');
+        const anchor = document.createElement('button');
+        const container = document.createElement('div');
+        document.body.append(anchor, container);
+        const root = createRoot(container);
+        try {
+            await act(async () => {
+                root.render(
+                    <Popover open anchorRef={{ current: anchor }} backdrop={false}>
+                        {() => <button data-testid="interactive-action">Choose</button>}
+                    </Popover>,
+                );
+            });
+            const action = container.querySelector('[data-testid="interactive-action"]');
+            expect(action).not.toBeNull();
+            expect(action?.closest('[data-pointer-events]')?.getAttribute('data-pointer-events')).toBe('auto');
+        } finally {
+            await act(async () => root.unmount());
+            anchor.remove();
+            container.remove();
+        }
+    });
 });

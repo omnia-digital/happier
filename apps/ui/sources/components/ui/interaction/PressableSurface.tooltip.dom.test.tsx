@@ -88,6 +88,9 @@ describe('PressableSurface web tooltip', () => {
                 const tooltip = document.querySelector('[role="tooltip"]');
                 expect(tooltip?.textContent).toBe('Next file');
                 expect(container.contains(tooltip)).toBe(false);
+                const positionedPopover = tooltip?.closest<HTMLElement>('[data-testid^="popover-"]');
+                expect(positionedPopover).not.toBeNull();
+                expect(window.getComputedStyle(positionedPopover!).pointerEvents).toBe('none');
                 for (let node = tooltip; node instanceof HTMLElement; node = node.parentElement) {
                     const style = window.getComputedStyle(node);
                     expect(style.opacity, `${node.outerHTML.slice(0, 220)} PARENT ${node.parentElement?.outerHTML.slice(0, 450)}`).not.toBe('0');
@@ -105,6 +108,10 @@ describe('PressableSurface web tooltip', () => {
             });
             await vi.waitFor(() => expect(document.querySelector('[role="tooltip"]')?.textContent).toBe('Next file'));
             expect(document.activeElement).toBe(trigger);
+            const focusedTooltip = document.querySelector('[role="tooltip"]');
+            const focusedPopover = focusedTooltip?.closest<HTMLElement>('[data-testid^="popover-"]');
+            expect(focusedPopover).not.toBeNull();
+            expect(window.getComputedStyle(focusedPopover!).pointerEvents).toBe('none');
             await act(async () => { trigger.blur(); });
             await vi.waitFor(() => expect(document.querySelector('[role="tooltip"]')).toBeNull());
         } finally {

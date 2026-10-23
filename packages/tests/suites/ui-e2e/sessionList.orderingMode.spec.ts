@@ -512,7 +512,6 @@ test.describe('ui e2e: session list ordering mode', () => {
     await expect(clickedRow).toHaveCount(1, { timeout: 120_000 });
     await selectedRow.click();
     await page.waitForURL((url) => url.pathname.endsWith(`/session/${selectedSessionId}`));
-    await page.mouse.move(1000, 500);
 
     async function expectBlankDraftAndCancel(): Promise<void> {
       await page.waitForURL((url) => url.pathname.endsWith('/new'), { timeout: 60_000 });
@@ -525,13 +524,12 @@ test.describe('ui e2e: session list ordering mode', () => {
       await page.waitForURL((url) => !url.pathname.endsWith('/new'), { timeout: 60_000 });
       await expect(clickedRow).toHaveCount(1, { timeout: 60_000 });
       expect(mutatingSessionRequests).toEqual([]);
-      await page.mouse.click(1000, 500);
-      await expect(page.getByTestId('session-item-same-setup-action-tooltip')).toHaveCount(0);
     }
 
     await clickedRow.hover();
     await clickedRow.getByTestId('session-item-same-setup-action').click();
     await expectBlankDraftAndCancel();
+    await expect(page.getByTestId('session-item-same-setup-action-tooltip')).toBeVisible();
 
     await clickedRow.click({ button: 'right' });
     await page.getByTestId('dropdown-option-session_sameSetup').click();
