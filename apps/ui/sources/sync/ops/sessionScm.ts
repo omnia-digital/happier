@@ -1,3 +1,4 @@
+import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import type {
     ScmBranchCheckoutRequest,
     ScmBranchCheckoutResponse,
@@ -71,7 +72,7 @@ import { RPC_ERROR_MESSAGES, RPC_METHODS } from '@happier-dev/protocol/rpc';
 import { assertScmResponse, runMachineScmRpc, scmFallbackError, withScmBackendPreference } from './scm/machineScm';
 import { canUseSessionRpc, readMachineControlTargetForSession, resolveMachinePathFromSessionBase, shouldFallbackToSessionRpc } from './sessionMachineTarget';
 import { resolvePreferredServerIdForSessionId } from '@/sync/runtime/orchestration/serverScopedRpc/resolvePreferredServerIdForSessionId';
-import { sessionRpcWithServerScope } from '@/sync/runtime/orchestration/serverScopedRpc/serverScopedSessionRpc';
+import { sessionRpcWithServerAccountScope, sessionRpcWithServerScope } from '@/sync/runtime/orchestration/serverScopedRpc/serverScopedSessionRpc';
 
 async function callScmPreferMachine<
     T extends { success: boolean; error?: string; errorCode?: string },
@@ -80,8 +81,9 @@ async function callScmPreferMachine<
     sessionId: string,
     method: string,
     request: R,
+    scope?: ServerAccountScope,
 ): Promise<T> {
-    const machineTarget = readMachineControlTargetForSession(sessionId);
+    const machineTarget = readMachineControlTargetForSession(sessionId, scope);
 
     if (machineTarget) {
         const cwd = resolveMachinePathFromSessionBase({
@@ -94,6 +96,7 @@ async function callScmPreferMachine<
                 machineTarget.machineId,
                 method,
                 { ...request, cwd } as R,
+                scope,
             );
         } catch (error) {
             if (!shouldFallbackToSessionRpc(sessionId, error)) {
@@ -111,12 +114,14 @@ async function callScmPreferMachine<
     }
 
     try {
-        const response = await sessionRpcWithServerScope<T, R>({
-            sessionId,
-            serverId: resolvePreferredServerIdForSessionId(sessionId),
-            method,
-            payload: withScmBackendPreference(request),
-        });
+        const response = scope
+            ? await sessionRpcWithServerAccountScope<T, R>({ sessionId, scope, method, payload: withScmBackendPreference(request) })
+            : await sessionRpcWithServerScope<T, R>({
+                sessionId,
+                serverId: resolvePreferredServerIdForSessionId(sessionId),
+                method,
+                payload: withScmBackendPreference(request),
+            });
         return assertScmResponse<T>(response);
     } catch (error) {
         return scmFallbackError<T>(error);
@@ -125,12 +130,14 @@ async function callScmPreferMachine<
 
 export async function sessionScmStatusSnapshot(
     sessionId: string,
-    request: ScmStatusSnapshotRequest
+    request: ScmStatusSnapshotRequest,
+    scope?: ServerAccountScope,
 ): Promise<ScmStatusSnapshotResponse> {
     return await callScmPreferMachine<ScmStatusSnapshotResponse, ScmStatusSnapshotRequest>(
         sessionId,
         RPC_METHODS.SCM_STATUS_SNAPSHOT,
-        request
+        request,
+        scope,
     );
 }
 

@@ -1,3 +1,4 @@
+import { areServerAccountScopesEqual, type ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import { isSameMachineLocality, resolveSessionWorkspaceRootForMachine } from '@happier-dev/protocol';
 import {
   isRpcMethodNotAvailableError,
@@ -295,16 +296,27 @@ export function resolveMachineControlTargetForSessionFromState(
   };
 }
 
+/** Active project and machine records may only influence targets in their owning account. */
+export function readSessionMachineTargetState(scope?: ServerAccountScope): SessionMachineTargetState {
+  const state = storage.getState();
+  if (!scope || areServerAccountScopesEqual(state.profileScope, scope)) return state;
+  // Sessions can be hydrated from another Home. Their own metadata remains authoritative;
+  // the active Home's machine replacements and project paths do not belong to that session.
+  return { sessions: state.sessions };
+}
+
 export function readMachineTargetForSession(
   sessionId: string,
+  scope?: ServerAccountScope,
 ): SessionMachineTarget | null {
-  return resolveMachineTargetForSessionFromState(storage.getState() as SessionMachineTargetState, sessionId);
+  return resolveMachineTargetForSessionFromState(readSessionMachineTargetState(scope), sessionId);
 }
 
 export function readMachineControlTargetForSession(
   sessionId: string,
+  scope?: ServerAccountScope,
 ): SessionMachineControlTarget | null {
-  return resolveMachineControlTargetForSessionFromState(storage.getState() as SessionMachineTargetState, sessionId);
+  return resolveMachineControlTargetForSessionFromState(readSessionMachineTargetState(scope), sessionId);
 }
 
 export function resolveDisplayMachineTargetForSessionFromState(input: Readonly<{

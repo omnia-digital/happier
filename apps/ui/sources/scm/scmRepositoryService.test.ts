@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ScmWorkingSnapshot as ProtocolScmWorkingSnapshot } from '@happier-dev/protocol';
 import { SCM_OPERATION_ERROR_CODES } from '@happier-dev/protocol';
@@ -17,6 +17,9 @@ vi.mock('@/sync/ops/scm/machineScm', () => ({
     machineScmStatusSnapshot: vi.fn(),
     machineScmWorktreesEnrichment: vi.fn(),
 }));
+
+const testScope = { serverId: 'server-a', accountId: 'account-a' };
+beforeEach(() => { storage.setState({ profileScope: testScope }); });
 
 afterEach(() => {
     vi.restoreAllMocks();
@@ -248,6 +251,7 @@ describe('ScmRepositoryService.fetchSnapshotForSession', () => {
 
     it('returns null when session metadata path is unavailable', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             sessions: {
                 session_1: {
                     id: 'session_1',
@@ -263,6 +267,7 @@ describe('ScmRepositoryService.fetchSnapshotForSession', () => {
 
     it('uses project key path when session metadata path is unavailable', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             sessions: {
                 session_1: {
                     id: 'session_1',
@@ -301,12 +306,13 @@ describe('ScmRepositoryService.fetchSnapshotForSession', () => {
 
         expect(result).not.toBeNull();
         expect(result?.projectKey).toBe('machine-a:/repo-from-project');
-        expect(sessionScmStatusSnapshot).toHaveBeenCalledWith('session_1', {});
+        expect(sessionScmStatusSnapshot).toHaveBeenCalledWith('session_1', {}, testScope);
     });
 
     it('throws when rpc snapshot fetch fails', async () => {
         vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000);
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             sessions: {
                 session_1: {
                     id: 'session_1',
@@ -342,6 +348,7 @@ describe('ScmRepositoryService.fetchSnapshotForSession', () => {
 
     it('throws a descriptive error when rpc snapshot payload is null', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             sessions: {
                 session_1: {
                     id: 'session_1',
@@ -363,6 +370,7 @@ describe('ScmRepositoryService.fetchSnapshotForSession', () => {
     it('throws when rpc invocation throws unexpectedly', async () => {
         vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_001);
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             sessions: {
                 session_1: {
                     id: 'session_1',
@@ -382,6 +390,7 @@ describe('ScmRepositoryService.fetchSnapshotForSession', () => {
     it('returns a safe empty snapshot when rpc success response omits snapshot payload', async () => {
         vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_002);
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             sessions: {
                 session_1: {
                     id: 'session_1',
@@ -411,6 +420,7 @@ describe('ScmRepositoryService.fetchSnapshotForSession', () => {
 
     it('uses a deterministic fallback project key when rpc snapshot key is empty', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             sessions: {
                 session_1: {
                     id: 'session_1',
@@ -438,6 +448,7 @@ describe('ScmRepositoryService.fetchSnapshotForSession', () => {
 
     it('normalizes scm snapshots into the ui working snapshot shape', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             sessions: {
                 session_1: {
                     id: 'session_1',
@@ -483,6 +494,7 @@ describe('ScmRepositoryService.fetchSnapshotForSession', () => {
 
     it('preserves protocol repo metadata in the ui snapshot shape', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             sessions: {
                 session_1: {
                     id: 'session_1',
@@ -534,6 +546,7 @@ describe('ScmRepositoryService.fetchSnapshotForSession', () => {
 
     it('does not pass tilde session paths to scm rpc (relies on session working directory)', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -563,11 +576,12 @@ describe('ScmRepositoryService.fetchSnapshotForSession', () => {
         const service = new ScmRepositoryService();
         await service.fetchSnapshotForSession('session_1');
 
-        expect(sessionScmStatusSnapshot).toHaveBeenCalledWith('session_1', {});
+        expect(sessionScmStatusSnapshot).toHaveBeenCalledWith('session_1', {}, testScope);
     });
 
     it('hydrates the shared machine/path cache when a session snapshot resolves a repo identity', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -611,6 +625,7 @@ describe('ScmRepositoryService.fetchSnapshotForSession', () => {
 
     it('stores session snapshots under the canonical repo root identity key when the session path is a subdirectory', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -660,6 +675,7 @@ describe('ScmRepositoryService.fetchSnapshotForSession', () => {
 
     it('defaults missing capabilities to fully disabled regardless of backend id', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             sessions: {
                 session_1: {
                     id: 'session_1',
@@ -690,6 +706,7 @@ describe('ScmRepositoryService.fetchSnapshotForSession', () => {
 describe('ScmRepositoryService.fetchSnapshotForMachinePath', () => {
     it('fetches and normalizes a repo snapshot through machine/path SCM without requiring a session', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -724,7 +741,7 @@ describe('ScmRepositoryService.fetchSnapshotForMachinePath', () => {
 
         expect(machineScmStatusSnapshot).toHaveBeenCalledWith('machine-a', {
             cwd: '/Users/tester/repo',
-        });
+        }, testScope);
         expect(result).not.toBeNull();
         expect(result?.projectKey).toBe('machine-a:/Users/tester/repo');
         expect(result?.repo.rootPath).toBe('/Users/tester/repo');
@@ -736,6 +753,7 @@ describe('ScmRepositoryService.fetchSnapshotForMachinePath', () => {
 
     it('normalizes projectKey to the repo root when the request path is a subdirectory and the backend omits projectKey', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -767,13 +785,14 @@ describe('ScmRepositoryService.fetchSnapshotForMachinePath', () => {
 
         expect(machineScmStatusSnapshot).toHaveBeenCalledWith('machine-a', {
             cwd: '/Users/tester/repo/subdir',
-        });
+        }, testScope);
         expect(result?.projectKey).toBe('machine-a:/Users/tester/repo');
         expect(result?.repo.rootPath).toBe('/Users/tester/repo');
     });
 
     it('normalizes repo root paths before building the canonical projectKey', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -808,6 +827,7 @@ describe('ScmRepositoryService.fetchSnapshotForMachinePath', () => {
 
     it('deduplicates concurrent machine/path snapshot requests for the same repo identity', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -858,6 +878,7 @@ describe('ScmRepositoryService.fetchSnapshotForMachinePath', () => {
 
     it('deduplicates concurrent machine/path snapshot requests before subdirectory aliases are known', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -910,6 +931,7 @@ describe('ScmRepositoryService.fetchSnapshotForMachinePath', () => {
 
     it('waits for an in-flight sibling path snapshot before issuing another first snapshot', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -962,6 +984,7 @@ describe('ScmRepositoryService.fetchSnapshotForMachinePath', () => {
 
     it('does not wait for sibling repository paths that only share a Windows home directory', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -990,6 +1013,7 @@ describe('ScmRepositoryService.fetchSnapshotForMachinePath', () => {
 
     it('deduplicates concurrent session and machine/path snapshot requests for the same repo identity', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -1019,12 +1043,13 @@ describe('ScmRepositoryService.fetchSnapshotForMachinePath', () => {
 
         const service = new ScmRepositoryService();
         const firstPromise = service.fetchSnapshotForSession('session_1');
+        await vi.waitFor(() => expect(sessionScmStatusSnapshot).toHaveBeenCalledTimes(1));
         const secondPromise = service.fetchSnapshotForMachinePath({
             machineId: 'machine-a',
             path: '~/repo',
         });
 
-        expect(sessionScmStatusSnapshot).toHaveBeenCalledTimes(1);
+        await vi.waitFor(() => expect(sessionScmStatusSnapshot).toHaveBeenCalledTimes(1));
         expect(machineScmStatusSnapshot).not.toHaveBeenCalled();
 
         deferredSnapshot.resolve({
@@ -1054,6 +1079,7 @@ describe('ScmRepositoryService.fetchSnapshotForMachinePath', () => {
 
     it('caches the last normalized machine/path snapshot by repo identity', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -1090,6 +1116,7 @@ describe('ScmRepositoryService.fetchSnapshotForMachinePath', () => {
 
     it('returns a cached repo snapshot when reading from a subdirectory path within the same repo', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -1127,6 +1154,7 @@ describe('ScmRepositoryService.fetchSnapshotForMachinePath', () => {
 
     it('stores machine/path snapshots under the canonical repo root identity key when the request is a subdirectory', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -1165,6 +1193,7 @@ describe('ScmRepositoryService.fetchSnapshotForMachinePath', () => {
 
     it('does not rely on aliased cache entries surviving forever (alias eviction falls back to prefix-scan)', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -1211,6 +1240,7 @@ describe('ScmRepositoryService.fetchSnapshotForMachinePath', () => {
 
     it('forwards includeWorktreeStatus=true to the underlying machine SCM RPC', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -1243,11 +1273,12 @@ describe('ScmRepositoryService.fetchSnapshotForMachinePath', () => {
         expect(machineScmStatusSnapshot).toHaveBeenCalledWith('machine-a', {
             cwd: '/Users/tester/repo',
             includeWorktreeStatus: true,
-        });
+        }, testScope);
     });
 
     it('isolates the cache so enriched and lightweight snapshots for the same repo do not collide', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -1318,6 +1349,7 @@ describe('ScmRepositoryService.fetchSnapshotForMachinePath', () => {
 
     it('returns the enriched cached snapshot for a subdirectory path (no double suffix collision)', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -1388,6 +1420,7 @@ describe('ScmRepositoryService.fetchWorktreesEnrichment', () => {
 
     it('calls the worktrees enrichment RPC with the resolved cwd + paths and returns merged entries', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -1413,7 +1446,7 @@ describe('ScmRepositoryService.fetchWorktreesEnrichment', () => {
         expect(machineScmWorktreesEnrichment).toHaveBeenCalledWith('machine-a', {
             cwd: '/Users/tester/repo',
             worktreePaths: ['/Users/tester/repo', '/Users/tester/repo-feature'],
-        });
+        }, testScope);
         expect(result).toEqual([
             { path: '/Users/tester/repo', changeCount: 4, lastActivityAt: 1_700_000_000_000 },
             { path: '/Users/tester/repo-feature', changeCount: 0, lastActivityAt: 1_699_000_000_000 },
@@ -1422,6 +1455,7 @@ describe('ScmRepositoryService.fetchWorktreesEnrichment', () => {
 
     it('caches the last enrichment under a status-aware namespace so subsequent reads do not hit the network', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -1452,6 +1486,7 @@ describe('ScmRepositoryService.fetchWorktreesEnrichment', () => {
 
     it('reads cached enrichment through the canonical repo identity for child paths', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -1498,6 +1533,7 @@ describe('ScmRepositoryService.fetchWorktreesEnrichment', () => {
 
     it('deduplicates concurrent enrichment requests for the same repo identity', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -1540,6 +1576,7 @@ describe('ScmRepositoryService.fetchWorktreesEnrichment', () => {
 
     it('splits enrichment RPC calls at the protocol request cap', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -1572,6 +1609,7 @@ describe('ScmRepositoryService.fetchWorktreesEnrichment', () => {
 
     it('returns null when the enrichment RPC fails (back-compat: do not throw, let UI keep light snapshot)', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -1598,6 +1636,7 @@ describe('ScmRepositoryService.fetchWorktreesEnrichment', () => {
 
     it('F6: concurrent enrichment requests for different path subsets each fetch and BOTH cache their entries', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -1668,6 +1707,7 @@ describe('ScmRepositoryService.fetchWorktreesEnrichment', () => {
 
     it('F6: sequential requests for [a,b] then [c] merge entries — all three paths remain cached', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -1718,6 +1758,7 @@ describe('ScmRepositoryService.fetchWorktreesEnrichment', () => {
 
     it('F6: identical concurrent requests for the same path set are still deduped (one RPC, one promise)', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -1762,6 +1803,7 @@ describe('ScmRepositoryService.fetchWorktreesEnrichment', () => {
 
     it('does not invalidate the lightweight snapshot cache when enrichment runs (separate cache slots)', async () => {
         vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
             machines: {
                 'machine-a': {
                     id: 'machine-a',
@@ -1948,7 +1990,7 @@ describe('ScmRepositoryService.fetchWorktreesEnrichment — FR4-13 bounded enric
         for (const [machineId, homeDir] of Object.entries(homeDirByMachineId)) {
             machines[machineId] = { id: machineId, metadata: { homeDir } };
         }
-        return { machines };
+        return { machines, profileScope: testScope };
     }
 
     it('evicts the oldest repo entry when more than the cap (32) distinct repos are cached', async () => {
@@ -2037,4 +2079,76 @@ describe('ScmRepositoryService.fetchWorktreesEnrichment — FR4-13 bounded enric
         expect(cached).not.toBeNull();
         expect(cached!.length).toBeLessThanOrEqual(64);
     });
+});
+
+
+describe('SCM repository scope isolation', () => {
+    it('does not resolve replacement account session metadata after an account switch during scope resolution', async () => {
+        const state = { profileScope: testScope, sessions: { s1: { id: 's1', metadata: { machineId: 'same', path: '/owner' } } } };
+        vi.spyOn(storage, 'getState').mockImplementation(() => state as any);
+        const service = new ScmRepositoryService();
+        vi.mocked(sessionScmStatusSnapshot).mockResolvedValue({ success: true, snapshot: makeScmSnapshot() });
+        const pending = service.fetchSnapshotForSession('s1');
+        state.profileScope = { ...testScope, accountId: 'replacement-account' };
+        state.sessions.s1.metadata.path = '/replacement';
+        expect(await pending).toBeNull();
+        expect(sessionScmStatusSnapshot).not.toHaveBeenCalled();
+    });
+
+    it('uses a session owning Home and account when another Home is active', async () => {
+        const { upsertServerProfile } = await import('@/sync/domains/server/serverProfiles');
+        const { TokenStorage } = await import('@/auth/storage/tokenStorage');
+        const home = upsertServerProfile({ serverUrl: 'https://scope-test.example.com', name: 'Scope test' });
+        vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue({ token: `e30.${btoa(JSON.stringify({ sub: 'owner-account' }))}.signature` });
+        vi.spyOn(storage, 'getState').mockReturnValue({
+            profileScope: testScope,
+            sessions: { remote_session: { id: 'remote_session', serverId: home.id, metadata: { machineId: 'machine-a', path: '/repo' } } },
+        } as any);
+        vi.mocked(sessionScmStatusSnapshot).mockClear();
+        vi.mocked(sessionScmStatusSnapshot).mockResolvedValue({ success: true, snapshot: makeScmSnapshot() });
+        const service = new ScmRepositoryService();
+        const result = await service.fetchSnapshotForSession('remote_session');
+        const scope = { serverId: home.id, accountId: 'owner-account' };
+        expect(sessionScmStatusSnapshot).toHaveBeenCalledWith('remote_session', {}, scope);
+        expect(service.readCachedSnapshotForMachinePath({ machineId: 'machine-a', path: '/repo', scope })).toBe(result);
+        expect(service.readCachedSnapshotForMachinePath({ machineId: 'machine-a', path: '/repo', scope: testScope })).toBeNull();
+        vi.mocked(machineScmStatusSnapshot).mockResolvedValue({ success: true, snapshot: makeScmSnapshot() });
+        await service.fetchSnapshotForMachinePath({ machineId: 'machine-a', path: '/different-repo', serverId: home.id });
+        expect(machineScmStatusSnapshot).toHaveBeenCalledWith('machine-a', { cwd: '/different-repo' }, scope);
+    });
+
+    it('does not coalesce or reuse another account or server snapshot for identical machine paths', async () => {
+        const service = new ScmRepositoryService();
+        vi.mocked(machineScmStatusSnapshot).mockClear();
+        vi.mocked(machineScmStatusSnapshot).mockImplementation(async (_machine, _request, scope) => ({
+            success: true,
+            snapshot: makeScmSnapshot({ repo: { rootPath: '/repo', remotes: [{ name: 'origin', fetchUrl: `https://example.com/${scope?.accountId}/repo.git` }] } }),
+        }));
+        const a = { serverId: 'server-a', accountId: 'account-a' };
+        const b = { serverId: 'server-b', accountId: 'account-a' };
+        const c = { serverId: 'server-a', accountId: 'account-b' };
+        const results = await Promise.all([a, b, c].map((scope) => service.fetchSnapshotForMachinePath({ machineId: 'same', path: '/repo', scope })));
+        expect(machineScmStatusSnapshot).toHaveBeenCalledTimes(3);
+        for (const [index, scope] of [a, b, c].entries()) {
+            expect(machineScmStatusSnapshot).toHaveBeenCalledWith('same', { cwd: '/repo' }, scope);
+            expect(service.readCachedSnapshotForMachinePath({ machineId: 'same', path: '/repo/subdir', scope })).toBe(results[index]);
+        }
+        expect(service.readCachedSnapshotForMachinePath({ machineId: 'same', path: '/repo', scope: { ...c, accountId: 'never-seen' } })).toBeNull();
+    });
+    it('isolates worktree enrichment and its in-flight requests by server and account', async () => {
+        const service = new ScmRepositoryService();
+        const scopes = [testScope, { ...testScope, serverId: 'server-b' }, { ...testScope, accountId: 'account-b' }];
+        vi.mocked(machineScmWorktreesEnrichment).mockImplementation(async (_machine, _request, scope) => ({
+            success: true, worktrees: [{ path: '/repo', changeCount: scopes.findIndex((candidate) => candidate === scope) + 1, lastActivityAt: 1 }],
+        }));
+        const results = await Promise.all(scopes.map((scope) => service.fetchWorktreesEnrichment({
+            machineId: 'same', path: '/repo', scope, worktreePaths: ['/repo'],
+        })));
+        expect(machineScmWorktreesEnrichment).toHaveBeenCalledTimes(3);
+        for (const [index, scope] of scopes.entries()) {
+            expect(service.readCachedWorktreesEnrichment({ machineId: 'same', path: '/repo', scope })).toEqual(results[index]);
+            expect(results[index]?.[0].changeCount).toBe(index + 1);
+        }
+    });
+
 });

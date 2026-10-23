@@ -1,8 +1,8 @@
-import { storage } from '@/sync/domains/state/storage';
+import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import { readSessionWorkspaceContext } from '@/sync/domains/session/readSessionWorkspaceContext';
 import { resolveSessionMachineId } from '@/sync/domains/session/directSessions/resolveSessionMachineId';
 import { resolveProjectMachineScopeId } from '@/sync/runtime/orchestration/projectKeyIdentity';
-import { readMachineTargetForSession } from '@/sync/ops/sessionMachineTarget';
+import { readSessionMachineTargetState, resolveMachineTargetForSessionFromState } from '@/sync/ops/sessionMachineTarget';
 import { resolveAbsolutePath } from '@/utils/path/pathUtils';
 
 function normalizeNonEmptyString(value: unknown): string | null {
@@ -15,6 +15,7 @@ function normalizeNonEmptyString(value: unknown): string | null {
 
 export function resolveRepoScmSessionRequest(input: Readonly<{
     sessionId: string;
+    scope?: ServerAccountScope;
 }>): Readonly<{
     sessionId: string;
     machineId: string | null;
@@ -26,14 +27,14 @@ export function resolveRepoScmSessionRequest(input: Readonly<{
         return null;
     }
 
-    const state = storage.getState();
+    const state = readSessionMachineTargetState(input.scope);
     const session = state.sessions?.[sessionId];
     if (!session) {
         return null;
     }
 
     const workspaceContext = readSessionWorkspaceContext(state, sessionId);
-    const machineTarget = readMachineTargetForSession(sessionId);
+    const machineTarget = resolveMachineTargetForSessionFromState(state, sessionId);
     const sessionWorkspacePath = normalizeNonEmptyString(workspaceContext.workspacePath);
     const projectPath = normalizeNonEmptyString(workspaceContext.projectPath);
     const normalizedRepoPath =
