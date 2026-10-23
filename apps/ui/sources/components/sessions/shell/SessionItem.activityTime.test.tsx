@@ -857,7 +857,7 @@ describe('SessionItem activity time', () => {
         expect(findRowContentStyle(screen, 'sess_compact_avatar_phone').marginLeft).toBe(8);
     });
 
-    it('renders the selected agent logo in the same narrow identity slot', async () => {
+    it('renders the selected agent logo on the right and reclaims the leading slot in narrow rows', async () => {
         mockSessionListIdentityDisplay = 'agentLogo';
         const { SessionItem } = await importSessionItemForTest();
 
@@ -883,7 +883,8 @@ describe('SessionItem activity time', () => {
             style: { transform: [{ scale: 1.25 }] },
             testID: 'session-list-agent-logo-sess_agent_logo_narrow',
         });
-        expect(findRowContentStyle(screen, 'sess_agent_logo_narrow').marginLeft).toBe(8);
+        expect(screen.findByTestId('session-list-right-identity-sess_agent_logo_narrow')?.children).toHaveLength(1);
+        expect(findRowContentStyle(screen, 'sess_agent_logo_narrow').marginLeft).toBe(0);
     });
 
     it('passes the resolved title color to agent logos for quiet active rows', async () => {
