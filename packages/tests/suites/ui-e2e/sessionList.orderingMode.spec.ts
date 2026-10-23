@@ -457,7 +457,7 @@ test.describe('ui e2e: session list ordering mode', () => {
     await expect(selectedRow).toHaveCount(1, { timeout: 120_000 });
     await expect(clickedRow).toHaveCount(1, { timeout: 120_000 });
     await selectedRow.click();
-    await expect(selectedRow).toHaveAttribute('aria-selected', 'true');
+    await page.waitForURL((url) => url.pathname.endsWith(`/session/${selectedSessionId}`));
 
     async function expectBlankDraftAndCancel(): Promise<void> {
       await page.waitForURL((url) => url.pathname.endsWith('/new'), { timeout: 60_000 });
