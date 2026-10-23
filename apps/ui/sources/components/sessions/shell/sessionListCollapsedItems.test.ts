@@ -17,6 +17,19 @@ function session(id: string, groupKey: string, folderId: string | null, folderDe
 }
 
 describe('filterCollapsedSessionListItems', () => {
+    it('keeps a populated date header available when its rows are collapsed', () => {
+        const groupKey = 'server:server-a:inactive:day:2026-10-13';
+        const items: SessionListViewItem[] = [
+            { type: 'header', headerKind: 'inactive', title: 'Inactive', serverId: 'server-a' },
+            { type: 'header', headerKind: 'date', title: '10 days ago', serverId: 'server-a', groupKey },
+            { ...session('first', groupKey, null, 0), section: 'inactive', groupKind: 'date' },
+            { ...session('second', groupKey, null, 0), section: 'inactive', groupKind: 'date' },
+        ];
+
+        expect(filterCollapsedSessionListItems(items, { [groupKey]: true })).toEqual(items.slice(0, 2));
+        expect(filterCollapsedSessionListItems(items, { [groupKey]: false })).toEqual(items);
+    });
+
     it('hides descendant folder headers and sessions when a folder is collapsed', () => {
         const parentGroupKey = 'folder:server-a:workspace-a:parent';
         const childGroupKey = 'folder:server-a:workspace-a:child';

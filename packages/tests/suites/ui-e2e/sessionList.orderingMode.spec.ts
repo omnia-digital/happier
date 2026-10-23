@@ -216,6 +216,64 @@ test.describe('ui e2e: session list ordering mode', () => {
     await server?.stop().catch(() => {});
   });
 
+  test('removes an empty date header when its last session is pinned and restores it when unpinned', async ({ page }) => {
+    test.setTimeout(240_000);
+    if (!server || !uiBaseUrl || !token) throw new Error('missing server/ui fixtures');
+
+    await patchPlainAccountSettingsV2({
+      baseUrl: server.baseUrl,
+      token,
+      settingsPatch: { sessionListInactiveGroupingV1: 'date' },
+    });
+    const sessionId = await createPlainSession({
+      baseUrl: server.baseUrl,
+      token,
+      title: `last session in date ${run.runId}`,
+      rootPath: repoRootDir(),
+      machineId: SEEDED_MACHINE_ID,
+      tagPrefix: 'session-list-date-visibility',
+    });
+
+    const dateHeaders = page.locator('[data-testid^="session-list-header:server:"][data-testid*="day:"]');
+    const sessionRow = page.getByTestId(`session-list-item-${sessionId}`);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 300_000);
+    await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+    await expect(sessionRow).toHaveCount(1, { timeout: 120_000 });
+    await expect(dateHeaders).toHaveCount(1);
+
+    await importSessionOrganization({
+      baseUrl: server.baseUrl,
+      token,
+      request: {
+        pins: [{ sessionId, sortKey: '00000001' }],
+        folders: [],
+        tags: [],
+        tagAssignments: [],
+        orderEntries: [],
+        labels: [],
+      },
+    });
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+    await expect(page.getByTestId('session-list-header:pinned-v1')).toHaveCount(1, { timeout: 120_000 });
+    await expect(sessionRow).toHaveCount(1);
+    await expect(dateHeaders).toHaveCount(0);
+
+    await importSessionOrganization({
+      baseUrl: server.baseUrl,
+      token,
+      request: { pins: [], folders: [], tags: [], tagAssignments: [], orderEntries: [], labels: [] },
+    });
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+    await expect(dateHeaders).toHaveCount(1, { timeout: 120_000 });
+    await expect(sessionRow).toHaveCount(1);
+    await patchPlainAccountSettingsV2({
+      baseUrl: server.baseUrl,
+      token,
+      settingsPatch: { sessionListInactiveGroupingV1: 'project' },
+    });
+  });
+
   test('switches updated and custom modes without mutating dormant custom order', async ({ page }) => {
     test.setTimeout(180_000);
     if (!server || !uiBaseUrl || !token || !uiServerUrl) throw new Error('missing server/ui fixtures');
