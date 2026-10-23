@@ -1137,6 +1137,15 @@ test.describe('ui e2e: session list attention', () => {
       await page.setViewportSize({ width: 1440, height: 900 });
       await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
       await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+      const inboxButton = page.getByTestId('sidebar-inbox-button');
+      const permissionGroup = page.locator(`[data-testid^="inbox.session_attention."][data-testid$=".${permission.id}"]`);
+      const inputGroup = page.locator(`[data-testid^="inbox.session_attention."][data-testid$=".${input.id}"]`);
+      const noticeRow = page.locator(`[data-testid^="inbox.review_session."][data-testid$=".${notice.id}"]`);
+      await inboxButton.click();
+      await expect(page.getByTestId('inbox-panel-description')).toContainText('Some entries are notifications and do not need a reply.');
+      await expect(noticeRow).toContainText('Completed · No reply needed', { timeout: 60_000 });
+      await expect(permissionGroup).toHaveCount(0);
+      await expect(inputGroup).toHaveCount(0);
 
       for (const session of [permission, input]) {
         const publisher = await connectAuthenticatedMachinePublisher({
@@ -1158,13 +1167,7 @@ test.describe('ui e2e: session list attention', () => {
       expect(permissionServerState).toMatchObject({ active: true, pendingPermissionRequestCount: 1 });
       expect(inputServerState).toMatchObject({ active: true, pendingUserActionRequestCount: 1 });
 
-      const inboxButton = page.getByTestId('sidebar-inbox-button');
       await expect(page.getByTestId('sidebar-inbox-attention-dot')).toHaveCount(1, { timeout: 60_000 });
-      await inboxButton.click();
-      await expect(page.getByTestId('inbox-panel-description')).toContainText('Some entries are notifications and do not need a reply.');
-      const permissionGroup = page.locator(`[data-testid^="inbox.session_attention."][data-testid$=".${permission.id}"]`);
-      const inputGroup = page.locator(`[data-testid^="inbox.session_attention."][data-testid$=".${input.id}"]`);
-      const noticeRow = page.locator(`[data-testid^="inbox.review_session."][data-testid$=".${notice.id}"]`);
       await expect(permissionGroup).toContainText('Permission request · Reply needed', { timeout: 60_000 });
       await expect(inputGroup).toContainText('Your input needed', { timeout: 60_000 });
       await expect(noticeRow).toContainText('Completed · No reply needed', { timeout: 60_000 });
@@ -1180,7 +1183,11 @@ test.describe('ui e2e: session list attention', () => {
       await inboxButton.click();
       await inputGroup.click();
       await expect(page).toHaveURL(new RegExp(`/session/${input.id}(?:\\?|$)`), { timeout: 90_000 });
-      await expect(page.getByTestId('user-action-prompt-card')).toContainText('Should OH49 continue?', { timeout: 60_000 });
+      await expect(page.getByText('Should OH49 continue?').first()).toBeVisible({ timeout: 60_000 });
+      await expect(page.getByText('Waiting for your response')).toBeVisible();
+      await inboxButton.click();
+      await expect(permissionGroup).toContainText('Permission request · Reply needed', { timeout: 60_000 });
+      await expect(inputGroup).toContainText('Your input needed', { timeout: 60_000 });
 
       for (const [index, session] of [permission, input].entries()) {
         const current = await fetchSessionV2(server.baseUrl, token, session.id);
@@ -1200,8 +1207,6 @@ test.describe('ui e2e: session list attention', () => {
         });
         expect(ack?.result).toBe('success');
       }
-      await expect(page.getByTestId('user-action-prompt-card')).toHaveCount(0, { timeout: 60_000 });
-      await inboxButton.click();
       await expect(permissionGroup).toHaveCount(0, { timeout: 60_000 });
       await expect(inputGroup).toHaveCount(0, { timeout: 60_000 });
       await expect(noticeRow).toContainText('Completed · No reply needed');

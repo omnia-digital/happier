@@ -680,6 +680,40 @@ describe('buildInboxSessionState', () => {
         expect(state.sessionsNeedingAttention.map((entry) => entry.session.id)).toEqual(['session-1']);
     });
 
+    it('uses a newer scoped list request until hydrated state catches up, then accepts a newer resolution', () => {
+        const listRequest = makeUnreadRenderable({
+            id: 'current-request',
+            agentStateVersion: 2,
+            hasPendingPermissionRequests: true,
+            hasUnreadMessages: false,
+            latestTurnStatus: null,
+            latestReadyEventSeq: null,
+            latestReadyEventAt: null,
+            activeAt: now,
+            pendingRequestObservedAt: now,
+        });
+        const list = { 'server-a': makeScopedSessionList('server-a', [listRequest]) };
+        const staleHydrated = makeSession({
+            id: 'current-request',
+            serverId: 'server-a',
+            agentStateVersion: 1,
+            agentState: null,
+            activeAt: now,
+        });
+
+        const waiting = buildInboxSessionState({ sessions: [staleHydrated], sessionListViewDataByServerId: list, nowMs: now });
+        expect(waiting.sessionsNeedingAttention.map((entry) => entry.reason)).toEqual(['permission_required']);
+        expect(waiting.sessionsNeedingAttention[0]?.session).toBe(listRequest);
+
+        const resolvedHydrated = makeSession({
+            ...staleHydrated,
+            agentStateVersion: 3,
+            agentState: { controlledByUser: null, requests: {}, completedRequests: {} },
+        });
+        const resolved = buildInboxSessionState({ sessions: [resolvedHydrated], sessionListViewDataByServerId: list, nowMs: now });
+        expect(resolved.sessionsNeedingAttention).toEqual([]);
+    });
+
     it('keeps an actionable working session in one visible section without a premature read target', () => {
         const session = makeSession({
             serverId: 'server-a',
