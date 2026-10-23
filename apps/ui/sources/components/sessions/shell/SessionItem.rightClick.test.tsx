@@ -2,7 +2,7 @@ import React from 'react';
 import { act } from 'react-test-renderer';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
-import { createSessionFixture, renderScreen, standardCleanup } from '@/dev/testkit';
+import { createSessionFixture, pressTestInstanceAsync, renderScreen, standardCleanup } from '@/dev/testkit';
 import { createSessionItemTestRowModel, installSessionShellCommonModuleMocks } from './sessionShellTestHelpers';
 import { SESSION_ACTION_RENAME_ID } from '@/components/sessions/actions/sessionActionIds';
 
@@ -39,10 +39,11 @@ vi.mock('@/sync/ops', async (importOriginal) => {
     return createSyncOpsModuleMock({ importOriginal, overrides: { sessionRename: renameSpy } });
 });
 const promptSpy = vi.fn(async () => 'Renamed');
+let platformOs: 'web' | 'ios' = 'web';
 installSessionShellCommonModuleMocks({
     reactNative: async () => {
         const { createReactNativeWebMock } = await import('@/dev/testkit/mocks/reactNative');
-        return createReactNativeWebMock({ Platform: { OS: 'web' } });
+        return createReactNativeWebMock({ Platform: { get OS() { return platformOs; } } });
     },
     text: async () => {
         const { createTextModuleMock } = await import('@/dev/testkit/mocks/text');
@@ -84,6 +85,7 @@ afterEach(() => {
     renameSpy.mockClear();
     promptSpy.mockReset();
     promptSpy.mockResolvedValue('Renamed');
+    platformOs = 'web';
 });
 
 describe('SessionItem right-click menu (web)', () => {
@@ -110,5 +112,56 @@ describe('SessionItem right-click menu (web)', () => {
         await act(async () => menu.props.onSelect(SESSION_ACTION_RENAME_ID));
         expect(renameSpy).toHaveBeenCalledWith('sess_right_click', 'Renamed', { serverId: 'server_right_click' });
         expect(navigateToSessionSpy).not.toHaveBeenCalled();
+    });
+
+    it('uses the same restricted menu for right-click and three-dot, then preserves normal row activation', async () => {
+        const session = createSessionFixture({
+            id: 'sess_view_only',
+            active: true,
+            metadata: null,
+            accessLevel: 'view',
+        });
+        const screen = await renderScreen(
+            <SessionItem session={session} serverId="server_view_only" selected={true} isFirst isLast isSingle variant="default" compact={false} />,
+        );
+        const row = screen.findByTestId('session-list-item-sess_view_only');
+        expect(row.props.accessibilityState).toMatchObject({ selected: true });
+        const rightArea = screen.findByTestId('session-item-right-area');
+        await act(async () => rightArea.props.onPointerEnter());
+
+        await act(async () => row.props.onContextMenu({ preventDefault: vi.fn(), stopPropagation: vi.fn() }));
+        const menu = screen.findByType('DropdownMenu' as React.ElementType);
+        const rightClickItems = menu.props.items;
+        expect(menu.props.open).toBe(true);
+        expect(rightClickItems).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: SESSION_ACTION_RENAME_ID }),
+            expect.objectContaining({ id: 'session.archive' }),
+            expect.objectContaining({ id: 'session.stop' }),
+        ]));
+
+        await act(async () => menu.props.onOpenChange(false));
+        const threeDotTrigger = menu.props.trigger({ toggle: () => menu.props.onOpenChange(true) });
+        await act(async () => threeDotTrigger.props.onPress({ preventDefault: vi.fn(), stopPropagation: vi.fn() }));
+
+        const reopenedMenu = screen.findByType('DropdownMenu' as React.ElementType);
+        expect(reopenedMenu.props.open).toBe(true);
+        expect(reopenedMenu.props.items).toEqual(rightClickItems);
+        expect(renameSpy).not.toHaveBeenCalled();
+
+        await act(async () => reopenedMenu.props.onOpenChange(false));
+        await act(async () => pressTestInstanceAsync(row, 'session list item'));
+        expect(navigateToSessionSpy).toHaveBeenCalledWith('sess_view_only', { serverId: 'server_view_only' });
+    });
+
+    it('leaves native rows on the long-press path without a web context-menu handler', async () => {
+        platformOs = 'ios';
+        const session = createSessionFixture({ id: 'sess_native_row', active: true, metadata: null });
+        const screen = await renderScreen(
+            <SessionItem session={session} selected={false} isFirst isLast isSingle variant="default" compact={false} />,
+        );
+        const row = screen.findByTestId('session-list-item-sess_native_row');
+
+        expect(row.props.onContextMenu).toBeUndefined();
+        expect(row.props.onLongPress).toEqual(expect.any(Function));
     });
 });
