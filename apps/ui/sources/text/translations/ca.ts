@@ -10021,7 +10021,7 @@ settingsSession: {
             desktop: 'Escriptori',
             laptop: 'Portàtil',
             cloud: 'Núvol',
-            terminal: 'Terminal',
+            terminal: 'Consola',
         },
         renameTitle: 'Canvia el nom de la màquina',
           renameDescription: 'Dona a aquesta màquina un nom personalitzat. Deixa-ho buit per usar el hostname per defecte.',

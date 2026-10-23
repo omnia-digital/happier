@@ -11052,9 +11052,9 @@ settingsSession: {
     displayResetTitle: 'Ripristina aspetto',
     displayResetSubtitle: 'Usa il nome host, l’icona predefinita e il colore automatico.',
     displayIcons: {
-        desktop: 'Desktop',
+        desktop: 'Computer fisso',
         laptop: 'Portatile',
-        cloud: 'Cloud',
+        cloud: 'Server cloud',
         terminal: 'Terminale',
     },
     renameTitle: "Rinomina macchina",

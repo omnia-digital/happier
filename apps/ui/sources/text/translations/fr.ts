@@ -10072,7 +10072,7 @@ settingsSession: {
             desktop: 'Ordinateur',
             laptop: 'Portable',
             cloud: 'Nuage',
-            terminal: 'Terminal',
+            terminal: 'Console',
         },
         renameTitle: 'Renommer la machine',
         renameDescription: 'Donne un nom personnalisé à cette machine. Laisse vide pour utiliser le nom d’hôte par défaut.',

@@ -10729,9 +10729,9 @@ settingsSession: {
     displayResetSubtitle: 'Użyj nazwy hosta, domyślnej ikony i automatycznego koloru.',
     displayIcons: {
         desktop: 'Komputer',
-        laptop: 'Laptop',
+        laptop: 'Komputer przenośny',
         cloud: 'Chmura',
-        terminal: 'Terminal',
+        terminal: 'Konsola',
     },
     renameTitle: "Zmień nazwę maszyny",
     renameDescription:

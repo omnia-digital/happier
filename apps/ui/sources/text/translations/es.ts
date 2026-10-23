@@ -10739,7 +10739,7 @@ settingsSession: {
         desktop: 'Escritorio',
         laptop: 'Portátil',
         cloud: 'Nube',
-        terminal: 'Terminal',
+        terminal: 'Consola',
     },
     renameTitle: "Renombrar máquina",
     renameDescription:

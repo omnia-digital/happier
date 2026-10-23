@@ -10842,10 +10842,10 @@ settingsSession: {
     displayResetTitle: 'Redefinir aparência',
     displayResetSubtitle: 'Usar o nome do host, o ícone padrão e a cor automática.',
     displayIcons: {
-        desktop: 'Desktop',
+        desktop: 'Computador de mesa',
         laptop: 'Portátil',
         cloud: 'Nuvem',
-        terminal: 'Terminal',
+        terminal: 'Linha de comando',
     },
     renameTitle: "Renomear máquina",
     renameDescription:
