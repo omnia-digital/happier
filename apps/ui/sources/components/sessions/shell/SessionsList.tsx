@@ -1,4 +1,5 @@
 import React from 'react';
+import type { SessionListReachabilityModels } from './sessionListReachabilityModels';
 import { normalizeSessionListBackgroundWorkAttentionMode } from '@/sync/domains/session/listing/sessionListBackgroundWorkAttention';
 import {
     View,
@@ -361,25 +362,11 @@ function buildReachableDisplaySignature(displayByKey: ReadonlyMap<string, Readon
         .join('\u0002');
 }
 
-function buildReachableDisplayRecord(displayByKey: ReadonlyMap<string, Readonly<{
-    machineLabel: string;
-    workspaceSubtitle: string;
-    workspaceSubtitleEllipsizeMode: 'head' | 'tail';
-}>>): SessionListRowPresentationSettings['reachableSessionDisplayByKey'] {
+function buildReachableDisplayRecord(
+    displayByKey: SessionListReachabilityModels['reachableSessionDisplayByKey'],
+): SessionListRowPresentationSettings['reachableSessionDisplayByKey'] {
     if (displayByKey.size === 0) return EMPTY_REACHABLE_SESSION_DISPLAY_BY_KEY;
-    const record: Record<string, {
-        machineLabel: string;
-        workspaceSubtitle: string;
-        workspaceSubtitleEllipsizeMode: 'head' | 'tail';
-    }> = {};
-    for (const [rowKey, display] of displayByKey.entries()) {
-        record[rowKey] = {
-            machineLabel: display.machineLabel,
-            workspaceSubtitle: display.workspaceSubtitle,
-            workspaceSubtitleEllipsizeMode: display.workspaceSubtitleEllipsizeMode,
-        };
-    }
-    return record;
+    return Object.fromEntries(displayByKey);
 }
 
 function normalizeRowDensity(compact: boolean, compactMinimal: boolean): SessionListRowPresentationSettings['density'] {

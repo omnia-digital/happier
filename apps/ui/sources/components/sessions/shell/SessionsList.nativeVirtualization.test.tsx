@@ -3869,6 +3869,7 @@ describe('SessionsList (native virtualization)', () => {
             'expected first session item',
         );
         expect(item.props.rowModel?.subtitle).toBe('Rebound workstation · repo');
+        expect(item.props.rowModel).toMatchObject({ machineId: 'machine-target', serverId: 'server_a' });
     });
 
     it('keeps reachability subtitles scoped when servers share a session id', async () => {
