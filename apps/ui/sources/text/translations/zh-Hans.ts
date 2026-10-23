@@ -765,6 +765,13 @@ export const zhHans: TranslationStructure = {
     panelDescription: "收件箱汇总请求和更新，其中一些是无需回复的通知。",
     activityToolbarTooltip: "数字表示正在进行的操作；圆点表示其他结果或待关注事项。",
     activityPanelDescription: "动态面板会跟踪长时间运行的操作。数字表示活跃操作；圆点表示其他结果或待关注事项。",
+    sessionReason: {
+        permissionRequired: "权限请求 · 需要回复",
+        inputRequired: "需要你的回复",
+        deliveryBlocked: "消息受阻 · 检查发送状态",
+        ready: "已完成 · 无需回复",
+        failed: "失败 · 无需回复",
+    },
     actionOperations: {
       sections: { inProgress: "进行中", needsAttention: "需要处理", recent: "最近" },
       clearRecent: "清除最近记录",

@@ -545,6 +545,13 @@ export const de: TranslationStructure = {
         panelDescription: 'Der Posteingang bündelt Anfragen und Updates. Manche Einträge sind Benachrichtigungen ohne Antwortbedarf.',
         activityToolbarTooltip: 'Die Zahl zählt aktive Aktionen; ein Punkt kennzeichnet weitere Ergebnisse oder Aufmerksamkeit.',
         activityPanelDescription: 'Aktivität verfolgt lang laufende Aktionen. Die Zahl zählt aktive Aktionen. Ein Punkt kennzeichnet weitere Ergebnisse oder Aufmerksamkeit.',
+        sessionReason: {
+            permissionRequired: "Berechtigungsanfrage · Antwort nötig",
+            inputRequired: "Deine Eingabe ist erforderlich",
+            deliveryBlocked: "Nachricht blockiert · Zustellung prüfen",
+            ready: "Abgeschlossen · Keine Antwort nötig",
+            failed: "Fehlgeschlagen · Keine Antwort nötig",
+        },
         actionOperations: {
             sections: { inProgress: 'In Bearbeitung', needsAttention: 'Aufmerksamkeit erforderlich', recent: 'Zuletzt' },
             clearRecent: 'Letzte löschen',

@@ -767,6 +767,13 @@ export const es: TranslationStructure = {
     panelDescription: "La bandeja reúne solicitudes y novedades. Algunas entradas son avisos que no requieren respuesta.",
     activityToolbarTooltip: "El número cuenta las acciones activas; el punto indica otros resultados o avisos por revisar.",
     activityPanelDescription: "Actividad sigue las acciones de larga duración. El número cuenta las acciones activas. El punto indica otros resultados o avisos por revisar.",
+    sessionReason: {
+        permissionRequired: "Solicitud de permiso · Respuesta necesaria",
+        inputRequired: "Se necesita tu respuesta",
+        deliveryBlocked: "Mensaje bloqueado · Revisa la entrega",
+        ready: "Completado · No requiere respuesta",
+        failed: "Falló · No requiere respuesta",
+    },
     actionOperations: {
       sections: { inProgress: "En curso", needsAttention: "Requiere atención", recent: "Recientes" },
       clearRecent: "Borrar recientes",

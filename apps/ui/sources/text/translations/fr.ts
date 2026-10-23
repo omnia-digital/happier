@@ -545,6 +545,13 @@ export const fr: TranslationStructure = {
         panelDescription: 'La boîte de réception regroupe demandes et nouveautés. Certaines sont des notifications sans réponse attendue.',
         activityToolbarTooltip: 'Le nombre compte les actions actives ; le point signale d’autres résultats ou éléments à consulter.',
         activityPanelDescription: 'L’activité suit les actions de longue durée. Le nombre compte les actions actives. Le point signale d’autres résultats ou éléments à consulter.',
+        sessionReason: {
+            permissionRequired: "Demande d’autorisation · Réponse requise",
+            inputRequired: "Votre réponse est requise",
+            deliveryBlocked: "Message bloqué · Vérifier l’envoi",
+            ready: "Terminé · Aucune réponse requise",
+            failed: "Échec · Aucune réponse requise",
+        },
         actionOperations: {
             sections: { inProgress: 'En cours', needsAttention: 'À vérifier', recent: 'Récentes' },
             clearRecent: 'Effacer les récentes',

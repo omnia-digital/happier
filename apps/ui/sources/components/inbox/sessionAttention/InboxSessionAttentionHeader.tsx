@@ -23,6 +23,7 @@ export const InboxSessionAttentionHeader = React.memo(function InboxSessionAtten
     machineId?: string | null;
     serverId?: string | null;
     workspaceLabel: string | null;
+    statusLabel: string;
     onOpenSession: () => void;
 }>) {
     const { theme } = useUnistyles();
@@ -41,6 +42,7 @@ export const InboxSessionAttentionHeader = React.memo(function InboxSessionAtten
                 <Text style={styles.title} numberOfLines={1}>
                     {props.sessionTitle}
                 </Text>
+                <Text style={styles.reason} numberOfLines={2}>{props.statusLabel}</Text>
                 <SessionContextChips machineLabel={props.machineLabel} machineId={props.machineId} serverId={props.serverId} pathLabel={props.workspaceLabel} />
             </View>
 
@@ -75,5 +77,8 @@ const styles = StyleSheet.create((theme) => ({
         fontSize: 16,
         fontWeight: '700',
         color: theme.colors.text.primary,
+    },
+    reason: {
+        color: theme.colors.text.secondary,
     },
 }));

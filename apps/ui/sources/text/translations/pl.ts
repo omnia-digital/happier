@@ -778,6 +778,13 @@ export const pl: TranslationStructure = {
     panelDescription: "Skrzynka zbiera prośby i aktualizacje. Niektóre wpisy to powiadomienia bez potrzeby odpowiedzi.",
     activityToolbarTooltip: "Liczba pokazuje aktywne działania; kropka oznacza inne wyniki lub elementy do sprawdzenia.",
     activityPanelDescription: "Aktywność śledzi długotrwałe działania. Liczba pokazuje aktywne działania. Kropka oznacza inne wyniki lub elementy do sprawdzenia.",
+    sessionReason: {
+        permissionRequired: "Prośba o uprawnienie · Wymaga odpowiedzi",
+        inputRequired: "Potrzebna jest Twoja odpowiedź",
+        deliveryBlocked: "Wiadomość zablokowana · Sprawdź dostarczenie",
+        ready: "Ukończono · Bez potrzeby odpowiedzi",
+        failed: "Niepowodzenie · Bez potrzeby odpowiedzi",
+    },
     actionOperations: {
       sections: { inProgress: "W toku", needsAttention: "Wymaga uwagi", recent: "Ostatnie" },
       clearRecent: "Wyczyść ostatnie",

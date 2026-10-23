@@ -750,6 +750,13 @@ export const ja: TranslationStructure = {
     panelDescription: "受信トレイにはリクエストと更新がまとまっています。返信不要のお知らせも含まれます。",
     activityToolbarTooltip: "数字は進行中のアクション数です。ドットはその他の結果や確認事項を示します。",
     activityPanelDescription: "アクティビティでは長時間実行されるアクションを追跡します。数字はアクティブなアクション数です。ドットはその他の結果や確認事項を示します。",
+    sessionReason: {
+        permissionRequired: "権限のリクエスト · 返信が必要",
+        inputRequired: "入力が必要です",
+        deliveryBlocked: "メッセージが未送信 · 送信状況を確認",
+        ready: "完了 · 返信不要",
+        failed: "失敗 · 返信不要",
+    },
     actionOperations: {
       sections: { inProgress: "進行中", needsAttention: "確認が必要", recent: "最近" },
       clearRecent: "最近の項目を消去",

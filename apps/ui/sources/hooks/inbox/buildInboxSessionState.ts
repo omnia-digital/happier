@@ -23,7 +23,7 @@ import {
 export type InboxActionRequiredReason = Extract<
     SessionListPlacementKind,
     'action_required' | 'permission_required'
->;
+> | 'delivery_blocked';
 
 export type InboxReviewReason = Extract<SessionListPlacementKind, 'ready' | 'failed'>;
 
@@ -303,7 +303,7 @@ export function buildInboxSessionState(input: BuildInboxSessionStateInput): Inbo
                 serverId: entry.serverId,
                 sessionId: entry.sessionId,
                 session: entry.session,
-                reason: placement.kind,
+                reason: placement.attentionSource === 'blocked_delivery' ? 'delivery_blocked' : placement.kind,
                 pendingPermissions,
                 pendingUserActions,
             });

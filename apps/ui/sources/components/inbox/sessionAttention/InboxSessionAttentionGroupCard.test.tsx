@@ -52,6 +52,7 @@ describe('InboxSessionAttentionGroupCard', () => {
             machineId={context.machineId}
             machineLabel={context.machineLabel}
             workspaceName={context.workspaceName}
+            statusLabel="Permission request · Reply needed"
             permissionRequests={[]}
             userActionRequests={[]}
             identityDisplay="none"
@@ -60,6 +61,7 @@ describe('InboxSessionAttentionGroupCard', () => {
         const icons = screen.findAllByType(Icon).map((icon) => icon.props.name);
 
         expect(screen.getTextContent()).toContain('Successor');
+        expect(screen.getTextContent()).toContain('Permission request · Reply needed');
         expect(icons).toContain('cloud');
         expect(icons).not.toContain('laptop');
     });

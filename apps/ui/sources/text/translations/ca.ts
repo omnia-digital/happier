@@ -719,6 +719,13 @@ export const ca: TranslationStructure = {
         panelDescription: 'La safata reuneix sol·licituds i novetats. Algunes són notificacions i no cal respondre-hi.',
         activityToolbarTooltip: 'El número compta les accions actives; el punt indica altres resultats o elements per revisar.',
         activityPanelDescription: 'L’activitat fa seguiment de les accions de llarga durada. El número compta les accions actives. El punt indica altres resultats o elements per revisar.',
+        sessionReason: {
+            permissionRequired: "Sol·licitud de permís · Cal respondre",
+            inputRequired: "Cal la teva resposta",
+            deliveryBlocked: "Missatge bloquejat · Revisa l’enviament",
+            ready: "Finalitzada · No cal respondre",
+            failed: "Error · No cal respondre",
+        },
         actionOperations: {
             sections: { inProgress: 'En curs', needsAttention: 'Requereix atenció', recent: 'Recents' },
             clearRecent: 'Neteja els recents',

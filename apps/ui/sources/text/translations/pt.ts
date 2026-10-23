@@ -816,6 +816,13 @@ export const pt: TranslationStructure = {
     panelDescription: "A caixa de entrada reúne solicitações e novidades. Alguns itens são avisos que não exigem resposta.",
     activityToolbarTooltip: "O número conta ações ativas; o ponto indica outros resultados ou itens para revisar.",
     activityPanelDescription: "A atividade acompanha ações de longa duração. O número conta ações ativas. O ponto indica outros resultados ou itens para revisar.",
+    sessionReason: {
+        permissionRequired: "Pedido de permissão · Resposta necessária",
+        inputRequired: "Sua resposta é necessária",
+        deliveryBlocked: "Mensagem bloqueada · Verifique a entrega",
+        ready: "Concluído · Não precisa responder",
+        failed: "Falhou · Não precisa responder",
+    },
     actionOperations: {
       sections: { inProgress: "Em andamento", needsAttention: "Requer atenção", recent: "Recentes" },
       clearRecent: "Limpar recentes",

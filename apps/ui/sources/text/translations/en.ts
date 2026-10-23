@@ -543,6 +543,13 @@ export const en = {
         panelDescription: 'Inbox brings together requests and updates. Some entries are notifications and do not need a reply.',
         activityToolbarTooltip: 'The number counts active actions; a dot marks other results or attention to review.',
         activityPanelDescription: 'Activity tracks long-running actions. The number counts active actions. A dot marks other results or attention to review.',
+        sessionReason: {
+            permissionRequired: 'Permission request · Reply needed',
+            inputRequired: 'Your input needed',
+            deliveryBlocked: 'Message blocked · Review delivery',
+            ready: 'Completed · No reply needed',
+            failed: 'Failed · No reply needed',
+        },
         actionOperations: {
             sections: { inProgress: 'In progress', needsAttention: 'Needs attention', recent: 'Recent' },
             clearRecent: 'Clear recent',

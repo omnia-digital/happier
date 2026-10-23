@@ -859,6 +859,13 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
         panelDescription: '收件匣彙整請求和更新，其中有些是不需回覆的通知。',
         activityToolbarTooltip: '數字表示進行中的動作；圓點表示其他結果或待留意事項。',
         activityPanelDescription: '動態面板會追蹤長時間執行的動作。數字表示活躍動作；圓點表示其他結果或待留意事項。',
+        sessionReason: {
+            permissionRequired: "權限請求 · 需要回覆",
+            inputRequired: "需要你的回覆",
+            deliveryBlocked: "訊息受阻 · 檢查傳送狀態",
+            ready: "已完成 · 無需回覆",
+            failed: "失敗 · 無需回覆",
+        },
         actionOperations: {
             sections: { inProgress: '進行中', needsAttention: '需要處理', recent: '最近' },
             clearRecent: '清除最近記錄',
