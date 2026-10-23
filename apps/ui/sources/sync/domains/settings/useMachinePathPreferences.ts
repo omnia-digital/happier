@@ -65,7 +65,8 @@ export function useMachinePathTargetScope(serverIdInput?: string | null): Target
         return () => { cancelled = true; };
     }, [serverId, targetsActive, viewerScope?.accountId, viewerScope?.serverId]);
 
-    return activeBinding ?? (!targetsActive && foreignBinding?.scope.serverId === serverId ? foreignBinding : null);
+    return activeBinding ?? (!targetsActive && foreignBinding?.scope.serverId === serverId
+        && areServerAccountScopesEqual(foreignBinding.viewerScope, viewerScope) ? foreignBinding : null);
 }
 
 export function useMachinePathPreferences(params: Readonly<{
@@ -84,9 +85,10 @@ export function useMachinePathPreferences(params: Readonly<{
         () => resolveCanonicalMachineId(params.machineId, params.machines)?.machineId ?? null,
         [params.machineId, params.machines],
     );
-    const target = scopeBinding && canonicalMachineId
+    const target = React.useMemo(() => scopeBinding && canonicalMachineId
         ? { ...scopeBinding.scope, machineId: canonicalMachineId }
-        : null;
+        : null,
+    [canonicalMachineId, scopeBinding?.scope.accountId, scopeBinding?.scope.serverId]);
     const bindingRef = React.useRef<{ binding: TargetBinding; target: MachinePathTarget } | null>(null);
     bindingRef.current = scopeBinding && target ? { binding: scopeBinding, target } : null;
     const targetKey = target ? machinePathTargetKey(target) : null;

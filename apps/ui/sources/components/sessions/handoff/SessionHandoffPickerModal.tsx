@@ -27,7 +27,10 @@ import {
 } from '@/sync/domains/sessionHandoff/sessionHandoffDefaults';
 import { resolveSessionHandoffPickerSourceMachineId } from '@/sync/domains/sessionHandoff/resolveSessionHandoffPickerSourceMachineId';
 import { useSessionHandoffExistingStateAvailability } from '@/sync/domains/sessionHandoff/useSessionHandoffExistingStateAvailability';
-import { useMachineListByServerId, useMachineRecordValues, useSession, useSessions, useSettingMutable } from '@/sync/domains/state/storage';
+import { useActiveServerAccountScope, useMachineListByServerId, useMachineRecordValues, useSession, useSessions, useSettingMutable } from '@/sync/domains/state/storage';
+import { useMachinePathPreferences } from '@/sync/domains/settings/useMachinePathPreferences';
+import { resolveDirectoryFavoriteComparisonKey } from '@/sync/domains/settings/machinePathPreferences';
+import { areServerAccountScopesEqual } from '@/sync/domains/scope/serverAccountScope';
 import { sync } from '@/sync/sync';
 import { resolveAbsolutePath } from '@/utils/path/pathUtils';
 import { normalizeLocalPathForComparison } from '@/utils/path/resolvePathRelativeToRoot';
@@ -67,8 +70,8 @@ function normalizeId(raw: unknown): string {
     return String(raw ?? '').trim();
 }
 
-const EMPTY_PATH_SELECTION_FAVORITES = [] as const;
 const ignorePathSelectionRequestClose = () => {};
+const EMPTY_TARGET_SESSIONS: readonly never[] = [];
 
 function mergeMachinesById(machineGroups: readonly (readonly any[] | null | undefined)[]): any[] {
     const merged = new Map<string, any>();
@@ -100,7 +103,7 @@ export function SessionHandoffPickerModal({ onClose, setChrome, onResolve, sessi
     const machineListByServerId = useMachineListByServerId();
     const activeServerMachines = useMachineRecordValues() ?? [];
     const [favoriteMachinesRaw, setFavoriteMachinesRaw] = useSettingMutable('favoriteMachines');
-    const [recentMachinePaths] = useSettingMutable('recentMachinePaths');
+    const activeScope = useActiveServerAccountScope();
     const [sessionHandoffDefaultsRaw] = useSettingMutable('sessionHandoffDefaultsV1');
     const sessionHandoffDefaults = React.useMemo(
         () => normalizeSessionHandoffDefaults(sessionHandoffDefaultsRaw),
@@ -212,13 +215,27 @@ export function SessionHandoffPickerModal({ onClose, setChrome, onResolve, sessi
         () => canAttemptMachineSpawn({ selectedMachineId, machine: selectedMachine }),
         [selectedMachine, selectedMachineId],
     );
+    const targetMachineHomeDir = String(selectedMachine?.metadata?.homeDir ?? '').trim() || '/home';
+    const pathPreferences = useMachinePathPreferences({
+        serverId,
+        machineId: selectedMachineId,
+        machines,
+        machineHomeDir: targetMachineHomeDir,
+    });
+    const scopedRecentPaths = React.useMemo(
+        () => pathPreferences.targetKey && selectedMachineId
+            ? pathPreferences.recents.map((path) => ({ machineId: selectedMachineId, path }))
+            : [],
+        [pathPreferences.recents, pathPreferences.targetKey, selectedMachineId],
+    );
+    const sessionsForTarget = pathPreferences.target && activeScope
+        && areServerAccountScopesEqual(pathPreferences.target, activeScope) ? sessions : EMPTY_TARGET_SESSIONS;
     const recentTargetPaths = useStableRecentPathsForMachine({
         machineId: selectedMachineId,
-        recentMachinePaths,
-        sessions,
-        cacheScopeKey: normalizeId(serverId) || null,
+        recentMachinePaths: scopedRecentPaths,
+        sessions: sessionsForTarget,
+        cacheScopeKey: pathPreferences.targetKey,
     });
-    const targetMachineHomeDir = String(selectedMachine?.metadata?.homeDir ?? '').trim() || '/home';
     const recentTargetPathOptions = React.useMemo(
         () => recentTargetPaths.map((path, index) => ({ path, lastUsedAt: index })),
         [recentTargetPaths],
@@ -347,10 +364,17 @@ export function SessionHandoffPickerModal({ onClose, setChrome, onResolve, sessi
                             machineHomeDir={targetMachineHomeDir}
                             initialValue={targetPath ?? ''}
                             initialSuggestionMode="history"
-                            favorites={EMPTY_PATH_SELECTION_FAVORITES}
+                            favorites={pathPreferences.favorites.map((path) => ({ path }))}
+                            isFavorite={(path) => pathPreferences.favorites.some((favorite) =>
+                                resolveDirectoryFavoriteComparisonKey(favorite, targetMachineHomeDir)
+                                === resolveDirectoryFavoriteComparisonKey(path, targetMachineHomeDir))}
+                            onToggleFavorite={(path) => { void pathPreferences.toggleFavorite(path); }}
+                            unassignedFavorites={pathPreferences.unassignedFavorites}
+                            onAssignUnassignedFavorite={(path) => { void pathPreferences.assignLegacyFavorite(path); }}
                             recents={recentTargetPathOptions}
                             machineId={selectedMachineId}
                             serverId={normalizeId(serverId) || null}
+                            targetScopeKey={pathPreferences.targetKey}
                             machinePlatform={machineMetadataPlatformToTarget(selectedMachine?.metadata?.platform)}
                             onCommit={handleTargetPathChange}
                             onChangeDraftPath={handleTargetPathChange}

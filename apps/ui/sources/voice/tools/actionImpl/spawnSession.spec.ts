@@ -12,6 +12,9 @@ const machineSpawnNewSession = vi.fn(async (params: any) => ({
   },
 }));
 const getActiveServerSnapshot = vi.fn(() => ({ serverId: 'server-a' }));
+vi.mock('@/sync/domains/scope/activeServerAccountScope', () => ({
+  getActiveServerAccountScope: () => ({ serverId: 'server-a', accountId: 'account-a' }),
+}));
 const resolveEffectiveWindowsRemoteSessionLaunchMode = vi.fn((_params: any) => ({ mode: null }));
 const postprocessSpawnedSession = vi.fn(async (_params: any) => {});
 const resolveSpawnAgentIdFromState = vi.fn((_value: any) => 'claude');
@@ -41,6 +44,11 @@ function createState(): any {
       recentMachinePaths: [
         { machineId: 'm1', path: '/Users/leeroy/projects/happier' },
       ],
+      machinePathPreferencesByTargetV1: {
+        [JSON.stringify(['server-a', 'account-a', 'm1'])]: {
+          favorites: [], recentPaths: ['/Users/leeroy/projects/happier'],
+        },
+      },
     },
   };
 }
@@ -179,6 +187,11 @@ describe('spawnSessionForVoiceTool', () => {
     state.settings.recentMachinePaths = [
       { machineId: 'm1', path: 'C:/Repo/.worktrees/Feature-Auth' },
     ];
+    state.settings.machinePathPreferencesByTargetV1 = {
+      [JSON.stringify(['server-a', 'account-a', 'm1'])]: {
+        favorites: [], recentPaths: ['C:/Repo/.worktrees/Feature-Auth'],
+      },
+    };
     state.sessions = {
       ...state.sessions,
       s_windows_old: {
@@ -201,6 +214,17 @@ describe('spawnSessionForVoiceTool', () => {
       machineId: 'm1',
       directory: 'C:/Repo/.worktrees/Feature-Auth',
     }));
+  });
+
+  it('does not spawn at an unassigned legacy path when no target was selected', async () => {
+    state.settings.recentMachinePaths = [{ machineId: 'm1', path: '/legacy/unassigned' }];
+    state.settings.machinePathPreferencesByTargetV1 = {};
+    const { spawnSessionForVoiceTool } = await import('./spawnSession');
+
+    const result: any = await spawnSessionForVoiceTool({});
+
+    expect(machineSpawnNewSession).not.toHaveBeenCalled();
+    expect(result.type).toBe('error');
   });
 
   it('fails when an explicit host cannot be resolved instead of falling back to another machine', async () => {
@@ -319,7 +343,7 @@ describe('spawnSessionForVoiceTool', () => {
     });
   });
 
-  it('keeps the fallback directory when a host-only request resolves uniquely to a different machine', async () => {
+  it('uses the selected host recent directory rather than another machine fallback', async () => {
     state.machines = {
       m_fallback: {
         id: 'm_fallback',
@@ -337,6 +361,14 @@ describe('spawnSessionForVoiceTool', () => {
     state.settings.recentMachinePaths = [
       { machineId: 'm_fallback', path: '/Users/leeroy/projects/fallback' },
     ];
+    state.settings.machinePathPreferencesByTargetV1 = {
+      [JSON.stringify(['server-a', 'account-a', 'm_fallback'])]: {
+        favorites: [], recentPaths: ['/Users/leeroy/projects/fallback'],
+      },
+      [JSON.stringify(['server-a', 'account-a', 'm_requested'])]: {
+        favorites: [], recentPaths: ['/Users/leeroy/projects/requested'],
+      },
+    };
 
     const { spawnSessionForVoiceTool } = await import('./spawnSession');
 
@@ -346,7 +378,7 @@ describe('spawnSessionForVoiceTool', () => {
 
     expect(machineSpawnNewSession).toHaveBeenCalledWith(expect.objectContaining({
       machineId: 'm_requested',
-      directory: '/Users/leeroy/projects/fallback',
+      directory: '/Users/leeroy/projects/requested',
     }));
     expect(result).toMatchObject({
       type: 'success',
