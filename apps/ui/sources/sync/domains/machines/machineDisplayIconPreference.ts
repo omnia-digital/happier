@@ -1,21 +1,48 @@
 import { z } from 'zod';
+import { getServerProfileLegacyServerIds, resolveServerProfileScopeIdForIdentifier } from '../server/serverProfiles';
 
 export const MachineDisplayIconSchema = z.enum(['desktop', 'laptop', 'cloud', 'terminal']);
 export type MachineDisplayIcon = z.infer<typeof MachineDisplayIconSchema>;
 
 const DEFAULT_MACHINE_DISPLAY_ICON: MachineDisplayIcon = 'desktop';
 
-function machineDisplayIconKey(serverId: string, machineId: string): string {
-    return JSON.stringify([serverId, machineId]);
+export type MachineDisplayPreferenceScope = Readonly<{ serverId: string; legacyServerIds: readonly string[] }>;
+
+export function resolveMachineDisplayPreferenceScope(serverId: string): MachineDisplayPreferenceScope {
+    const canonicalId = resolveServerProfileScopeIdForIdentifier(serverId);
+    return { serverId: canonicalId, legacyServerIds: getServerProfileLegacyServerIds(canonicalId).filter(id => id !== canonicalId) };
+}
+
+function machineDisplayPreferenceKeys(scope: string | MachineDisplayPreferenceScope, machineId: string): string[] {
+    const resolved = typeof scope === 'string' ? resolveMachineDisplayPreferenceScope(scope) : scope;
+    return [resolved.serverId, ...resolved.legacyServerIds].map(serverId => JSON.stringify([serverId, machineId]));
+}
+
+function readPreference<T extends string>(values: Readonly<Record<string, T>>, scope: string | MachineDisplayPreferenceScope, machineId: string, fallback: T): T {
+    for (const key of machineDisplayPreferenceKeys(scope, machineId)) {
+        if (values[key] !== undefined) return values[key];
+    }
+    return fallback;
+}
+
+function withPreference<T extends string>(values: Readonly<Record<string, T>>, serverId: string, machineId: string, value: T, fallback: T): Record<string, T> {
+    const [canonicalKey, ...legacyKeys] = machineDisplayPreferenceKeys(serverId, machineId);
+    const storedValue = value === fallback ? undefined : value;
+    if (values[canonicalKey] === storedValue && !legacyKeys.some(key => values[key] !== undefined)) return values as Record<string, T>;
+    const next = { ...values };
+    for (const key of legacyKeys) delete next[key];
+    if (storedValue === undefined) delete next[canonicalKey];
+    else next[canonicalKey] = storedValue;
+    return next;
 }
 
 export function readMachineDisplayIcon(
     icons: Readonly<Record<string, MachineDisplayIcon>>,
-    serverId: string | null | undefined,
+    serverId: string | MachineDisplayPreferenceScope | null | undefined,
     machineId: string | null | undefined,
 ): MachineDisplayIcon {
     if (!serverId || !machineId) return DEFAULT_MACHINE_DISPLAY_ICON;
-    return icons[machineDisplayIconKey(serverId, machineId)] ?? DEFAULT_MACHINE_DISPLAY_ICON;
+    return readPreference(icons, serverId, machineId, DEFAULT_MACHINE_DISPLAY_ICON);
 }
 
 export function withMachineDisplayIcon(
@@ -24,12 +51,7 @@ export function withMachineDisplayIcon(
     machineId: string,
     icon: MachineDisplayIcon,
 ): Record<string, MachineDisplayIcon> {
-    const key = machineDisplayIconKey(serverId, machineId);
-    if (readMachineDisplayIcon(icons, serverId, machineId) === icon) return icons as Record<string, MachineDisplayIcon>;
-    const next = { ...icons };
-    if (icon === DEFAULT_MACHINE_DISPLAY_ICON) delete next[key];
-    else next[key] = icon;
-    return next;
+    return withPreference(icons, serverId, machineId, icon, DEFAULT_MACHINE_DISPLAY_ICON);
 }
 
 // Store palette names, never theme-specific color values. Automatic preserves each
@@ -39,11 +61,11 @@ export type MachineDisplayColor = z.infer<typeof MachineDisplayColorSchema>;
 
 export function readMachineDisplayColor(
     colors: Readonly<Record<string, MachineDisplayColor>>,
-    serverId: string | null | undefined,
+    serverId: string | MachineDisplayPreferenceScope | null | undefined,
     machineId: string | null | undefined,
 ): MachineDisplayColor {
     if (!serverId || !machineId) return 'automatic';
-    return colors[machineDisplayIconKey(serverId, machineId)] ?? 'automatic';
+    return readPreference(colors, serverId, machineId, 'automatic');
 }
 
 export function withMachineDisplayColor(
@@ -52,10 +74,5 @@ export function withMachineDisplayColor(
     machineId: string,
     color: MachineDisplayColor,
 ): Record<string, MachineDisplayColor> {
-    const key = machineDisplayIconKey(serverId, machineId);
-    if (readMachineDisplayColor(colors, serverId, machineId) === color) return colors as Record<string, MachineDisplayColor>;
-    const next = { ...colors };
-    if (color === 'automatic') delete next[key];
-    else next[key] = color;
-    return next;
+    return withPreference(colors, serverId, machineId, color, 'automatic');
 }

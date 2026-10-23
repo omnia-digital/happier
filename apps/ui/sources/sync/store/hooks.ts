@@ -23,7 +23,8 @@ import {
 } from '../domains/artifacts/approvalArtifacts';
 import { isAutomationLinkedToSession } from '../domains/automations/automationSessionLink';
 import type { LocalSettings } from '../domains/settings/localSettings';
-import { readMachineDisplayColor, readMachineDisplayIcon } from '../domains/machines/machineDisplayIconPreference';
+import { readMachineDisplayColor, readMachineDisplayIcon, resolveMachineDisplayPreferenceScope, type MachineDisplayPreferenceScope } from '../domains/machines/machineDisplayIconPreference';
+import { getActiveServerId, subscribeServerProfiles } from '../domains/server/serverProfiles';
 import type { AgentTextMessage, Message } from '../domains/messages/messageTypes';
 import type { Settings } from '../domains/settings/settings';
 import { settingsDefaults } from '../domains/settings/settings';
@@ -1968,18 +1969,32 @@ export function useLocalSetting<K extends keyof LocalSettings>(name: K): LocalSe
   return getStorage()(useShallow((state) => state.localSettings[name]));
 }
 
+// Unscoped single-Home rows follow the active Home; cached rows can retain a
+// profile identifier from before identity discovery. Resolve both through the
+// server-profile owner and subscribe to the scalar identity, not its whole map.
+function useMachineDisplayScope(serverId?: string | null): MachineDisplayPreferenceScope {
+  const getScope = React.useCallback(
+    () => JSON.stringify(resolveMachineDisplayPreferenceScope(serverId?.trim() || getActiveServerId())),
+    [serverId],
+  );
+  const serializedScope = React.useSyncExternalStore(subscribeServerProfiles, getScope, getScope);
+  return React.useMemo(() => JSON.parse(serializedScope) as MachineDisplayPreferenceScope, [serializedScope]);
+}
+
 export function useMachineDisplayIcon(serverId?: string | null, machineId?: string | null) {
+  const resolvedScope = useMachineDisplayScope(serverId);
   return getStorage()((state) => readMachineDisplayIcon(
     state.localSettings.machineDisplayIconByMachineV1,
-    serverId,
+    resolvedScope,
     machineId,
   ));
 }
 
 export function useMachineDisplayColor(serverId?: string | null, machineId?: string | null) {
+  const resolvedScope = useMachineDisplayScope(serverId);
   return getStorage()((state) => readMachineDisplayColor(
     state.localSettings.machineDisplayColorByMachineV1,
-    serverId,
+    resolvedScope,
     machineId,
   ));
 }
