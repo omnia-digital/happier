@@ -8,7 +8,7 @@ import { normalizeSessionPathForProjectGrouping } from '@/sync/domains/session/l
 import { readSessionMachineTargetState, resolveDisplayMachineTargetForSessionFromState } from '@/sync/ops/sessionMachineTarget';
 import {
     readRepositoryAssociation, repositoryOrderKey, repositoryWorkspaceKey,
-    type RepositoryWorkspace, type SessionRepositoryAssociations,
+    type RepositoryWorkspace, type RepositoryCheckout, type SessionRepositoryAssociations,
 } from '@/sync/domains/session/listing/sessionRepositoryIdentity';
 import type { RepositoryDiscoveryWorkspace } from './sessionRepositoryDiscovery';
 
@@ -75,7 +75,10 @@ export function projectSessionListRepositoryView(input: Readonly<{
             const scope = input.scopes[sourceServerId];
             const serverId = scope?.serverId ?? sourceServerId;
             const target = resolveRepositoryDiscoveryWorkspace(item, scope, project);
-            const workspace: RepositoryWorkspace | null = target && scope ? { ...target, ...scope } : null;
+            const workspace: RepositoryCheckout | null = target && scope ? { ...target, ...scope,
+                ...(project?.seedSessionId ? { seedSessionId: project.seedSessionId } : item.type === 'session' ? { seedSessionId: item.session.id } : {}),
+                ...(project?.subtitle ? { machineLabel: project.subtitle } : {}),
+            } : null;
             const association = workspace ? readRepositoryAssociation(input.associations, workspace) : null;
             const identity = association?.manual?.identity ?? association?.identity ?? null;
             const fallbackKey = workspace ? repositoryWorkspaceKey({ ...workspace, path: association?.rootPath ?? workspace.path }) : JSON.stringify([serverId, target, item.type === 'session' ? item.session.id : item.folderId ?? item.groupKey]);

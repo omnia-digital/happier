@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeRepositoryRemote, resolveRepositoryRemote, repositoryWorkspaceKey, readRepositoryAssociation, withRepositoryAssociation, withManualRepositoryAssociation } from './sessionRepositoryIdentity';
+import { normalizeRepositoryRemote, resolveRepositoryRemote, repositoryWorkspaceKey, readRepositoryAssociation, withRepositoryAssociation, withManualRepositoryAssociation, listRepositoryAssociationChoices } from './sessionRepositoryIdentity';
 
 describe('repository grouping identity', () => {
     it('persists repository mode and scoped worktree associations through the actual local settings parser', async () => {
@@ -39,6 +39,20 @@ describe('repository grouping identity', () => {
         expect(readRepositoryAssociation(reset, worktree)?.identity).toBe(discovered.identity);
         expect(reset[repositoryWorkspaceKey(other)]).toBe(reloaded[repositoryWorkspaceKey(other)]);
         expect(withManualRepositoryAssociation(reset, workspace, null)).toBe(reset);
+    });
+
+    it('offers known manual and automatic groups only from the same Home account', () => {
+        const workspace = { serverId: 'home', accountId: 'account', machineId: 'machine', path: '/repo' };
+        const discovered = { identity: 'example.com/team/repo', label: 'Repository', rootPath: '/repo', worktreePaths: [] };
+        let values = withRepositoryAssociation({}, workspace, discovered);
+        values = withRepositoryAssociation(values, { ...workspace, machineId: 'second' }, discovered);
+        values = withManualRepositoryAssociation(values, { ...workspace, machineId: 'third' }, { identity: 'manual:one', label: 'My project' });
+        values = withRepositoryAssociation(values, { ...workspace, accountId: 'other' }, { ...discovered, identity: 'private-other-account' });
+        values = withRepositoryAssociation(values, { ...workspace, serverId: 'other' }, { ...discovered, identity: 'private-other-home' });
+        expect(listRepositoryAssociationChoices(values, workspace)).toEqual([
+            { identity: 'manual:one', label: 'My project' },
+            { identity: 'example.com/team/repo', label: 'Repository' },
+        ]);
     });
 
     it('combines conventional transport aliases without merging namespaces, forks or ports', () => {

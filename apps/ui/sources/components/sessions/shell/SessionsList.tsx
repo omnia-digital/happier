@@ -1,3 +1,4 @@
+import { readSessionOrganizationFolders } from '@/sync/domains/state/storage';
 import React from 'react';
 import type { SessionListReachabilityModels } from './sessionListReachabilityModels';
 import { normalizeSessionListBackgroundWorkAttentionMode } from '@/sync/domains/session/listing/sessionListBackgroundWorkAttention';
@@ -162,7 +163,9 @@ import {
 } from './selection/sessionListSelectionKeys';
 import { SessionListSelectionActionBarHost } from './selection/SessionListSelectionActionBar';
 import { Icon } from '@/components/ui/icons/Icon';
-import { readMachineControlTargetForSession } from '@/sync/ops/sessionMachineTarget';
+import { randomUUID } from '@/platform/randomUUID';
+import type { RepositoryCheckout, RepositoryAssociationChoice } from '@/sync/domains/session/listing/sessionRepositoryIdentity';
+import { readSessionMachineTargetState, readMachineControlTargetForSession } from '@/sync/ops/sessionMachineTarget';
 import { resolveSessionOrganizationMutationScope } from '@/sync/domains/session/organization/mutationScope';
 import { NewSessionDraftsSection } from './NewSessionDraftsSection';
 
@@ -604,6 +607,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         sessionListOrderingMode,
         sessionListMachineViewMode,
         refreshSessionRepositories,
+        getRepositoryAssociationChoices,
+        associateSessionRepository,
         sessionRepositoriesRefreshing,
         setSessionListMachineViewV1,
         setSessionListOrderingModeV1,
@@ -1059,16 +1064,16 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         setWorkspaceLabelsV1(next);
     }, [workspaceLabelsV1, setWorkspaceLabelsV1]);
 
-    const handleCreateSessionFromProject = React.useCallback((item: Extract<SessionListViewItem, { type: 'header' }>) => {
-        const workspaceScopeHint = item.workspaceScopeHint ?? null;
+    const handleCreateSessionFromProject = React.useCallback((item: Extract<SessionListViewItem, { type: 'header' }>, checkout?: RepositoryCheckout) => {
+        const workspaceScopeHint = checkout ? { serverId: checkout.serverId, machineId: checkout.machineId, rootPath: checkout.path } : item.workspaceScopeHint ?? null;
         if (!workspaceScopeHint) {
             return;
         }
-        const seedSessionId = typeof item.seedSessionId === 'string' ? item.seedSessionId.trim() : '';
+        const seedSessionId = checkout?.seedSessionId ?? (typeof item.seedSessionId === 'string' ? item.seedSessionId.trim() : '');
         const seedSession = seedSessionId
-            ? ((storage.getState() as any)?.sessions?.[seedSessionId] as Session | undefined)
+            ? (checkout ? readSessionMachineTargetState(checkout).sessions?.[seedSessionId] : storage.getState().sessions[seedSessionId]) as Session | undefined
             : undefined;
-        const seedMachineTarget = seedSessionId
+        const seedMachineTarget = seedSessionId && !checkout
             ? readMachineControlTargetForSession(seedSessionId)
             : null;
         const directory = seedMachineTarget?.machineId === workspaceScopeHint.machineId
@@ -1106,6 +1111,19 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         } as any);
     }, [rememberLastProjectSessionSelections, router]);
 
+    const handleAssociateRepository = React.useCallback(async (checkout: RepositoryCheckout, selected: RepositoryAssociationChoice | 'new' | null) => {
+        let choice = selected;
+        if (choice === 'new') {
+            const name = await Modal.prompt(t('sessionsList.repositoryNewGroup'), undefined, {
+                placeholder: t('sessionsList.repositoryGroupName'), confirmText: t('common.create'), cancelText: t('common.cancel'),
+            });
+            if (!name?.trim()) return;
+            choice = { identity: `manual:${randomUUID()}`, label: name.trim() };
+        }
+        try { await associateSessionRepository(checkout, choice); }
+        catch { Modal.alert(t('common.error'), t('errors.unknownError')); }
+    }, [associateSessionRepository]);
+
     const handleCreateSessionFromFolder = React.useCallback((folder: { workspace?: unknown }) => {
         const workspace = folder.workspace;
         if (!workspace || typeof workspace !== 'object' || (workspace as { t?: unknown }).t !== 'workspaceScope') {
@@ -1124,9 +1142,9 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         } as any);
     }, [router]);
 
-    const handleAddFolderToProject = React.useCallback(async (item: Extract<SessionListViewItem, { type: 'header' }>) => {
+    const handleAddFolderToProject = React.useCallback(async (item: Extract<SessionListViewItem, { type: 'header' }>, checkout?: RepositoryCheckout) => {
         if (!folderActionsEnabled) return;
-        const workspace = resolveDurableWorkspaceRefForSessionListHeader(item);
+        const workspace = checkout ? { t: 'workspaceScope' as const, serverId: checkout.serverId, machineId: checkout.machineId, rootPath: checkout.path } : resolveDurableWorkspaceRefForSessionListHeader(item);
         if (!workspace) return;
         const name = await Modal.prompt(
             t('sessionsList.addFolderPromptTitle'),
@@ -1138,15 +1156,16 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
             },
         );
         if (name === null) return;
+        const current = checkout ? readSessionOrganizationFolders(checkout.serverId) : sessionFoldersV1;
         const created = createSessionFolder({
-            current: sessionFoldersV1,
+            current,
             workspace,
             renderWorkspaceKey: typeof item.workspaceKey === 'string' ? item.workspaceKey : undefined,
             parentId: null,
             name,
             now: Date.now(),
         });
-        setSessionFoldersV1(created.next);
+        setSessionFoldersV1(created.next, checkout ? { scope: checkout, current } : undefined);
     }, [folderActionsEnabled, sessionFoldersV1, setSessionFoldersV1]);
 
     const handleAddSessionSubfolder = React.useCallback(async (folder: ReturnType<typeof asSessionFolderHeaderItem>) => {
@@ -2035,8 +2054,10 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                         onMoveDown={moveActionHandlers.onMoveDown}
                         onRenameWorkspace={handleRenameWorkspace}
                         onResetWorkspaceName={handleResetWorkspaceName}
-                        onCreateSession={() => handleCreateSessionFromProject(item)}
-                        onAddFolder={() => handleAddFolderToProject(item)}
+                        onCreateSession={(checkout) => handleCreateSessionFromProject(item, checkout)}
+                        getRepositoryAssociationChoices={getRepositoryAssociationChoices}
+                        onAssociateRepository={handleAssociateRepository}
+                        onAddFolder={(checkout) => handleAddFolderToProject(item, checkout)}
                         collapsed={Boolean(collapsedKeys[collapseKey])}
                         onToggleCollapse={() => handleToggleCollapse(collapseKey)}
                         headerTestId={headerTestId}
@@ -2082,6 +2103,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         folderViewEnabled,
         dropOverlayShared,
         handleAddFolderToProject,
+        getRepositoryAssociationChoices,
+        handleAssociateRepository,
         handleAddSessionSubfolder,
         handleCreateSessionFromProject,
         handleCreateSessionFromFolder,

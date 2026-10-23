@@ -1,4 +1,5 @@
-import { buildSessionOrganizationOrderViewState } from '../domains/session/organization/viewState';
+import { readSessionOrganizationServerScopedId } from '../domains/session/organization/keys';
+import { buildSessionOrganizationFolderViewState, buildSessionOrganizationOrderViewState } from '../domains/session/organization/viewState';
 import React from 'react';
 import type { SessionMessagesTailBoundary } from '@/sync/runtime/sessionMessagesTailDiscontinuity';
 import { useShallow } from 'zustand/react/shallow';
@@ -349,6 +350,12 @@ export function useSessionOrganizationProjection(serverId: string | null | undef
     if (!normalizedServerId) return null;
     return buildSessionOrganizationProjection(snapshot, normalizedServerId);
   }, [normalizedServerId, snapshot]);
+}
+
+export function readSessionOrganizationFolders(serverId: string) {
+  return buildSessionOrganizationFolderViewState(Object.entries(getStorage().getState().sessionOrganizationFoldersByFolderKey)
+    .filter(([key, folder]) => readSessionOrganizationServerScopedId(key, serverId) === folder.folderId)
+    .map(([, folder]) => folder));
 }
 
 /** Reads only order entries; Repository view does not subscribe to unrelated organization data. */

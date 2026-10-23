@@ -42,6 +42,7 @@ export const SessionRepositoryAssociationSchema = z.object({
 export const SessionRepositoryAssociationsSchema = z.record(z.string(), SessionRepositoryAssociationSchema).catch({});
 export type SessionRepositoryAssociation = z.infer<typeof SessionRepositoryAssociationSchema>;
 export type SessionRepositoryAssociations = z.infer<typeof SessionRepositoryAssociationsSchema>;
+export type RepositoryAssociationChoice = z.infer<typeof RepositoryChoiceSchema>;
 export type RepositoryWorkspace = Readonly<ServerAccountScope & { machineId: string; path: string }>;
 
 export function repositoryWorkspaceKey(workspace: RepositoryWorkspace): string {
@@ -92,8 +93,21 @@ export function withManualRepositoryAssociation(associations: SessionRepositoryA
     return result;
 }
 
+export function listRepositoryAssociationChoices(associations: SessionRepositoryAssociations, scope: ServerAccountScope): RepositoryAssociationChoice[] {
+    const prefix = `${JSON.stringify([scope.serverId, scope.accountId]).slice(0, -1)},`;
+    const choices = new Map<string, RepositoryAssociationChoice>();
+    for (const [key, association] of Object.entries(associations)) {
+        if (!key.startsWith(prefix)) continue;
+        const choice = association.manual ?? (association.identity ? { identity: association.identity, label: association.label } : null);
+        if (choice) choices.set(choice.identity, choice);
+    }
+    return [...choices.values()].sort((a, b) => a.label.localeCompare(b.label) || a.identity.localeCompare(b.identity));
+}
+
+export type RepositoryCheckout = RepositoryWorkspace & Readonly<{ seedSessionId?: string; machineLabel?: string }>;
+
 export type RepositoryHeaderPresentation = Readonly<{
     identity: string | null;
-    checkouts: readonly RepositoryWorkspace[];
+    checkouts: readonly RepositoryCheckout[];
     orderScope: string;
 }>;

@@ -704,11 +704,20 @@ describe('SessionsList session folders shell', () => {
             expect(launch?.submenu.items).toHaveLength(2);
             await act(async () => { await menuForRepository()?.props.onSelect('repository-new-session:1'); });
             expect(routerPushSpy).toHaveBeenLastCalledWith({ pathname: '/new', params: expect.objectContaining({ machineId: 'machine_b', directory: '/other', spawnServerId: 'server_a' }) });
+            getCredentialsForServerUrlSpy.mockResolvedValueOnce({ token: `header.${Buffer.from(JSON.stringify({ sub: 'profile-1' })).toString('base64')}.signature`, secret: 'secret' } as any);
+            modalPromptSpy.mockResolvedValueOnce('Checkout folder');
+            await act(async () => { await menuForRepository()?.props.onSelect('repository-add-folder:1'); });
+            await vi.waitFor(() => expect(upsertSessionFolderSpy).toHaveBeenCalledWith(expect.objectContaining({
+                serverId: 'server_a', request: expect.objectContaining({ display: { t: 'plain', v: { name: 'Checkout folder', workspace: { t: 'workspaceScope', serverId: 'server_a', machineId: 'machine_b', rootPath: '/other' } } } }),
+            })));
             modalPromptSpy.mockResolvedValueOnce('My project');
             await act(async () => { await menuForRepository()?.props.onSelect('repository-associate:0:new'); });
             expect(readRepositoryAssociation(storage.getState().localSettings.sessionRepositoryAssociationsV1, first)?.manual?.label).toBe('My project');
             expect(readRepositoryAssociation(storage.getState().localSettings.sessionRepositoryAssociationsV1, second)?.manual).toBeUndefined();
-            const manualMenu = screen.findAllByType('DropdownMenu' as React.ElementType).find(node => node.findAll(child => child.props.accessibilityLabel === 'My project').length > 0) ?? menuForRepository();
+            const manualHeader = screen.root.findAll(node => node.props.headerTestId && node.props.item?.title === 'My project')[0];
+            expect(manualHeader).toBeTruthy();
+            const manualMenu = manualHeader.findAllByType('DropdownMenu' as React.ElementType)[0];
+            expect(manualMenu).toBeTruthy();
             await act(async () => { await manualMenu?.props.onSelect('repository-associate:0:automatic'); });
             expect(readRepositoryAssociation(storage.getState().localSettings.sessionRepositoryAssociationsV1, first)?.manual).toBeUndefined();
         } finally { standardCleanup(); storage.setState(previous, true); }

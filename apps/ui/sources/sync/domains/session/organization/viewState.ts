@@ -5,7 +5,7 @@ import {
     type SessionWorkspaceOrderV1,
 } from '@/sync/domains/session/listing/sessionWorkspaceOrderStateV1';
 import type { ReorderSessionOrganizationRequest } from '@happier-dev/protocol';
-import type { SessionAttentionStanding } from '@happier-dev/protocol';
+import type { SessionOrganizationFolder, SessionAttentionStanding } from '@happier-dev/protocol';
 
 import type { SessionOrganizationProjection } from './types';
 import { buildSessionOrganizationTagLabelById } from './tagLabels';
@@ -192,6 +192,28 @@ export function buildSessionOrganizationOrderViewState(serverId: string, orderEn
     return { sessionListGroupOrderV1, sessionWorkspaceOrderV1 };
 }
 
+export function buildSessionOrganizationFolderViewState(entries: readonly SessionOrganizationFolder[]): SessionFoldersV1 {
+    const folders = entries
+        .filter((folder) => folder.archivedAt == null)
+        .map((folder) => {
+            const name = readFolderName(folder.display);
+            const workspace = readWorkspaceRef(folder.display);
+            if (!name || !workspace) return null;
+            return {
+                id: folder.folderId,
+                workspace,
+                parentId: folder.parentFolderId,
+                name,
+                createdAt: folder.createdAt,
+                updatedAt: folder.updatedAt,
+                ...(folder.sortKey ? { sortKey: folder.sortKey } : {}),
+            };
+        })
+        .filter((folder): folder is NonNullable<typeof folder> => folder != null)
+        .sort((a, b) => compareBySortKey(a, b) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+    return { v: 1, folders };
+}
+
 export function buildSessionOrganizationListViewState(params: Readonly<{
     serverId: string;
     projection: SessionOrganizationProjection | null;
@@ -232,24 +254,7 @@ export function buildSessionOrganizationListViewState(params: Readonly<{
         ]),
     );
 
-    const folders = Object.values(projection.foldersById)
-        .filter((folder) => folder.archivedAt == null)
-        .map((folder) => {
-            const name = readFolderName(folder.display);
-            const workspace = readWorkspaceRef(folder.display);
-            if (!name || !workspace) return null;
-            return {
-                id: folder.folderId,
-                workspace,
-                parentId: folder.parentFolderId,
-                name,
-                createdAt: folder.createdAt,
-                updatedAt: folder.updatedAt,
-                ...(folder.sortKey ? { sortKey: folder.sortKey } : {}),
-            };
-        })
-        .filter((folder): folder is NonNullable<typeof folder> => folder != null)
-        .sort((a, b) => compareBySortKey(a, b) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+    const sessionFoldersV1 = buildSessionOrganizationFolderViewState(Object.values(projection.foldersById));
 
     const { sessionListGroupOrderV1, sessionWorkspaceOrderV1 } = buildSessionOrganizationOrderViewState(serverId, projection.orderEntriesByScopeKey);
     const workspaceLabelsV1: Record<string, string> = {};
@@ -265,7 +270,7 @@ export function buildSessionOrganizationListViewState(params: Readonly<{
 
     return {
         pinnedSessionKeysV1,
-        sessionFoldersV1: { v: 1, folders },
+        sessionFoldersV1,
         sessionFolderAssignmentsBySessionKey,
         sessionTagsV1,
         attentionStandingOverridesBySessionKey,

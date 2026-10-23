@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { storage } from '@/sync/domains/state/storage';
+import { persistSessionListFolders } from './persistSessionListFolders';
+import { storage, readSessionOrganizationFolders } from '@/sync/domains/state/storage';
 import { buildSessionOrganizationProjection } from '@/sync/domains/session/organization/projection';
 import { buildSessionOrganizationListViewState } from '@/sync/domains/session/organization/viewState';
 import { persistSessionListGroupOrder } from './persistSessionListGroupOrder';
 
-const boundary = vi.hoisted(() => ({ credentials: vi.fn(), reorder: vi.fn() }));
+const boundary = vi.hoisted(() => ({ credentials: vi.fn(), reorder: vi.fn(), upsertFolder: vi.fn() }));
 vi.mock('@/auth/storage/tokenStorage', async importOriginal => {
     const actual = await importOriginal<typeof import('@/auth/storage/tokenStorage')>();
     return { ...actual, TokenStorage: { ...actual.TokenStorage, getCredentialsForServerUrl: boundary.credentials } };
@@ -16,8 +17,9 @@ vi.mock('@/sync/domains/server/serverProfiles', async importOriginal => {
         { id: 'profile-b', serverIdentityId: 'home-b', serverUrl: 'https://b.example.com' },
     ] as any } });
 });
+vi.mock('@/sync/api/account/apiAccountEncryptionMode', () => ({ fetchAccountEncryptionMode: async () => ({ mode: 'plain', updatedAt: 0 }) }));
 vi.mock('@/sync/api/session/sessionOrganizationApi', async importOriginal => ({
-    ...await importOriginal<typeof import('@/sync/api/session/sessionOrganizationApi')>(), reorderSessionOrganization: boundary.reorder,
+    ...await importOriginal<typeof import('@/sync/api/session/sessionOrganizationApi')>(), reorderSessionOrganization: boundary.reorder, upsertSessionOrganizationFolder: boundary.upsertFolder,
 }));
 const credentials = (accountId: string) => ({ token: `header.${Buffer.from(JSON.stringify({ sub: accountId })).toString('base64')}.signature`, secret: 'secret' });
 let previous: ReturnType<typeof storage.getState>;
@@ -27,6 +29,7 @@ beforeEach(() => {
     storage.getState().clearSessionOrganizationForServer('home-a');
     storage.getState().clearSessionOrganizationForServer('home-b');
     boundary.credentials.mockReset().mockImplementation(async (url: string) => credentials(url.includes('b.example') ? 'account-b' : 'account-a'));
+    boundary.upsertFolder.mockReset().mockImplementation(async ({ request }) => ({ folder: { ...request, archivedAt: null, createdAt: 1, updatedAt: 1 } }));
     boundary.reorder.mockReset().mockImplementation(async ({ request }) => ({ orderEntries: request.entries.map((entry: object) => ({ ...entry, scopeKind: request.scopeKind, scopeKey: request.scopeKey })) }));
 });
 afterEach(() => storage.setState(previous, true));
@@ -68,5 +71,22 @@ describe('session list group order persistence', () => {
         })).rejects.toThrow();
         expect(boundary.reorder).not.toHaveBeenCalled();
         expect(orders('home-b')).toEqual({});
+    });
+});
+
+
+describe('session list folder persistence', () => {
+    it('creates a physical folder in the chosen foreign Home and rolls back a failed write without touching the active Home', async () => {
+        const workspace = { t: 'workspaceScope' as const, serverId: 'home-b', machineId: 'machine-b', rootPath: '/checkout-b' };
+        const folder = { id: 'folder-b', name: 'Chosen folder', workspace, parentId: null, createdAt: 1, updatedAt: 1 };
+        const input = { current: { v: 1 as const, folders: [] }, next: { v: 1 as const, folders: [folder] },
+            serverId: 'home-a', scope: { serverId: 'home-b', accountId: 'account-b' } };
+        await persistSessionListFolders(input);
+        expect(boundary.upsertFolder.mock.calls[0][0]).toMatchObject({ serverUrl: 'https://b.example.com', credentials: credentials('account-b'), request: { display: { t: 'plain', v: { workspace } } } });
+        expect(readSessionOrganizationFolders('home-b').folders).toEqual([folder]);
+        expect(readSessionOrganizationFolders('home-a').folders).toEqual([]);
+        boundary.upsertFolder.mockRejectedValueOnce(new Error('offline'));
+        await expect(persistSessionListFolders({ ...input, current: input.next, next: { v: 1, folders: [{ ...folder, name: 'Unconfirmed' }] } })).rejects.toThrow('offline');
+        expect(readSessionOrganizationFolders('home-b').folders[0].name).toBe('Chosen folder');
     });
 });

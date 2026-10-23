@@ -1,6 +1,8 @@
 import * as React from 'react';
 import { scmRepositoryService } from '@/scm/scmRepositoryService';
-import { useActiveServerAccountScope, useLocalSetting, useSessionOrganizationGroupOrderByServer } from '@/sync/domains/state/storage';
+import { storage, useActiveServerAccountScope, useLocalSetting, useSessionOrganizationGroupOrderByServer } from '@/sync/domains/state/storage';
+import { applyLocalSettingsFromUi } from '@/sync/store/settingsWriters';
+import { listRepositoryAssociationChoices, withManualRepositoryAssociation, type RepositoryWorkspace, type RepositoryAssociationChoice } from '@/sync/domains/session/listing/sessionRepositoryIdentity';
 import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
 import type { SessionListOrderingModeV1, SessionListOrderingSectionMode } from '@/sync/domains/session/listing/sessionListOrderingRules';
@@ -90,6 +92,17 @@ export function useSessionRepositoryView(input: Input) {
         if (mode === 'repository') void run(false);
     }, [run]);
     const refresh = React.useCallback(() => run(true), [run]);
+    const getAssociationChoices = React.useCallback((workspace: RepositoryWorkspace) =>
+        listRepositoryAssociationChoices(storage.getState().localSettings.sessionRepositoryAssociationsV1, workspace), []);
+    const associate = React.useCallback(async (workspace: RepositoryWorkspace, choice: RepositoryAssociationChoice | null) => {
+        const capturedContext = contextRef.current;
+        const scope = await scmRepositoryService.resolveScopeForServer(workspace.serverId);
+        if (!scope || scope.serverId !== workspace.serverId || scope.accountId !== workspace.accountId
+            || contextRef.current !== capturedContext) throw new Error('Repository account scope changed');
+        const current = storage.getState().localSettings.sessionRepositoryAssociationsV1;
+        const next = withManualRepositoryAssociation(current, workspace, choice);
+        if (next !== current) applyLocalSettingsFromUi({ sessionRepositoryAssociationsV1: next });
+    }, []);
     const orderServerIds = React.useMemo(() => input.mode === 'repository'
         ? [...new Set(Object.values(scopes).flatMap(scope => scope ? [scope.serverId] : []))].sort() : [], [input.mode, scopes]);
     const orderByServer = useSessionOrganizationGroupOrderByServer(orderServerIds);
@@ -110,5 +123,5 @@ export function useSessionRepositoryView(input: Input) {
         }
         return { groupOrder, orderScopes };
     }, [allGroupOrder, input.groupOrder, input.mode, items]);
-    return { items, selectMode, refresh, refreshing: input.mode === 'repository' && refreshing, scopes, associations, ...orderState };
+    return { items, selectMode, refresh, getAssociationChoices, associate, refreshing: input.mode === 'repository' && refreshing, scopes, associations, ...orderState };
 }
