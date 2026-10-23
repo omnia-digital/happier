@@ -417,4 +417,72 @@ test.describe('ui e2e: session list ordering mode', () => {
       .toHaveJSProperty('innerHTML', chosenGlyph);
     expect((await readUiE2eLocalSettings({ page })).sessionListShowMachineLabel).toBe(false);
   });
+
+  test('opens a blank Same Setup draft for the clicked row from plus, right-click, and three-dot', async ({ page }) => {
+    test.setTimeout(180_000);
+    if (!server || !uiBaseUrl || !token) throw new Error('missing server/ui fixtures');
+
+    const machineId = `same-setup-machine-${run.runId}`;
+    const rootPath = repoRootDir();
+    const registration = await registerMachineIdentity({
+      baseUrl: server.baseUrl,
+      token,
+      machineId,
+      metadata: encodePlainMachineStoredContent({
+        host: 'same-setup.local',
+        platform: 'darwin',
+        happyCliVersion: '0.2.16',
+        happyHomeDir: cliHomeDir,
+        homeDir: resolve(suiteDir),
+      }),
+      dataEncryptionKey: MACHINE_PLAIN_DATA_KEY_MARKER,
+    });
+    expect(registration.status).toBe(200);
+    const sessionParams = { baseUrl: server.baseUrl, token, rootPath, machineId, tagPrefix: 'same-setup' };
+    const selectedSessionId = await createPlainSession({ ...sessionParams, title: `selected ${run.runId}` });
+    const clickedSessionId = await createPlainSession({ ...sessionParams, title: `clicked ${run.runId}` });
+    const mutatingSessionRequests: string[] = [];
+    page.on('request', (request) => {
+      const url = new URL(request.url());
+      if (/\/v[12]\/sessions(?:\/|$)/.test(url.pathname) && request.method() !== 'GET') {
+        mutatingSessionRequests.push(`${request.method()} ${url.pathname}`);
+      }
+    });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 300_000);
+    await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+    const selectedRow = page.getByTestId(`session-list-item-${selectedSessionId}`);
+    const clickedRow = page.getByTestId(`session-list-item-${clickedSessionId}`);
+    await expect(selectedRow).toHaveCount(1, { timeout: 120_000 });
+    await expect(clickedRow).toHaveCount(1, { timeout: 120_000 });
+    await selectedRow.click();
+    await expect(selectedRow).toHaveAttribute('aria-selected', 'true');
+
+    async function expectBlankDraftAndCancel(): Promise<void> {
+      await page.waitForURL((url) => url.pathname.endsWith('/new'), { timeout: 60_000 });
+      const route = new URL(page.url());
+      expect(route.searchParams.get('machineId')).toBe(machineId);
+      expect(route.searchParams.get('directory')).toBe(rootPath);
+      expect(route.searchParams.get('dataId')).toEqual(expect.any(String));
+      await expect(page.getByTestId('new-session-composer-input')).toHaveValue('', { timeout: 60_000 });
+      await page.getByTestId('new-session-cancel').click();
+      await page.waitForURL((url) => !url.pathname.endsWith('/new'), { timeout: 60_000 });
+      await expect(clickedRow).toHaveCount(1, { timeout: 60_000 });
+      expect(mutatingSessionRequests).toEqual([]);
+    }
+
+    await clickedRow.hover();
+    await clickedRow.getByTestId('session-item-same-setup-action').click();
+    await expectBlankDraftAndCancel();
+
+    await clickedRow.click({ button: 'right' });
+    await page.getByTestId('dropdown-option-session_sameSetup').click();
+    await expectBlankDraftAndCancel();
+
+    await clickedRow.hover();
+    await clickedRow.getByTestId('session-item-more-menu').click();
+    await page.getByTestId('dropdown-option-session_sameSetup').click();
+    await expectBlankDraftAndCancel();
+  });
 });
