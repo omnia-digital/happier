@@ -1,5 +1,12 @@
 # Tasks: Happier fork development setup
 
+## Current execution checkpoint
+
+- 🟢 Restarted the scoped native app in UI-only mode against `https://api.happier.dev`, with `--no-server --no-daemon`; installed daily app remains running. Hosted authentication now returns ping 200, existing session/machine groups load, and selecting this work session opens 42 message elements plus its composer. No message was sent to an existing session.
+- 🟢 Eight previously failing CLI files pass unchanged (86 tests) with canonical TMPDIR and isolated fixture Git config. Four server Sharp checks pass with canonical TMPDIR and the pinned Bun 1.4.2. The original root suite remains failed; no existing tests were edited.
+- 🟡 Native hosted restart/reconnect and a dedicated test session's actions/approvals remain open. The earlier sign-in and hidden-QR observations below are historical and superseded by the current authenticated evidence.
+- 🟡 Parent fetched at `e7c3bd5584`, 31 new commits pending integration. No touched-file collision with fork runtime corrections; new Claude response-location controls are not honored by daily CLI 0.2.16 and require mixed-version validation. Preserve the current stable source slice while checking that batch.
+
 ### [ ] Validate the forked macOS UI against the existing hosted setup
 **Description:** Use the new macOS app with the existing account, hosted relay, machines and sessions while preserving installed clients and services.
 **Context:** Josh's preferred first adoption is UI-only. Local relay/source CLI work is a test lane, not an adoption prerequisite. Sign in through the normal account-link flow; preserve the isolated account too.

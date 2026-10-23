@@ -8,7 +8,25 @@ Josh prefers to keep his current hosted account, relay, machines, CLI/daemons an
 
 The installed app reports 0.2.17 and the installed CLI 0.2.16. The hosted relay's `/v1/features` responds, and an actual `OPTIONS /v1/auth/ping` preflight allows the dev origin and authorization/content-type headers. The checked `/v1/version` returns only `ok`, so its exact deployed revision remains unknown. These checks establish reachability and the checked browser seam, not authenticated mixed-version session compatibility.
 
-Added `https://api.happier.dev` as **Happier Cloud** through the forked app's normal Relay settings and selected existing-account sign-in. The local test profile remains saved separately. No hosted account was created and no recovery key was copied. The app is at `/restore`, but its background WebView is not rendering the QR panel; the available native controls cannot focus this unbundled debug executable. Bring the **Happier Omnia Dev** window forward and sign in with an already authenticated Happier client. Hosted authentication, existing session/machine visibility, real session actions and native restart persistence remain unverified until that step completes.
+Added `https://api.happier.dev` as **Happier Cloud** through the forked app's normal Relay settings and selected existing-account sign-in. The local test profile remains saved separately. No hosted account was created and no recovery key was copied. The hosted profile now authenticates successfully (`GET /v1/auth/ping` returns 200), existing sessions and machine groups populate, and selecting this Happier work session opens its transcript and composer. The old `/restore` route remained open after authentication; selecting the sidebar session dismissed it. The foreground QR panel renders correctly. Real test-session actions, approvals and native restart persistence remain unverified.
+
+### Launch only the forked Mac UI
+
+From this checkout, use the existing repo-local launcher against the hosted relay:
+
+```sh
+node apps/stack/scripts/repo_local.mjs dev --tauri \
+  --no-server --server-url=https://api.happier.dev --no-daemon \
+  --no-browser --no-dev-targets --loopback
+```
+
+This starts Metro and the scoped native app without starting a relay or daemon. Stop it through `node apps/stack/scripts/repo_local.mjs stop --json`. The local account and relay data stay on disk. The restored launch reused verified dependencies with the one-shot `HAPPIER_STACK_SKIP_REFRESH_DEPS=1`; omit that shortcut whenever dependency inputs changed. The prior full-stack log reported `ENOSPC`; the exact shutdown cause is not established. Current available storage is approximately 18 GiB, so avoid unnecessary duplicate builds.
+
+### Current validation checkpoint
+
+At source revision `410a7b0703`, eight previously failing CLI files pass unchanged: 86 tests covering Git checkout/materialization/reconciliation/status, review scope, capability probe cwd and build cleanup. The subprocess test environment uses `TMPDIR=/private/tmp` and `GIT_CONFIG_GLOBAL=/dev/null`, so disposable fixture repositories do not inherit the host's interactive signing configuration. Actual feature-branch commits retain configured signing and identity. All four server Sharp runtime checks also pass with canonical TMPDIR and the privately pinned Bun 1.4.2. Logs: `/tmp/happier-oh-4-cli-fixture-validation.log` and `/tmp/happier-oh-4-server-bun-validation.log`. These targeted reruns classify environment failures; the original full-root result remains failed.
+
+Fetched parent `dev` at `e7c3bd5584`: 31 new commits are not integrated yet. Read-only review finds no path overlap with the fork's Metro, Tauri cleanup or installer corrections. The new Claude prompt-location settings are not understood by the installed CLI 0.2.16, so their mixed-version behavior requires validation before adoption. The parent desktop release bump also retains upstream distribution identities. Keep this batch unmerged pending its affected tests and compatibility checks; do not replace the hosted relay or daily daemon to accommodate it.
 
 OH-6 now owns the hosted UI-only acceptance gate. OH-14 through OH-19 follow that stable Mac gate; their former OH-4 local-stack prerequisite was removed, preserving their other UI dependencies. OH-9 hosting/migration is deferred and OH-11 remains a later all-platform rollout. Keep shared settings and session writes compatible with the installed clients; negotiate unavailable hosted features rather than require a server/daemon migration.
 
