@@ -99,6 +99,7 @@ async function createPlainSession(params: Readonly<{
   baseUrl: string;
   token: string;
   title: string;
+  machineId?: string;
 }>): Promise<SeededSession> {
   const tag = `session-list-attention-${randomUUID()}`;
   const res = await fetchJson<SessionCreateResponse>(`${params.baseUrl}/v1/sessions`, {
@@ -114,6 +115,7 @@ async function createPlainSession(params: Readonly<{
         name: params.title,
         path: `/tmp/${tag}`,
         flavor: 'claude',
+        ...(params.machineId ? { host: params.machineId, machineId: params.machineId } : {}),
       }),
       agentState: null,
       dataEncryptionKey: null,
@@ -179,8 +181,9 @@ async function connectAuthenticatedMachinePublisher(params: Readonly<{
   token: string;
   sessionId: string;
   thinking: boolean;
+  machineId?: string;
 }>): Promise<SocketCollector> {
-  const { socket } = await createMachineBoundSessionScopedSocketCollector(params);
+  const { socket } = await createMachineBoundSessionScopedSocketCollector({ ...params, plainMachine: true });
   socket.connect();
   try {
     await waitFor(async () => socket.isConnected(), {
@@ -490,24 +493,37 @@ async function publishRuntimeActivity(params: Readonly<{
   }
 }
 
-async function publishPendingPermissionRequest(params: Readonly<{
+async function publishPendingAgentRequest(params: Readonly<{
   baseUrl: string;
   token: string;
   socket: SocketCollector;
   sessionId: string;
+  kind?: 'permission' | 'user_action';
+  requestId?: string;
+  command?: string;
+  question?: string;
 }>): Promise<void> {
   const current = await fetchSessionV2(params.baseUrl, params.token, params.sessionId);
+  const kind = params.kind ?? 'permission';
+  const requestId = params.requestId ?? 'e2e-permission';
   const ack = await params.socket.emitWithAck<{ result?: string }>('update-state', {
     sid: params.sessionId,
     // Plain sessions carry agent state as JSON, the same shape the CLI publishes with its counts.
     agentState: JSON.stringify({
-      requests: { 'e2e-permission': { tool: 'Bash', arguments: { command: 'ls' }, createdAt: Date.now() } },
+      requests: {
+        [requestId]: kind === 'user_action'
+          ? { tool: 'AskUserQuestion', kind: 'user_action', arguments: { questions: [{ question: params.question ?? 'Continue?', options: [{ label: 'Yes' }, { label: 'No' }] }] }, createdAt: Date.now() }
+          : { tool: 'Bash', arguments: { command: params.command ?? 'ls' }, createdAt: Date.now() },
+      },
     }),
     expectedVersion: current.agentStateVersion,
-    activitySummaryV1: { pendingPermissionRequestCount: 1, pendingUserActionRequestCount: 0 },
+    activitySummaryV1: {
+      pendingPermissionRequestCount: kind === 'permission' ? 1 : 0,
+      pendingUserActionRequestCount: kind === 'user_action' ? 1 : 0,
+    },
   });
   if (ack?.result !== 'success') {
-    throw new Error(`Pending permission request was not published (result=${String(ack?.result)})`);
+    throw new Error(`Pending ${kind} request was not published (result=${String(ack?.result)})`);
   }
 }
 
@@ -997,7 +1013,7 @@ test.describe('ui e2e: session list attention', () => {
       publisher = await connectAuthenticatedMachinePublisher({ baseUrl: server.baseUrl, token, sessionId: session.id, thinking: false });
       stopKeepAlive = startPresenceKeepAlive(publisher, session.id);
       await publishRuntimeActivity({ socket: publisher, sessionId: session.id, snapshot: { state: 'active', activeCount: 1 } });
-      await publishPendingPermissionRequest({ baseUrl: server.baseUrl, token, socket: publisher, sessionId: session.id });
+      await publishPendingAgentRequest({ baseUrl: server.baseUrl, token, socket: publisher, sessionId: session.id });
       const permissionIndicator = page.getByTestId(`session-list-attention-indicator-${session.id}-secondary-permission_required`);
       await expect(permissionIndicator).toHaveCount(1, { timeout: 60_000 });
       await expect.poll(() => pendingUpdate !== null).toBe(true);
@@ -1084,7 +1100,7 @@ test.describe('ui e2e: session list attention', () => {
         latestTurnStatus: 'completed',
       });
       await publishRuntimeActivity({ socket: publisher, sessionId: session.id, snapshot: { state: 'active', activeCount: 1 } });
-      await publishPendingPermissionRequest({ baseUrl: server.baseUrl, token, socket: publisher, sessionId: session.id });
+      await publishPendingAgentRequest({ baseUrl: server.baseUrl, token, socket: publisher, sessionId: session.id });
 
       // No reload: the row was offline when the list loaded, so this also proves the live update
       // brings it back online.
@@ -1100,6 +1116,97 @@ test.describe('ui e2e: session list attention', () => {
     } finally {
       stopKeepAlive?.();
       publisher?.close();
+    }
+  });
+
+  test('explains current Inbox requests and a completed update, then clears resolved requests', async ({ page }) => {
+    test.setTimeout(360_000);
+    if (!server || !token || !uiBaseUrl) throw new Error('missing session list attention fixtures');
+
+    const machineId = `oh49-inbox-${run.runId}`;
+    const permission = await createPlainSession({ baseUrl: server.baseUrl, token, title: 'OH49 permission request', machineId });
+    const input = await createPlainSession({ baseUrl: server.baseUrl, token, title: 'OH49 input question', machineId });
+    const notice = await createPlainSession({ baseUrl: server.baseUrl, token, title: 'OH49 completed notice', machineId });
+    await seedReadyMarker({ baseUrl: server.baseUrl, token, sessionId: notice.id });
+    await updateSessionRuntimeStatus({ baseUrl: server.baseUrl, token, sessionId: notice.id, latestTurnStatus: 'completed' });
+
+    const browserDiagnostics = collectBrowserDiagnostics({ page });
+    const publishers: SocketCollector[] = [];
+    const keepAlives: Array<() => void> = [];
+    try {
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+      await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+
+      for (const session of [permission, input]) {
+        const publisher = await connectAuthenticatedMachinePublisher({
+          baseUrl: server.baseUrl, token, sessionId: session.id, machineId, thinking: false,
+        });
+        publishers.push(publisher);
+        keepAlives.push(startPresenceKeepAlive(publisher, session.id));
+      }
+      await publishPendingAgentRequest({
+        baseUrl: server.baseUrl, token, socket: publishers[0]!, sessionId: permission.id,
+        requestId: 'oh49-current-permission', command: 'echo oh49-current-permission',
+      });
+      await publishPendingAgentRequest({
+        baseUrl: server.baseUrl, token, socket: publishers[1]!, sessionId: input.id,
+        kind: 'user_action', requestId: 'oh49-current-input', question: 'Should OH49 continue?',
+      });
+
+      const inboxButton = page.getByTestId('sidebar-inbox-button');
+      await expect(page.getByTestId('sidebar-inbox-attention-dot')).toHaveCount(1, { timeout: 60_000 });
+      await inboxButton.click();
+      await expect(page.getByTestId('inbox-panel-description')).toContainText('Some entries are notifications and do not need a reply.');
+      const permissionGroup = page.locator(`[data-testid^="inbox.session_attention."][data-testid$=".${permission.id}"]`);
+      const inputGroup = page.locator(`[data-testid^="inbox.session_attention."][data-testid$=".${input.id}"]`);
+      const noticeRow = page.locator(`[data-testid^="inbox.review_session."][data-testid$=".${notice.id}"]`);
+      await expect(permissionGroup).toContainText('Permission request · Reply needed', { timeout: 60_000 });
+      await expect(permissionGroup.getByTestId('permission-prompt-card')).toHaveCount(1);
+      await expect(inputGroup).toContainText('Your input needed', { timeout: 60_000 });
+      await expect(inputGroup.getByTestId('user-action-prompt-card')).toContainText('Should OH49 continue?');
+      await expect(noticeRow).toContainText('Completed · No reply needed', { timeout: 60_000 });
+      await expect(noticeRow.getByTestId('permission-prompt-card')).toHaveCount(0);
+
+      await permissionGroup.getByRole('button', { name: 'Open' }).click();
+      await expect(page).toHaveURL(new RegExp(`/session/${permission.id}(?:\\?|$)`), { timeout: 90_000 });
+      await expect(page.getByTestId('permission-prompt-card')).toHaveCount(1, { timeout: 60_000 });
+      await expect(page.getByTestId('permission-prompt-card')).toContainText('oh49-current-permission');
+
+      await inboxButton.click();
+      await inputGroup.getByRole('button', { name: 'Open' }).click();
+      await expect(page).toHaveURL(new RegExp(`/session/${input.id}(?:\\?|$)`), { timeout: 90_000 });
+      await expect(page.getByTestId('user-action-prompt-card')).toContainText('Should OH49 continue?', { timeout: 60_000 });
+
+      for (const [index, session] of [permission, input].entries()) {
+        const current = await fetchSessionV2(server.baseUrl, token, session.id);
+        const ack = await publishers[index]!.emitWithAck<{ result?: string }>('update-state', {
+          sid: session.id,
+          agentState: JSON.stringify({ requests: {}, completedRequests: {
+            [index === 0 ? 'oh49-current-permission' : 'oh49-current-input']: {
+              tool: index === 0 ? 'Bash' : 'AskUserQuestion',
+              status: 'approved', completedAt: Date.now(),
+            },
+          } }),
+          expectedVersion: current.agentStateVersion,
+          activitySummaryV1: { pendingPermissionRequestCount: 0, pendingUserActionRequestCount: 0 },
+        });
+        expect(ack?.result).toBe('success');
+      }
+      await expect(page.getByTestId('user-action-prompt-card')).toHaveCount(0, { timeout: 60_000 });
+      await inboxButton.click();
+      await expect(permissionGroup).toHaveCount(0, { timeout: 60_000 });
+      await expect(inputGroup).toHaveCount(0, { timeout: 60_000 });
+      await expect(noticeRow).toContainText('Completed · No reply needed');
+      await noticeRow.click();
+      await expect(page).toHaveURL(new RegExp(`/session/${notice.id}(?:\\?|$)`), { timeout: 90_000 });
+      await expect(page.getByTestId('permission-prompt-card')).toHaveCount(0);
+      await expect(page.getByTestId('user-action-prompt-card')).toHaveCount(0);
+    } catch (error) {
+      throw appendBrowserDiagnostics(error, browserDiagnostics().replaceAll(token, '[redacted]'));
+    } finally {
+      for (const stop of keepAlives) stop();
+      for (const publisher of publishers) publisher.close();
     }
   });
 });
