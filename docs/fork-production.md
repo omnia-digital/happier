@@ -178,9 +178,11 @@ different source SHAs, and signing phases. The adjacent focused run passed 23 of
 must be updated to require the new build dependency. The existing persistent-
 runner security test also needs to recognize the conditional runner selection
 and explicitly admit this guarded job. Those existing-test updates await Josh's
-permission; this branch is not yet ready to merge. Actionlint reports inherited
-SC2016 findings in the desktop workflow; verify the new routing separately from
-those existing expressions.
+permission; this branch is not yet ready to merge. Actionlint passes for both
+changed workflows when the already documented inherited findings are ignored,
+including two SC2016 findings reproduced against the pre-Cassian workflow.
+The exact new Xcode selection shell also ran successfully over SSH on Cassian,
+reporting Xcode 26.5 and the intended job-local `DEVELOPER_DIR`.
 
 No Cassian native build, runner registration, workflow dispatch, or nightly
 execution has been verified yet. The runner installation is preparation for
