@@ -5872,7 +5872,7 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
             startIn: ({ name }: { name: string }) => `開始於：${name}`,
             build: '構建',
             buildDescription: '預設行為',
-            plan: '計畫',
+            plan: '規劃',
             planDescription: '先思考',
         },
         acp: {

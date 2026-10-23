@@ -51,6 +51,8 @@ export type PressableSurfaceProps = Readonly<{
     webTooltip?: string;
     tooltipContent?: React.ReactNode;
     tooltipPlacement?: 'top' | 'bottom' | 'left' | 'right';
+    /** Share the control's existing anchor when it also positions an adjacent popover. */
+    anchorRef?: React.RefObject<View | null>;
     testID?: string;
 }>;
 
@@ -65,7 +67,8 @@ export const PressableSurface = React.memo((props: PressableSurfaceProps) => {
     const keyboardModality = useIsKeyboardModality();
     const [focused, setFocused] = React.useState(false);
     const [hovered, setHovered] = React.useState(false);
-    const anchorRef = React.useRef<View | null>(null);
+    const internalAnchorRef = React.useRef<View | null>(null);
+    const anchorRef = props.anchorRef ?? internalAnchorRef;
     const ringVisible = focused && keyboardModality && !disabled;
     // `FocusRing` runs a Reanimated animated style, so an always-mounted one would cost a shared
     // value per control on every surface in the app for a ring that native can never show (RN

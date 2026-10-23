@@ -7286,7 +7286,7 @@ localTailscale: {
       startIn: ({ name }: { name: string }) => `開始: ${name}`,
       build: "ビルド",
       buildDescription: "デフォルトの動作",
-      plan: "プラン",
+      plan: "計画",
       planDescription: "最初に考える",
     },
     acp: {

@@ -6622,7 +6622,7 @@ export const de: TranslationStructure = {
             startIn: ({ name }: { name: string }) => `Starten in: ${name}`,
             build: 'Build',
             buildDescription: 'Standardverhalten',
-            plan: 'Plan',
+            plan: 'Planung',
             planDescription: 'Erst denken',
         },
         acp: {

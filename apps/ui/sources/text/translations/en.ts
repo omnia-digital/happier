@@ -6654,7 +6654,7 @@ export const en = {
             startIn: ({ name }: { name: string }) => `Start in: ${name}`,
             build: 'Build',
             buildDescription: 'Default behavior',
-            plan: 'Plan',
+            plan: 'Planning',
             planDescription: 'Think first',
         },
         acp: {

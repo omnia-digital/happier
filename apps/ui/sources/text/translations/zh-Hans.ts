@@ -6806,7 +6806,7 @@ export const zhHans: TranslationStructure = {
       startIn: ({ name }: { name: string }) => `开始于：${name}`,
       build: "构建",
       buildDescription: "默认行为",
-      plan: "计划",
+      plan: "规划",
       planDescription: "先思考",
     },
     acp: {

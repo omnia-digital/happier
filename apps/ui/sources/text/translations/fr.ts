@@ -6609,7 +6609,7 @@ export const fr: TranslationStructure = {
             startIn: ({ name }: { name: string }) => `Démarrer en : ${name}`,
             build: 'Build',
             buildDescription: 'Comportement par défaut',
-            plan: 'Plan',
+            plan: 'Planification',
             planDescription: 'Réfléchir d’abord',
         },
         acp: {

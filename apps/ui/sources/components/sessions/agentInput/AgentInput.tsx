@@ -105,7 +105,7 @@ import {
     resolveChipOptionInteraction,
     shouldRenderChipForOptions,
 } from './chipOptionInteraction';
-import { resolveSessionModeChipPresentation } from './controls/resolveSessionModeChipPresentation';
+import { resolveSessionModeChipPresentation, resolveSessionModePickerOptionLabel } from './controls/resolveSessionModeChipPresentation';
 import { useAgentInputActionMenuControls } from './controls/useAgentInputActionMenuControls';
 import { useAgentInputCoreControlHandlers } from './controls/useAgentInputCoreControlHandlers';
 import { useRenderedAgentInputControlRows } from './controls/useRenderedAgentInputControlRows';
@@ -1969,8 +1969,13 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
         const selected = typeof props.acpSessionModeSelectedIdOverride === 'string'
             ? props.acpSessionModeSelectedIdOverride.trim()
             : '';
+        const buildLabel = t('agentInput.mode.build');
+        const planLabel = t('agentInput.mode.plan');
         const pickerOptions = preflightAcpSessionModeOptions
-            ? getSessionModePickerOptions(preflightAcpSessionModeOptions, agentId)
+            ? getSessionModePickerOptions(preflightAcpSessionModeOptions.map((option) => ({
+                ...option,
+                name: resolveSessionModePickerOptionLabel(option, buildLabel, planLabel),
+            })), agentId)
             : [];
         const effectiveId = selected || (pickerOptions.some((option) => option.id === '') ? '' : 'default');
         const opt = pickerOptions.find((option) => option.id === effectiveId) ?? null;
@@ -1985,21 +1990,35 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
             const clearOption = sessionModePickerControl.isExplicitOverride ? undefined
                 : getSessionModePickerOptions(sessionModePickerControl.options, agentId).find((option) =>
                     resolveRequestedSessionModeIdForMetadata(sessionModePickerControl, option.id) === '');
+            const buildLabel = t('agentInput.mode.build');
+            const planLabel = t('agentInput.mode.plan');
+            const options = sessionModePickerControl.options.map((option) => ({
+                ...option,
+                name: resolveSessionModePickerOptionLabel(option, buildLabel, planLabel),
+            }));
+            const effectiveOption = sessionModePickerControl.options.find((option) => option.id === sessionModePickerControl.effectiveModeId);
             return {
-                options: sessionModePickerControl.options,
+                options,
                 selectedId: (
                     clearOption?.id
                     ?? sessionModePickerControl.requestedModeId
                     ?? sessionModePickerControl.effectiveModeId
                     ?? 'default'
                 ),
-                label: sessionModePickerControl.effectiveModeName,
+                label: effectiveOption
+                    ? resolveSessionModePickerOptionLabel(effectiveOption, buildLabel, planLabel)
+                    : sessionModePickerControl.effectiveModeName,
                 isPending: sessionModePickerControl.isPending,
             };
         }
         if (preflightAcpSessionModeOptions) {
+            const buildLabel = t('agentInput.mode.build');
+            const planLabel = t('agentInput.mode.plan');
             return {
-                options: preflightAcpSessionModeOptions,
+                options: preflightAcpSessionModeOptions.map((option) => ({
+                    ...option,
+                    name: resolveSessionModePickerOptionLabel(option, buildLabel, planLabel),
+                })),
                 selectedId: preflightAcpSessionModeEffective.id,
                 label: preflightAcpSessionModeEffective.name,
                 isPending: false,
@@ -2034,7 +2053,9 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
     }, [sessionModePickerOptions.length]);
 
     const sessionModeChipPresentation = React.useMemo(() => {
-        return sessionModeChipControl ? resolveSessionModeChipPresentation(sessionModeChipControl) : null;
+        return sessionModeChipControl
+            ? resolveSessionModeChipPresentation(sessionModeChipControl, t('agentInput.mode.build'), t('agentInput.mode.plan'))
+            : null;
     }, [sessionModeChipControl]);
 
     const sessionModeChipInteraction = React.useMemo(() => {

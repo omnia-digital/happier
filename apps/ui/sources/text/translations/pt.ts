@@ -7144,7 +7144,7 @@ export const pt: TranslationStructure = {
       startIn: ({ name }: { name: string }) => `Iniciar em: ${name}`,
       build: "Construir",
       buildDescription: "Comportamento padrão",
-      plan: "Plano",
+      plan: "Planejamento",
       planDescription: "Pensar primeiro",
     },
     acp: {

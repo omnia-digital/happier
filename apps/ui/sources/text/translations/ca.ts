@@ -6621,7 +6621,7 @@ deps: {
             startIn: ({ name }: { name: string }) => `Inicia a: ${name}`,
             build: 'Construeix',
             buildDescription: 'Comportament predeterminat',
-            plan: 'Planifica',
+            plan: 'Planificació',
             planDescription: 'Pensa primer',
         },
         acp: {

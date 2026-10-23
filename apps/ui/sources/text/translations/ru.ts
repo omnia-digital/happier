@@ -7016,7 +7016,7 @@ export const ru: TranslationStructure = {
       startIn: ({ name }: { name: string }) => `Запуск в: ${name}`,
       build: "Создание",
       buildDescription: "Поведение по умолчанию",
-      plan: "План",
+      plan: "Планирование",
       planDescription: "Сначала подумать",
     },
     acp: {
