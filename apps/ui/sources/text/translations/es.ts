@@ -766,7 +766,7 @@ export const es: TranslationStructure = {
     toolbarTooltip: "Solicitudes y novedades para revisar. El punto indica que hay contenido, no siempre una pregunta.",
     panelDescription: "La bandeja reúne solicitudes y novedades. Algunas entradas son avisos que no requieren respuesta.",
     activityToolbarTooltip: "El número cuenta las acciones activas; el punto indica otros resultados o avisos por revisar.",
-    activityPanelDescription: "El número cuenta las acciones activas. El punto indica otros resultados o avisos por revisar.",
+    activityPanelDescription: "Actividad sigue las acciones de larga duración. El número cuenta las acciones activas. El punto indica otros resultados o avisos por revisar.",
     actionOperations: {
       sections: { inProgress: "En curso", needsAttention: "Requiere atención", recent: "Recientes" },
       clearRecent: "Borrar recientes",

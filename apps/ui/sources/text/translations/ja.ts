@@ -749,7 +749,7 @@ export const ja: TranslationStructure = {
     toolbarTooltip: "確認が必要なリクエストと更新です。ドットは内容があることを示し、質問とは限りません。",
     panelDescription: "受信トレイにはリクエストと更新がまとまっています。返信不要のお知らせも含まれます。",
     activityToolbarTooltip: "数字は進行中のアクション数です。ドットはその他の結果や確認事項を示します。",
-    activityPanelDescription: "数字はアクティブなアクション数です。ドットはその他の結果や確認事項を示します。",
+    activityPanelDescription: "アクティビティでは長時間実行されるアクションを追跡します。数字はアクティブなアクション数です。ドットはその他の結果や確認事項を示します。",
     actionOperations: {
       sections: { inProgress: "進行中", needsAttention: "確認が必要", recent: "最近" },
       clearRecent: "最近の項目を消去",

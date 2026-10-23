@@ -815,7 +815,7 @@ export const pt: TranslationStructure = {
     toolbarTooltip: "Solicitações e novidades para revisar. O ponto indica conteúdo, nem sempre uma pergunta.",
     panelDescription: "A caixa de entrada reúne solicitações e novidades. Alguns itens são avisos que não exigem resposta.",
     activityToolbarTooltip: "O número conta ações ativas; o ponto indica outros resultados ou itens para revisar.",
-    activityPanelDescription: "O número conta ações ativas. O ponto indica outros resultados ou itens para revisar.",
+    activityPanelDescription: "A atividade acompanha ações de longa duração. O número conta ações ativas. O ponto indica outros resultados ou itens para revisar.",
     actionOperations: {
       sections: { inProgress: "Em andamento", needsAttention: "Requer atenção", recent: "Recentes" },
       clearRecent: "Limpar recentes",

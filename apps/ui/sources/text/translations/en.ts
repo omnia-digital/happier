@@ -542,7 +542,7 @@ export const en = {
         toolbarTooltip: 'Requests and updates to review. A dot means Inbox has content, not always a question.',
         panelDescription: 'Inbox brings together requests and updates. Some entries are notifications and do not need a reply.',
         activityToolbarTooltip: 'The number counts active actions; a dot marks other results or attention to review.',
-        activityPanelDescription: 'The number counts active actions. A dot marks other results or attention to review.',
+        activityPanelDescription: 'Activity tracks long-running actions. The number counts active actions. A dot marks other results or attention to review.',
         actionOperations: {
             sections: { inProgress: 'In progress', needsAttention: 'Needs attention', recent: 'Recent' },
             clearRecent: 'Clear recent',

@@ -777,7 +777,7 @@ export const pl: TranslationStructure = {
     toolbarTooltip: "Prośby i aktualizacje do sprawdzenia. Kropka oznacza zawartość, nie zawsze pytanie.",
     panelDescription: "Skrzynka zbiera prośby i aktualizacje. Niektóre wpisy to powiadomienia bez potrzeby odpowiedzi.",
     activityToolbarTooltip: "Liczba pokazuje aktywne działania; kropka oznacza inne wyniki lub elementy do sprawdzenia.",
-    activityPanelDescription: "Liczba pokazuje aktywne działania. Kropka oznacza inne wyniki lub elementy do sprawdzenia.",
+    activityPanelDescription: "Aktywność śledzi długotrwałe działania. Liczba pokazuje aktywne działania. Kropka oznacza inne wyniki lub elementy do sprawdzenia.",
     actionOperations: {
       sections: { inProgress: "W toku", needsAttention: "Wymaga uwagi", recent: "Ostatnie" },
       clearRecent: "Wyczyść ostatnie",
