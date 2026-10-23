@@ -1,8 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
+import { encodePlainMachineStoredContent, MACHINE_PLAIN_DATA_KEY_MARKER } from '@happier-dev/protocol';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
-import { upsertPlainAccountSettingsV2 } from '../../src/testkit/accountSettings';
+import { patchPlainAccountSettingsV2, upsertPlainAccountSettingsV2 } from '../../src/testkit/accountSettings';
 import { createTestAuthMtls } from '../../src/testkit/auth';
 import { registerMachineIdentity } from '../../src/testkit/machineIdentity';
 import { repoRootDir } from '../../src/testkit/paths';
@@ -11,6 +12,7 @@ import { resolveUiWebBeforeAllTimeoutMs, startUiWeb, type StartedUiWeb } from '.
 import { createRunDirs } from '../../src/testkit/runDir';
 import { startForwardedHeaderProxy } from '../../src/testkit/uiE2e/forwardedHeaderProxy';
 import { gotoDomContentLoadedWithRetries, normalizeLoopbackBaseUrl } from '../../src/testkit/uiE2e/pageNavigation';
+import { readUiE2eLocalSettings } from '../../src/testkit/uiE2e/localSettingsStorage';
 import {
   createPlainSession,
   readSessionFolderDragSettings,
@@ -303,5 +305,110 @@ test.describe('ui e2e: session list ordering mode', () => {
     await selectOrderingMode(page, 'custom');
     await expectVisibleSessionOrder(page, customOrder);
     expect((await readSessionFolderDragSettings(organizationRouteParams)).sessionListGroupOrderV1).toEqual(customOrderSnapshot);
+  });
+
+  test('keeps the agent logo before the chosen machine icon on pinned and ordinary cards when labels are hidden', async ({ page }) => {
+    test.setTimeout(180_000);
+    if (!server || !uiBaseUrl || !token) throw new Error('missing server/ui fixtures');
+
+    const machineId = `session-card-machine-${run.runId}`;
+    const machineLabel = 'OH54 Studio';
+    const registration = await registerMachineIdentity({
+      baseUrl: server.baseUrl,
+      token,
+      machineId,
+      metadata: encodePlainMachineStoredContent({
+        host: machineLabel,
+        platform: 'darwin',
+        happyCliVersion: '0.2.16',
+        happyHomeDir: cliHomeDir,
+        homeDir: resolve(suiteDir),
+      }),
+      dataEncryptionKey: MACHINE_PLAIN_DATA_KEY_MARKER,
+    });
+    expect(registration.status).toBe(200);
+    await patchPlainAccountSettingsV2({
+      baseUrl: server.baseUrl,
+      token,
+      settingsPatch: { sessionListIdentityDisplay: 'agentLogo' },
+    });
+
+    const sessionParams = {
+      baseUrl: server.baseUrl,
+      token,
+      rootPath: repoRootDir(),
+      machineId,
+      tagPrefix: 'session-card-identity',
+    };
+    const pinnedSessionId = await createPlainSession({ ...sessionParams, title: `card pinned ${run.runId}` });
+    const ordinarySessionId = await createPlainSession({ ...sessionParams, title: `card ordinary ${run.runId}` });
+    await importSessionOrganization({
+      baseUrl: server.baseUrl,
+      token,
+      request: {
+        pins: [{ sessionId: pinnedSessionId, sortKey: '00000001' }],
+        folders: [],
+        tags: [],
+        tagAssignments: [],
+        orderEntries: [],
+        labels: [],
+      },
+    });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 300_000);
+    await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+    await expect(page.getByTestId('session-list-header:pinned-v1')).toHaveCount(1, { timeout: 120_000 });
+
+    async function expectCardIdentityOrder(sessionId: string): Promise<void> {
+      const rightIdentity = page.getByTestId(`session-list-right-identity-${sessionId}`);
+      const logo = rightIdentity.getByTestId(`session-list-agent-logo-${sessionId}`);
+      const machine = rightIdentity.getByTestId(`session-list-machine-identity-${sessionId}`);
+      await expect(logo).toHaveCount(1);
+      await expect(machine).toHaveCount(1);
+      const logoBox = await logo.boundingBox();
+      const machineBox = await machine.boundingBox();
+      expect(logoBox && machineBox && logoBox.x < machineBox.x).toBe(true);
+    }
+
+    for (const sessionId of [pinnedSessionId, ordinarySessionId]) {
+      await expect(page.getByTestId(`session-list-item-${sessionId}`)).toHaveCount(1, { timeout: 120_000 });
+      await expectCardIdentityOrder(sessionId);
+      await expect(page.getByTestId(`session-list-machine-identity-${sessionId}`)).toContainText(machineLabel);
+    }
+    const machineIdentity = page.getByTestId(`session-list-machine-identity-${ordinarySessionId}`);
+    const defaultGlyph = await machineIdentity.locator('svg').first().evaluate((svg) => svg.innerHTML);
+
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/machine/${machineId}?happier_hmr=0`, 180_000);
+    await page.getByTestId('machine-display-icon').click();
+    await page.getByTestId('dropdown-option-laptop').click();
+    await expect.poll(async () => {
+      const settings = await readUiE2eLocalSettings({ page });
+      return Object.values((settings.machineDisplayIconByMachineV1 ?? {}) as Record<string, unknown>);
+    }).toContain('laptop');
+
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/settings/session?happier_hmr=0`, 180_000);
+    const labelToggle = page.getByTestId('settings-session-machineLabel-toggle');
+    await expect(labelToggle).toHaveAttribute('aria-checked', 'true');
+    await page.getByTestId('settings-session-machineLabel-item').click();
+    await expect.poll(async () => (await readUiE2eLocalSettings({ page })).sessionListShowMachineLabel).toBe(false);
+
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+    for (const sessionId of [pinnedSessionId, ordinarySessionId]) {
+      await expectCardIdentityOrder(sessionId);
+      const identity = page.getByTestId(`session-list-machine-identity-${sessionId}`);
+      await expect(identity).toHaveAttribute('aria-label', machineLabel);
+      await expect(identity).not.toContainText(machineLabel);
+    }
+    const chosenGlyph = await machineIdentity.locator('svg').first().evaluate((svg) => svg.innerHTML);
+    expect(chosenGlyph).not.toBe(defaultGlyph);
+    await machineIdentity.focus();
+    await expect(page.getByTestId(`session-list-machine-identity-${ordinarySessionId}-tooltip`)).toContainText(machineLabel);
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+    await expect(machineIdentity).not.toContainText(machineLabel);
+    await expect(machineIdentity.locator('svg').first()).toHaveJSProperty('innerHTML', chosenGlyph);
+    expect((await readUiE2eLocalSettings({ page })).sessionListShowMachineLabel).toBe(false);
   });
 });
