@@ -45,6 +45,16 @@ export type EscapeLayerOptions = Readonly<{
 let nextEscapeEntryId = 1;
 let escapeLayers: ReadonlyArray<EscapeLayerEntry> = [];
 let escapeKeyBlockers: ReadonlyArray<EscapeKeyBlockerEntry> = [];
+const escapeLayerChangeListeners = new Set<() => void>();
+
+function notifyEscapeLayerChange(): void {
+    for (const listener of escapeLayerChangeListeners) listener();
+}
+
+export function subscribeEscapeLayerChanges(listener: () => void): () => void {
+    escapeLayerChangeListeners.add(listener);
+    return () => escapeLayerChangeListeners.delete(listener);
+}
 
 export function markEscapeEventHandled(event: unknown): void {
     if (!event || typeof event !== 'object') return;
@@ -105,9 +115,11 @@ export function registerEscapeKeyBlocker(priority: number): () => void {
     const id = nextEscapeEntryId++;
     const entry: EscapeKeyBlockerEntry = { id, priority };
     escapeKeyBlockers = [...escapeKeyBlockers, entry];
+    notifyEscapeLayerChange();
 
     return () => {
         escapeKeyBlockers = escapeKeyBlockers.filter((blocker) => blocker.id !== id);
+        notifyEscapeLayerChange();
     };
 }
 
@@ -127,9 +139,11 @@ export function registerEscapeLayer(options: EscapeLayerOptions): () => void {
         },
     };
     escapeLayers = [...escapeLayers, entry];
+    notifyEscapeLayerChange();
 
     return () => {
         escapeLayers = escapeLayers.filter((layer) => layer.id !== id);
+        notifyEscapeLayerChange();
     };
 }
 

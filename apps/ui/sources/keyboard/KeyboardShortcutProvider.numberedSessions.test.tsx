@@ -20,6 +20,11 @@ vi.mock('react-native', async () => {
     return createReactNativeWebMock();
 });
 
+vi.mock('react-native-reanimated', async () => {
+    const { createReanimatedModuleMock } = await import('@/dev/testkit/mocks/reanimated');
+    return createReanimatedModuleMock();
+});
+
 vi.mock('@/modal', async () => {
     const { createModalModuleMock } = await import('@/dev/testkit/mocks/modal');
     const base = createModalModuleMock().module;
@@ -231,5 +236,51 @@ describe('KeyboardShortcutProvider numbered sessions', () => {
         expect(String(body)).toContain('Visible sessions');
         expect(String(body)).toContain('Cmd+1, Cmd+3');
         expect(String(body)).not.toContain('Cmd+2');
+    });
+
+    it('blocks navigation and clears held hints while a searchless More dropdown is open', async () => {
+        const { windowTarget } = installDomEventTargets();
+        const { DropdownMenu } = await import('@/components/ui/forms/dropdown/DropdownMenu');
+        const { ESCAPE_LAYER_PRIORITIES, getMaxEscapeKeyBlockerPriority } = await import('./escape');
+        const { KeyboardShortcutProvider, useKeyboardShortcutHandlers } = await import('./KeyboardShortcutProvider');
+        const navigate = vi.fn();
+        const createSession = vi.fn();
+        const heldChanges: boolean[] = [];
+        function SidebarWithMoreMenu() {
+            const [open, setOpen] = React.useState(false);
+            useKeyboardShortcutHandlers({ 'session.number.1': navigate, 'session.new': createSession }, {
+                onCommandHeldChange: (held) => heldChanges.push(held),
+            });
+            return <DropdownMenu
+                open={open}
+                onOpenChange={setOpen}
+                items={[{ id: 'archive', title: 'Archive' }]}
+                onSelect={() => undefined}
+                search={false}
+                trigger={({ toggle }) => React.createElement('MoreButton', { testID: 'more-trigger', onPress: toggle })}
+            />;
+        }
+        const screen = await renderScreen(
+            <KeyboardShortcutProvider handlers={{}}><SidebarWithMoreMenu /></KeyboardShortcutProvider>,
+        );
+        await act(async () => { windowTarget.dispatchEvent(keyEvent({ key: 'Meta', metaKey: true })); });
+        expect(heldChanges.at(-1)).toBe(true);
+
+        await act(async () => {
+            screen.findByTestId('more-trigger')?.props.onPress();
+            await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        });
+        expect(screen.root.findByType(DropdownMenu).props.open).toBe(true);
+        expect(getMaxEscapeKeyBlockerPriority()).toBeGreaterThanOrEqual(ESCAPE_LAYER_PRIORITIES.popover);
+        expect(heldChanges.at(-1)).toBe(false);
+        await act(async () => { windowTarget.dispatchEvent(keyEvent({ key: '1', code: 'Digit1', metaKey: true })); });
+        expect(navigate).not.toHaveBeenCalled();
+        await act(async () => { windowTarget.dispatchEvent(keyEvent({ key: 'n', code: 'KeyN', altKey: true })); });
+        expect(createSession).toHaveBeenCalledTimes(1);
+
+        const menu = screen.root.findByType(DropdownMenu);
+        await act(async () => { menu.props.onOpenChange(false); });
+        await act(async () => { windowTarget.dispatchEvent(keyEvent({ key: '1', code: 'Digit1', metaKey: true })); });
+        expect(navigate).toHaveBeenCalledTimes(1);
     });
 });

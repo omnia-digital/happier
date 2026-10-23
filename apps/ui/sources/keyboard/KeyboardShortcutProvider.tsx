@@ -18,7 +18,12 @@ import {
 } from './runtime';
 import type { KeyboardCommandId, KeybindingRule } from './types';
 import { FocusReturnProvider } from './focusReturn';
+import { ESCAPE_LAYER_PRIORITIES, getMaxEscapeKeyBlockerPriority, subscribeEscapeLayerChanges } from './escape';
 import { subscribeToNativeHardwareKeyboardEvents } from '@/components/sessions/agentInput/subscribeToIosHardwareShiftEnter';
+
+function isPopoverOrHigherEscapeLayerActive(): boolean {
+    return getMaxEscapeKeyBlockerPriority() >= ESCAPE_LAYER_PRIORITIES.popover;
+}
 
 type KeyboardShortcutRegistrationContextValue = Readonly<{
     registerHandlers: (handlers: KeyboardShortcutHandlers, onCommandHeldChange?: (held: boolean) => void) => () => void;
@@ -232,6 +237,12 @@ export function KeyboardShortcutProvider(props: React.PropsWithChildren<Readonly
     React.useEffect(() => {
         if (keyboardShortcutsV2Enabled !== true) setCommandHeld(false);
     }, [keyboardShortcutsV2Enabled, setCommandHeld]);
+    React.useEffect(() => {
+        if (Platform.OS !== 'web' || !hasCommandHeldListener) return;
+        return subscribeEscapeLayerChanges(() => {
+            if (isPopoverOrHigherEscapeLayerActive()) setCommandHeld(false);
+        });
+    }, [hasCommandHeldListener, setCommandHeld]);
     const executeCommand = React.useCallback((commandId: KeyboardCommandId): boolean => {
         const handler = latestShortcutRuntimeRef.current?.handlers[commandId];
         if (!handler) return false;
@@ -283,6 +294,7 @@ export function KeyboardShortcutProvider(props: React.PropsWithChildren<Readonly
                     && !event.altKey && !event.ctrlKey && !event.shiftKey
                     && !event.isComposing
                     && !context.isEditableTarget && !context.isOverlayActive
+                    && !isPopoverOrHigherEscapeLayerActive()
                     && !isModalActiveRef.current
                     && latestShortcutRuntimeRef.current?.keyboardShortcutsV2Enabled === true;
                 setCommandHeld(canShowHints);
@@ -303,7 +315,9 @@ export function KeyboardShortcutProvider(props: React.PropsWithChildren<Readonly
                     return {
                         ...context,
                         isComposing: event.isComposing === true,
-                        isOverlayActive: isModalActiveRef.current || context.isOverlayActive,
+                        isOverlayActive: isModalActiveRef.current
+                            || context.isOverlayActive
+                            || isPopoverOrHigherEscapeLayerActive(),
                     };
                 },
             });
