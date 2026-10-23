@@ -122,12 +122,23 @@ export function filterSessionListItemsForHeaderControls(
 
     for (const item of items) {
         if (item.type === 'header') {
-            if (isPrimarySessionListHeader(item)) {
+            if (item.headerKind === 'server') {
+                pendingHeaders = [item];
+            } else if (isPrimarySessionListHeader(item)) {
                 fallbackHeader ??= item;
                 if (input.controlsAnchorKey && getSessionListHeaderControlsAnchorKey(item) === input.controlsAnchorKey) {
                     anchorHeader = item;
                 }
-                pendingHeaders = [item];
+                pendingHeaders = [...pendingHeaders.filter((header) => header.headerKind === 'server'), item];
+            } else if (item.headerKind === 'machine') {
+                pendingHeaders = [...pendingHeaders.filter((header) => header.headerKind === 'server' || isPrimarySessionListHeader(header)), item];
+            } else if (item.headerKind === 'project' || item.headerKind === 'date' || item.headerKind === 'shared') {
+                pendingHeaders = [...pendingHeaders.filter((header) => header.headerKind === 'server' || header.headerKind === 'machine' || isPrimarySessionListHeader(header)), item];
+            } else if (item.headerKind === 'folder') {
+                const ancestorHeaders = pendingHeaders.filter((header) => header.headerKind !== 'folder');
+                const folderDepth = typeof item.depth === 'number' ? Math.max(0, item.depth) : 0;
+                const folderAncestors = pendingHeaders.filter((header) => header.headerKind === 'folder').slice(0, folderDepth);
+                pendingHeaders = [...ancestorHeaders, ...folderAncestors, item];
             } else {
                 pendingHeaders.push(item);
             }

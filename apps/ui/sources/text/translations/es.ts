@@ -6449,6 +6449,8 @@ export const es: TranslationStructure = {
     newSessionInFolder: 'Nueva sesión en carpeta',
     clearFolderFocus: 'Borrar foco de carpeta',
     folderVisibility: 'Visibilidad de carpetas',
+    machineViewOriginal: "Vista original",
+    machineViewGrouped: "Agrupar por máquina",
     folderViewTree: 'Vista de carpetas',
     folderViewOff: 'Ocultar carpetas',
     folderSortMode: 'Orden de carpetas',

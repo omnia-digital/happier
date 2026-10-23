@@ -6088,6 +6088,8 @@ export const de: TranslationStructure = {
         newSessionInFolder: 'Neue Session im Ordner',
         clearFolderFocus: 'Ordnerfokus aufheben',
         folderVisibility: 'Sichtbarkeit der Ordner',
+        machineViewOriginal: "Ursprüngliche Ansicht",
+        machineViewGrouped: "Nach Maschine gruppieren",
         folderViewTree: 'Ordneransicht',
         folderViewOff: 'Ordner ausblenden',
         folderSortMode: 'Reihenfolge der Ordner',

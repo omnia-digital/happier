@@ -6793,6 +6793,8 @@ export const it: TranslationStructure = {
     newSessionInFolder: 'Nuova sessione nella cartella',
     clearFolderFocus: 'Cancella focus cartella',
     folderVisibility: 'Visibilità cartelle',
+    machineViewOriginal: "Vista originale",
+    machineViewGrouped: "Raggruppa per macchina",
     folderViewTree: 'Vista cartelle',
     folderViewOff: 'Nascondi cartelle',
     folderSortMode: 'Ordine cartelle',

@@ -6075,6 +6075,8 @@ export const fr: TranslationStructure = {
         newSessionInFolder: 'Nouvelle session dans le dossier',
         clearFolderFocus: 'Quitter le focus dossier',
         folderVisibility: 'Visibilité des dossiers',
+        machineViewOriginal: "Disposition initiale",
+        machineViewGrouped: "Regrouper par machine",
         folderViewTree: 'Vue dossiers',
         folderViewOff: 'Masquer les dossiers',
         folderSortMode: 'Ordre des dossiers',

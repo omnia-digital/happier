@@ -5392,6 +5392,8 @@ export const ru: TranslationStructure = {
     newSessionInFolder: 'Новая сессия в папке',
     clearFolderFocus: 'Сбросить фокус папки',
     folderVisibility: 'Видимость папок',
+    machineViewOriginal: "Исходный вид",
+    machineViewGrouped: "Группировать по машине",
     folderViewTree: 'Вид папок',
     folderViewOff: 'Скрыть папки',
     folderSortMode: 'Порядок папок',

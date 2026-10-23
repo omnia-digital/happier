@@ -6,6 +6,7 @@ type SessionRowMoveActionDependencies = Readonly<{
     openMoveSheetForTreeRow: (sourceRowId: string, sourceLabel: string) => Promise<void>;
     moveTreeRowToWorkspaceRoot: (sourceRowId: string, sourceLabel: string) => void;
     moveTreeRowByKeyboard: (sourceRowId: string, sourceLabel: string, direction: MoveKeyboardDirection) => void;
+    reorderEnabled: boolean;
 }>;
 
 type SessionRowMoveActionEntry = {
@@ -25,8 +26,8 @@ type SessionRowMoveActionRequest = Readonly<{
 export type SessionRowMoveActionHandlers = Readonly<{
     onMoveToFolder: () => void;
     onMoveToWorkspaceRoot: () => void;
-    onMoveUp: () => void;
-    onMoveDown: () => void;
+    onMoveUp?: () => void;
+    onMoveDown?: () => void;
 }>;
 
 export function useSessionListRowMoveActionHandlers(dependencies: SessionRowMoveActionDependencies): (request: SessionRowMoveActionRequest) => SessionRowMoveActionHandlers {
@@ -71,8 +72,8 @@ export function useSessionListRowMoveActionHandlers(dependencies: SessionRowMove
         return {
             onMoveToFolder: entry.onMoveToFolder,
             onMoveToWorkspaceRoot: entry.onMoveToWorkspaceRoot,
-            onMoveUp: entry.onMoveUp,
-            onMoveDown: entry.onMoveDown,
+            onMoveUp: dependenciesRef.current.reorderEnabled ? entry.onMoveUp : undefined,
+            onMoveDown: dependenciesRef.current.reorderEnabled ? entry.onMoveDown : undefined,
         };
     }, []);
 }

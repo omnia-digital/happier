@@ -69,6 +69,7 @@ import {
 } from '../sessionListFilters';
 import { useSessionListSnapshotWhenInactive } from '../surface/useSessionListSnapshotWhenInactive';
 import { resolveSessionOrganizationMutationScope, type SessionOrganizationMutationScope } from '@/sync/domains/session/organization/mutationScope';
+import { projectSessionListMachineView } from './projectSessionListMachineView';
 
 const EMPTY_SESSION_KEYS: ReadonlyArray<string> = Object.freeze([]);
 const EMPTY_SESSION_LIST_GROUP_ORDER: Readonly<Record<string, ReadonlyArray<string> | undefined>> = Object.freeze({});
@@ -160,6 +161,7 @@ export function useSessionListViewState({
     const isTablet = useIsTablet();
     const [sessionMruOrderV1, setSessionMruOrderV1] = useLocalSettingMutable('sessionMruOrderV1');
     const [sessionListFolderSortModeRaw, setSessionListFolderSortModeV1] = useLocalSettingMutable('sessionListFolderSortModeV1');
+    const [sessionListMachineViewRaw, setSessionListMachineViewV1] = useLocalSettingMutable('sessionListMachineViewV1');
     const [sessionListOrderingModeRaw, setSessionListOrderingModeV1] = useSettingMutable('sessionListOrderingModeV1');
     const [sessionFolderViewModeRaw, setSessionFolderViewModeV1] = useSessionFolderViewModeMutable('sessionFolderViewModeV1');
     const sessionTagsEnabled = useSetting('sessionTagsEnabled');
@@ -196,6 +198,7 @@ export function useSessionListViewState({
     const sessionFolderViewMode: SessionFolderViewModeV1 = sessionFolderViewModeRaw === 'tree' ? 'tree' : 'off';
     const sessionListSavedFolderSortMode = normalizeSessionListFolderSortMode(sessionListFolderSortModeRaw);
     const sessionListOrderingMode = normalizeSessionListOrderingModeV1(sessionListOrderingModeRaw);
+    const sessionListMachineViewMode: 'original' | 'machine' = sessionListMachineViewRaw === 'machine' ? 'machine' : 'original';
     const sessionListFolderSortMode = resolveEffectiveSessionListFolderSortMode({
         orderingMode: sessionListOrderingMode,
         folderSortMode: sessionListSavedFolderSortMode,
@@ -389,14 +392,19 @@ export function useSessionListViewState({
         });
     }, [getOrganizationMutationContext, runOrganizationMutation, workspaceLabelsV1]);
 
+    const machinePresentedData = React.useMemo(() => {
+        if (!data || sessionListMachineViewMode !== 'machine') return data;
+        return projectSessionListMachineView(data, renderMachineDisplayById, workspaceLabelsV1);
+    }, [data, renderMachineDisplayById, sessionListMachineViewMode, workspaceLabelsV1]);
+
     const folderPresentedData = React.useMemo(() => {
-        if (!data || !folderViewEnabled) return data;
-        return applySessionFoldersToSessionListViewData(data, {
+        if (!machinePresentedData || !folderViewEnabled) return machinePresentedData;
+        return applySessionFoldersToSessionListViewData(machinePresentedData, {
             enabled: true,
             folders: sessionFoldersV1,
             assignmentsBySessionKey: sessionFolderAssignmentsBySessionKey,
         });
-    }, [data, folderViewEnabled, sessionFolderAssignmentsBySessionKey, sessionFoldersV1]);
+    }, [machinePresentedData, folderViewEnabled, sessionFolderAssignmentsBySessionKey, sessionFoldersV1]);
 
     const headerFiltersActive = hasActiveSessionListHeaderFilters(headerFilters);
 
@@ -513,6 +521,8 @@ export function useSessionListViewState({
         sessionFolderViewMode,
         setSessionFolderViewModeV1,
         sessionListOrderingMode,
+        sessionListMachineViewMode,
+        setSessionListMachineViewV1,
         setSessionListOrderingModeV1,
         sessionListSavedFolderSortMode,
         sessionListFolderSortMode,

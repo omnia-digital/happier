@@ -6089,6 +6089,8 @@ deps: {
         newSessionInFolder: 'Nova sessió a la carpeta',
         clearFolderFocus: 'Neteja el focus de carpeta',
         folderVisibility: 'Visibilitat de carpetes',
+        machineViewOriginal: "Vista original",
+        machineViewGrouped: "Agrupa per màquina",
         folderViewTree: 'Vista de carpetes',
         folderViewOff: 'Amaga carpetes',
         folderSortMode: 'Ordre de carpetes',

@@ -65,6 +65,7 @@ export function FolderGroupHeader(props: Readonly<{
     item: SessionFolderHeaderItem;
     collapsed: boolean;
     dragHandleGesture?: UseSessionInlineDragResult['gesture'];
+    reorderEnabled?: boolean;
     onToggleCollapse: () => void;
     onFocus: () => void;
     onNewSession: () => void;
@@ -204,7 +205,7 @@ export function FolderGroupHeader(props: Readonly<{
                     <Icon name="folder" size={14} color={iconColor} />
                     <Text style={styles.title} numberOfLines={1}>{props.item.title}</Text>
                 </Pressable>
-                {props.dragHandleGesture ? (
+                {props.reorderEnabled === false ? null : props.dragHandleGesture ? (
                     <GestureDetector gesture={props.dragHandleGesture}>
                         <View
                             style={[styles.actionButton, webReorderHandleStyle]}

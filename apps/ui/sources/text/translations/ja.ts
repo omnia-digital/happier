@@ -6714,6 +6714,8 @@ localTailscale: {
     newSessionInFolder: 'フォルダーで新規セッション',
     clearFolderFocus: 'フォルダーのフォーカスを解除',
     folderVisibility: 'フォルダー表示',
+    machineViewOriginal: "元の表示",
+    machineViewGrouped: "マシンごとにグループ化",
     folderViewTree: 'フォルダー表示',
     folderViewOff: 'フォルダーを非表示',
     folderSortMode: 'フォルダーの順序',

@@ -32,6 +32,8 @@ function getOrderingModeTitle(mode: SessionListOrderingModeV1): string {
 }
 
 export function SessionListViewMenuButton(props: Readonly<{
+    machineViewMode: 'original' | 'machine';
+    onMachineViewModeChange: (mode: 'original' | 'machine') => void;
     folderViewMode: SessionFolderViewModeV1;
     onFolderViewModeChange: (mode: SessionFolderViewModeV1) => void;
     orderingMode: SessionListOrderingModeV1;
@@ -53,6 +55,24 @@ export function SessionListViewMenuButton(props: Readonly<{
     const folderSortLockedByOrdering = props.orderingMode !== 'custom';
 
     const items = React.useMemo((): DropdownMenuItem[] => [
+        {
+            id: 'session-view-original',
+            testID: 'session-view-original',
+            category: t('sessionsList.viewOptions'),
+            title: t('sessionsList.machineViewOriginal'),
+            icon: <Icon name="list" size={ICON_SIZE.sm} color={iconColor} />,
+            rightElement: props.machineViewMode === 'original'
+                ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} /> : null,
+        },
+        {
+            id: 'session-view-machine',
+            testID: 'session-view-machine',
+            category: t('sessionsList.viewOptions'),
+            title: t('sessionsList.machineViewGrouped'),
+            icon: <Icon name="desktop" size={ICON_SIZE.sm} color={iconColor} />,
+            rightElement: props.machineViewMode === 'machine'
+                ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} /> : null,
+        },
         ...SESSION_LIST_ORDERING_MODES_V1.map((mode): DropdownMenuItem => ({
             id: mode,
             testID: `session-list-ordering-mode-${mode}`,
@@ -120,11 +140,16 @@ export function SessionListViewMenuButton(props: Readonly<{
         props.disabled,
         props.folderViewMode,
         props.hideInactiveSessions,
+        props.machineViewMode,
         props.orderingMode,
         selectedIconColor,
     ]);
 
     const handleSelect = React.useCallback((itemId: string) => {
+        if (itemId === 'session-view-original' || itemId === 'session-view-machine') {
+            props.onMachineViewModeChange(itemId === 'session-view-machine' ? 'machine' : 'original');
+            return;
+        }
         const orderingMode = resolveOrderingModeAction(itemId);
         if (orderingMode) {
             props.onOrderingModeChange(orderingMode);

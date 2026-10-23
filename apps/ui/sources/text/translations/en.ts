@@ -6114,6 +6114,8 @@ export const en = {
         newSessionInFolder: 'New session in folder',
         clearFolderFocus: 'Clear folder focus',
         folderVisibility: 'Folder visibility',
+        machineViewOriginal: "Original layout",
+        machineViewGrouped: "Group by machine",
         folderViewTree: 'Folder view',
         folderViewOff: 'Hide folders',
         folderSortMode: 'Folder order',

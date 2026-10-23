@@ -5467,6 +5467,8 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
         newSessionInFolder: '在資料夾中新建工作階段',
         clearFolderFocus: '清除資料夾焦點',
         folderVisibility: '資料夾可見性',
+        machineViewOriginal: "原始檢視",
+        machineViewGrouped: "依裝置分組",
         folderViewTree: '資料夾檢視',
         folderViewOff: '隱藏資料夾',
         folderSortMode: '資料夾順序',

@@ -164,6 +164,12 @@ export const LOCAL_SETTING_DEFINITIONS = defineSettingDefinitions({
         description: 'Show the hosting machine on session list rows on this device',
         storageScope: 'local',
     },
+    sessionListMachineViewV1: {
+        schema: z.enum(['original', 'machine']).catch('original'),
+        default: 'original',
+        description: 'Local session list presentation by original groups or hosting machine',
+        storageScope: 'local',
+    },
     themePreference: {
         schema: z.enum(['light', 'dark', 'adaptive']),
         default: 'adaptive',

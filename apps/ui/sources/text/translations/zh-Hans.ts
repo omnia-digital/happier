@@ -6247,6 +6247,8 @@ export const zhHans: TranslationStructure = {
     newSessionInFolder: '在文件夹中新建会话',
     clearFolderFocus: '清除文件夹焦点',
     folderVisibility: '文件夹可见性',
+    machineViewOriginal: "原始视图",
+    machineViewGrouped: "按设备分组",
     folderViewTree: '文件夹视图',
     folderViewOff: '隐藏文件夹',
     folderSortMode: '文件夹顺序',

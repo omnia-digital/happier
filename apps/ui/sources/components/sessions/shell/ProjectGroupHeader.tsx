@@ -123,6 +123,7 @@ export const ProjectGroupHeader = React.memo(function ProjectGroupHeader(props: 
     workspaceFaviconsEnabled?: boolean;
     workspaceMachineSubtitlesEnabled?: boolean;
     dragHandleGesture?: UseSessionInlineDragResult['gesture'];
+    reorderEnabled?: boolean;
     onMoveUp?: () => void;
     onMoveDown?: () => void;
     onRenameWorkspace: (workspaceKey: string, currentLabel: string) => void;
@@ -276,7 +277,7 @@ export const ProjectGroupHeader = React.memo(function ProjectGroupHeader(props: 
                     ) : null}
                 </Pressable>
                 <View style={styles.trailingActions}>
-                    {reorderHandleKey && props.dragHandleGesture ? (
+                    {props.reorderEnabled !== false && reorderHandleKey && props.dragHandleGesture ? (
                         <GestureDetector gesture={props.dragHandleGesture}>
                             <View
                                 style={[styles.actionButton, webReorderHandleStyle]}
@@ -286,7 +287,7 @@ export const ProjectGroupHeader = React.memo(function ProjectGroupHeader(props: 
                                 <Icon name="list" size={14} color={actionIconColor} />
                             </View>
                         </GestureDetector>
-                    ) : showHoverActions && reorderHandleKey ? (
+                    ) : props.reorderEnabled !== false && showHoverActions && reorderHandleKey ? (
                         <Pressable
                             style={styles.actionButton}
                             testID={`session-workspace-reorder-handle:${reorderHandleKey}`}
