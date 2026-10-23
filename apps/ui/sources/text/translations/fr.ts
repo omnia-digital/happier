@@ -5724,6 +5724,7 @@ export const fr: TranslationStructure = {
         shortcutsHelpCommandPalette: 'Ouvrir la palette de commandes',
         shortcutsHelpHelp: 'Ouvrir les raccourcis clavier',
         shortcutsHelpNewSession: 'Nouvelle session',
+        shortcutsHelpVisibleSessions: 'Sessions visibles',
         commands: {
             sessionsCategory: 'Sessions',
             navigationCategory: 'Navigation',

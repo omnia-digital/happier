@@ -6357,6 +6357,7 @@ localTailscale: {
         shortcutsHelpCommandPalette: 'コマンドパレットを開く',
         shortcutsHelpHelp: 'キーボードショートカットを開く',
         shortcutsHelpNewSession: '新規セッション',
+        shortcutsHelpVisibleSessions: '表示中のセッション',
         commands: {
             sessionsCategory: 'Sessions',
             navigationCategory: 'Navigation',

@@ -93,6 +93,8 @@ export function useKeyboardCommand(): (commandId: KeyboardCommandId) => boolean 
 }
 
 function buildHelpBody(shortcutLabels: Partial<Record<string, string>>): string {
+    const numberedLabels = Array.from({ length: 9 }, (_, index) => shortcutLabels[`session.number.${index + 1}`])
+        .filter((label): label is string => label != null);
     const lines = [
         shortcutLabels['commandPalette.open']
             ? `${t('commandPalette.shortcutsHelpCommandPalette')}: ${shortcutLabels['commandPalette.open']}`
@@ -102,6 +104,9 @@ function buildHelpBody(shortcutLabels: Partial<Record<string, string>>): string 
             : null,
         shortcutLabels['session.new']
             ? `${t('commandPalette.shortcutsHelpNewSession')}: ${shortcutLabels['session.new']}`
+            : null,
+        numberedLabels.length > 0
+            ? `${t('commandPalette.shortcutsHelpVisibleSessions')}: ${numberedLabels.join(', ')}`
             : null,
     ].filter((line): line is string => Boolean(line));
     if (lines.length === 0) return t('commandPalette.shortcutsHelpEmpty');
@@ -224,6 +229,9 @@ export function KeyboardShortcutProvider(props: React.PropsWithChildren<Readonly
     React.useEffect(() => {
         if (isModalActive) setCommandHeld(false);
     }, [isModalActive, setCommandHeld]);
+    React.useEffect(() => {
+        if (keyboardShortcutsV2Enabled !== true) setCommandHeld(false);
+    }, [keyboardShortcutsV2Enabled, setCommandHeld]);
     const executeCommand = React.useCallback((commandId: KeyboardCommandId): boolean => {
         const handler = latestShortcutRuntimeRef.current?.handlers[commandId];
         if (!handler) return false;
@@ -268,6 +276,7 @@ export function KeyboardShortcutProvider(props: React.PropsWithChildren<Readonly
     React.useEffect(() => {
         if (Platform.OS !== 'web') return;
         const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.defaultPrevented === true) return;
             if (platform === 'macos') {
                 const context = readKeyboardContextFromEventTarget(event.target);
                 const canShowHints = event.metaKey
@@ -278,7 +287,6 @@ export function KeyboardShortcutProvider(props: React.PropsWithChildren<Readonly
                     && latestShortcutRuntimeRef.current?.keyboardShortcutsV2Enabled === true;
                 setCommandHeld(canShowHints);
             }
-            if (event.defaultPrevented === true) return;
             const latestShortcutRuntime = latestShortcutRuntimeRef.current;
             if (!latestShortcutRuntime) return;
             const dispatcher = createKeyboardShortcutDispatcher({
@@ -290,12 +298,14 @@ export function KeyboardShortcutProvider(props: React.PropsWithChildren<Readonly
                 disabledCommandIds: latestShortcutRuntime.keyboardShortcutDisabledCommandIdsV1 ?? [],
                 overrides: latestShortcutRuntime.keyboardShortcutOverridesV1 ?? {},
                 handlers: latestShortcutRuntime.handlers,
-                getContext: () => ({
-                    ...readKeyboardContextFromEventTarget(event.target),
-                    isComposing: event.isComposing === true,
-                    isOverlayActive: isModalActiveRef.current
-                        || readKeyboardContextFromEventTarget(event.target).isOverlayActive,
-                }),
+                getContext: () => {
+                    const context = readKeyboardContextFromEventTarget(event.target);
+                    return {
+                        ...context,
+                        isComposing: event.isComposing === true,
+                        isOverlayActive: isModalActiveRef.current || context.isOverlayActive,
+                    };
+                },
             });
             if (!dispatcher(normalizeKeyboardEvent(event))) return;
             event.preventDefault();

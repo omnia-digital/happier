@@ -6207,6 +6207,7 @@ export const pt: TranslationStructure = {
         shortcutsHelpCommandPalette: 'Abrir paleta de comandos',
         shortcutsHelpHelp: 'Abrir atalhos de teclado',
         shortcutsHelpNewSession: 'Nova sessão',
+        shortcutsHelpVisibleSessions: 'Sessões visíveis',
         commands: {
             sessionsCategory: 'Sessions',
             navigationCategory: 'Navigation',

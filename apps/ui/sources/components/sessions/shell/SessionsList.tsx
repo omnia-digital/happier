@@ -1514,6 +1514,10 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         () => visibleSessionNavigationEntries.slice(0, 9),
         [visibleSessionNavigationEntries],
     );
+    const numberedSessionEntriesSignature = React.useMemo(
+        () => numberedSessionEntries.map((entry) => `${entry.index}:${entry.sessionKey}`).join('\u0001'),
+        [numberedSessionEntries],
+    );
     const numberByVisibleRowIndex = React.useMemo(() => new Map(
         numberedSessionEntries.map((entry, index) => [entry.index, index + 1]),
     ), [numberedSessionEntries]);
@@ -2103,7 +2107,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         headerSelectedTagsSignature: selectedHeaderTagsSignature,
         headerSearchLoading: memorySearch.isSearchingMemory,
         numberedSessionHintsVisible: showNumberedHints,
-        numberedSessionEntries,
+        numberedSessionEntriesSignature,
         // Stable renderItem refs do not update mounted engine cells. Viewport membership
         // must reach the row boundary before its local store subscription can activate.
         rowStoreSubscriptionKeys,
@@ -2150,7 +2154,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         searchQuery,
         selectedHeaderTagsSignature,
         memorySearch.isSearchingMemory,
-        numberedSessionEntries,
+        numberedSessionEntriesSignature,
         showNumberedHints,
         rowStoreSubscriptionKeys,
         selection.activeServerId,

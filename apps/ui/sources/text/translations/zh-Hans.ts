@@ -5892,6 +5892,7 @@ export const zhHans: TranslationStructure = {
         shortcutsHelpCommandPalette: '打开命令面板',
         shortcutsHelpHelp: '打开键盘快捷键',
         shortcutsHelpNewSession: '新建会话',
+        shortcutsHelpVisibleSessions: '可见会话',
         commands: {
             sessionsCategory: 'Sessions',
             navigationCategory: 'Navigation',

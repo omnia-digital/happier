@@ -156,11 +156,80 @@ describe('KeyboardShortcutProvider numbered sessions', () => {
             isContentEditable: false,
             closest: (selector: string) => selector.includes('[role="menu"]') ? {} : null,
         } as unknown as EventTarget;
+        const terminalTarget = {
+            tagName: 'DIV',
+            isContentEditable: false,
+            closest: (selector: string) => selector.includes('data-keyboard-shortcuts-owned') ? {} : null,
+        } as unknown as EventTarget;
         await act(async () => {
             windowTarget.dispatchEvent(keyEvent({ key: '1', code: 'Digit1', metaKey: true, target: editableTarget }));
             windowTarget.dispatchEvent(keyEvent({ key: '1', code: 'Digit1', metaKey: true, target: menuTarget }));
+            windowTarget.dispatchEvent(keyEvent({ key: '1', code: 'Digit1', metaKey: true, target: terminalTarget }));
             windowTarget.dispatchEvent(keyEvent({ key: '1', code: 'Digit1', metaKey: true, repeat: true }));
         });
         expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('clears held hints and defers navigation when a modal becomes active', async () => {
+        const { windowTarget } = installDomEventTargets();
+        const { KeyboardShortcutProvider, useKeyboardShortcutHandlers } = await import('./KeyboardShortcutProvider');
+        const navigate = vi.fn();
+        const heldChanges: boolean[] = [];
+        function Sidebar() {
+            useKeyboardShortcutHandlers({ 'session.number.1': navigate }, {
+                onCommandHeldChange: (held) => heldChanges.push(held),
+            });
+            return React.createElement('Sidebar');
+        }
+        const render = () => <KeyboardShortcutProvider handlers={{}}><Sidebar /></KeyboardShortcutProvider>;
+        const screen = await renderScreen(render());
+        await act(async () => { windowTarget.dispatchEvent(keyEvent({ key: 'Meta', metaKey: true })); });
+        expect(heldChanges.at(-1)).toBe(true);
+
+        testState.modalActive = true;
+        await act(async () => { screen.tree.update(render()); });
+        expect(heldChanges.at(-1)).toBe(false);
+        await act(async () => { windowTarget.dispatchEvent(keyEvent({ key: '1', code: 'Digit1', metaKey: true })); });
+        expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('clears held hints when keyboard shortcuts are disabled', async () => {
+        const { windowTarget } = installDomEventTargets();
+        const { KeyboardShortcutProvider, useKeyboardShortcutHandlers } = await import('./KeyboardShortcutProvider');
+        const heldChanges: boolean[] = [];
+        function Sidebar() {
+            useKeyboardShortcutHandlers({ 'session.number.1': vi.fn() }, {
+                onCommandHeldChange: (held) => heldChanges.push(held),
+            });
+            return React.createElement('Sidebar');
+        }
+        const render = () => <KeyboardShortcutProvider handlers={{}}><Sidebar /></KeyboardShortcutProvider>;
+        const screen = await renderScreen(render());
+        await act(async () => { windowTarget.dispatchEvent(keyEvent({ key: 'Meta', metaKey: true })); });
+        expect(heldChanges.at(-1)).toBe(true);
+
+        testState.settings = { ...testState.settings, keyboardShortcutsV2Enabled: false };
+        await act(async () => { screen.tree.update(render()); });
+        expect(heldChanges.at(-1)).toBe(false);
+    });
+
+    it('lists only active numbered commands in shortcut help', async () => {
+        const { windowTarget } = installDomEventTargets();
+        const { Modal } = await import('@/modal');
+        const { KeyboardShortcutProvider, useKeyboardShortcutHandlers } = await import('./KeyboardShortcutProvider');
+        function Sidebar() {
+            useKeyboardShortcutHandlers({ 'session.number.1': vi.fn(), 'session.number.3': vi.fn() });
+            return React.createElement('Sidebar');
+        }
+        await renderScreen(<KeyboardShortcutProvider handlers={{}}><Sidebar /></KeyboardShortcutProvider>);
+
+        await act(async () => {
+            windowTarget.dispatchEvent(keyEvent({ key: '?', code: 'Slash', shiftKey: true }));
+        });
+        expect(Modal.alertAsync).toHaveBeenCalledTimes(1);
+        const [, body] = vi.mocked(Modal.alertAsync).mock.calls[0] ?? [];
+        expect(String(body)).toContain('Visible sessions');
+        expect(String(body)).toContain('Cmd+1, Cmd+3');
+        expect(String(body)).not.toContain('Cmd+2');
     });
 });

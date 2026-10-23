@@ -5278,6 +5278,7 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
         shortcutsHelpCommandPalette: '開啟命令面板',
         shortcutsHelpHelp: '開啟鍵盤快速鍵',
         shortcutsHelpNewSession: '新增工作階段',
+        shortcutsHelpVisibleSessions: '可見工作階段',
         pets: {
             category: '寵物',
             wakeTitle: '喚醒寵物',

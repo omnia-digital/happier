@@ -5758,6 +5758,7 @@ export const en = {
         shortcutsHelpCommandPalette: 'Open command palette',
         shortcutsHelpHelp: 'Open keyboard shortcuts',
         shortcutsHelpNewSession: 'New session',
+        shortcutsHelpVisibleSessions: 'Visible sessions',
         commands: {
             sessionsCategory: 'Sessions',
             navigationCategory: 'Navigation',

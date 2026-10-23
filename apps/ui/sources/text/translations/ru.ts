@@ -6626,6 +6626,7 @@ export const ru: TranslationStructure = {
         shortcutsHelpCommandPalette: 'Открыть палитру команд',
         shortcutsHelpHelp: 'Открыть сочетания клавиш',
         shortcutsHelpNewSession: 'Новая сессия',
+        shortcutsHelpVisibleSessions: 'Видимые сеансы',
         commands: {
             sessionsCategory: 'Sessions',
             navigationCategory: 'Navigation',

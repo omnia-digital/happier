@@ -6110,6 +6110,7 @@ export const pl: TranslationStructure = {
         shortcutsHelpCommandPalette: 'Otwórz paletę poleceń',
         shortcutsHelpHelp: 'Otwórz skróty klawiaturowe',
         shortcutsHelpNewSession: 'Nowa sesja',
+        shortcutsHelpVisibleSessions: 'Widoczne sesje',
         commands: {
             sessionsCategory: 'Sessions',
             navigationCategory: 'Navigation',

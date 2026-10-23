@@ -5736,6 +5736,7 @@ deps: {
         shortcutsHelpCommandPalette: "Obre la paleta d'ordres",
         shortcutsHelpHelp: 'Obre les dreceres de teclat',
         shortcutsHelpNewSession: 'Nova sessió',
+        shortcutsHelpVisibleSessions: 'Sessions visibles',
         commands: {
             sessionsCategory: 'Sessions',
             navigationCategory: 'Navigation',
