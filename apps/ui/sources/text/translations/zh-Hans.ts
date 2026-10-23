@@ -761,6 +761,10 @@ export const zhHans: TranslationStructure = {
     markAllRead: "全部标为已读",
     openInbox: "打开收件箱",
     updates: "动态",
+    toolbarTooltip: "待查看的请求和更新。圆点表示收件箱有内容，不一定是问题。",
+    panelDescription: "收件箱汇总请求和更新，其中一些是无需回复的通知。",
+    activityToolbarTooltip: "数字表示正在进行的操作；圆点表示其他结果或待关注事项。",
+    activityPanelDescription: "数字表示活跃操作；圆点表示其他结果或待关注事项。",
     actionOperations: {
       sections: { inProgress: "进行中", needsAttention: "需要处理", recent: "最近" },
       clearRecent: "清除最近记录",

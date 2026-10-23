@@ -541,6 +541,10 @@ export const de: TranslationStructure = {
         markAllRead: 'Alle als gelesen markieren',
         openInbox: 'Posteingang öffnen',
         updates: 'Aktivität',
+        toolbarTooltip: 'Anfragen und Updates zum Prüfen. Ein Punkt bedeutet, dass es Inhalte gibt, nicht immer eine Frage.',
+        panelDescription: 'Der Posteingang bündelt Anfragen und Updates. Manche Einträge sind Benachrichtigungen ohne Antwortbedarf.',
+        activityToolbarTooltip: 'Die Zahl zählt aktive Aktionen; ein Punkt kennzeichnet weitere Ergebnisse oder Aufmerksamkeit.',
+        activityPanelDescription: 'Die Zahl zählt aktive Aktionen. Ein Punkt kennzeichnet weitere Ergebnisse oder Aufmerksamkeit.',
         actionOperations: {
             sections: { inProgress: 'In Bearbeitung', needsAttention: 'Aufmerksamkeit erforderlich', recent: 'Zuletzt' },
             clearRecent: 'Letzte löschen',

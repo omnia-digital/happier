@@ -1,12 +1,14 @@
 import * as React from 'react';
-import { Platform, Pressable, View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type { ActionOperationSnapshotV1 } from '@happier-dev/protocol';
 
 import { Icon, ICON_SIZE } from '@/components/ui/icons/Icon';
+import { PressableSurface } from '@/components/ui/interaction/PressableSurface';
 import { TabBadge } from '@/components/ui/navigation/tabBadge/TabBadge';
 import { FloatingOverlay } from '@/components/ui/overlays/FloatingOverlay';
 import { Popover } from '@/components/ui/popover';
+import { Text } from '@/components/ui/text/Text';
 import { useActionOperationActivitySummary } from '@/sync/domains/actionOperations/useActionOperations';
 import { useActiveServerAccountScope } from '@/sync/domains/state/storage';
 import { t } from '@/text';
@@ -74,12 +76,15 @@ const ActionOperationActivityButtonChrome = React.memo(function ActionOperationA
 
     const tintColor = props.tintColor ?? theme.colors.chrome.header.foreground;
     return (
-        <View ref={anchorRef} collapsable={false} style={styles.anchor}>
-            <Pressable
+        <View collapsable={false} style={styles.anchor}>
+            <PressableSurface
                 testID={props.testID ?? 'action-operation-activity-button'}
+                anchorRef={anchorRef}
                 accessibilityRole="button"
                 accessibilityLabel={t('inbox.updates')}
+                webTooltip={t('inbox.activityToolbarTooltip')}
                 accessibilityState={{ expanded: open }}
+                focusRingRadius={(props.buttonSize ?? 44) / 2}
                 onPress={(event) => {
                     if (!open && Platform.OS === 'web') {
                         const target = event?.currentTarget as unknown as {
@@ -116,11 +121,11 @@ const ActionOperationActivityButtonChrome = React.memo(function ActionOperationA
                     <Icon name="pulse" size={props.iconSize ?? ICON_SIZE.md} color={tintColor} />
                     {props.activeCount > 0 ? (
                         <TabBadge testID="action-operation-activity-count" variant="count" value={props.activeCount} tone="neutral" />
-                    ) : (
+                    ) : props.hasAttention ? (
                         <TabBadge testID="action-operation-activity-attention-dot" variant="dot" />
-                    )}
+                    ) : null}
                 </View>
-            </Pressable>
+            </PressableSurface>
             {open ? props.renderDetails({
                 anchorRef,
                 anchor: webAnchorRect ? {
@@ -189,6 +194,9 @@ const ActionOperationActivityDetailsView = React.memo(function ActionOperationAc
                     surfaceChrome="theme"
                     containerStyle={{ width: Math.min(maxWidth, 400) }}
                 >
+                    <Text testID="action-operation-activity-description" style={styles.panelDescription}>
+                        {t('inbox.activityPanelDescription')}
+                    </Text>
                     <ActionOperationLedger
                         operations={props.operations}
                         observationForOperation={props.observationForOperation}
@@ -324,5 +332,12 @@ const styles = StyleSheet.create((theme) => ({
     },
     popoverBottomInset: {
         height: 14,
+    },
+    panelDescription: {
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        paddingBottom: 4,
+        color: theme.colors.text.secondary,
+        fontSize: 12,
     },
 }));

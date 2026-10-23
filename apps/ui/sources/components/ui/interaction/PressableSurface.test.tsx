@@ -134,6 +134,28 @@ describe('PressableSurface press feedback', () => {
         expect(pressed.backgroundColor).toBe(lightTheme.colors.surface.selected);
         expect(pressed.borderRadius).toBe(8);
     });
+
+    it('preserves a callback box style across pressed state and applies caller overrides last', async () => {
+        const boxStyle = vi.fn(({ pressed }: { pressed: boolean }) => ({
+            opacity: pressed ? 0.68 : 1,
+            transform: pressed ? [{ scale: 0.96 }] : undefined,
+            backgroundColor: '#ffffff',
+        }));
+        const screen = await renderSurface({
+            style: boxStyle,
+            styleOverride: { backgroundColor: '#123456' },
+        });
+        const hostStyle = screen.findHostByTestId(SURFACE_TEST_ID)?.props.style;
+        const resting = flattenStyle(hostStyle, {});
+        const pressed = flattenStyle(hostStyle, { pressed: true });
+
+        expect(boxStyle).toHaveBeenCalledWith({ pressed: false, hovered: false });
+        expect(boxStyle).toHaveBeenCalledWith({ pressed: true, hovered: false });
+        expect(resting.opacity).toBe(1);
+        expect(pressed.opacity).toBe(0.68);
+        expect(pressed.transform).toEqual([{ scale: 0.96 }]);
+        expect(pressed.backgroundColor).toBe('#123456');
+    });
 });
 
 describe('PressableSurface focus ring', () => {

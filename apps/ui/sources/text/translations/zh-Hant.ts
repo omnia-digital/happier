@@ -855,6 +855,10 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
         markAllRead: '全部標示為已讀',
         openInbox: '開啟收件匣',
         updates: '動態',
+        toolbarTooltip: '待檢視的請求和更新。圓點表示收件匣有內容，不一定是問題。',
+        panelDescription: '收件匣彙整請求和更新，其中有些是不需回覆的通知。',
+        activityToolbarTooltip: '數字表示進行中的動作；圓點表示其他結果或待留意事項。',
+        activityPanelDescription: '數字表示活躍動作；圓點表示其他結果或待留意事項。',
         actionOperations: {
             sections: { inProgress: '進行中', needsAttention: '需要處理', recent: '最近' },
             clearRecent: '清除最近記錄',

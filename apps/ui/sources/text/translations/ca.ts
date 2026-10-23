@@ -715,6 +715,10 @@ export const ca: TranslationStructure = {
         markAllRead: 'Marca-ho tot com a llegit',
         openInbox: 'Obre la safata d’entrada',
         updates: 'Activitat',
+        toolbarTooltip: 'Sol·licituds i novetats per revisar. El punt indica que hi ha contingut a la safata, no sempre una pregunta.',
+        panelDescription: 'La safata reuneix sol·licituds i novetats. Algunes són notificacions i no cal respondre-hi.',
+        activityToolbarTooltip: 'El número compta les accions actives; el punt indica altres resultats o elements per revisar.',
+        activityPanelDescription: 'El número compta les accions actives. El punt indica altres resultats o elements per revisar.',
         actionOperations: {
             sections: { inProgress: 'En curs', needsAttention: 'Requereix atenció', recent: 'Recents' },
             clearRecent: 'Neteja els recents',

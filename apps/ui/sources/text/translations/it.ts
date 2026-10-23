@@ -761,6 +761,10 @@ export const it: TranslationStructure = {
     markAllRead: "Segna tutto come letto",
     openInbox: "Apri posta in arrivo",
     updates: "Attività",
+    toolbarTooltip: "Richieste e aggiornamenti da rivedere. Il punto indica contenuti, non sempre una domanda.",
+    panelDescription: "La posta in arrivo raccoglie richieste e aggiornamenti. Alcuni elementi sono notifiche senza risposta richiesta.",
+    activityToolbarTooltip: "Il numero conta le azioni attive; il punto indica altri risultati o elementi da rivedere.",
+    activityPanelDescription: "Il numero conta le azioni attive. Il punto indica altri risultati o elementi da rivedere.",
     actionOperations: {
       sections: { inProgress: "In corso", needsAttention: "Richiede attenzione", recent: "Recenti" },
       clearRecent: "Cancella recenti",

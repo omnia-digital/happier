@@ -34,7 +34,7 @@ vi.mock('@/components/ui/text/Text', () => ({ Text: 'Text' }));
 vi.mock('@/components/ui/cards/UserCard', () => ({ UserCard: 'UserCard' }));
 vi.mock('@/text', async () => {
     const { createTextModuleMock } = await import('@/dev/testkit/mocks/text');
-    return createTextModuleMock({ translate: (key: string) => key });
+    return createTextModuleMock({ translate: (key: string) => key === 'inbox.panelDescription' ? 'Inbox panel explanation' : key });
 });
 
 const failedSession = {
@@ -122,6 +122,7 @@ describe('InboxContent', () => {
         const screen = await renderScreen(<InboxContent model={model} />);
 
         const sections = screen.tree.root.findAllByType('ListSection' as never);
+        expect(screen.findByTestId('inbox-panel-description')?.props.children).toBe('Inbox panel explanation');
         expect(sections.map((section) => section.props.id)).toEqual([
             'errors',
             'ready',

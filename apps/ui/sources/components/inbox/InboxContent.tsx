@@ -65,6 +65,9 @@ export const InboxContent = React.memo(function InboxContent(props: Readonly<{
 
     return (
         <View style={[styles.content, presentation === 'popover' ? styles.compactContent : null]}>
+            <Text testID="inbox-panel-description" style={styles.panelDescription}>
+                {t('inbox.panelDescription')}
+            </Text>
             <RecoveryKeyReminderBanner />
 
             {failedSessions.length > 0 || failedOperations.length > 0 ? (
@@ -240,6 +243,13 @@ const styles = StyleSheet.create((theme) => ({
     },
     compactContent: {
         paddingBottom: 14,
+    },
+    panelDescription: {
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        paddingBottom: 4,
+        color: theme.colors.text.secondary,
+        fontSize: 12,
     },
     emptyContainer: {
         flexGrow: 1,

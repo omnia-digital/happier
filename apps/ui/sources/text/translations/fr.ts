@@ -541,6 +541,10 @@ export const fr: TranslationStructure = {
         markAllRead: 'Tout marquer comme lu',
         openInbox: 'Ouvrir la boîte de réception',
         updates: 'Activité',
+        toolbarTooltip: 'Demandes et nouveautés à consulter. Le point signale du contenu, pas toujours une question.',
+        panelDescription: 'La boîte de réception regroupe demandes et nouveautés. Certaines sont des notifications sans réponse attendue.',
+        activityToolbarTooltip: 'Le nombre compte les actions actives ; le point signale d’autres résultats ou éléments à consulter.',
+        activityPanelDescription: 'Le nombre compte les actions actives. Le point signale d’autres résultats ou éléments à consulter.',
         actionOperations: {
             sections: { inProgress: 'En cours', needsAttention: 'À vérifier', recent: 'Récentes' },
             clearRecent: 'Effacer les récentes',

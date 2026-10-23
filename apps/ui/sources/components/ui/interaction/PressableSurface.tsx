@@ -41,7 +41,7 @@ export type PressableSurfaceProps = Readonly<{
     focusRingRadius?: number;
     focusRingPlacement?: FocusRingPlacement;
     /** The control's own box styling. The feedback fill is applied ON TOP of it. */
-    style?: StyleProp<ViewStyle>;
+    style?: PressableProps['style'];
     /**
      * Applied LAST, after the feedback fill, so a consumer's `style` prop still has the final word
      * — which is the ordering the adopting controls already had.
@@ -83,8 +83,11 @@ export const PressableSurface = React.memo((props: PressableSurfaceProps) => {
 
     const resolveStyle = React.useCallback(({ pressed, hovered }: { pressed?: boolean; hovered?: boolean }) => {
         const backgroundColor = feedback.resolveBackgroundColor({ pressed, hovered });
+        const consumerStyle = typeof props.style === 'function'
+            ? props.style({ pressed: pressed === true, hovered: hovered === true })
+            : props.style;
         return [
-            props.style,
+            consumerStyle,
             Platform.OS === 'web' ? WEB_FOCUS_OUTLINE_RESET : null,
             backgroundColor === undefined ? null : { backgroundColor },
             props.styleOverride,
