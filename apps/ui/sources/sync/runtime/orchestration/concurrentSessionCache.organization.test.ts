@@ -106,6 +106,8 @@ describe('concurrent Home organization lifecycle', () => {
         startConcurrentSessionCacheSync();
         await vi.advanceTimersByTimeAsync(1_000);
         expect(organizationRequested).toBe(true);
+        expect(storage.getState().sessionListViewDataByServerId[remote.id]).toEqual([]);
+        expect(storage.getState().machineListStatusByServerId[remote.id]).toBe('idle');
         credentials = accountChanged ? credentialsFor('replacement-account') : {
             token: `rotated.${Buffer.from(JSON.stringify({ sub: 'account-b' })).toString('base64')}.new-signature`,
         };
@@ -114,6 +116,16 @@ describe('concurrent Home organization lifecycle', () => {
         expect(storage.getState().sessionOrganizationSnapshotVersionByServerId[remote.id]).toBe(accountChanged ? 7 : 9);
         expect(loadSessionOrganizationWarmCacheSnapshot(remote.id, 'replacement-account')).toBeNull();
         expect(loadSessionOrganizationWarmCacheSnapshot(remote.id, 'account-b')?.version).toBe(accountChanged ? 7 : 9);
+    });
+
+    it('does not persist a replacement account projection under the stopped connection account', async () => {
+        saveSessionOrganizationWarmCacheSnapshot(remote.id, 'account-b', snapshot(7, ['A', 'B', 'A2']));
+        startConcurrentSessionCacheSync();
+        await vi.advanceTimersByTimeAsync(0);
+        credentials = credentialsFor('replacement-account');
+        storage.getState().applySessionOrganizationSnapshot(remote.id, snapshot(99, ['replacement-private']));
+        stopConcurrentSessionCacheSync();
+        expect(loadSessionOrganizationWarmCacheSnapshot(remote.id, 'account-b')?.version).toBe(7);
     });
 
 });

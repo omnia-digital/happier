@@ -296,28 +296,6 @@ async function refreshServerSnapshot(entry: ManagedConcurrentServer): Promise<vo
         return;
     }
 
-    if (entry.accountId) {
-        const targetAccountId = entry.accountId;
-        const isContextCurrent = () => isServerScopedSessionContextCurrent({
-            targetServerId: entry.id, targetServerUrl: entry.serverUrl, targetAccountId,
-        });
-        try {
-            await fetchAndApplySessionOrganizationSnapshot({
-                credentials: entry.credentials,
-                serverId: entry.id,
-                serverUrl: entry.serverUrl,
-                request: createSessionListOrganizationSnapshotRequest(),
-                shouldContinue: () => isManagedServerActive(entry),
-                canApplySnapshot: isContextCurrent,
-            });
-            if (!await isContextCurrent() || !isManagedServerActive(entry)) return;
-            persistSessionOrganizationWarmCache(entry.id, entry.accountId, buildOrganizationProjectionForServer(storage.getState(), entry.id));
-        } catch (error) {
-            console.warn('[concurrentSessionCache] Organization refresh failed', error);
-        }
-    }
-    if (!isManagedServerActive(entry)) return;
-
     const sessionListViewData = buildSessionListViewData(
         sessionsById,
         machinesById,
@@ -341,6 +319,32 @@ async function refreshServerSnapshot(entry: ManagedConcurrentServer): Promise<vo
         authoritative: true,
     });
     updateConcurrentSessionListCache(entry.id, sessionListViewData);
+    void refreshConcurrentOrganization(entry);
+}
+
+// Organization is a separately refreshable projection. A slow response must not hold back
+// ordinary session/machine publication or the next periodic refresh of those records.
+async function refreshConcurrentOrganization(entry: ManagedConcurrentServer): Promise<void> {
+    if (entry.accountId) {
+        const targetAccountId = entry.accountId;
+        const isContextCurrent = () => isServerScopedSessionContextCurrent({
+            targetServerId: entry.id, targetServerUrl: entry.serverUrl, targetAccountId,
+        });
+        try {
+            await fetchAndApplySessionOrganizationSnapshot({
+                credentials: entry.credentials,
+                serverId: entry.id,
+                serverUrl: entry.serverUrl,
+                request: createSessionListOrganizationSnapshotRequest(),
+                shouldContinue: () => isManagedServerActive(entry),
+                canApplySnapshot: isContextCurrent,
+            });
+            if (!await isContextCurrent() || !isManagedServerActive(entry)) return;
+            persistSessionOrganizationWarmCache(entry.id, entry.accountId, buildOrganizationProjectionForServer(storage.getState(), entry.id));
+        } catch (error) {
+            console.warn('[concurrentSessionCache] Organization refresh failed', error);
+        }
+    }
 }
 
 function isManagedServerActive(entry: ManagedConcurrentServer): boolean {
@@ -386,9 +390,6 @@ function stopManagedServer(serverId: string): void {
     const entry = managedServers.get(serverId);
     if (!entry) return;
     if (!areServerProfileIdentifiersEquivalent(getActiveServerSnapshot().serverId, entry.id)) {
-        if (entry.accountId) {
-            persistSessionOrganizationWarmCache(entry.id, entry.accountId, buildOrganizationProjectionForServer(storage.getState(), entry.id));
-        }
         storage.getState().clearSessionOrganizationForServer(entry.id);
     }
     if (entry.refreshTimer) {
