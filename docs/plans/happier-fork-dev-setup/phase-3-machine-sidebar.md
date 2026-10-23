@@ -16,10 +16,10 @@ For machine grouping, add a discoverable view-menu choice using the existing pro
 
 ## OH-19 execution
 
-- [ ] 🔴 Add new focused regressions for default-on/missing metadata, multiple machines including Pinned, preference off/on/persistence, header identity/session switching and preserved row controls. Reuse canonical UI testkit; no preexisting test edits.
-- [ ] 🟡 Carry the resolved machine identity through the existing row model/projection, preserving narrow subscriptions and stable unchanged rows. Render the machine glyph/name without per-row RPCs or a new machine registry.
-- [ ] 🟡 Add the local default-on preference to the canonical settings registry and Session preferences route; localize new labels across existing locales. Wire immediate row updates and persisted reload behavior.
-- [ ] 🟡 Render header identity through existing ChatHeaderView/SessionView presentation; card preference does not control it.
+- [x] 🟢 Added new focused regressions for default-on/missing metadata, preference persistence, header identity and preserved controls, using canonical testkit. No preexisting tests or assertions edited. Tooltip RED/GREEN checks and 107 adjacent UI checks pass through `4363ad3bb6`.
+- [x] 🟢 Carried resolved machine identity through the existing row model/projection with existing canonical reachability resolution and virtualized presentation inputs. Native rows show three distinct machines, including Pinned. No per-row RPC or new registry.
+- [x] 🟢 Added a localized local default-on Session preference. Native off/on updates rows immediately; each value survives full WebView reload. The installed client's hosted settings remain unchanged.
+- [x] 🟢 Header identity uses existing SessionView presentation beside the type badge. Native selection across Vader---MBP, Cassians-Mac-mini and Josh-PC updates correctly; row preference off leaves header identity visible. Full-name tooltips observed for header and row; More/Tag/Archive controls remain visible on hover.
 - [ ] 🟡 Run relevant owner tests and UI typecheck, then full-reload native QA for multi-machine rows, Pinned, toggle/restart, session switching and narrow/long-name layout. Independently review before ticket closeout; commit AND push tested steps.
 
 ## OH-14 machine view execution
@@ -35,6 +35,6 @@ For machine grouping, add a discoverable view-menu choice using the existing pro
 
 ## Current state
 
-OH-19 identifiers are implemented and pushed; a native preview showed 28 machine identifiers including Pinned, across Vader---MBP, Cassians-Mac-mini and Josh-PC. The selected scratch session header showed its machine beside the Happier badge. A subsequent corrective checkpoint preserves the existing workspace subtitle contract. Tooltip correction and local preference/restart acceptance remain in progress. Focused and adjacent checks passed; UI typecheck currently reports three existing row fixtures missing the two new required fields, and precise user approval to update those fixtures is pending. No existing assertions have been changed.
+OH-19 identifiers and tooltip correction are pushed through `4363ad3bb6`. The full-reloaded native app shows 27 machine indicators including Pinned across three machines; local preference off/on and reload persistence, header independence, cross-machine selection and full-name hover tooltips passed. A corrective checkpoint preserves the existing workspace subtitle contract. Screenshot `/tmp/happier-oh19-machine-identity-final.jpg` was inspected locally and is private; it is not committed or uploaded. Full native app restart and independent source review remain in progress. UI typecheck currently reports three existing row fixtures missing the two new required fields, and precise user approval to update those fixtures is pending. No existing assertions have been changed.
 
 OH-14 owner/consumer discovery is complete and machine-view implementation is next. OH-16 remains open with a live archive failure and foreground keyboard QA outstanding; its pushed implementation is preserved. OH-15 and the OH-6 UI-only development baseline remain complete. Original installed app, CLI/daemon, hosted account and disabled Embedded Terminal are retained. No release, merge or daily-use cutover is implied.
