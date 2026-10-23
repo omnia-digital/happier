@@ -24,10 +24,17 @@ For machine grouping, add a discoverable view-menu choice using the existing pro
 
 ## OH-14 machine view execution
 
+- Discovery complete: add a local display projection in `useSessionListViewState` after the canonical ordered/pinned/indexed data and before folder presentation. Mode off returns the original data unchanged. Do not widen synced grouping enums understood by the installed client.
+- Bucket individual sessions by server and canonical machine identity within existing top-level bands. Reconstruct project/folder/date/shared lineage inside each machine; moving entire project subtrees is incorrect when an unknown-machine session shares a path with another host.
+- Carry machine headers through the view/index unions, nested collapse, focused folders, search pruning and drag/drop interpretation. Preserve source-relative order and action targets. New machine-view structural reordering must either use valid canonical ordering semantics or be explicitly unavailable in that view while the original view retains all ordering controls; never persist fake machine workspace keys.
+- Deciding coverage includes same-name machines across servers, known/unknown sessions sharing paths, Pinned/shared/inactive scopes, folder focus/search/collapse, each session appearing once, and original → machine → original view switching without organization/order writes. The broader cross-machine repository equivalence and custom-order acceptance remains open.
+
 - [ ] 🔴 Trace both legacy/indexed session-list projections, current view menu, group headers, folder/pin scopes and custom ordering before changing grouping. Add a new deciding regression for two machines with multiple projects and duplicate host names across server scopes.
 - [ ] 🟡 Add the machine view through the canonical grouping owner and view state. Preserve all sessions, folders, pinning, actions and stable per-view ordering; no parallel store or inferred repository equivalence.
 - [ ] 🟡 Verify switching machine view on/off preserves existing custom order and survives reload. Exercise the real native sidebar with at least two connected machines. Keep the broader OH-14 acceptance open until repository equivalence and all ordering requirements are implemented and verified.
 
 ## Current state
 
-Priority and scope recorded before source changes. OH-16 remains open with a live archive failure and foreground keyboard QA outstanding; its pushed implementation is preserved. OH-15 and the OH-6 UI-only development baseline remain complete. Original installed app, CLI/daemon, hosted account and disabled Embedded Terminal are retained. No release, merge or daily-use cutover is implied.
+OH-19 identifiers are implemented and pushed; a native preview showed 28 machine identifiers including Pinned, across Vader---MBP, Cassians-Mac-mini and Josh-PC. The selected scratch session header showed its machine beside the Happier badge. A subsequent corrective checkpoint preserves the existing workspace subtitle contract. Tooltip correction and local preference/restart acceptance remain in progress. Focused and adjacent checks passed; UI typecheck currently reports three existing row fixtures missing the two new required fields, and precise user approval to update those fixtures is pending. No existing assertions have been changed.
+
+OH-14 owner/consumer discovery is complete and machine-view implementation is next. OH-16 remains open with a live archive failure and foreground keyboard QA outstanding; its pushed implementation is preserved. OH-15 and the OH-6 UI-only development baseline remain complete. Original installed app, CLI/daemon, hosted account and disabled Embedded Terminal are retained. No release, merge or daily-use cutover is implied.
