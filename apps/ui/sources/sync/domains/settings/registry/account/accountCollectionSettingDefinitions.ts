@@ -60,6 +60,15 @@ export const ACCOUNT_COLLECTION_SETTING_DEFINITIONS = defineSettingDefinitions({
             serializeCurrent: arrayCount,
         },
     },
+    machinePathPreferencesByTargetV1: {
+        schema: z.record(z.string(), z.object({
+            favorites: z.array(z.string()),
+            recentPaths: z.array(z.string()),
+        })),
+        default: {},
+        description: 'Viewer path preferences assigned to an exact Home, account, and machine',
+        storageScope: 'account',
+    },
     favoriteMachines: {
         schema: z.array(z.string()),
         default: [],
