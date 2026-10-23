@@ -71,7 +71,7 @@ const activeHeader: SessionListViewItem = {
     type: 'header', headerKind: 'active', title: 'Active', groupKey: 'active', serverId,
 };
 
-function projectList(source: SessionListViewItem[], pinnedSessionIds: string[]) {
+function projectList(source: SessionListViewItem[], pinnedSessionIds: string[], sectionModeV1?: 'activity' | 'single') {
     const sourceIndex = source.map(buildSessionListIndexItemFromViewItem);
     const byId = new Map(source.flatMap((item) => item.type === 'session' ? [[item.session.id, item.session] as const] : []));
     const index = computeVisibleSessionListIndex({
@@ -84,6 +84,7 @@ function projectList(source: SessionListViewItem[], pinnedSessionIds: string[]) 
             'project:/beta': [`${serverId}:beta`],
         },
         sessionListOrderingModeV1: 'custom',
+        sessionListSectionModeV1: sectionModeV1,
         presentation: { enabled: false, presentation: 'grouped' },
     })!;
     const view = buildSessionListViewDataFromIndex({ index, source, sourceIndex })!;
@@ -114,6 +115,12 @@ describe('pinned Active workspace projection', () => {
             'session:beta:pinned',
         ]);
         expect(new Set(allPinned.view.filter((item) => item.type === 'session').map((item) => item.session.id)).size).toBe(2);
+        expect(describeRows(projectSessionListMachineView(allPinned.view, machines))).toEqual([
+            'header:pinned:Pinned',
+            'header:machine:Studio Mac',
+            'session:alpha:pinned',
+            'session:beta:pinned',
+        ]);
 
         const mixed = projectList(source, ['alpha']);
         expect(describeRows(mixed.view)).toEqual([
@@ -136,6 +143,25 @@ describe('pinned Active workspace projection', () => {
         expect(unpinned.view.find((item) => item.type === 'session' && item.session.id === 'alpha')).toMatchObject({
             folderId: 'saved', workspace: workspace('/alpha'),
         });
+    });
+
+    it('removes a pinned-out workspace under the single Sessions section too', () => {
+        const source = [
+            { ...activeHeader, headerKind: 'sessions' as const, title: 'Sessions', groupKey: 'sessions' },
+            project('/alpha'),
+            folder('/alpha', 'saved'),
+            session('/alpha', 'alpha', 'saved'),
+        ];
+        expect(describeRows(projectList(source, ['alpha'], 'single').view)).toEqual([
+            'header:pinned:Pinned',
+            'session:alpha:pinned',
+        ]);
+        expect(describeRows(projectList(source, [], 'single').view)).toEqual([
+            'header:sessions:Sessions',
+            'header:project:/alpha',
+            'header:folder:saved',
+            'session:alpha:folder',
+        ]);
     });
 
     it('keeps saved empty folders in surviving workspaces and valid collapsed machine groups', () => {
