@@ -1830,6 +1830,8 @@ export const SessionView = React.memo((props: SessionViewProps) => {
             title: getSessionName(headerSession),
             subtitle: sessionWorkspacePresentation?.displayTitle || undefined,
             machineLabel: sessionWorkspacePresentation?.machineLabel ?? null,
+            machineId: sessionWorkspacePresentation?.machineId ?? null,
+            machineServerId: currentSessionRouteServerId,
             subtitleEllipsizeMode: sessionWorkspacePresentation?.displayPath && !sessionWorkspacePresentation.hasCustomLabel ? 'head' as const : undefined,
             avatarId: getSessionAvatarId(headerSession),
             agentId: resolveAgentIdFromSessionMetadata(headerSession.metadata)

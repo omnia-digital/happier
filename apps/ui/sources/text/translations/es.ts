@@ -10714,6 +10714,18 @@ settingsSession: {
     daemonStoppedTitle: "Daemon detenido",
     stopDaemonFailed:
       "No se pudo detener el daemon. Puede que no esté en ejecución.",
+    displayAppearanceTitle: 'Apariencia',
+    displayLabelTitle: 'Nombre visible',
+    displayIconTitle: 'Icono visible',
+    displayLocalOnlySubtitle: 'El icono se guarda en este dispositivo.',
+    displayResetTitle: 'Restablecer apariencia',
+    displayResetSubtitle: 'Usar el nombre del equipo y el icono predeterminado.',
+    displayIcons: {
+        desktop: 'Escritorio',
+        laptop: 'Portátil',
+        cloud: 'Nube',
+        terminal: 'Terminal',
+    },
     renameTitle: "Renombrar máquina",
     renameDescription:
       "Dale a esta máquina un nombre personalizado. Déjalo vacío para usar el hostname predeterminado.",

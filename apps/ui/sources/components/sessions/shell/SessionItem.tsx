@@ -183,6 +183,7 @@ type SessionItemRenderProps = Omit<SessionItemBaseProps, 'activityTimeMode' | 's
     sessionNameResolved: string;
     sessionSubtitle: string;
     machineLabel: string | null;
+    machineId: string | null;
     showMachineIdentity: boolean;
     pendingCount: number;
     hasUnreadMessages: boolean;
@@ -730,6 +731,7 @@ const SessionItemContent = React.memo(
         sessionNameResolved,
         sessionSubtitle,
         machineLabel,
+        machineId,
         showMachineIdentity,
         shortcutHint,
         pendingCount,
@@ -1480,6 +1482,8 @@ const SessionItemContent = React.memo(
                             <SessionMachineIdentity
                                 testID={`session-list-machine-identity-${resolvedSession.id}`}
                                 label={machineLabel}
+                                serverId={serverId}
+                                machineId={machineId}
                                 variant="row"
                             />
                         ) : null}
@@ -1962,6 +1966,7 @@ function SessionItemFromRowModel(props: SessionItemProps & { rowModel: SessionLi
             sessionNameResolved={rowModel.title}
             sessionSubtitle={itemProps.subtitleOverride ?? rowModel.subtitle}
             machineLabel={rowModel.machineLabel}
+            machineId={rowModel.machineId}
             showMachineIdentity={rowModel.showMachineIdentity}
             pendingCount={rowModel.pendingCount}
             hasUnreadMessages={rowModel.hasUnreadMessages}

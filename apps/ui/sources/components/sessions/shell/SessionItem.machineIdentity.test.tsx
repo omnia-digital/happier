@@ -49,7 +49,7 @@ installSessionShellCommonModuleMocks({
     },
     storage: async (importOriginal) => {
         const { createStorageModuleMock } = await import('@/dev/testkit/mocks/storage');
-        return createStorageModuleMock({
+        const base = await createStorageModuleMock({
             importOriginal,
             overrides: {
                 useHasUnreadMessages: () => false,
@@ -68,6 +68,11 @@ installSessionShellCommonModuleMocks({
                 useSession: () => null,
             },
         });
+        return {
+            ...base,
+            useMachineDisplayIcon: ((serverId?: string | null, machineId?: string | null) =>
+                machineIconPreference.current[JSON.stringify([serverId, machineId])] ?? 'desktop') as typeof base.useMachineDisplayIcon,
+        };
     },
 });
 vi.mock('@/components/ui/forms/dropdown/DropdownMenu', () => ({
@@ -122,6 +127,7 @@ vi.mock('./sessionPinIcons', () => ({
 }));
 
 const SESSION_ID = 'sess_machine';
+const machineIconPreference = vi.hoisted(() => ({ current: {} as Record<string, 'laptop' | 'cloud'> }));
 
 describe('SessionItem machine identity', () => {
     afterEach(standardCleanup);
@@ -139,7 +145,7 @@ describe('SessionItem machine identity', () => {
             pinned: true, variant: 'no-path',
         };
         return renderScreen(<SessionItem {...props} rowModel={createSessionItemTestRowModel(props, {
-            machineLabel: 'Long named studio workstation', showMachineIdentity,
+            machineLabel: 'Long named studio workstation', machineId: 'machine-a', showMachineIdentity,
             title: 'Review', isPinned: true,
         })} />);
     }
@@ -151,6 +157,39 @@ describe('SessionItem machine identity', () => {
         expect(indicator?.props.accessibilityLabel).toBe('Long named studio workstation');
         expect(indicator?.findAllByType('Text' as never).some(node => node.props.children === 'Long named studio workstation')).toBe(true);
         expect(screen.getTextContent()).toContain('Review');
+    });
+
+    it('renders the machine-specific icon with the shared identity glyph', async () => {
+        machineIconPreference.current = { '["server-a","machine-a"]': 'laptop' };
+        try {
+            const screen = await renderMachineRow(true);
+            const indicator = screen.findByTestId(`session-list-machine-identity-${SESSION_ID}`);
+            const { Icon } = await import('@/components/ui/icons/Icon');
+            expect(indicator?.findAllByType(Icon as never).some(node => node.props.name === 'laptop')).toBe(true);
+        } finally {
+            machineIconPreference.current = {};
+        }
+    });
+
+    it('keeps equal-label machine group icons scoped to their server', async () => {
+        machineIconPreference.current = {
+            '["server-a","machine-a"]': 'laptop',
+            '["server-b","machine-a"]': 'cloud',
+        };
+        try {
+            const { CollapsibleSectionHeader } = await import('./CollapsibleSectionHeader');
+            const { Icon } = await import('@/components/ui/icons/Icon');
+            const props = {
+                title: 'Studio Mac', headerKind: 'machine' as const, machineId: 'machine-a',
+                collapsed: false, onPress: vi.fn(), headerTestId: 'machine-group',
+            };
+            const screen = await renderScreen(<CollapsibleSectionHeader {...props} serverId="server-a" />);
+            expect(screen.root.findAllByType(Icon as never).some(node => node.props.name === 'laptop')).toBe(true);
+            await screen.update(<CollapsibleSectionHeader {...props} serverId="server-b" />);
+            expect(screen.root.findAllByType(Icon as never).some(node => node.props.name === 'cloud')).toBe(true);
+        } finally {
+            machineIconPreference.current = {};
+        }
     });
 
     it('omits only the machine indicator when the local preference is off', async () => {

@@ -76,6 +76,7 @@ export type SessionListRowPresentationSettings = Readonly<{
     reachableSessionDisplayByKey: Readonly<Record<string, {
         workspaceSubtitle?: string;
         machineLabel?: string;
+        machineId?: string | null;
         workspaceSubtitleEllipsizeMode?: 'head' | 'tail';
     } | undefined>>;
     folderViewEnabled: boolean;
@@ -110,6 +111,7 @@ export type SessionListRowModel = Readonly<{
     title: string;
     subtitle: string;
     machineLabel: string | null;
+    machineId: string | null;
     showMachineIdentity: boolean;
     subtitleEllipsizeMode: 'head' | 'tail';
     groupKey: string;

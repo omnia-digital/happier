@@ -3,16 +3,33 @@ import { Platform, View } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Typography } from '@/constants/Typography';
 import { Icon } from '@/components/ui/icons/Icon';
+import { useMachineDisplayIcon } from '@/sync/domains/state/storage';
 import { Text } from '@/components/ui/text/Text';
 import { DeferredAnchoredTooltip } from '@/components/ui/overlays/DeferredAnchoredTooltip';
 
 /** A compact name from the canonical machine presentation, with its full value available on hover. */
+export const MachineDisplayGlyph = React.memo(function MachineDisplayGlyph({
+    serverId, machineId, size, color,
+}: Readonly<{
+    serverId?: string | null;
+    machineId?: string | null;
+    size: number;
+    color: string;
+}>) {
+    const icon = useMachineDisplayIcon(serverId, machineId);
+    return <Icon name={icon} size={size} color={color} />;
+});
+
 export const SessionMachineIdentity = React.memo(function SessionMachineIdentity({
     label,
+    serverId,
+    machineId,
     variant,
     testID,
 }: Readonly<{
     label: string;
+    serverId?: string | null;
+    machineId?: string | null;
     variant: 'row' | 'header';
     testID: string;
 }>) {
@@ -33,7 +50,7 @@ export const SessionMachineIdentity = React.memo(function SessionMachineIdentity
             onPointerLeave={Platform.OS === 'web' ? () => setHovered(false) : undefined}
             style={isHeader ? styles.headerIdentity : styles.rowIdentity}
         >
-            <Icon name="desktop" size={isHeader ? 12 : 11} color={color} />
+            <MachineDisplayGlyph serverId={serverId} machineId={machineId} size={isHeader ? 12 : 11} color={color} />
             <Text
                 style={[isHeader ? styles.headerText : styles.rowText, { color }]}
                 numberOfLines={1}

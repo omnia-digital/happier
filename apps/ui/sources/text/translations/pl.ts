@@ -10706,6 +10706,18 @@ settingsSession: {
       "Nie będziesz mógł tworzyć nowych sesji na tej maszynie, dopóki nie uruchomisz ponownie daemona na komputerze. Obecne sesje pozostaną aktywne.",
     daemonStoppedTitle: "Daemon zatrzymany",
     stopDaemonFailed: "Nie udało się zatrzymać daemona. Może nie działa.",
+    displayAppearanceTitle: 'Wygląd',
+    displayLabelTitle: 'Nazwa wyświetlana',
+    displayIconTitle: 'Ikona',
+    displayLocalOnlySubtitle: 'Wybór ikony jest zapisany na tym urządzeniu.',
+    displayResetTitle: 'Przywróć wygląd',
+    displayResetSubtitle: 'Użyj nazwy hosta i domyślnej ikony.',
+    displayIcons: {
+        desktop: 'Komputer',
+        laptop: 'Laptop',
+        cloud: 'Chmura',
+        terminal: 'Terminal',
+    },
     renameTitle: "Zmień nazwę maszyny",
     renameDescription:
       "Nadaj tej maszynie własną nazwę. Pozostaw puste, aby użyć domyślnej nazwy hosta.",

@@ -103,6 +103,7 @@ export function createSessionItemTestRowModel(
         serverId,
         serverName: input.serverName,
         machineLabel: null,
+        machineId: null,
         showMachineIdentity: true,
         treeRowId: `session:${serverId ?? 'local'}:${sessionId}`,
         testID: `session-list-item-${sessionId}`,

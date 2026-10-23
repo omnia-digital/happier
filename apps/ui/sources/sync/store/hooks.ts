@@ -23,6 +23,7 @@ import {
 } from '../domains/artifacts/approvalArtifacts';
 import { isAutomationLinkedToSession } from '../domains/automations/automationSessionLink';
 import type { LocalSettings } from '../domains/settings/localSettings';
+import { readMachineDisplayIcon } from '../domains/machines/machineDisplayIconPreference';
 import type { AgentTextMessage, Message } from '../domains/messages/messageTypes';
 import type { Settings } from '../domains/settings/settings';
 import { settingsDefaults } from '../domains/settings/settings';
@@ -1965,6 +1966,14 @@ export function useSessionRepositoryTreeExpandedPaths(sessionId: string | null):
 
 export function useLocalSetting<K extends keyof LocalSettings>(name: K): LocalSettings[K] {
   return getStorage()(useShallow((state) => state.localSettings[name]));
+}
+
+export function useMachineDisplayIcon(serverId?: string | null, machineId?: string | null) {
+  return getStorage()((state) => readMachineDisplayIcon(
+    state.localSettings.machineDisplayIconByMachineV1,
+    serverId,
+    machineId,
+  ));
 }
 
 function normalizeSessionLocalSettingScopeId(value: string | null | undefined): string | null {

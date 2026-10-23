@@ -10600,6 +10600,18 @@ settingsSession: {
       "Вы не сможете создавать новые сессии на этой машине, пока не перезапустите демон на компьютере. Текущие сессии останутся активными.",
     daemonStoppedTitle: "Демон остановлен",
     stopDaemonFailed: "Не удалось остановить демон. Возможно, он не запущен.",
+    displayAppearanceTitle: 'Внешний вид',
+    displayLabelTitle: 'Отображаемое имя',
+    displayIconTitle: 'Значок',
+    displayLocalOnlySubtitle: 'Выбор значка сохраняется на этом устройстве.',
+    displayResetTitle: 'Сбросить внешний вид',
+    displayResetSubtitle: 'Использовать имя хоста и значок по умолчанию.',
+    displayIcons: {
+        desktop: 'Компьютер',
+        laptop: 'Ноутбук',
+        cloud: 'Облако',
+        terminal: 'Терминал',
+    },
     renameTitle: "Переименовать машину",
     renameDescription:
       "Дайте этой машине имя. Оставьте пустым, чтобы использовать hostname по умолчанию.",

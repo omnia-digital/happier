@@ -235,6 +235,7 @@ function buildInputSignature(input: Readonly<{
     appendSignaturePart(parts, settings.hasMultipleMachines ? 1 : 0);
     appendSignaturePart(parts, reachableDisplay?.workspaceSubtitle);
     appendSignaturePart(parts, reachableDisplay?.machineLabel);
+    appendSignaturePart(parts, reachableDisplay?.machineId);
     appendSignaturePart(parts, reachableDisplay?.workspaceSubtitleEllipsizeMode);
     appendSignaturePart(parts, settings.folderViewEnabled ? 1 : 0);
     appendSignaturePart(parts, settings.statusColors.connected);

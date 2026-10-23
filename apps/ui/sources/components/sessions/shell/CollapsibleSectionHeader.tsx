@@ -6,6 +6,7 @@ import { Eyebrow } from '@/components/ui/text/Eyebrow';
 import type { SessionListViewItem } from '@/sync/domains/state/storage';
 import { isSessionListPrimaryHeaderKind } from './sessionListPrimaryHeader';
 import { Icon } from '@/components/ui/icons/Icon';
+import { MachineDisplayGlyph } from '@/components/sessions/SessionMachineIdentity';
 
 const stylesheet = StyleSheet.create((theme) => ({
     headerSection: {
@@ -39,6 +40,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     headerLabelRow: {
         flexDirection: 'row' as const,
         alignItems: 'center' as const,
+        gap: 4,
         minWidth: 0,
         flexShrink: 1,
     },
@@ -65,6 +67,8 @@ const stylesheet = StyleSheet.create((theme) => ({
 export const CollapsibleSectionHeader = React.memo(function CollapsibleSectionHeader(props: Readonly<{
     title: string;
     headerKind?: Extract<SessionListViewItem, { type: 'header' }>['headerKind'];
+    machineId?: string | null;
+    serverId?: string | null;
     collapsed: boolean;
     onPress: () => void;
     headerTestId: string;
@@ -87,6 +91,14 @@ export const CollapsibleSectionHeader = React.memo(function CollapsibleSectionHe
         >
             <View style={styles.headerRow}>
                 <View style={styles.headerLabelRow}>
+                    {props.headerKind === 'machine' && props.machineId ? (
+                        <MachineDisplayGlyph
+                            serverId={props.serverId}
+                            machineId={props.machineId}
+                            size={14}
+                            color={headerChevronColor}
+                        />
+                    ) : null}
                     <Eyebrow style={isPrimaryHeader ? styles.headerText : styles.groupHeaderTitle}>{props.title}</Eyebrow>
                     <View
                         style={[

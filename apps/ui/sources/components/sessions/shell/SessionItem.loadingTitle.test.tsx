@@ -164,6 +164,7 @@ function createMetadataPendingRowModel(id: string): SessionListRowModel {
         serverId: 'server_a',
         serverName: 'Server A',
         machineLabel: null,
+        machineId: null,
         showMachineIdentity: true,
         treeRowId: `session:server_a:${id}`,
         testID: `session-list-item-${id}`,

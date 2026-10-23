@@ -6,7 +6,9 @@ export function mergeMachineMetadataForVersionMismatch(params: Readonly<{
 }>): MachineMetadata {
     return {
         ...params.latest,
-        displayName: params.intended.displayName ?? params.latest.displayName,
+        displayName: Object.prototype.hasOwnProperty.call(params.intended, 'displayName')
+            ? params.intended.displayName
+            : params.latest.displayName,
         windowsRemoteSessionLaunchMode:
             params.intended.windowsRemoteSessionLaunchMode ?? params.latest.windowsRemoteSessionLaunchMode,
         windowsRemoteSessionConsole: params.intended.windowsRemoteSessionConsole ?? params.latest.windowsRemoteSessionConsole,

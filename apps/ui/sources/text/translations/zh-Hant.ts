@@ -8725,6 +8725,18 @@ settingsSession: {
             nothingToRemove: 'Happier Desktop 未新增任何 PATH 項目。',
         },
         stopDaemon: '停止守護程序',
+        displayAppearanceTitle: '外觀',
+        displayLabelTitle: '顯示名稱',
+        displayIconTitle: '顯示圖示',
+        displayLocalOnlySubtitle: '圖示選擇儲存在此裝置上。',
+        displayResetTitle: '重設外觀',
+        displayResetSubtitle: '使用主機名稱和預設圖示。',
+        displayIcons: {
+            desktop: '桌上型電腦',
+            laptop: '筆記型電腦',
+            cloud: '雲端',
+            terminal: '終端機',
+        },
         replacementRepair: {
             replaceWithMachine: '標記為已取代',
             replaceWithMachineSubtitle: ({ machine }: { machine: string }) => `使用 ${machine} 作為此裝置的取代裝置。`,

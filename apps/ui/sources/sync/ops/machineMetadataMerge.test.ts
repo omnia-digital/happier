@@ -31,10 +31,19 @@ describe('mergeMachineMetadataForVersionMismatch', () => {
                 windowsRemoteSessionLaunchMode: 'console',
                 windowsRemoteSessionConsole: 'hidden',
             } as any,
-            intended: { displayName: undefined, windowsRemoteSessionLaunchMode: undefined, windowsRemoteSessionConsole: undefined } as any,
+            intended: {} as any,
         });
         expect((merged as any).displayName).toBe('Latest');
         expect((merged as any).windowsRemoteSessionLaunchMode).toBe('console');
         expect((merged as any).windowsRemoteSessionConsole).toBe('hidden');
+    });
+
+    it('clears a custom label on a version conflict while retaining unrelated current metadata', () => {
+        const merged = mergeMachineMetadataForVersionMismatch({
+            latest: { host: 'current-host', displayName: 'Old label', homeDir: '/current' } as any,
+            intended: { host: 'stale-host', displayName: undefined } as any,
+        });
+        expect(merged).toMatchObject({ host: 'current-host', homeDir: '/current' });
+        expect(merged.displayName).toBeUndefined();
     });
 });

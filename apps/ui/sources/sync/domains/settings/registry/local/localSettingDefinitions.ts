@@ -1,5 +1,6 @@
 import { buildSettingArtifacts, defineSettingDefinitions } from '@happier-dev/protocol';
 import { z } from 'zod';
+import { MachineDisplayIconSchema } from '@/sync/domains/machines/machineDisplayIconPreference';
 import {
     PET_COMPANION_POSITION_DEFAULT,
     PetCompanionStoredPositionSchema,
@@ -162,6 +163,12 @@ export const LOCAL_SETTING_DEFINITIONS = defineSettingDefinitions({
         schema: z.boolean().catch(true),
         default: true,
         description: 'Show the hosting machine on session list rows on this device',
+        storageScope: 'local',
+    },
+    machineDisplayIconByMachineV1: {
+        schema: z.record(z.string(), MachineDisplayIconSchema).catch({}),
+        default: {},
+        description: 'Display icon selections on this device, keyed by server and machine ID',
         storageScope: 'local',
     },
     sessionListMachineViewV1: {

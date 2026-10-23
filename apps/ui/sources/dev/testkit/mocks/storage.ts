@@ -3,6 +3,7 @@ import { vi } from 'vitest';
 import type { StorageState } from '@/sync/store/types';
 import type { Settings } from '@/sync/domains/settings/settings';
 import { localSettingsDefaults, type LocalSettings } from '@/sync/domains/settings/localSettings';
+import { readMachineDisplayIcon } from '@/sync/domains/machines/machineDisplayIconPreference';
 import type { Profile } from '@/sync/domains/profiles/profile';
 import { create, type StoreApi, type UseBoundStore } from 'zustand';
 
@@ -154,6 +155,8 @@ export function createStorageModuleStub<TOverrides extends object>(overrides: TO
         useSetting,
         useSettingMutable,
         useLocalSetting,
+        useMachineDisplayIcon: (serverId?: string | null, machineId?: string | null) =>
+            readMachineDisplayIcon(localSettingsDefaults.machineDisplayIconByMachineV1, serverId, machineId),
         useLocalSettingMutable,
         useSessionMessages: sessionMessagesHooks.useSessionMessages,
         useSessionMessagesById: () => sessionMessagesById,

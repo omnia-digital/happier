@@ -24,6 +24,8 @@ const {
     alertSpy,
     promptSpy,
     machineUpdateMetadataSpy,
+    applyLocalSettingsSpy,
+    localIconMap,
     stackOptionsState,
     routerBackSpy,
     routerMock,
@@ -41,6 +43,8 @@ const {
     alertSpy: vi.fn(),
     promptSpy: vi.fn<(..._args: any[]) => Promise<string | null>>(async () => null),
     machineUpdateMetadataSpy: vi.fn(async () => ({})),
+    applyLocalSettingsSpy: vi.fn(),
+    localIconMap: { current: {} as Record<string, string> },
     stackOptionsState: { current: null as Record<string, unknown> | null },
     routerBackSpy: vi.fn(),
     routerMock: { back: vi.fn(), push: vi.fn(), replace: vi.fn() },
@@ -87,6 +91,7 @@ installMachineDetailsCommonModuleMocks({
             useSetting: () => false,
             useSettingMutable: () => [null, vi.fn()],
             useSettings: () => ({}),
+            useLocalSetting: (key: string) => key === 'machineDisplayIconByMachineV1' ? localIconMap.current : undefined,
             storage: {
                 getState: () => ({
                     settings: {},
@@ -178,7 +183,11 @@ vi.mock('@/agents/catalog/catalog', () => ({
     isAgentId: () => true,
 }));
 vi.mock('@/components/ui/forms/dropdown/DropdownMenu', () => ({
-    DropdownMenu: () => null,
+    DropdownMenu: (props: any) => React.createElement('DropdownMenu', props),
+}));
+vi.mock('@/sync/store/settingsWriters', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@/sync/store/settingsWriters')>(),
+    useApplyLocalSettings: () => applyLocalSettingsSpy,
 }));
 vi.mock('@/sync/domains/session/spawn/windowsRemoteSessionLaunchModeOptions', () => ({
     WINDOWS_REMOTE_SESSION_LAUNCH_MODE_OPTIONS: [],
@@ -187,7 +196,7 @@ vi.mock('@/sync/ops/sessionMachineTarget', () => ({
     readMachineTargetForSession: () => null,
 }));
 
-describe('MachineDetailScreen (revoke/forget machine)', () => {
+describe('MachineDetailScreen (appearance and revoke)', () => {
     beforeEach(() => {
         const now = Date.now();
         const currentMachine = {
@@ -236,6 +245,8 @@ describe('MachineDetailScreen (revoke/forget machine)', () => {
         promptSpy.mockResolvedValue(null);
         machineUpdateMetadataSpy.mockReset();
         machineUpdateMetadataSpy.mockResolvedValue({});
+        applyLocalSettingsSpy.mockReset();
+        localIconMap.current = {};
         stackOptionsState.current = null;
         routerBackSpy.mockReset();
     });
@@ -260,6 +271,43 @@ describe('MachineDetailScreen (revoke/forget machine)', () => {
             1,
         );
         expect(alertSpy).not.toHaveBeenCalled();
+    });
+
+    it('saves a scoped icon choice and resets the custom label and icon', async () => {
+        localIconMap.current = { '["server-a","machine-1"]': 'laptop' };
+        const { default: MachineDetailScreen } = await import('@/app/(app)/machine/[id]');
+        const screen = await renderScreen(React.createElement(MachineDetailScreen));
+
+        const iconPicker = screen.root.findAllByType('DropdownMenu' as never)
+            .find((node) => node.props.itemTrigger?.title === 'machine.displayIconTitle');
+        expect(iconPicker?.props.selectedId).toBe('laptop');
+        await act(async () => iconPicker?.props.onSelect('cloud'));
+        expect(applyLocalSettingsSpy).toHaveBeenCalledWith({
+            machineDisplayIconByMachineV1: { '["server-a","machine-1"]': 'cloud' },
+        });
+
+        const reset = itemSpy.mock.calls.map(([props]) => props)
+            .find((props) => props?.testID === 'machine-display-reset');
+        expect(reset).toBeTruthy();
+        await act(async () => reset.onPress());
+        expect(machineUpdateMetadataSpy).toHaveBeenCalledWith(
+            'machine-1',
+            expect.objectContaining({ displayName: undefined, host: 'host' }),
+            1,
+        );
+        expect(applyLocalSettingsSpy).toHaveBeenLastCalledWith({ machineDisplayIconByMachineV1: {} });
+    });
+
+    it('keeps the icon choice when resetting the synced label fails', async () => {
+        localIconMap.current = { '["server-a","machine-1"]': 'laptop' };
+        machineUpdateMetadataSpy.mockRejectedValueOnce(new Error('conflict'));
+        const { default: MachineDetailScreen } = await import('@/app/(app)/machine/[id]');
+        await renderScreen(React.createElement(MachineDetailScreen));
+        const reset = itemSpy.mock.calls.map(([props]) => props)
+            .find((props) => props?.testID === 'machine-display-reset');
+        await act(async () => reset.onPress());
+        expect(applyLocalSettingsSpy).not.toHaveBeenCalled();
+        expect(alertSpy).toHaveBeenCalledWith('common.error', 'conflict');
     });
 
     it('confirms and revokes the machine', async () => {

@@ -11030,6 +11030,18 @@ settingsSession: {
     daemonStoppedTitle: "Daemon arrestato",
     stopDaemonFailed:
       "Impossibile arrestare il daemon. Potrebbe non essere in esecuzione.",
+    displayAppearanceTitle: 'Aspetto',
+    displayLabelTitle: 'Nome visualizzato',
+    displayIconTitle: 'Icona visualizzata',
+    displayLocalOnlySubtitle: 'L’icona viene salvata su questo dispositivo.',
+    displayResetTitle: 'Ripristina aspetto',
+    displayResetSubtitle: 'Usa il nome host e l’icona predefinita.',
+    displayIcons: {
+        desktop: 'Desktop',
+        laptop: 'Portatile',
+        cloud: 'Cloud',
+        terminal: 'Terminale',
+    },
     renameTitle: "Rinomina macchina",
     renameDescription:
       "Assegna a questa macchina un nome personalizzato. Lascia vuoto per usare l’hostname predefinito.",

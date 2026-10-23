@@ -2071,6 +2071,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                 <CollapsibleSectionHeader
                     title={title}
                     headerKind={item.headerKind}
+                    machineId={item.headerKind === 'machine' ? item.machine?.id : undefined}
+                    serverId={item.serverId}
                     collapsed={isCollapsed}
                     onPress={() => handleToggleCollapse(collapseKey)}
                     headerTestId={headerTestId}

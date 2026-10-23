@@ -10934,6 +10934,18 @@ settingsSession: {
     daemonStoppedTitle: "デーモンを停止しました",
     stopDaemonFailed:
       "デーモンを停止できませんでした。実行されていない可能性があります。",
+    displayAppearanceTitle: '外観',
+    displayLabelTitle: '表示名',
+    displayIconTitle: '表示アイコン',
+    displayLocalOnlySubtitle: 'アイコンの選択はこの端末に保存されます。',
+    displayResetTitle: '外観をリセット',
+    displayResetSubtitle: 'ホスト名と標準のアイコンを使用します。',
+    displayIcons: {
+        desktop: 'デスクトップ',
+        laptop: 'ノートパソコン',
+        cloud: 'クラウド',
+        terminal: 'ターミナル',
+    },
     renameTitle: "マシン名を変更",
     renameDescription:
       "このマシンにカスタム名を設定します。空欄の場合はデフォルトのホスト名を使用します。",

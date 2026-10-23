@@ -10820,6 +10820,18 @@ settingsSession: {
     daemonStoppedTitle: "Daemon parado",
     stopDaemonFailed:
       "Falha ao parar o daemon. Talvez ele não esteja em execução.",
+    displayAppearanceTitle: 'Aparência',
+    displayLabelTitle: 'Nome de exibição',
+    displayIconTitle: 'Ícone de exibição',
+    displayLocalOnlySubtitle: 'O ícone é salvo neste dispositivo.',
+    displayResetTitle: 'Redefinir aparência',
+    displayResetSubtitle: 'Usar o nome do host e o ícone padrão.',
+    displayIcons: {
+        desktop: 'Desktop',
+        laptop: 'Portátil',
+        cloud: 'Nuvem',
+        terminal: 'Terminal',
+    },
     renameTitle: "Renomear máquina",
     renameDescription:
       "Dê a esta máquina um nome personalizado. Deixe em branco para usar o hostname padrão.",
