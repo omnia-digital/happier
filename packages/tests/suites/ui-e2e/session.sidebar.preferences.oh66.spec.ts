@@ -85,6 +85,13 @@ async function openTextSetting(page: Page, label: string, option: string): Promi
   await optionRow.click();
 }
 
+async function waitForStoredLocalSetting(page: Page, key: string, expected: unknown): Promise<void> {
+  await expect.poll(async () => page.evaluate(({ key }) => {
+    const raw = window.localStorage.getItem('mmkv.default\\local-settings');
+    return raw ? (JSON.parse(raw) as Record<string, unknown>)[key] : null;
+  }, { key })).toBe(expected);
+}
+
 test.describe('ui e2e: OH66 sidebar text size and item density preferences', () => {
   test.describe.configure({ mode: 'serial' });
   const suiteDir = run.testDir('sidebar-preferences-suite');
@@ -201,10 +208,7 @@ test.describe('ui e2e: OH66 sidebar text size and item density preferences', () 
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/settings/appearance?happier_hmr=0`, 180_000);
     await waitForInitialAppUi({ page, timeoutMs: 120_000 });
     await openTextSetting(page, 'Item Density', 'compact');
-    await expect.poll(async () => page.evaluate(() => {
-      const raw = window.localStorage.getItem('mmkv.default\\local-settings');
-      return raw ? (JSON.parse(raw) as Record<string, unknown>).uiItemDensity : null;
-    })).toBe('compact');
+    await waitForStoredLocalSetting(page, 'uiItemDensity', 'compact');
     const settingBeforeHomeNavigation = await page.evaluate(() => {
       const raw = window.localStorage.getItem('mmkv.default\\local-settings');
       return raw ? JSON.parse(raw) as Record<string, unknown> : {};
@@ -228,7 +232,9 @@ test.describe('ui e2e: OH66 sidebar text size and item density preferences', () 
 
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/settings/appearance?happier_hmr=0`, 180_000);
     await openTextSetting(page, 'Text Size', 'xxlarge');
+    await waitForStoredLocalSetting(page, 'uiFontScale', 1.3);
     await selectMenuOption(page, 'settings-theme-selector-trigger', 'dark');
+    await waitForStoredLocalSetting(page, 'themePreference', 'dark');
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
     await expect(row).toHaveCount(1, { timeout: 120_000 });
     const largerDark = await readSidebarMetrics(page, sessionId);
