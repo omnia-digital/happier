@@ -12,8 +12,9 @@ import { startForwardedHeaderProxy } from '../../src/testkit/uiE2e/forwardedHead
 import { gotoDomContentLoadedWithRetries, normalizeLoopbackBaseUrl } from '../../src/testkit/uiE2e/pageNavigation';
 import { readUiE2eScopedAccountSettings } from '../../src/testkit/uiE2e/scopedAccountSettingsStorage';
 import { createPlainSession } from '../../src/testkit/uiE2e/sessionFoldersDrag';
+import { createMachineScopedSocketCollector, type SocketCollector } from '../../src/testkit/socketClient';
 import { waitForInitialAppUi } from '../../src/testkit/uiE2e/waitForInitialAppUi';
-import { encodePlainMachineStoredContent, MACHINE_PLAIN_DATA_KEY_MARKER } from '@happier-dev/protocol';
+import { encodePlainMachineStoredContent, MACHINE_PLAIN_DATA_KEY_MARKER, RPC_METHODS } from '@happier-dev/protocol';
 
 const run = createRunDirs({ runLabel: 'ui-e2e-oh56-command-palette-search' });
 const identity = {
@@ -28,6 +29,9 @@ test.describe('OH-56 Command+K session title search', () => {
   let uiBaseUrl = '';
   let targetSessionId = '';
   let newerSessionId = '';
+  let contentSessionId = '';
+  let machineSocket: SocketCollector | null = null;
+  let machineHeartbeat: ReturnType<typeof setInterval> | null = null;
 
   test.beforeAll(async () => {
     test.setTimeout(resolveUiWebBeforeAllTimeoutMs(process.env));
@@ -68,12 +72,42 @@ test.describe('OH-56 Command+K session title search', () => {
     await upsertPlainAccountSettingsV2({
       baseUrl: server.baseUrl,
       token,
-      settings: { commandPaletteEnabled: true, keyboardShortcutsV2Enabled: true },
+      settings: { commandPaletteEnabled: true, keyboardShortcutsV2Enabled: true, experiments: true, featureToggles: { 'memory.search': true } },
     });
     await registerMachineIdentity({
       baseUrl: server.baseUrl, token, machineId: 'oh56-mac',
       metadata: encodePlainMachineStoredContent({ host: 'oh56-mac', displayName: 'OH56 Mac', platform: 'darwin', homeDir: '/work' }),
       dataEncryptionKey: MACHINE_PLAIN_DATA_KEY_MARKER,
+    });
+    machineSocket = createMachineScopedSocketCollector(server.baseUrl, token, 'oh56-mac');
+    machineSocket.connect();
+    await expect.poll(() => machineSocket?.isConnected(), { timeout: 20_000 }).toBe(true);
+    machineSocket.emit('machine-alive', { machineId: 'oh56-mac', time: Date.now() });
+    machineHeartbeat = setInterval(() => machineSocket?.emit('machine-alive', { machineId: 'oh56-mac', time: Date.now() }), 20_000);
+    machineSocket.onRpcRequest(async ({ method }) => {
+      if (method === `oh56-mac:${RPC_METHODS.DAEMON_MEMORY_STATUS}`) {
+        return { ok: true, result: {
+          v: 1, enabled: true, indexMode: 'hints', hintsIndexReady: true,
+          deepIndexReady: false, activeIndexReady: true, activeIndexSearchable: true,
+          embeddingsEnabled: false, embeddingsMode: 'disabled', embeddingsPresetId: null,
+          embeddingsProviderKind: null, embeddingsModelId: null, embeddingsRuntimeState: 'ready',
+          embeddingsUsingFallback: false, tier1DbPath: '/fixture/index', deepDbPath: null,
+          tier1DbBytes: 100, deepDbBytes: null,
+        } };
+      }
+      if (method === `oh56-mac:${RPC_METHODS.DAEMON_MEMORY_SEARCH}`) {
+        return { ok: true, result: { v: 1, ok: true, hits: [{
+          sessionId: contentSessionId, seqFrom: 7, seqTo: 8,
+          createdAtFromMs: 1, createdAtToMs: 2,
+          summary: 'Quasar-only finding in the session messages', score: 0.8,
+        }] } };
+      }
+      throw new Error(`Unexpected fixture machine RPC: ${method}`);
+    });
+    await machineSocket.rpcRegister(`oh56-mac:${RPC_METHODS.DAEMON_MEMORY_STATUS}`);
+    await machineSocket.rpcRegister(`oh56-mac:${RPC_METHODS.DAEMON_MEMORY_SEARCH}`);
+    contentSessionId = await createPlainSession({
+      baseUrl: server.baseUrl, token, title: 'Ordinary fixture notes', machineId: 'oh56-mac', rootPath: '/work/content-only', tagPrefix: 'oh56-content',
     });
     targetSessionId = await createPlainSession({
       baseUrl: server.baseUrl, token, title: 'Nebula archive research', machineId: 'oh56-mac', rootPath: '/work/older', tagPrefix: 'oh56-old',
@@ -101,9 +135,34 @@ test.describe('OH-56 Command+K session title search', () => {
 
   test.afterAll(async () => {
     test.setTimeout(120_000);
+    if (machineHeartbeat) clearInterval(machineHeartbeat);
+    machineSocket?.close();
     await ui?.stop().catch(() => {});
     await stopProxy?.().catch(() => {});
     await server?.stop().catch(() => {});
+  });
+
+  test('finds indexed message summaries outside titles and opens the exact message', async ({ page }) => {
+    test.setTimeout(240_000);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+    await waitForInitialAppUi({ page, timeoutMs: 120_000 });
+    await page.keyboard.press('Alt+k');
+    const input = page.getByPlaceholder('Type a command or search...');
+    await expect(input).toBeFocused();
+    await input.fill('quasar-only');
+    await expect(page.getByText('No commands found')).toBeVisible();
+    await expect(page.getByTestId('command-palette:content-mode')).toBeVisible({ timeout: 30_000 });
+    await page.getByTestId('command-palette:content-mode').click();
+    await input.fill('quasar-only');
+    await expect(page.getByTestId('command-palette:content-scope')).toContainText('Choose a Home');
+    await input.press('Enter');
+    await expect(page.getByTestId('command-palette:content-scope')).toContainText('Choose a machine');
+    await input.press('Enter');
+    await expect(page.getByTestId('command-palette:content-scope')).toContainText('Indexed message summaries', { timeout: 30_000 });
+    await expect(page.getByText('Quasar-only finding in the session messages', { exact: false })).toBeVisible({ timeout: 30_000 });
+    await input.press('Enter');
+    await expect(page).toHaveURL(new RegExp(`/session/${contentSessionId}\\?[^#]*jumpSeq=7(?:&|$)`), { timeout: 120_000 });
   });
 
   test('finds an older title beyond the initial 50 and enters the correct scoped conversation', async ({ page }) => {
