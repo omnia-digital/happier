@@ -46,7 +46,10 @@ export const SessionTicketIdentityV1Schema = z.object({
   url: z.string().refine((url) => parseSessionTicketUrl(url) !== null, 'Unsupported ticket URL'),
 }).strict().superRefine((ticket, ctx) => {
   const link = parseSessionTicketUrl(ticket.url);
-  if (link?.provider !== ticket.provider || (ticket.provider === 'linear' && !link.workspaceSlug)) {
+  if (link?.provider !== ticket.provider
+    || (ticket.provider === 'linear' && (!link.workspaceSlug || link.workspaceSlug !== ticket.workspaceId || link.ticketKey !== ticket.key))
+    || (ticket.provider === 'clickup' && (link.ticketKey !== ticket.ticketId || (link.workspaceId && link.workspaceId !== ticket.workspaceId)))
+    || (ticket.provider === 'jira' && link.ticketKey !== ticket.key)) {
     ctx.addIssue({ code: 'custom', message: 'Ticket URL must identify the provider and workspace', path: ['url'] });
   }
 });

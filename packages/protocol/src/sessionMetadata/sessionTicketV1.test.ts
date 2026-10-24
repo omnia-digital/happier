@@ -27,5 +27,7 @@ describe('session ticket association', () => {
     expect(read(unlinked)).toBeNull();
     expect(unlinked).toEqual(metadata);
     expect(read({ sessionTicketV1: { v: 9, token: 'never trusted' } })).toBeNull();
+    expect(read({ sessionTicketV1: { ...association, ticket: { ...association.ticket, key: 'ENG-2' } } })).toBeNull();
+    expect(read({ sessionTicketV1: { ...association, ticket: { ...association.ticket, workspaceId: 'beta' } } })).toBeNull();
   });
 });

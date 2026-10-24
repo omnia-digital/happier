@@ -1,6 +1,6 @@
 import type { Capability } from '../service';
 import type { Credentials } from '@/persistence';
-import { bootstrapAccountSettingsContext } from '@/settings/accountSettings/bootstrapAccountSettingsContext';
+import { refreshActiveAccountSettingsFromServer } from '@/settings/accountSettings/bootstrapAccountSettingsContext';
 import {
   TICKET_READER_CAPABILITY_ID, TicketReaderSourcesRequestSchema, TicketReaderReadRequestSchema,
   type TicketReaderErrorCode,
@@ -15,11 +15,9 @@ import { readTicketFromMcp, ticketReaderErrorCode } from '@/integrations/tickets
 export type TicketReaderContext = Readonly<{ machineId: string; credentials: Credentials }>;
 export function createTicketReaderCapability(context: TicketReaderContext, deps?: Readonly<{
   env?: NodeJS.ProcessEnv;
-  loadAccountSettings?: typeof bootstrapAccountSettingsContext;
 }>): Capability {
   const env = deps?.env ?? process.env;
   const enabled = () => env.HAPPIER_TICKET_READER_ENABLED === '1';
-  const loadAccountSettings = deps?.loadAccountSettings ?? bootstrapAccountSettingsContext;
   const failure = (code: TicketReaderErrorCode) => ({ ok: false as const, error: { code, message: code } });
   return {
     descriptor: { id: TICKET_READER_CAPABILITY_ID, kind: 'tool', title: 'Ticket reader', methods: { sources: { title: 'Configured connections' }, read: { title: 'Read ticket' } } },
@@ -33,7 +31,7 @@ export function createTicketReaderCapability(context: TicketReaderContext, deps?
         signal?.throwIfAborted();
         // This context belongs to the receiving machine's authenticated Home/account. Never
         // reload another CLI home's current credentials or accept credentials over RPC.
-        const loaded = await loadAccountSettings({ credentials: context.credentials, mode: 'blocking', refresh: 'force' });
+        const loaded = await refreshActiveAccountSettingsFromServer({ credentials: context.credentials, shouldCommit: () => !signal?.aborted });
         signal?.throwIfAborted();
         const accountSettings = loaded.settings;
         const settings = readMcpServersSettingsFromAccountSettings(accountSettings);
