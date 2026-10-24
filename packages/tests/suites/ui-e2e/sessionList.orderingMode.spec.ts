@@ -12,7 +12,7 @@ import { resolveUiWebBeforeAllTimeoutMs, startUiWeb, type StartedUiWeb } from '.
 import { createRunDirs } from '../../src/testkit/runDir';
 import { startForwardedHeaderProxy } from '../../src/testkit/uiE2e/forwardedHeaderProxy';
 import { gotoDomContentLoadedWithRetries, normalizeLoopbackBaseUrl } from '../../src/testkit/uiE2e/pageNavigation';
-import { readUiE2eLocalSettings } from '../../src/testkit/uiE2e/localSettingsStorage';
+import { mutateUiE2eLocalSettings, readUiE2eLocalSettings } from '../../src/testkit/uiE2e/localSettingsStorage';
 import {
   createPlainSession,
   readSessionFolderDragSettings,
@@ -552,6 +552,105 @@ test.describe('ui e2e: session list ordering mode', () => {
     await clickedRow.getByTestId('session-item-more-menu').click();
     await page.getByTestId('dropdown-option-session_sameSetup').click();
     await expectBlankDraftAndCancel();
+  });
+
+  test('keeps the route-selected row visible across pinned and ordinary rows, themes, hover, and narrow density', async ({ page }, testInfo) => {
+    test.setTimeout(240_000);
+    if (!server || !uiBaseUrl || !token) throw new Error('missing server/ui fixtures');
+
+    const pinnedTitle = `OH63 pinned selected session ${run.runId}`;
+    const ordinaryTitle = `OH63 ordinary session with a deliberately long title to check that the sidebar still retains it ${run.runId}`;
+    const sessionParams = {
+      baseUrl: server.baseUrl,
+      token,
+      rootPath: repoRootDir(),
+      machineId: SEEDED_MACHINE_ID,
+      tagPrefix: 'oh63-selected-session',
+    };
+    const pinnedSessionId = await createPlainSession({ ...sessionParams, title: pinnedTitle });
+    const ordinarySessionId = await createPlainSession({ ...sessionParams, title: ordinaryTitle });
+    await setSessionOrganizationPin({ baseUrl: server.baseUrl, token, sessionId: pinnedSessionId, pinned: true });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await mutateUiE2eLocalSettings({ page, settingsPatch: { themePreference: 'light' } });
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 300_000);
+    await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+
+    const pinnedRow = page.getByTestId(`session-list-item-${pinnedSessionId}`);
+    const ordinaryRow = page.getByTestId(`session-list-item-${ordinarySessionId}`);
+    const indicator = (sessionId: string) => page.getByTestId(`session-item-current-indicator-${sessionId}`);
+    const captureSidebarState = async (name: string) => {
+      await mkdir(testInfo.outputDir, { recursive: true });
+      await page.screenshot({ path: resolve(join(testInfo.outputDir, name)), fullPage: false });
+    };
+    const expectOnlyCurrentRow = async (currentSessionId: string, otherSessionId: string) => {
+      await expect(indicator(currentSessionId)).toBeVisible();
+      await expect(indicator(otherSessionId)).toHaveCount(0);
+      const currentRow = page.getByTestId(`session-list-item-${currentSessionId}`);
+      await expect(currentRow).toContainText(currentSessionId === pinnedSessionId ? pinnedTitle : ordinaryTitle);
+      await expect(currentRow.getByTestId('session-item-right-area')).toBeVisible();
+    };
+
+    await expect(page.getByTestId('session-list-header:pinned-v1')).toBeVisible({ timeout: 120_000 });
+    await expect(pinnedRow).toContainText(pinnedTitle);
+    await expect(ordinaryRow).toContainText(ordinaryTitle);
+    await expect(indicator(pinnedSessionId)).toHaveCount(0);
+    await expect(indicator(ordinarySessionId)).toHaveCount(0);
+
+    // Use the real row click so route selection is established by the existing navigation owner.
+    await pinnedRow.click();
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 90_000 }).toBe(`/session/${pinnedSessionId}`);
+    await expectOnlyCurrentRow(pinnedSessionId, ordinarySessionId);
+    await captureSidebarState('oh63-light-pinned-selected.png');
+
+    const ordinaryBeforeInteraction = await ordinaryRow.boundingBox();
+    if (!ordinaryBeforeInteraction) throw new Error('ordinary row has no bounds');
+    await ordinaryRow.hover();
+    await ordinaryRow.focus();
+    await ordinaryRow.click({ button: 'right' });
+    await expect(page.getByTestId('dropdown-option-ui_session_rename')).toBeVisible();
+    await expect.poll(() => new URL(page.url()).pathname).toBe(`/session/${pinnedSessionId}`);
+    await expectOnlyCurrentRow(pinnedSessionId, ordinarySessionId);
+    const ordinaryAfterInteraction = await ordinaryRow.boundingBox();
+    expect(ordinaryAfterInteraction).toEqual(ordinaryBeforeInteraction);
+    await captureSidebarState('oh63-light-other-row-hovered-menu.png');
+    await page.keyboard.press('Escape');
+
+    // Modifier selection keeps the separate multi-select state from replacing the routed row.
+    await ordinaryRow.click({ modifiers: [process.platform === 'darwin' ? 'Meta' : 'Control'] });
+    await expect(page.getByTestId('session-list-selection-action-bar')).toBeVisible();
+    await expect.poll(() => new URL(page.url()).pathname).toBe(`/session/${pinnedSessionId}`);
+    await expectOnlyCurrentRow(pinnedSessionId, ordinarySessionId);
+    await ordinaryRow.click({ modifiers: [process.platform === 'darwin' ? 'Meta' : 'Control'] });
+    await expect(page.getByTestId('session-list-selection-action-bar')).toHaveCount(0);
+
+    await ordinaryRow.click();
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 90_000 }).toBe(`/session/${ordinarySessionId}`);
+    await expectOnlyCurrentRow(ordinarySessionId, pinnedSessionId);
+    await captureSidebarState('oh63-light-ordinary-selected.png');
+
+    await mutateUiE2eLocalSettings({ page, settingsPatch: { themePreference: 'dark' } });
+    await patchPlainAccountSettingsV2({ baseUrl: server.baseUrl, token, settingsPatch: { sessionListDensity: 'narrow' } });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 90_000 }).toBe(`/session/${ordinarySessionId}`);
+    await expectOnlyCurrentRow(ordinarySessionId, pinnedSessionId);
+    const narrowOrdinaryBounds = await ordinaryRow.boundingBox();
+    expect(narrowOrdinaryBounds).not.toBeNull();
+    expect(narrowOrdinaryBounds!.height).toBeLessThan(ordinaryAfterInteraction.height);
+    await captureSidebarState('oh63-dark-narrow-ordinary-selected.png');
+
+    const pinnedBeforeDarkInteraction = await pinnedRow.boundingBox();
+    if (!pinnedBeforeDarkInteraction) throw new Error('pinned row has no bounds');
+    await pinnedRow.hover();
+    await pinnedRow.focus();
+    await pinnedRow.click({ button: 'right' });
+    await expect(page.getByTestId('dropdown-option-ui_session_rename')).toBeVisible();
+    await expect.poll(() => new URL(page.url()).pathname).toBe(`/session/${ordinarySessionId}`);
+    await expectOnlyCurrentRow(ordinarySessionId, pinnedSessionId);
+    expect(await pinnedRow.boundingBox()).toEqual(pinnedBeforeDarkInteraction);
+    await captureSidebarState('oh63-dark-narrow-other-row-hovered-menu.png');
+    await page.keyboard.press('Escape');
   });
 
   test('dispatches labeled menu hotkeys on the clicked row and reaches a saved reminder choice', async ({ page }) => {
