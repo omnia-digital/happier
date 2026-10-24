@@ -88,6 +88,27 @@ the selected session and machine identity keep their separate indicators. These
 status and appearance changes have isolated browser coverage; native visual and
 restart acceptance is still pending.
 
+## Session ticket links
+
+The unreleased Omnia development fork can link a session to a Linear, ClickUp or
+Jira Cloud ticket. It needs an authorized configured MCP connection on a machine
+running the separate [opt-in ticket reader](/extending/mcp-servers#ticket-reader-in-the-omnia-development-fork).
+Updating the app alone does not add this capability to older CLIs.
+
+Choose **Link ticket** in the session header, read and verify the ticket through
+the selected connection, then confirm the link. The header shows its identity,
+title and actual provider workflow status; the sidebar shows the same status,
+including in Pinned. This is separate from whether the agent is working or idle.
+Use **Refresh ticket status** to check again and **Change ticket** to change or
+remove the association. These actions do not edit the provider ticket.
+
+The ticket link attempts the supported Linear app link; **Open ticket in browser**
+always uses its canonical web destination. Other supported providers use their
+canonical web links. Truncated titles retain the full accessible identity.
+Stale and unavailable states are explicit when the reader or connection cannot
+verify current status. Native app receipt and real provider acceptance remain
+pending; isolated browser coverage is not a packaged-release announcement.
+
 ## Notifications
 
 Happier supports push notifications for:
