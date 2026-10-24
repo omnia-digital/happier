@@ -5,6 +5,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderSystemdServiceUnit } from '@happier-dev/cli-common/service';
 import { resolveInstalledFirstPartyComponentPaths } from '@happier-dev/cli-common/firstPartyRuntime';
 import { withConfiguredDaemonTestHome } from '@/daemon/testkit/fakeDaemonLifecycle.testkit';
+import { resolveDaemonServiceCliRuntimeFromEnv } from '@/daemon/service/cli';
+import { planDaemonServiceInstall } from '@/daemon/service/plan';
+import { resolveBackgroundServiceRepairPlanForCurrentRuntime } from '@/diagnostics/backgroundServiceRepair/resolveBackgroundServiceRepairPlanForCurrentRuntime';
 import { maybeRunDoctorRepair } from './maybeRunDoctorRepair';
 
 const { spawnSyncMock } = vi.hoisted(() => ({
@@ -31,6 +34,32 @@ describe('post-update repair', () => {
     } }, async () => {
       expect(await maybeRunDoctorRepair({ migrationRan: false, channel: 'stable' })).toBe(false);
       expect(spawnSyncMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it('lets the activated CLI assess an installed service even when the loaded updater sees no drift', async () => {
+    await withConfiguredDaemonTestHome({ prefix: 'post-update-existing-service-', env: {
+      HAPPIER_DAEMON_SERVICE_PLATFORM: 'linux', HAPPIER_DAEMON_SERVICE_CHANNEL: 'stable',
+      HAPPIER_PUBLIC_RELEASE_CHANNEL: 'stable', HAPPIER_DAEMON_SERVICE_NODE_PATH: process.execPath,
+      HAPPIER_DAEMON_SERVICE_ENTRY_PATH: '',
+    } }, async ({ homeDir }) => {
+      const runtime = resolveDaemonServiceCliRuntimeFromEnv({ mode: 'user' });
+      const installed = planDaemonServiceInstall({
+        ...runtime, uid: runtime.uid ?? undefined, mode: 'user', targetMode: 'default-following',
+      }).files[0]!;
+      mkdirSync(dirname(installed.path), { recursive: true });
+      writeFileSync(installed.path, installed.content);
+
+      const oldPlan = await resolveBackgroundServiceRepairPlanForCurrentRuntime({
+        preferredMode: 'user', includeAllModes: true, systemUser: '',
+      });
+      expect(oldPlan.plan.actions).toEqual([]);
+      expect(oldPlan.plan.manualWarnings).toEqual([]);
+      expect(oldPlan.services.some((service) => service.path === installed.path)).toBe(true);
+
+      expect(await maybeRunDoctorRepair({ migrationRan: false, channel: 'stable' })).toBe(true);
+      expect(spawnSyncMock).toHaveBeenCalledTimes(1);
+      expect(spawnSyncMock.mock.calls[0]?.[1]).toEqual(['doctor', 'repair']);
     });
   });
 
