@@ -20,6 +20,8 @@ import {
     searchParamsState,
     TEST_DRAFT_ID,
     targetServerState,
+    tempSessionDataState,
+    useCreateNewSessionArgsRef,
     useNewSessionScreenModelModulePromise,
     workspaceGraphState,
 } from './__tests__/draftPersistenceTestEnvironment';
@@ -42,6 +44,49 @@ import {
  * graph reactivity, and target-server-scoped fail-closed behavior.
  */
 describe('useNewSessionScreenModel (draft hydration — checkout)', () => {
+    it.each(['new', 'configured fork'])('preserves %s settings and fresh creation intent across all three choices and draft persistence', async (entry) => {
+        const sourceContext = { v: 1 as const, kind: 'session_replay' as const, sourceSessionId: 'source', forkPoint: { type: 'latest' as const } };
+        if (entry === 'configured fork') {
+            searchParamsState.value = { dataId: 'fork-source' };
+            tempSessionDataState.value = { sourceContext, sourceContextServerId: 'server-a' };
+        }
+        persistedDraft.checkoutCreationDraft = null;
+        repoSnapshotState.value = {
+            ...repoSnapshotState.value,
+            repo: { ...repoSnapshotState.value.repo, worktrees: [
+                { path: '/repo/custom', branch: 'main', isMain: true, isCurrent: true },
+                { path: '/repo/release', branch: 'release', isCurrent: false },
+            ] },
+        };
+        let model: any = null;
+        await renderNewSessionScreenModel((next) => { model = next; });
+        const original = useCreateNewSessionArgsRef.current;
+        const choose = async (section: string, id: string) => {
+            const option = getCheckoutChipStaticSection(model, section)?.options.find((candidate) => candidate.id === id);
+            expect(option?.onSelect).toBeTypeOf('function');
+            await act(async () => { option?.onSelect?.(); });
+        };
+        await choose('worktree:quick-actions', 'current_path');
+        await choose('worktree:quick-actions', 'create_git_worktree');
+        const firstDraft = model.simpleProps.checkoutCreationDraft;
+        expect(firstDraft).toMatchObject({ kind: 'git_worktree', displayName: expect.any(String), baseRef: null, branchMode: 'new' });
+        const existing = getCheckoutChipStaticSection(model, 'worktree:existing')?.options[0];
+        expect(existing).toBeDefined();
+        await choose('worktree:existing', existing!.id);
+        expect(model.simpleProps.checkoutCreationDraft).toBeNull();
+        await choose('worktree:quick-actions', 'create_git_worktree');
+        expect(model.simpleProps.checkoutCreationDraft).toEqual(firstDraft);
+        await act(async () => { persistDraftNowRef.current?.(); });
+        expect(saveNewSessionDraftMock).toHaveBeenLastCalledWith(expect.objectContaining({ checkoutCreationDraft: firstDraft }));
+        await choose('worktree:quick-actions', 'current_path');
+        expect(model.simpleProps.checkoutCreationDraft).toBeNull();
+        expect(useCreateNewSessionArgsRef.current).toMatchObject({
+            agentType: original?.agentType,
+            permissionMode: original?.permissionMode,
+            modelMode: original?.modelMode,
+            ...(entry === 'configured fork' ? { sourceContext } : {}),
+        });
+    });
     afterEach(() => {
         standardCleanup();
     });

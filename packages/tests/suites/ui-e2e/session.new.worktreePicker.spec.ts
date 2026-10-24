@@ -147,7 +147,7 @@ test.describe('ui e2e: /new worktree picker (Phase 5 SelectionList migration)', 
         };
         // Empty existing list is a separate route; New never enters it.
         await page.getByTestId('selection-list:worktree-root:option:existing_git_worktree').click();
-        await expect(page.getByTestId('selection-list:worktree-existing:header:input')).toBeVisible();
+        await expect(page.getByTestId('selection-list:header:input')).toBeVisible();
         await page.keyboard.press('Escape');
         await choose('current_path');
         await openPicker();
