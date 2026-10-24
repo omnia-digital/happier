@@ -12,6 +12,7 @@ installDropdownCommonModuleMocks();
 const useSelectableMenuSpy = vi.fn();
 const handleSelectableKeyPressSpy = vi.fn();
 let uiItemDensitySetting: 'comfortable' | 'cozy' | 'compact' = 'comfortable';
+let uiFontScaleSetting = 1;
 
 vi.mock('@expo/vector-icons', () => ({
     Ionicons: (props: any) => {
@@ -71,7 +72,7 @@ vi.mock('@/components/ui/forms/dropdown/SelectableMenuResults', () => ({
 vi.mock('@/sync/store/hooks', () => ({
     useLocalSetting: (key: string) => {
         if (key === 'uiItemDensity') return uiItemDensitySetting;
-        if (key === 'uiFontScale') return 1;
+        if (key === 'uiFontScale') return uiFontScaleSetting;
         return null;
     },
 }));
@@ -102,10 +103,27 @@ describe('DropdownMenu', () => {
         useSelectableMenuSpy.mockReset();
         handleSelectableKeyPressSpy.mockReset();
         uiItemDensitySetting = 'comfortable';
+        uiFontScaleSetting = 1;
     });
 
     afterEach(() => {
         vi.unstubAllGlobals();
+    });
+
+    it('gives enlarged menu text proportional space while preserving caller width constraints', async () => {
+        const { DropdownMenu } = await import('./DropdownMenu');
+        uiFontScaleSetting = 2;
+        const baseProps = {
+            open: true, onOpenChange: vi.fn(), onSelect: vi.fn(),
+            items: [{ id: 'rename', title: 'Rename Session', shortcut: 'Option+Shift+E' }],
+            matchTriggerWidth: false,
+        };
+        const screen = await renderScreen(React.createElement(DropdownMenu, baseProps));
+        expect(screen.findByType('Popover' as any)?.props.maxWidthCap).toBe(640);
+        await screen.update(React.createElement(DropdownMenu, { ...baseProps, maxWidthCap: 280 }));
+        expect(screen.findByType('Popover' as any)?.props.maxWidthCap).toBe(280);
+        await screen.update(React.createElement(DropdownMenu, { ...baseProps, matchTriggerWidth: true }));
+        expect(screen.findByType('Popover' as any)?.props.maxWidthCap).toBe(1024);
     });
 
     it('opens a requested submenu through its registered menu row anchor', async () => {

@@ -18,6 +18,7 @@ import { KeyHint } from '@/components/ui/keyboard/KeyHint';
 import { useScrollRectIntoViewRegistry } from '@/components/ui/scroll/useScrollRectIntoView';
 import { Icon } from '@/components/ui/icons/Icon';
 import { ESCAPE_LAYER_PRIORITIES, getMaxEscapeKeyBlockerPriority } from '@/keyboard/escape';
+import { useLocalSetting } from '@/sync/store/hooks';
 
 const DROPDOWN_ACTION_FRAME_FALLBACK_MS = 100;
 
@@ -211,6 +212,7 @@ export type DropdownMenuProps = Readonly<{
 
 export function DropdownMenu(props: DropdownMenuProps) {
     const { theme } = useUnistyles();
+    const uiFontScale = useLocalSetting('uiFontScale');
     const anchorRef = React.useRef<View>(null);
     const resolvedAnchorRef = props.popoverAnchorRef ?? anchorRef;
     const [activeSubmenu, setActiveSubmenu] = React.useState<{
@@ -222,7 +224,9 @@ export function DropdownMenu(props: DropdownMenuProps) {
     const resolvedTriggerDensity = useResolvedItemDensity(props.itemTrigger?.itemProps?.density);
     const createItemDisplay = props.createItemDisplay ?? null;
     const matchTriggerWidth = props.matchTriggerWidth ?? true;
-    const maxWidthCap = props.maxWidthCap ?? (matchTriggerWidth ? 1024 : 320);
+    // Labels and shortcut hints grow together with Text Size. Preserve their available space;
+    // Popover still bounds this preferred width to the viewport or the caller's boundary.
+    const maxWidthCap = props.maxWidthCap ?? (matchTriggerWidth ? 1024 : 320 * uiFontScale);
     const emptyLabel = props.emptyLabel === undefined ? t('commandPalette.noCommandsFound') : props.emptyLabel;
     const contentPadding = rowVariant === 'slim' ? 12 : 16;
     const resultsPaddingBottom = typeof props.resultsPaddingBottom === 'number'
