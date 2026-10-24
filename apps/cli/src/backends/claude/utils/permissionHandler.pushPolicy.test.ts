@@ -1,23 +1,20 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { accountSettingsParse } from '@happier-dev/protocol';
+import { PushNotificationClient } from '@/api/pushNotifications';
 
 import type { Session } from '../session';
+import { createPermissionHandlerSessionStubWithMetadata } from './permissionHandler.testkit';
 import { PermissionHandler } from './permissionHandler';
 
 function createSessionStub(sendToAllDevicesAsync: ReturnType<typeof vi.fn>): Session {
-  const client: any = {
-    sessionId: 's1',
-    getMetadataSnapshot: vi.fn(() => ({ flavor: 'claude', summary: { text: 'Refactor auth flow' } })),
-    updateAgentState: vi.fn((updater: any) => updater({ requests: {}, completedRequests: {}, capabilities: {} })),
-  };
-  return {
-    client,
-    pushSender: { sendToAllDevicesAsync },
-    accountSettings: null,
-    setLastPermissionMode: vi.fn(),
-    getOrCreatePermissionRpcRouter: () => ({ registerConsumer: () => {}, removeConsumer: () => {} } as any),
-  } as any;
+  const { session } = createPermissionHandlerSessionStubWithMetadata({
+    sessionId: 's1', metadata: { flavor: 'claude', summary: { text: 'Refactor auth flow' } },
+  });
+  const pushSender = new PushNotificationClient('test-token');
+  vi.spyOn(pushSender, 'sendToAllDevicesAsync').mockImplementation(sendToAllDevicesAsync);
+  session.pushSender = pushSender;
+  return session;
 }
 
 describe('Claude PermissionHandler push policy', () => {
@@ -38,12 +35,12 @@ describe('Claude PermissionHandler push policy', () => {
     } as any);
 
     const promise = handler.handleToolCall('Read', { path: 'a' }, { permissionMode: 'default' } as any, { signal: controller.signal });
-    controller.abort();
-    await expect(promise).rejects.toBeTruthy();
-
+    await vi.waitFor(() => expect(session.client.getAgentStateSnapshot()?.requests?.tool1).toBeDefined());
     await Promise.resolve();
     await Promise.resolve();
     expect(sendToAllDevicesAsync).not.toHaveBeenCalled();
+    controller.abort();
+    await expect(promise).rejects.toBeTruthy();
   });
 
   it('sends permission-request pushes when enabled in account settings', async () => {
@@ -63,12 +60,9 @@ describe('Claude PermissionHandler push policy', () => {
     } as any);
 
     const promise = handler.handleToolCall('Read', { path: 'a' }, { permissionMode: 'default' } as any, { signal: controller.signal });
+    await vi.waitFor(() => expect(sendToAllDevicesAsync).toHaveBeenCalledTimes(1));
     controller.abort();
     await expect(promise).rejects.toBeTruthy();
-
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(sendToAllDevicesAsync).toHaveBeenCalledTimes(1);
     expect(sendToAllDevicesAsync).toHaveBeenCalledWith(
       'Refactor auth flow',
       expect.stringContaining('Claude Code CLI asks permission to use Read'),
@@ -97,13 +91,11 @@ describe('Claude PermissionHandler push policy', () => {
       toolUseId: 'tool1',
     });
 
+    await vi.waitFor(() => expect(sendToAllDevicesAsync).toHaveBeenCalledTimes(1));
     firstController.abort();
     secondController.abort();
     await expect(first).rejects.toBeTruthy();
     await expect(second).rejects.toBeTruthy();
-
-    await Promise.resolve();
-    await Promise.resolve();
     expect(sendToAllDevicesAsync).toHaveBeenCalledTimes(1);
   });
 });
