@@ -475,9 +475,11 @@ export class AgentStateRequestStore {
         const notifier = this.getOrCreatePermissionRequestPushNotifier();
         if (!notifier) return;
 
+        let occurrenceId: string | undefined;
         try {
             const snapshot = this.session.getAgentStateSnapshot?.() ?? null;
             const existing = snapshot?.requests?.[params.permissionId];
+            occurrenceId = existing?.occurrenceId;
             const notifiedAt = typeof existing?.pushNotifiedAt === 'number' ? existing.pushNotifiedAt : null;
             if (typeof notifiedAt === 'number' && Number.isFinite(notifiedAt) && notifiedAt > 0) {
                 notifier.markAlreadyNotified(params.permissionId);
@@ -489,6 +491,7 @@ export class AgentStateRequestStore {
 
         notifier.notify({
             permissionId: params.permissionId,
+            occurrenceId,
             toolName: params.toolName,
             toolInput: params.toolInput,
             requestKind: resolveAgentRequestKind(params.toolName),
@@ -516,10 +519,13 @@ export class AgentStateRequestStore {
             getAgentDisplayName: () => getSessionNotificationAgentDisplayName(this.session.getMetadataSnapshot?.bind(this.session)),
             sessionId: this.session.sessionId,
             logPrefix: this.logPrefix,
-            onNotifiedAt: (permissionId, notifiedAtMs) => {
+            onNotifiedAt: (permissionId, notifiedAtMs, occurrenceId) => {
                 updateAgentStateBestEffort(
                     this.session,
-                    (currentState) => applyAgentStateRequestPushNotifiedAt({ state: currentState, permissionId, notifiedAtMs }),
+                    (currentState) => {
+                        if (occurrenceId !== undefined && currentState.requests?.[permissionId]?.occurrenceId !== occurrenceId) return currentState;
+                        return applyAgentStateRequestPushNotifiedAt({ state: currentState, permissionId, notifiedAtMs });
+                    },
                     this.logPrefix,
                     'permission_request_push_notified_at',
                 );

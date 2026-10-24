@@ -236,6 +236,7 @@ export function buildActivityNotificationContent(
       sessionTitle: event.sessionTitle,
       agentDisplayName: event.agentDisplayName,
       requestId: event.requestId,
+      occurrenceId: event.occurrenceId,
       toolName: event.toolName,
       toolDetails,
     });

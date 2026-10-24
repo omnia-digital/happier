@@ -326,7 +326,7 @@ export class PermissionHandler {
         const hasStructuredAnswers = message.answers !== undefined || message.structuredAnswersV1 !== undefined;
         const context = hasStructuredAnswers
             ? this.permissionCoordinator.getLocallyOwnedLiveResponseContext(id)
-            : this.permissionCoordinator.getResponseContext(id);
+            : this.permissionCoordinator.getResponseContext(id, message.occurrenceId);
         if (!context) {
             return false;
         }
@@ -349,6 +349,7 @@ export class PermissionHandler {
         const response = { ...message, ...(structuredAnswersV1 ? { structuredAnswersV1 } : {}) };
         const completed = await this.permissionCoordinator.completeRpcResponse({
             context,
+            expectedOccurrenceId: message.occurrenceId,
             completion: this.buildPermissionCompletion(response, context),
             onAdmitted: () => this.recordPermissionResponse(response, context),
         });

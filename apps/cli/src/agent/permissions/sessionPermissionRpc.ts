@@ -3,6 +3,7 @@ import type { StructuredQuestionAnswersV1 } from '@happier-dev/protocol';
 
 export type SessionPermissionRpcPayload = {
   id: string;
+  occurrenceId?: string;
   approved: boolean;
   decision?: 'approved' | 'approved_for_session' | 'approved_execpolicy_amendment' | 'denied' | 'abort';
   reason?: string;
