@@ -12,6 +12,7 @@ import { Typography } from '@/constants/Typography';
 import { t } from '@/text';
 import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import { formatByteSize } from '@/utils/files/formatByteSize';
+import { useNowMs } from '@/hooks/time/useNowMs';
 
 type Metric = { status: 'available'; usagePercent: number } | { status: 'unavailable'; reason: string };
 const percent = (value: number) => `${Math.round(value)}%`;
@@ -45,13 +46,14 @@ function MachineMonitoringExpanded() {
 
 function MachineMonitoringMachines({ serverId, accountId }: ServerAccountScope) {
     const machines = useAllMachines();
+    const nowMs = useNowMs();
     const scope = React.useMemo(() => ({ serverId, accountId }), [serverId, accountId]);
-    const targets = machines.map((machine) => ({ machineId: machine.id, online: isMachineOnline(machine) }));
+    const targets = machines.map((machine) => ({ machineId: machine.id, online: isMachineOnline(machine, nowMs) }));
     useMachineMetricsPolling(scope, targets);
     return <ScrollView style={styles.rows} contentContainerStyle={styles.rowsContent}>
         {!machines.length ? <Text style={styles.secondary}>{t('machineMonitoring.empty')}</Text> : machines.map((machine) => <MachineMonitoringRow
             key={`${serverId}:${accountId}:${machine.id}`} serverId={serverId} accountId={accountId}
-            machineId={machine.id} name={getMachineDisplayName(machine) ?? machine.id} online={isMachineOnline(machine)}
+            machineId={machine.id} name={getMachineDisplayName(machine) ?? machine.id} online={isMachineOnline(machine, nowMs)}
         />)}
         <Text style={styles.secondary}>{t('machineMonitoring.cadence')}</Text>
     </ScrollView>;

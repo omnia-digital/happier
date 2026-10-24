@@ -68,4 +68,23 @@ describe('machine metrics subscription and polling owner', () => {
         const stop = store.retain(scope, [{ machineId: 'mac', online: true }]);
         expect(count).toBe(0); stop();
     });
+
+    it('loads a missing reading on foreground resume without waiting for the first 180-second deadline', async () => {
+        let active = false;
+        let resume: () => void = () => undefined;
+        let count = 0;
+        const store = createMachineMetricsStore({
+            load: async (_scope, id) => { count++; return { status: 'ready', snapshot: snapshot(id) }; },
+            startInterval: () => () => undefined, isActive: () => active,
+            subscribeActiveChange: (listener: () => void) => { resume = listener; return () => undefined; },
+        } as Parameters<typeof createMachineMetricsStore>[0]);
+        const stop = store.retain(scope, [{ machineId: 'mac', online: true }]);
+        expect(count).toBe(0);
+        active = true; resume();
+        await Promise.resolve(); await Promise.resolve();
+        expect(count).toBe(1);
+        resume();
+        expect(count).toBe(1);
+        stop();
+    });
 });

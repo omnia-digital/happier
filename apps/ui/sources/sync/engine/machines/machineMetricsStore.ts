@@ -15,12 +15,13 @@ export function createMachineMetricsStore(deps: Readonly<{
     load: (scope: ServerAccountScope, machineId: string) => Promise<MachineMetricsLoadResult>;
     startInterval: (tick: () => void, ms: number) => () => void;
     isActive: () => boolean;
+    subscribeActiveChange?: (listener: () => void) => () => void;
 }>) {
     const entries = new Map<string, MachineMetricsEntry>();
     const listeners = new Map<string, Set<() => void>>();
     const pending = new Map<string, Promise<void>>();
     const online = new Map<string, boolean>();
-    const pollers = new Map<string, { callbacks: Set<() => void>; stop: () => void }>();
+    const pollers = new Map<string, { callbacks: Set<(onlyIfDue: boolean) => void>; stop: () => void }>();
     const keyFor = (scope: ServerAccountScope, machineId: string) => JSON.stringify([scope.serverId, scope.accountId, machineId]);
     const get = (scope: ServerAccountScope, machineId: string) => entries.get(keyFor(scope, machineId)) ?? EMPTY;
     const publish = (key: string, value: MachineMetricsEntry) => {
@@ -63,17 +64,21 @@ export function createMachineMetricsStore(deps: Readonly<{
         refresh,
         retain: (scope: ServerAccountScope, targets: readonly MachineMetricsTarget[]) => {
             const scopeKey = JSON.stringify([scope.serverId, scope.accountId]);
-            const tick = () => { for (const target of targets) void refresh(scope, target.machineId, target.online); };
-            for (const target of targets) {
-                const current = get(scope, target.machineId);
-                if (!target.online || current.status !== 'ready' || current.receivedAt === null || Date.now() - current.receivedAt >= MACHINE_METRICS_REFRESH_MS) {
-                    void refresh(scope, target.machineId, target.online);
+            const tick = (onlyIfDue: boolean) => {
+                for (const target of targets) {
+                    const current = get(scope, target.machineId);
+                    if (!onlyIfDue || !target.online || current.status !== 'ready' || current.receivedAt === null || Date.now() - current.receivedAt >= MACHINE_METRICS_REFRESH_MS) {
+                        void refresh(scope, target.machineId, target.online);
+                    }
                 }
-            }
+            };
+            tick(true);
             let poller = pollers.get(scopeKey);
             if (!poller) {
-                const callbacks = new Set<() => void>();
-                poller = { callbacks, stop: deps.startInterval(() => callbacks.forEach((callback) => callback()), MACHINE_METRICS_REFRESH_MS) };
+                const callbacks = new Set<(onlyIfDue: boolean) => void>();
+                const stopInterval = deps.startInterval(() => callbacks.forEach((callback) => callback(false)), MACHINE_METRICS_REFRESH_MS);
+                const stopResume = deps.subscribeActiveChange?.(() => { if (deps.isActive()) callbacks.forEach((callback) => callback(true)); });
+                poller = { callbacks, stop: () => { stopInterval(); stopResume?.(); } };
                 pollers.set(scopeKey, poller);
             }
             poller.callbacks.add(tick);

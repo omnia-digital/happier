@@ -2,9 +2,9 @@ import * as React from 'react';
 import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import { createMachineMetricsStore, type MachineMetricsTarget } from '@/sync/engine/machines/machineMetricsStore';
 import { loadMachineMetrics } from '@/sync/ops/machineMetrics';
-import { isRuntimeActive, startRuntimeActiveGatedInterval } from '@/utils/runtime/isRuntimeActive';
+import { isRuntimeActive, startRuntimeActiveGatedInterval, subscribeToRuntimeActiveChange } from '@/utils/runtime/isRuntimeActive';
 
-const store = createMachineMetricsStore({ load: loadMachineMetrics, startInterval: startRuntimeActiveGatedInterval, isActive: isRuntimeActive });
+const store = createMachineMetricsStore({ load: loadMachineMetrics, startInterval: startRuntimeActiveGatedInterval, isActive: isRuntimeActive, subscribeActiveChange: subscribeToRuntimeActiveChange });
 
 export function useMachineMetricsPolling(scope: ServerAccountScope, targets: readonly MachineMetricsTarget[]) {
     const targetKey = JSON.stringify(targets);
