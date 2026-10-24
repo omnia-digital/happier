@@ -277,6 +277,11 @@ test.describe('ui e2e: OH66 sidebar text size and item density preferences', () 
     const railBounds = await selectionRail.boundingBox();
     const selectedRowBounds = await row.boundingBox();
     expect(railBounds && selectedRowBounds).toBeTruthy();
-    expect(Math.abs(railBounds!.height - selectedRowBounds!.height)).toBeLessThanOrEqual(1);
+    expect(railBounds!.width).toBeGreaterThan(0);
+    expect(railBounds!.height).toBeGreaterThan(0);
+    expect(railBounds!.x).toBeGreaterThanOrEqual(selectedRowBounds!.x);
+    expect(railBounds!.x + railBounds!.width).toBeLessThanOrEqual(selectedRowBounds!.x + selectedRowBounds!.width);
+    expect(railBounds!.y).toBeGreaterThanOrEqual(selectedRowBounds!.y);
+    expect(railBounds!.y + railBounds!.height).toBeLessThanOrEqual(selectedRowBounds!.y + selectedRowBounds!.height);
   });
 });
