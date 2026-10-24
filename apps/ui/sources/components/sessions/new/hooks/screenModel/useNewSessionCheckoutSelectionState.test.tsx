@@ -1,15 +1,11 @@
 import { act } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { flushHookEffects } from '@/dev/testkit/hooks/flushHookEffects';
 import { renderHook } from '@/dev/testkit/hooks/renderHook';
 import type { ScmWorkingSnapshot } from '@/sync/domains/state/storageTypes';
 
 import { useNewSessionCheckoutSelectionState } from './useNewSessionCheckoutSelectionState';
-
-vi.mock('@/utils/worktree/generateWorktreeName', () => ({
-    generateWorktreeName: () => 'calm-forest',
-}));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -54,6 +50,12 @@ function makeParams(overrides: Partial<HookParams> = {}): HookParams {
 }
 
 describe('useNewSessionCheckoutSelectionState', () => {
+    beforeEach(() => {
+        let draw = 0;
+        // Keep the real naming owner; control only its randomness boundary.
+        vi.spyOn(Math, 'random').mockImplementation(() => draw++ % 2 === 0 ? 0.3 : 0.1);
+    });
+    afterEach(() => { vi.restoreAllMocks(); });
     it('preserves the restored name when the initial target and draft hydrate after mount', async () => {
         const hook = await renderHook((props: HookParams) => useNewSessionCheckoutSelectionState(props), {
             initialProps: makeParams({ targetScopeKey: null, selectedMachineId: null, selectedPath: '', repoScmSnapshot: null }),
