@@ -15,9 +15,11 @@ Implement source slice3a from the reviewed phase13 discovery: a host-created, du
 
 ## Tasks and deciding proof
 
-- [ ] 🔴 RED/GREEN host creation capture and durable exact identity, including existing-branch semantics and persistence failure without losing user work.
-- [ ] 🔴 RED/GREEN actual child `created` witness and binding; reject wrong account/machine/nonce/path/runner, shared/existing/unknown/resumed identity and caller forgery.
-- [ ] 🔴 Reload/retry/reentry and old-client/server compatibility through canonical owners, with isolated configuration and disposable repositories only.
-- [ ] 🔴 Affected protocol/CLI/UI types and adjacent owner tests, independent root source review and explicit remaining cleanup gaps.
+- [x] 🟢 Host SCM capture records the real linked-worktree identity, exact branch returned by Git, and whether the operation created the branch. A changed branch, ambiguous identity, corrupt record, or failed claim write leaves the checkout usable and unclaimed.
+- [x] 🟢 Bind requires a correlated daemon child, exact launch nonce, machine, Home, path, runner PID, server `created` result, and the account subject of the child's successful authenticated session-create request. Different/missing child account, pre-created/resumed/unknown/existing creation, wrong path or runner cannot mint a binding.
+- [x] 🟢 Claims are atomically stored in the active server and release-ring scope; restart reads and same-session retry preserve the binding. Another Home with the same account/machine/nonce cannot borrow it. Old clients or servers omit optional proof and keep session creation functional without minting custody.
+- [ ] 🟡 Root independent source review remains. Focused proof: CLI owner tests 83/83, Claude integration 27/27, UI new-session and SCM tests 32/32, protocol SCM contract 4/4, CLI and UI typechecks passed under `hstack-exec` on 2026-10-23. These are source and disposable-Git checks, not native-app or cleanup proof.
+
+No cleanup capability, process-use inventory, branch/worktree removal, provider integration proof, or real-resource deletion is part of this slice. Session creation remains usable if ownership evidence or claim persistence is unavailable; such a checkout stays unclaimable.
 
 Routing selects actual Sol/high, zero failed cycles. Worker owns this plan and exact source/test paths; root owns Linear, tasks and phase9. Coordinate shared protocol exports and metadata/foreground seams with slice2; no broad staging, external writes, native app or daily configuration changes.

@@ -88,7 +88,11 @@ describe('host worktree creation custody', () => {
     expect(await recordHostCreatedWorktree({ ...owner, worktreePath: f.repository, expectedBranchName: 'owned-branch', branchCreatedHere: true })).toBeNull();
     const files = await import('node:fs/promises').then((fs) => fs.readdir(join(f.activeServerDir, 'worktree-creation-custody')));
     expect(files.filter((name) => name.endsWith('.json'))).toHaveLength(1);
-    await writeFile(join(f.activeServerDir, 'worktree-creation-custody', files.find((name) => name.endsWith('.json'))!), '{bad');
+    const claimFile = join(f.activeServerDir, 'worktree-creation-custody', files.find((name) => name.endsWith('.json'))!);
+    await writeFile(claimFile, JSON.stringify({ ...first, accountId: 'account-b' }));
+    expect(await readWorktreeCreationClaim(owner)).toBeNull();
+    expect(await recordHostCreatedWorktree({ ...owner, worktreePath: f.worktreePath, expectedBranchName: 'owned-branch', branchCreatedHere: true })).toBeNull();
+    await writeFile(claimFile, '{bad');
     expect(await readWorktreeCreationClaim(owner)).toBeNull();
     expect(await bindCreatedWorktreeToTrackedSession({
       ...owner, sessionId: 'session-a', runnerPid: 12345, runnerPath: f.worktreePath,
