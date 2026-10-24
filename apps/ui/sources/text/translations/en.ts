@@ -5834,6 +5834,8 @@ export const en = {
         noCommandsFound: 'No commands found',
         titleMode: 'Titles',
         contentMode: 'Messages',
+        contentChangeHome: 'Change Home',
+        contentChangeMachine: 'Change machine',
         contentChooseHome: 'Choose a Home to search its indexed messages.',
         contentChooseMachine: ({ home }: { home: string }) => `Choose a machine on ${home}. Only that machine’s indexed messages will be searched.`,
         contentCheckingIndex: ({ home, machine }: { home: string; machine: string }) => `Checking the message index on ${machine} · ${home}…`,

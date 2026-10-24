@@ -5354,6 +5354,8 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
         ...en.commandPalette,
         titleMode: '標題',
         contentMode: '訊息',
+        contentChangeHome: '更換伺服器',
+        contentChangeMachine: '更換機器',
         placeholder: '輸入命令或搜尋...',
         noCommandsFound: '找不到命令',
         searchScope: '搜尋可用的所選伺服器上未封存的工作階段。伺服器支援分頁時也會載入較早的標題。',

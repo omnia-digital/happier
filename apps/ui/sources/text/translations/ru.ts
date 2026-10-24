@@ -6710,6 +6710,8 @@ export const ru: TranslationStructure = {
     ...en.commandPalette,
     titleMode: 'Названия',
     contentMode: 'Сообщения',
+    contentChangeHome: 'Сменить сервер',
+    contentChangeMachine: 'Сменить компьютер',
     placeholder: "Введите команду или поиск...",
     noCommandsFound: "Команды не найдены",
     searchScope: 'Ищет неархивированные сеансы на доступных выбранных серверах. Старые названия загружаются, если сервер поддерживает страницы.',

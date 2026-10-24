@@ -6283,6 +6283,8 @@ export const pt: TranslationStructure = {
     ...en.commandPalette,
     titleMode: 'Títulos',
     contentMode: 'Mensagens',
+    contentChangeHome: 'Mudar servidor',
+    contentChangeMachine: 'Mudar máquina',
     placeholder: "Digite um comando ou pesquise...",
     noCommandsFound: "Nenhum comando encontrado",
     searchScope: 'Pesquisa sessões não arquivadas nos servidores selecionados disponíveis. Carrega títulos antigos quando o servidor permite paginação.',

@@ -12,6 +12,7 @@ import {
     upsertServerProfile,
 } from '@/sync/domains/server/serverProfiles';
 import { getActiveServerSnapshot } from '@/sync/domains/server/serverRuntime';
+import { TokenStorage } from '@/auth/storage/tokenStorage';
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
 import { RPC_METHODS } from '@happier-dev/protocol';
 
@@ -209,5 +210,128 @@ describe('CommandPalette session search through the real scoped session-list sto
         await act(async () => { input.props.onKeyPress({ nativeEvent: { key: 'Enter' } }); });
         expect(navigateToSession).toHaveBeenCalledWith('content-only', { serverId: activeServerId, query: { jumpSeq: 7 } });
         expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('drops an in-flight indexed result when credentials change on the same Home', async () => {
+        storage.setState((state) => ({
+            isDataReady: true,
+            machines: {
+                'machine-a': {
+                    id: 'machine-a', seq: 1, createdAt: 1, updatedAt: 1, active: true, activeAt: 1,
+                    metadata: { host: 'machine-a', displayName: 'Machine A', platform: 'darwin', homeDir: '/work' },
+                    metadataVersion: 1, daemonState: null, daemonStateVersion: 0,
+                },
+            } as any,
+            settings: {
+                ...state.settings,
+                experiments: true,
+                featureToggles: { ...state.settings.featureToggles, 'memory.search': true },
+            },
+        }));
+        await TokenStorage.setCredentials({ token: 'account-a', secret: 'test-secret' });
+        let releaseOld: ((value: unknown) => void) | null = null;
+        const oldResult = new Promise<unknown>((resolve) => { releaseOld = resolve; });
+        const status = {
+            v: 1, enabled: true, indexMode: 'hints', hintsIndexReady: true,
+            deepIndexReady: false, activeIndexReady: true, activeIndexSearchable: true,
+            embeddingsEnabled: false, embeddingsMode: 'disabled', embeddingsPresetId: null,
+            embeddingsProviderKind: null, embeddingsModelId: null, embeddingsRuntimeState: 'ready',
+            embeddingsUsingFallback: false, tier1DbPath: '/tmp/index', deepDbPath: null,
+            tier1DbBytes: 100, deepDbBytes: null,
+        };
+        const hit = (sessionId: string) => ({ v: 1, ok: true, hits: [{
+            sessionId, seqFrom: 7, seqTo: 8, createdAtFromMs: 1, createdAtToMs: 2,
+            summary: 'A matching indexed summary', score: 0.8,
+        }] });
+        machineRpcSpy.mockImplementation(async ({ method }: { method: string }) => {
+            if (method === RPC_METHODS.DAEMON_MEMORY_STATUS) return status;
+            if (method !== RPC_METHODS.DAEMON_MEMORY_SEARCH) throw new Error(`Unexpected RPC ${method}`);
+            const requestToken = (await TokenStorage.getCredentials())?.token;
+            return requestToken === 'account-a' ? oldResult : hit('new-account');
+        });
+        const { CommandPalette } = await import('./CommandPalette');
+        const screen = await renderScreen(<CommandPalette commands={[]} navigateToSession={vi.fn()} onClose={vi.fn()} />);
+        const input = screen.findByType('TextInput');
+        await act(async () => { screen.findByTestId('command-palette:content-mode')?.props.onPress(); });
+        await act(async () => { input.props.onChangeText('nebula'); });
+        await act(async () => { input.props.onKeyPress({ nativeEvent: { key: 'Enter' } }); });
+        await act(async () => { input.props.onKeyPress({ nativeEvent: { key: 'Enter' } }); });
+        await act(async () => { await new Promise((resolve) => setTimeout(resolve, 400)); });
+        expect(machineRpcSpy).toHaveBeenCalledWith(expect.objectContaining({ method: RPC_METHODS.DAEMON_MEMORY_SEARCH }));
+
+        await act(async () => { await TokenStorage.setCredentials({ token: 'account-b', secret: 'test-secret' }); });
+        await act(async () => { await new Promise((resolve) => setTimeout(resolve, 400)); });
+        expect(screen.findAllByType(SelectableRow).map((row) => row.props.title)).toEqual(['Session new-acco']);
+        await act(async () => { releaseOld?.(hit('old-account')); });
+        expect(screen.findAllByType(SelectableRow).map((row) => row.props.title)).toEqual(['Session new-acco']);
+        await act(async () => { input.props.onChangeText(''); });
+        expect(screen.findAllByType(SelectableRow).map((row) => row.props.title)).toEqual([]);
+    });
+
+    it('changes indexed search machine and Home without retaining the previous scope', async () => {
+        const makeMachine = (id: string) => ({
+            id, seq: 1, createdAt: 1, updatedAt: 1, active: true, activeAt: 1,
+            metadata: { host: id, displayName: id, platform: 'darwin', homeDir: '/work' },
+            metadataVersion: 1, daemonState: null, daemonStateVersion: 0,
+        });
+        storage.setState((state) => ({
+            isDataReady: true,
+            machines: { 'machine-a': makeMachine('machine-a'), 'machine-b': makeMachine('machine-b') } as any,
+            machineListByServerId: { [remoteServerId]: [makeMachine('machine-remote')] } as any,
+            settings: {
+                ...state.settings,
+                experiments: true,
+                featureToggles: { ...state.settings.featureToggles, 'memory.search': true },
+                serverSelectionGroups: [{ id: 'both', name: 'Both', serverIds: [activeServerId, remoteServerId], presentation: 'grouped' }],
+                serverSelectionActiveTargetKind: 'group',
+                serverSelectionActiveTargetId: 'both',
+            },
+        }));
+        machineRpcSpy.mockImplementation(async ({ method, serverId, machineId }: { method: string; serverId: string; machineId: string }) => {
+            if (method === RPC_METHODS.DAEMON_MEMORY_STATUS) return {
+                v: 1, enabled: true, indexMode: 'hints', hintsIndexReady: true,
+                deepIndexReady: false, activeIndexReady: true, activeIndexSearchable: true,
+                embeddingsEnabled: false, embeddingsMode: 'disabled', embeddingsPresetId: null,
+                embeddingsProviderKind: null, embeddingsModelId: null, embeddingsRuntimeState: 'ready',
+                embeddingsUsingFallback: false, tier1DbPath: '/tmp/index', deepDbPath: null,
+                tier1DbBytes: 100, deepDbBytes: null,
+            };
+            if (method === RPC_METHODS.DAEMON_MEMORY_SEARCH) return { v: 1, ok: true, hits: [{
+                sessionId: serverId === remoteServerId ? 'remote-hit' : machineId === 'machine-b' ? 'machine-two' : 'first-hit',
+                seqFrom: 7, seqTo: 8, createdAtFromMs: 1, createdAtToMs: 2, summary: 'Indexed result', score: 0.8,
+            }] };
+            throw new Error(`Unexpected RPC ${method}`);
+        });
+        const navigateToSession = vi.fn();
+        const { CommandPalette } = await import('./CommandPalette');
+        const screen = await renderScreen(<CommandPalette commands={[]} navigateToSession={navigateToSession} onClose={vi.fn()} />);
+        const input = screen.findByType('TextInput');
+        await act(async () => { screen.findByTestId('command-palette:content-mode')?.props.onPress(); });
+        await act(async () => { input.props.onChangeText('nebula'); });
+        await act(async () => { input.props.onKeyPress({ nativeEvent: { key: 'Enter' } }); });
+        await act(async () => { input.props.onKeyPress({ nativeEvent: { key: 'Enter' } }); });
+        await act(async () => { await new Promise((resolve) => setTimeout(resolve, 400)); });
+        expect(screen.findAllByType(SelectableRow).map((row) => row.props.title)).toEqual(['Session first-hi']);
+
+        await act(async () => { screen.findByTestId('command-palette:change-machine')?.props.onPress(); });
+        expect(screen.findAllByType(SelectableRow).map((row) => row.props.title)).toEqual(['machine-a', 'machine-b']);
+        await act(async () => { input.props.onKeyPress({ nativeEvent: { key: 'ArrowDown' } }); });
+        await act(async () => { input.props.onKeyPress({ nativeEvent: { key: 'Enter' } }); });
+        await act(async () => { input.props.onChangeText('nebula'); });
+        await act(async () => { await new Promise((resolve) => setTimeout(resolve, 400)); });
+        expect(machineRpcSpy).toHaveBeenCalledWith(expect.objectContaining({ method: RPC_METHODS.DAEMON_MEMORY_SEARCH, machineId: 'machine-b', serverId: activeServerId }));
+        expect(screen.findAllByType(SelectableRow).map((row) => row.props.title)).toEqual(['Session machine-']);
+
+        await act(async () => { screen.findByTestId('command-palette:change-home')?.props.onPress(); });
+        expect(screen.findAllByType(SelectableRow).map((row) => row.props.title)).not.toContain('Session machine-');
+        await act(async () => { input.props.onKeyPress({ nativeEvent: { key: 'ArrowDown' } }); });
+        await act(async () => { input.props.onKeyPress({ nativeEvent: { key: 'Enter' } }); });
+        await act(async () => { input.props.onKeyPress({ nativeEvent: { key: 'Enter' } }); });
+        await act(async () => { input.props.onChangeText('nebula'); });
+        await act(async () => { await new Promise((resolve) => setTimeout(resolve, 400)); });
+        expect(machineRpcSpy).toHaveBeenCalledWith(expect.objectContaining({ method: RPC_METHODS.DAEMON_MEMORY_SEARCH, machineId: 'machine-remote', serverId: remoteServerId }));
+        expect(screen.findAllByType(SelectableRow).map((row) => row.props.title)).toEqual(['Session remote-h']);
+        await act(async () => { input.props.onKeyPress({ nativeEvent: { key: 'Enter' } }); });
+        expect(navigateToSession).toHaveBeenCalledWith('remote-hit', { serverId: remoteServerId, query: { jumpSeq: 7 } });
     });
 });

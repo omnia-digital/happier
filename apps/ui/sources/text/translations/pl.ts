@@ -6186,6 +6186,8 @@ export const pl: TranslationStructure = {
     ...en.commandPalette,
     titleMode: 'Tytuły',
     contentMode: 'Wiadomości',
+    contentChangeHome: 'Zmień serwer',
+    contentChangeMachine: 'Zmień komputer',
     placeholder: "Wpisz polecenie lub wyszukaj...",
     noCommandsFound: "Nie znaleziono poleceń",
     searchScope: 'Przeszukuje niezarchiwizowane sesje na dostępnych wybranych serwerach. Starsze tytuły wczytuje, jeśli serwer obsługuje stronicowanie.',

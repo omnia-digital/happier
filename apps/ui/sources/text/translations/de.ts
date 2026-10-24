@@ -5813,6 +5813,8 @@ export const de: TranslationStructure = {
         ...en.commandPalette,
         titleMode: 'Titel',
         contentMode: 'Nachrichten',
+        contentChangeHome: 'Home wechseln',
+        contentChangeMachine: 'Computer wechseln',
         placeholder: 'Tipp einen Befehl ein oder suche…',
         noCommandsFound: 'Keine Befehle gefunden',
         searchScope: 'Durchsucht nicht archivierte Sitzungen verfügbarer ausgewählter Server. Ältere Titel werden geladen, wenn der Server Seiten unterstützt.',

@@ -5968,6 +5968,8 @@ export const zhHans: TranslationStructure = {
     ...en.commandPalette,
     titleMode: '标题',
     contentMode: '消息',
+    contentChangeHome: '更换服务器',
+    contentChangeMachine: '更换机器',
     placeholder: "输入命令或搜索...",
     noCommandsFound: "未找到命令",
     searchScope: '搜索可用的所选服务器上的未归档会话。服务器支持分页时也会加载较早的标题。',

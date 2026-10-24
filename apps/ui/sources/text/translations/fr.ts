@@ -5800,6 +5800,8 @@ export const fr: TranslationStructure = {
         ...en.commandPalette,
         titleMode: 'Titres',
         contentMode: 'Messages',
+        contentChangeHome: 'Changer de serveur',
+        contentChangeMachine: 'Changer de machine',
         placeholder: 'Tape une commande ou recherche…',
         noCommandsFound: 'Aucune commande trouvée',
         searchScope: 'Recherche les sessions non archivées des serveurs sélectionnés disponibles. Les anciens titres se chargent si le serveur permet la pagination.',

@@ -6510,6 +6510,8 @@ export const it: TranslationStructure = {
     ...en.commandPalette,
     titleMode: 'Titoli',
     contentMode: 'Messaggi',
+    contentChangeHome: 'Cambia server',
+    contentChangeMachine: 'Cambia macchina',
     placeholder: "Digita un comando o cerca...",
     noCommandsFound: "Nessun comando trovato",
     searchScope: 'Cerca le sessioni non archiviate dei server selezionati disponibili. Carica i titoli meno recenti se il server supporta la paginazione.',

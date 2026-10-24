@@ -41,6 +41,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     modeRow: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         gap: 8,
         paddingHorizontal: 32,
         paddingTop: 12,
@@ -231,6 +232,13 @@ export function CommandPalette(props: CommandPaletteProps) {
         setSelectedIndex(0);
         inputRef.current?.focus();
     };
+    const changeContentScope = (changeHome: boolean) => {
+        if (changeHome) setContentServerId('');
+        setContentMachineId('');
+        setSearchQuery('');
+        setSelectedIndex(0);
+        inputRef.current?.focus();
+    };
 
     return (
         <View style={styles.body}>
@@ -253,6 +261,22 @@ export function CommandPalette(props: CommandPaletteProps) {
                 >
                     <Text>{t('commandPalette.contentMode')}</Text>
                 </Pressable>
+                {searchMode === 'content' && contentServerAllowed ? <Pressable
+                    testID="command-palette:change-home"
+                    accessibilityRole="button"
+                    onPress={() => changeContentScope(true)}
+                    style={styles.modeButton}
+                >
+                    <Text>{t('commandPalette.contentChangeHome')}</Text>
+                </Pressable> : null}
+                {searchMode === 'content' && selectedMachine ? <Pressable
+                    testID="command-palette:change-machine"
+                    accessibilityRole="button"
+                    onPress={() => changeContentScope(false)}
+                    style={styles.modeButton}
+                >
+                    <Text>{t('commandPalette.contentChangeMachine')}</Text>
+                </Pressable> : null}
             </View> : null}
             <CommandPaletteInput
                 value={searchQuery}

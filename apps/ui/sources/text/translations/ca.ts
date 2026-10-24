@@ -5812,6 +5812,8 @@ deps: {
         ...en.commandPalette,
         titleMode: 'Títols',
         contentMode: 'Missatges',
+        contentChangeHome: 'Canvia de servidor',
+        contentChangeMachine: 'Canvia de màquina',
         placeholder: 'Escriu una comanda o cerca...',
         noCommandsFound: 'No s\'han trobat comandes',
         searchScope: 'Cerca sessions no arxivades dels servidors seleccionats disponibles. Les més antigues es carreguen si el servidor permet paginació.',
