@@ -5744,7 +5744,7 @@ export const fr: TranslationStructure = {
     commandPalette: {
         placeholder: 'Tape une commande ou recherche…',
         noCommandsFound: 'Aucune commande trouvée',
-        searchScope: 'Recherche les sessions chargées des serveurs sélectionnés et charge les anciennes sessions du serveur actif.',
+        searchScope: 'Recherche les sessions non archivées des serveurs sélectionnés et charge les plus anciennes pendant la recherche.',
         searchUnavailable: 'Impossible de charger les anciennes sessions. Les résultats peuvent être incomplets. Réessayez.',
         shortcutsHelpTitle: 'Raccourcis clavier',
         shortcutsHelpBody: ({ shortcuts }: { shortcuts: string }) => `Raccourcis actifs :\n${shortcuts}`,

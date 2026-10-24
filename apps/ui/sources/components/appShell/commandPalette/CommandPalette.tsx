@@ -12,6 +12,7 @@ import { resolveSessionListSourceData } from '@/sync/domains/session/listing/ses
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
 import type { NavigateToSessionOptions } from '@/hooks/session/useNavigateToSession';
 import { sync } from '@/sync/sync';
+import { fetchRemainingSelectedServerSessions } from '@/sync/runtime/orchestration/concurrentSessionCache';
 
 import { CommandPaletteInput } from './CommandPaletteInput';
 import { CommandPaletteResults } from './CommandPaletteResults';
@@ -85,6 +86,11 @@ export function CommandPalette(props: CommandPaletteProps) {
     const [historySearchFailed, setHistorySearchFailed] = React.useState(false);
     const searchDemanded = searchQuery.trim().length > 0;
     const sessionListReady = activeData !== null;
+    const selectedForeignServerIds = selection.enabled
+        ? selection.allowedServerIds.filter((id) => id !== selection.activeServerId)
+        : [];
+    const selectedForeignServerKey = selectedForeignServerIds.join('\u0000');
+    const selectedForeignReady = selectedForeignServerIds.every((id) => byServerId[id] !== undefined);
     React.useEffect(() => {
         if (!searchDemanded || !sessionListReady) {
             setHistorySearchFailed(false);
@@ -99,6 +105,16 @@ export function CommandPalette(props: CommandPaletteProps) {
         });
         return () => { active = false; };
     }, [searchDemanded, selection.activeServerId, sessionListReady]);
+    React.useEffect(() => {
+        if (!searchDemanded || !selectedForeignReady || !selectedForeignServerKey) return;
+        let active = true;
+        void fetchRemainingSelectedServerSessions(selectedForeignServerKey.split('\u0000'), () => active).catch((error) => {
+            if (!active) return;
+            console.error('[CommandPalette] Could not load older selected-server titles', error);
+            setHistorySearchFailed(true);
+        });
+        return () => { active = false; };
+    }, [searchDemanded, selectedForeignReady, selectedForeignServerKey]);
 
     // Only render on web
     if (Platform.OS !== 'web') {

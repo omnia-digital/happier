@@ -5298,7 +5298,7 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
     commandPalette: {
         placeholder: '輸入命令或搜尋...',
         noCommandsFound: '找不到命令',
-        searchScope: '搜尋已從所選伺服器載入的工作階段，並載入使用中伺服器的較早工作階段。',
+        searchScope: '搜尋所選伺服器上未封存的工作階段，並在搜尋時載入較早的工作階段。',
         searchUnavailable: '無法載入較早的工作階段。結果可能不完整。請重新搜尋。',
         shortcutsHelpTitle: '鍵盤快速鍵',
         shortcutsHelpBody: ({ shortcuts }: { shortcuts: string }) => `可用快速鍵:\n${shortcuts}`,

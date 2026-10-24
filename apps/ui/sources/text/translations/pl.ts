@@ -6130,7 +6130,7 @@ export const pl: TranslationStructure = {
   commandPalette: {
     placeholder: "Wpisz polecenie lub wyszukaj...",
     noCommandsFound: "Nie znaleziono poleceń",
-    searchScope: 'Przeszukuje wczytane sesje z wybranych serwerów i wczytuje starsze sesje z aktywnego serwera.',
+    searchScope: 'Przeszukuje niezarchiwizowane sesje na wybranych serwerach i wczytuje starsze podczas wyszukiwania.',
     searchUnavailable: 'Nie udało się wczytać starszych sesji. Wyniki mogą być niepełne. Spróbuj ponownie.',
         shortcutsHelpTitle: 'Skróty klawiaturowe',
         shortcutsHelpBody: ({ shortcuts }: { shortcuts: string }) => `Aktywne skróty:\n${shortcuts}`,

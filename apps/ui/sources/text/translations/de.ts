@@ -5757,7 +5757,7 @@ export const de: TranslationStructure = {
     commandPalette: {
         placeholder: 'Tipp einen Befehl ein oder suche…',
         noCommandsFound: 'Keine Befehle gefunden',
-        searchScope: 'Durchsucht geladene Sitzungen der ausgewählten Server und lädt ältere Sitzungen vom aktiven Server.',
+        searchScope: 'Durchsucht nicht archivierte Sitzungen der ausgewählten Server und lädt beim Suchen ältere Sitzungen.',
         searchUnavailable: 'Ältere Sitzungen konnten nicht geladen werden. Die Ergebnisse sind möglicherweise unvollständig. Suche erneut.',
         shortcutsHelpTitle: 'Tastenkürzel',
         shortcutsHelpBody: ({ shortcuts }: { shortcuts: string }) => `Aktive Kürzel:\n${shortcuts}`,

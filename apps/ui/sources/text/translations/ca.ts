@@ -5756,7 +5756,7 @@ deps: {
     commandPalette: {
         placeholder: 'Escriu una comanda o cerca...',
         noCommandsFound: 'No s\'han trobat comandes',
-        searchScope: 'Cerca sessions carregades dels servidors seleccionats i carrega sessions anteriors del servidor actiu.',
+        searchScope: 'Cerca sessions no arxivades dels servidors seleccionats i carrega les més antigues mentre cerques.',
         searchUnavailable: 'No s’han pogut carregar sessions anteriors. Els resultats poden ser incomplets. Torna-ho a provar.',
         shortcutsHelpTitle: 'Dreceres de teclat',
         shortcutsHelpBody: ({ shortcuts }: { shortcuts: string }) => `Dreceres actives:\n${shortcuts}`,

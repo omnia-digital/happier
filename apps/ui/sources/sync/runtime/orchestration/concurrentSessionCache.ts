@@ -79,6 +79,7 @@ type ManagedConcurrentServer = {
     refreshQueued: boolean;
     refreshInFlight: Promise<void> | null;
     refreshTimer: ReturnType<typeof setTimeout> | null;
+    titleSearchShouldContinue: (() => boolean) | null;
 };
 
 const REFRESH_DEBOUNCE_MS = 600;
@@ -245,30 +246,35 @@ function clearConcurrentMachineListCache(serverIdRaw: string): void {
     });
 }
 
-async function refreshServerSnapshot(entry: ManagedConcurrentServer): Promise<void> {
+async function refreshServerSnapshot(entry: ManagedConcurrentServer, titleSearchShouldContinue: (() => boolean) | null): Promise<void> {
     const encryption = await getOrCreateEncryption(entry);
     const request = createServerRequest(entry.serverUrl, entry.credentials.token);
     let sessions: Session[] = [];
     let machines: Machine[] = [];
-
-    await fetchAndApplySessions({
+    const isCurrent = () => isManagedServerActive(entry);
+    const fetchPage = async (cursor: string | null) => fetchAndApplySessions({
         clientEncryptionRequirement: resolveUiClientEncryptionRequirement({
             syncedSettings: storage.getState().settings,
             localSettings: storage.getState().settings,
         }),
         serverId: entry.id,
+        sessionListCursor: cursor,
+        sessionListMaxPages: 1,
         credentials: entry.credentials,
         encryption,
         sessionDataKeys: entry.sessionDataKeys,
         sessionDataKeyEnvelopes: entry.sessionDataKeyEnvelopes,
         request,
         getExistingSession: () => null,
+        shouldContinue: () => isCurrent() && (titleSearchShouldContinue?.() ?? true),
         applySessions: (nextSessions) => {
-            sessions = nextSessions as Session[];
+            sessions = cursor ? [...sessions, ...(nextSessions as Session[])] : nextSessions as Session[];
         },
         repairInvalidReadStateV1: async () => {},
         log: { log: () => {} },
     });
+
+    let page = await fetchPage(null);
 
     await fetchAndApplyMachines({
         credentials: entry.credentials,
@@ -281,11 +287,6 @@ async function refreshServerSnapshot(entry: ManagedConcurrentServer): Promise<vo
         },
     });
 
-    const sessionsById: Record<string, Session> = {};
-    for (const session of sessions) {
-        sessionsById[session.id] = session;
-    }
-
     const machinesById: Record<string, Machine> = {};
     for (const machine of machines) {
         machinesById[machine.id] = machine;
@@ -296,29 +297,39 @@ async function refreshServerSnapshot(entry: ManagedConcurrentServer): Promise<vo
         return;
     }
 
-    const sessionListViewData = buildSessionListViewData(
-        sessionsById,
-        machinesById,
-        {
-            groupInactiveSessionsByProject: Boolean(storage.getState().settings.groupInactiveSessionsByProject),
-            activeGroupingV1: storage.getState().settings.sessionListActiveGroupingV1,
-            inactiveGroupingV1: storage.getState().settings.sessionListInactiveGroupingV1,
-            sectionModeV1: storage.getState().settings.sessionListSectionModeV1,
-            workspacePathDisplayModeV1: storage.getState().settings.workspacePathDisplayModeV1,
-            serverScope: {
-                serverId: entry.id,
-                serverName: entry.serverName,
-            },
-        },
-    );
-
     updateConcurrentMachineListCache({
         serverId: entry.id,
         machines,
         status: 'idle',
         authoritative: true,
     });
-    updateConcurrentSessionListCache(entry.id, sessionListViewData);
+    const publishSessions = () => {
+        if (!isCurrent()) return;
+        const sessionsById: Record<string, Session> = {};
+        for (const session of sessions) sessionsById[session.id] = session;
+        updateConcurrentSessionListCache(entry.id, buildSessionListViewData(
+            sessionsById,
+            machinesById,
+            {
+                groupInactiveSessionsByProject: Boolean(storage.getState().settings.groupInactiveSessionsByProject),
+                activeGroupingV1: storage.getState().settings.sessionListActiveGroupingV1,
+                inactiveGroupingV1: storage.getState().settings.sessionListInactiveGroupingV1,
+                sectionModeV1: storage.getState().settings.sessionListSectionModeV1,
+                workspacePathDisplayModeV1: storage.getState().settings.workspacePathDisplayModeV1,
+                serverScope: { serverId: entry.id, serverName: entry.serverName },
+            },
+        ));
+    };
+    publishSessions();
+    while (titleSearchShouldContinue?.() && isCurrent() && page.hasNext && page.nextCursor) {
+        const cursor = page.nextCursor;
+        page = await fetchPage(cursor);
+        if (!titleSearchShouldContinue() || !isCurrent()) break;
+        publishSessions();
+        if (page.hasNext && page.nextCursor === cursor) {
+            throw new Error(`Session list pagination made no progress for selected server ${entry.id}`);
+        }
+    }
     void refreshConcurrentOrganization(entry);
 }
 
@@ -370,7 +381,8 @@ async function runRefresh(entry: ManagedConcurrentServer): Promise<void> {
     }
     entry.refreshInFlight = (async () => {
         try {
-            await refreshServerSnapshot(entry);
+            const search = entry.titleSearchShouldContinue;
+            await refreshServerSnapshot(entry, search?.() ? search : null);
         } catch {
             // Keep best-effort behavior for non-active server cache refreshes.
         }
@@ -384,6 +396,31 @@ async function runRefresh(entry: ManagedConcurrentServer): Promise<void> {
             queueRefresh(entry);
         }
     }
+}
+
+/** Extend the selected Home cache through its own authenticated, decrypted list cursor. */
+export async function fetchRemainingSelectedServerSessions(
+    selectedServerIds: ReadonlyArray<string>,
+    shouldContinue: () => boolean,
+): Promise<void> {
+    const selected = new Set(selectedServerIds);
+    const entries = Array.from(managedServers.values()).filter((entry) => selected.has(entry.id));
+    await Promise.all(entries.map(async (entry) => {
+        entry.titleSearchShouldContinue = shouldContinue;
+        if (entry.refreshInFlight) await entry.refreshInFlight;
+        if (!shouldContinue() || !isManagedServerActive(entry)) return;
+        const promise = refreshServerSnapshot(entry, shouldContinue);
+        entry.refreshInFlight = promise;
+        try {
+            await promise;
+        } finally {
+            if (entry.refreshInFlight === promise) entry.refreshInFlight = null;
+            if (entry.refreshQueued && isManagedServerActive(entry)) {
+                entry.refreshQueued = false;
+                queueRefresh(entry);
+            }
+        }
+    }));
 }
 
 function stopManagedServer(serverId: string): void {
@@ -448,6 +485,7 @@ function createManagedServer(target: ConcurrentTarget, credentials: AuthCredenti
         refreshQueued: false,
         refreshInFlight: null,
         refreshTimer: null,
+        titleSearchShouldContinue: null,
     };
     // NOTE: Do not refresh full snapshots on user-scoped socket `update` events.
     // Those events can be high-frequency (presence/activity), and full refresh loops are
