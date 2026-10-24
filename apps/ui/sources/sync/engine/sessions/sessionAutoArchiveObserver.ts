@@ -51,7 +51,7 @@ export function createSessionAutoArchiveObserver(input: Readonly<{
         && areServerAccountScopesEqual(storage.getState().profileScope, scope)
         && areServerProfileIdentifiersEquivalent(scope.serverId, getActiveServerSnapshot().serverId);
 
-    const candidateCurrent = (scope: ServerAccountScope, sessionId: string, links: readonly SessionPullRequestLinkV1[]): boolean => {
+    const candidateCurrent = (scope: ServerAccountScope, sessionId: string, links: readonly SessionPullRequestLinkV1[], allowOwnPending = false): boolean => {
         if (!scopeCurrent(scope)) return false;
         const state = storage.getState();
         const row = state.sessionListRenderables[sessionId];
@@ -62,10 +62,10 @@ export function createSessionAutoArchiveObserver(input: Readonly<{
             && full.active === false && full.archivedAt == null
             && full.metadataVersion >= row.metadataVersion
             && assessSessionAutoArchiveHydrationCandidate({
-                session: row, enabled: true, archivePending: pending, accountId: scope.accountId,
+                session: row, enabled: true, archivePending: allowOwnPending ? false : pending, accountId: scope.accountId,
             }).eligible
             && assessSessionAutoArchiveCandidate({
-                session: buildSessionListRenderableFromSession(full), enabled: true, archivePending: pending, accountId: scope.accountId,
+                session: buildSessionListRenderableFromSession(full), enabled: true, archivePending: allowOwnPending ? false : pending, accountId: scope.accountId,
             }).eligible
             && linksStillMatch(readSessionPullRequestLinks(full.metadata), links);
     };
@@ -111,7 +111,7 @@ export function createSessionAutoArchiveObserver(input: Readonly<{
             if (!verified.eligible || !candidateCurrent(scope, sessionId, links)) return;
             const result = await archiveSessionWithPendingState(sessionId, () => sessionArchiveWithServerScope(sessionId, {
                 serverId: scope.serverId,
-                autoArchiveReason: { accountId: scope.accountId, links, shouldContinue: () => historyScopeCurrent(scope) },
+                autoArchiveReason: { accountId: scope.accountId, links, shouldContinue: () => historyScopeCurrent(scope), shouldArchive: () => candidateCurrent(scope, sessionId, links, true) },
             }), scope.serverId);
             if (result && !result.success) {
                 syncReliabilityTelemetry.record('session.autoarchive.archive_failed', { code: result.code ?? 'unknown' });

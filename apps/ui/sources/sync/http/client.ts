@@ -58,6 +58,8 @@ export class ServerFetchWriteTimeoutError extends Error {
 
 type ServerFetchOptions = Readonly<{
     includeAuth?: boolean;
+    /** Caller-owned write admission, checked immediately before the transport dispatch. */
+    assertCurrent?: () => void;
     /**
      * When `none`, perform a single direct `runtimeFetch` attempt and skip reachability gating and
      * endpoint supervision. This is used by higher-level sync loops that implement their own
@@ -331,6 +333,7 @@ export async function serverFetch<T>(
                         serverUrl: snapshot.serverUrl,
                         token: usedToken,
                         endpointSupervisor,
+                        assertCurrent: options.assertCurrent,
                     });
                     response = await supervisedFetch(requestUrl, {
                         ...init,
@@ -338,6 +341,7 @@ export async function serverFetch<T>(
                         signal: requestController.signal,
                     });
                 } else {
+                    options.assertCurrent?.();
                     response = await runtimeFetch(requestUrl, {
                         ...init,
                         headers,

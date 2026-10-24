@@ -478,7 +478,9 @@ class ApiSocket {
     request(path: string, options?: RequestInit): Promise<Response>;
     /** Consume the response body while HTTP cancellation and the initiating Home scope remain enforced. */
     request<T>(path: string, options: RequestInit | undefined, consumeResponse: (response: Response) => Promise<T>): Promise<T>;
-    async request<T>(path: string, options?: RequestInit, consumeResponse?: (response: Response) => Promise<T>): Promise<Response | T> {
+    /** Guard a caller-owned write admission through credential and reachability waits. */
+    request<T>(path: string, options: RequestInit | undefined, consumeResponse: (response: Response) => Promise<T>, assertCurrent: () => void): Promise<T>;
+    async request<T>(path: string, options?: RequestInit, consumeResponse?: (response: Response) => Promise<T>, assertCurrent?: () => void): Promise<Response | T> {
         if (!this.config) {
             throw new Error('SyncSocket not initialized');
         }
@@ -497,6 +499,7 @@ class ApiSocket {
         if (!credentials) {
             throw new Error('No authentication credentials');
         }
+        assertCurrent?.();
 
         const url = `${this.config.endpoint}${path}`;
         const method = String(options?.method ?? 'GET').toUpperCase();
@@ -525,7 +528,7 @@ class ApiSocket {
 
         if (consumeResponse) {
             // Body consumers own their complete read; they cannot share an in-flight Response.
-            return await serverFetch(url, { ...options, headers }, { includeAuth: false }, async (response) => {
+            return await serverFetch(url, { ...options, headers }, { includeAuth: false, assertCurrent }, async (response) => {
                 observeResponse(response);
                 const result = await consumeResponse(response);
                 validateResponseScope();

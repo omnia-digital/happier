@@ -824,11 +824,24 @@ export interface SessionArchiveResponse {
     historyRecorded?: boolean;
 }
 
-type AutoArchiveReason = Readonly<{
+type AutoArchiveHistoryReason = Readonly<{
     accountId: string;
     links: readonly SessionPullRequestLinkV1[];
     shouldContinue: () => boolean;
 }>;
+
+type AutoArchiveReason = AutoArchiveHistoryReason & Readonly<{
+    /** Revalidates this write admission immediately before the outbound archive POST. */
+    shouldArchive: () => boolean;
+}>;
+
+function assertAutoArchiveAdmissionCurrent(reason: AutoArchiveReason | undefined): void {
+    if (reason && !reason.shouldArchive()) {
+        const error = new Error('Archive admission is no longer current');
+        error.name = 'AbortError';
+        throw error;
+    }
+}
 
 function isAutoArchiveReasonScopeCurrent(serverId: string, accountId: string): boolean {
     const state = storage.getState();
@@ -841,7 +854,7 @@ export async function afterSessionArchiveConfirmed(input: Readonly<{
     sessionId: string;
     serverId: string;
     archivedAt: number | null;
-    autoArchiveReason?: AutoArchiveReason;
+    autoArchiveReason?: AutoArchiveHistoryReason;
 }>): Promise<Pick<SessionArchiveResponse, 'historyRecorded' | 'code' | 'message'>> {
     if (!input.autoArchiveReason) return {};
     const reason = input.autoArchiveReason;
@@ -875,6 +888,7 @@ type ArchiveRequestParams = Readonly<{
     serverId?: string | null;
     action: 'archive' | 'unarchive';
     signal?: AbortSignal;
+    assertCurrent?: () => void;
 }>;
 
 function archiveRequestWithContext(params: ArchiveRequestParams): Promise<Response>;
@@ -883,12 +897,13 @@ async function archiveRequestWithContext<T>(params: ArchiveRequestParams, consum
     const context = await resolveServerScopedSessionContext({
         serverId: params.serverId ?? resolvePreferredServerIdForSessionId(params.sessionId) ?? null,
     });
+    params.assertCurrent?.();
     const path = `/v2/sessions/${params.sessionId}/${params.action}`;
     const init: RequestInit = { method: 'POST', ...(params.signal ? { signal: params.signal } : {}) };
 
     if (context.scope === 'active') {
         return consumeResponse
-            ? await apiSocket.request(path, init, consumeResponse)
+            ? await apiSocket.request(path, init, consumeResponse, params.assertCurrent ?? (() => {}))
             : await apiSocket.request(path, init);
     }
 
@@ -904,6 +919,7 @@ async function archiveRequestWithContext<T>(params: ArchiveRequestParams, consum
         },
         timeoutMs: context.timeoutMs,
         signal: params.signal,
+        assertCurrent: params.assertCurrent,
     });
     return consumeResponse ? await consumeResponse(response) : response;
 }
@@ -943,7 +959,8 @@ export async function sessionArchiveWithServerScope(
         const archive = async (signal: AbortSignal): Promise<SessionArchiveResponse> => {
             try {
                 throwIfSessionArchiveAborted(signal);
-                const result = await archiveRequestWithContext({ sessionId, serverId, action: 'archive', signal }, async (response): Promise<SessionArchiveResponse> => {
+                assertAutoArchiveAdmissionCurrent(opts?.autoArchiveReason);
+                const result = await archiveRequestWithContext({ sessionId, serverId, action: 'archive', signal, assertCurrent: () => assertAutoArchiveAdmissionCurrent(opts?.autoArchiveReason) }, async (response): Promise<SessionArchiveResponse> => {
                     if (!response.ok) {
                         const message = await response.text().catch(() => '');
                         throwIfSessionArchiveAborted(signal);
@@ -960,7 +977,7 @@ export async function sessionArchiveWithServerScope(
                     return { success: true, archivedAt };
                 });
                 throwIfSessionArchiveAborted(signal);
-                if (result.success) {
+                if (result.success && (!opts?.autoArchiveReason || opts.autoArchiveReason.shouldContinue())) {
                     await applyArchivedAtToLocalSession(sessionId, result.archivedAt ?? null, serverId);
                 }
                 return result;
