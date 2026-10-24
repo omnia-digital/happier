@@ -474,6 +474,12 @@ target before activation and shares the explicit update's service observation/re
    record that cannot be written never blocks recovery; it is reported on stderr (the updater's log
    for a remote update).
 
+In current development source, admitted post-update service repair runs through the activated
+managed CLI. A successful update ends the invoking guided repair walk, discarding its remaining
+stale findings and pending plan and directing the user to rerun repair against the updated CLI. The service row
+displays the same inventory version used by the report's findings; it does not override that value
+with the independently gathered daemon snapshot.
+
 **What recovery covers — and what it does not.** Recovery covers activation and restart failures
 this process catches. It does **not** cover the updater itself being killed or the machine losing
 power mid-transaction (a set-aside directory may then be the only copy of a launcher, which is why
