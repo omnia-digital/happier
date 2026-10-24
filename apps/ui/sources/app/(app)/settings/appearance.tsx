@@ -5,6 +5,7 @@ import { Item } from '@/components/ui/lists/Item';
 import { ItemGroup } from '@/components/ui/lists/ItemGroup';
 import { ItemList } from '@/components/ui/lists/ItemList';
 import { ListSection } from '@/components/ui/lists/ListSection';
+import { Typography } from '@/constants/Typography';
 import { useLayoutMaxWidth } from '@/components/ui/layout/layout';
 import { useSettingMutable, useLocalSettingMutable } from '@/sync/domains/state/storage';
 import { useRouter } from 'expo-router';
@@ -786,6 +787,8 @@ export default React.memo(function AppearanceSettingsScreen() {
         </>
     );
 
+    const sectionTitleStyle = { ...Typography.rowTitle(), color: theme.colors.text.primary };
+
     return (
         <ItemList style={{ paddingTop: 0 }}>
             <View style={{ width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' }}>
@@ -794,6 +797,7 @@ export default React.memo(function AppearanceSettingsScreen() {
                     id="global"
                     title={t('settingsAppearance.sections.global')}
                     preserveTitleCase
+                    titleStyle={sectionTitleStyle}
                 >
                     {globalSettings}
                 </ListSection>
@@ -802,6 +806,7 @@ export default React.memo(function AppearanceSettingsScreen() {
                     id="left-sidebar"
                     title={t('settingsAppearance.sections.leftSidebar')}
                     preserveTitleCase
+                    titleStyle={sectionTitleStyle}
                     spacing="separated"
                 >
                     <ItemGroup footer={t('settingsAppearance.sections.sidebarGlobalDefaults')}>
@@ -819,6 +824,7 @@ export default React.memo(function AppearanceSettingsScreen() {
                     id="task-view"
                     title={t('settingsAppearance.sections.taskView')}
                     preserveTitleCase
+                    titleStyle={sectionTitleStyle}
                     spacing="separated"
                 >
                     <ItemGroup title={t('settingsAppearance.chatCodeBlocks.title')}>
