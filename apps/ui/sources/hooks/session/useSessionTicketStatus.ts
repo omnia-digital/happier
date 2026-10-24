@@ -10,7 +10,10 @@ import { subscribeServerProfiles, areServerProfileIdentifiersEquivalent } from '
 import { isRuntimeActive, isHostVisible, subscribeToRuntimeActiveChange } from '@/utils/runtime/isRuntimeActive';
 import { readHostWindowFocus } from '@/utils/runtime/readHostWindowFocus';
 
-const owner = createSessionTicketStatusOwner((home, link) => readSessionTicket(home, link.reader, link.ticket.url), runWithCurrentServerScopedSessionContext);
+const owner = createSessionTicketStatusOwner((home, link) => {
+    if (!isRuntimeActive() || !isHostVisible() || readHostWindowFocus() === false) return Promise.reject(new Error('cancelled'));
+    return readSessionTicket(home, link.reader, link.ticket.url);
+}, runWithCurrentServerScopedSessionContext);
 const LOADING: SessionTicketStatus = Object.freeze({ phase: 'loading', snapshot: null, error: null });
 const UNAVAILABLE: SessionTicketStatus = Object.freeze({ phase: 'unavailable', snapshot: null, error: 'access_revoked' });
 const EMPTY = new Map<string, SessionTicketStatus>();

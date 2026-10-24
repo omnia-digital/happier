@@ -5560,6 +5560,16 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
         conflict: { title: '草稿衝突', description: '此欄位已在其他裝置上變更。', mine: '此裝置', synced: '已同步', useSynced: '使用同步版本', keepDevice: '保留裝置版本', copyMine: '複製我的版本', copied: '已複製', copyFailed: '無法複製', field: { text: '文字', mentions: '提及', attachments: '附件', recipient: '收件者', agentContinuation: '代理延續', executionRunDelivery: '執行傳送' } },
     },
     sessionsList: {
+        statusOrganization: {
+            groupTitle: '分組依據',
+            agentGroup: '依代理狀態分組',
+            ticketGroup: '依工單狀態分組',
+            agentSort: '依代理狀態排序',
+            ticketSort: '依工單狀態排序',
+            restoreGrouping: '使用已儲存的版面配置',
+            description: '取代電腦和儲存庫分組。置頂工作階段維持獨立，各資料夾內依狀態分組。保留已儲存的版面配置和手動順序。',
+            noTicket: '無工單',
+        },
         serverHeader: ({ server }: { server: string }) => `伺服器：${server}`,
         storagePersistedTab: 'Happier',
         storageDirectTab: '直接',

@@ -7,6 +7,24 @@ const link: SessionTicketAssociationV1 = { v: 1, ticket: { v: 1, provider: 'line
 const snapshot = { ticket: link.ticket, status: { name: 'Q/A - Dev', order: 3 }, fetchedAt: 1 };
 
 describe('one ticket demand owner before and after row visibility', () => {
+    it('bounds a large candidate set to one live MCP read per configured reader/source and drops retired queued work', async () => {
+        const finish: Array<(value: unknown) => void> = [];
+        const read = vi.fn(() => new Promise(resolve => finish.push(resolve)));
+        const owner = createSessionTicketStatusOwner(read, async (_context, action) => { action(); return true; });
+        const leases = Array.from({ length: 40 }, (_, index) => owner.retain(context, { ...link, ticket: { ...link.ticket, ticketId: 'uuid-' + index, key: 'DEV-' + index, url: 'https://linear.app/fixture/issue/DEV-' + index } }));
+        const reads = leases.map(lease => lease.entry.refresh());
+        await Promise.resolve();
+        expect(read).toHaveBeenCalledTimes(1);
+        // Preserve one queued consumer; every other retired row must skip its transport entirely.
+        leases.forEach((lease, index) => { if (index !== 1) lease.release(); });
+        finish[0]({ ...snapshot, ticket: { ...link.ticket, ticketId: 'uuid-0' } });
+        await vi.waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+        finish[1]({ ...snapshot, ticket: { ...link.ticket, ticketId: 'uuid-1' } });
+        await Promise.all(reads);
+        expect(read).toHaveBeenCalledTimes(2);
+        expect(leases[1].entry.getSnapshot().snapshot?.status.name).toBe('Q/A - Dev');
+        leases[1].release();
+    });
     it('shares a retained list read with later row/header subscribers and releases only the last demand', async () => {
         const read = vi.fn(async () => snapshot);
         const owner = createSessionTicketStatusOwner(read, async (_context, action) => { action(); return true; });
@@ -27,6 +45,7 @@ describe('one ticket demand owner before and after row visibility', () => {
         const owner = createSessionTicketStatusOwner(read, commit);
         const first = owner.retain(context, link); const second = owner.retain(context, link);
         const pending = first.entry.refresh(); void second.entry.refresh();
+        await Promise.resolve();
         expect(read).toHaveBeenCalledOnce();
         expect(owner.retain({ ...context, targetAccountId: 'other' }, link).entry).not.toBe(first.entry);
         expect(owner.retain({ ...context, targetServerUrl: 'http://other.local' }, link).entry).not.toBe(first.entry);
