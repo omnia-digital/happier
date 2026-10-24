@@ -163,6 +163,11 @@ exit 1
                     expect(parseSessionRuntimeActivityProjectionFields(await readServerRow(sessionId))).toMatchObject({
                         kind: 'valid', projection: { state: 'idle', activeCount: 0 },
                     });
+                    if (sessionId === merged) {
+                        await gotoDomContentLoadedWithRetries(page, `${baseUrl}/session/${sessionId}/info`, 120_000);
+                        await expect(page.getByTestId('session-info-header-status')).toHaveText('online', { timeout: 120_000 });
+                        await page.screenshot({ path: testInfo.outputPath('oh52-live-idle-status.png') });
+                    }
                     // Match the real CLI clean-close path. A bare disconnect intentionally loses
                     // idle evidence and cannot stand in for an acknowledged completed session.
                     const closed = SessionRuntimeActivityCloseAckSchema.parse(await socket.emitWithAck(SESSION_RUNTIME_ACTIVITY_CLOSE_EVENT, { sessionId }));

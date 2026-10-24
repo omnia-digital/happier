@@ -1015,7 +1015,7 @@ function SessionInfoContent({ session, sessionServerId, sourceMachineIdForHandof
                         }}>
                             {sessionName}
                         </Text>
-                        <View testID="session-info-header-status" style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+                        {!isArchivedSession && <View testID="session-info-header-status" style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
                             <StatusDot
                                 color={sessionStatus.statusDotColor}
                                 isPulsing={sessionStatus.isPulsing}
@@ -1030,7 +1030,7 @@ function SessionInfoContent({ session, sessionServerId, sourceMachineIdForHandof
                             }}>
                                 {sessionStatus.statusText}
                             </Text>
-                        </View>
+                        </View>}
                     </View>
                 </View>
 
