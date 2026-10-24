@@ -19,6 +19,34 @@ vi.mock('react-native-unistyles', async () => {
 afterEach(() => { standardCleanup(); vi.useRealTimers(); rpc.mockReset(); });
 
 describe('machine monitoring real store and rendered leaf', () => {
+    it('keeps metric availability in the compact summary and reveals presence and full readings on expansion', async () => {
+        const previous = storage.getState();
+        const serverId = getActiveServerId();
+        const machine = createMachineFixture({ id: 'compact-unsupported-host', activeAt: Date.now() });
+        storage.setState({ isDataReady: true, profileScope: { serverId, accountId: 'compact-metrics-account' },
+            machines: { [machine.id]: machine }, machineListByServerId: { [serverId]: [machine] } });
+        rpc.mockResolvedValue({ ok: false, error: { code: 'unsupported-capability', message: 'unsupported' } });
+        let screen: Awaited<ReturnType<typeof renderScreen>> | undefined;
+        try {
+            screen = await renderScreen(<MachineMonitoringSection />);
+            const buttonId = `machine-monitoring-${machine.id}-details`;
+            expect(screen.findByTestId(buttonId)!.props.accessibilityState.expanded).toBe(false);
+            expect(screen.getTextContent()).not.toMatch(/\bOnline\b/i);
+            expect(screen.getTextContent()).toContain('does not support host metrics');
+            expect(screen.findByTestId(buttonId)!.props.accessibilityLabel).toMatch(/\bonline\b/i);
+            expect(screen.getTextContent()).not.toContain('Storage capacity used, not I/O');
+            await screen.pressByTestIdAsync(buttonId);
+            expect(screen.findByTestId(buttonId)!.props.accessibilityState.expanded).toBe(true);
+            expect(screen.getTextContent()).toContain('Storage capacity used, not I/O');
+            expect(screen.getTextContent()).toMatch(/\bonline\b/i);
+            for (const metric of ['CPU', 'MEM', 'GPU', 'Storage used', 'LA 1/5/15m']) {
+                expect(screen.findByTestId(buttonId)!.props.accessibilityLabel).toContain(`${metric} —`);
+            }
+            await screen.pressByTestIdAsync(buttonId);
+            expect(screen.findByTestId(buttonId)!.props.accessibilityState.expanded).toBe(false);
+            expect(screen.getTextContent()).not.toContain('Storage capacity used, not I/O');
+        } finally { await screen?.unmount(); storage.setState(previous, true); }
+    });
     it('renders each available GPU percentage and expands its actual device identity, including measured zero', async () => {
         const previous = storage.getState();
         const serverId = getActiveServerId();

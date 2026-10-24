@@ -18,6 +18,7 @@ import { gotoDomContentLoadedWithRetries, normalizeLoopbackBaseUrl } from '../..
 import { waitForInitialAppUi } from '../../src/testkit/uiE2e/waitForInitialAppUi';
 import { createPlainSession, resolveCanonicalServerIdForUi } from '../../src/testkit/uiE2e/sessionFoldersDrag';
 import { collectBrowserDiagnostics, appendBrowserDiagnostics } from '../../src/testkit/uiE2e/browserDiagnostics';
+import { mutateUiE2eLocalSettings } from '../../src/testkit/uiE2e/localSettingsStorage';
 
 const run = createRunDirs({ runLabel: 'ui-e2e-oh59-machine-monitoring' });
 const LOCAL = 'oh59-actual-local-host';
@@ -172,6 +173,70 @@ test.describe('OH59 actual local collector through authenticated fixture machine
             await expect(page).toHaveURL(new RegExp(`/session/${selectedSessionId}`));
             await writeFile(join(suiteDir, 'machine-monitoring-measurements.json'), JSON.stringify({ actualHostCount: 1, transport: 'authenticated plain test machine socket; source collector; encrypted registry tested separately', samples }, null, 2));
             await testInfo.attach('machine-monitoring-measurements', { path: join(suiteDir, 'machine-monitoring-measurements.json'), contentType: 'application/json' });
+        } catch (error) { throw appendBrowserDiagnostics(error, diagnostics()); }
+    });
+
+    test('keeps compact machine rows on one line and expands full readings with pointer and keyboard', async ({ page }, testInfo) => {
+        const diagnostics = collectBrowserDiagnostics({ page });
+        try {
+            await page.setViewportSize({ width: 1440, height: 900 });
+            await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 300_000);
+            await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+            const button = page.getByTestId(`machine-monitoring-${LOCAL}-details`);
+            const readings = page.getByTestId(`machine-monitoring-${LOCAL}-readings`);
+            for (const [themePreference, uiFontScale, width] of [['light', 1, 1440], ['dark', 1, 1000], ['dark', 2, 1000]] as const) {
+                await mutateUiE2eLocalSettings({ page, settingsPatch: { themePreference, uiFontScale } });
+                await page.setViewportSize({ width, height: 900 });
+                await page.reload({ waitUntil: 'domcontentloaded' });
+                await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+                await expect(button).toHaveAttribute('aria-expanded', 'false');
+                await expect(button).toHaveAttribute('aria-label', /CPU \d+%/, { timeout: 120_000 });
+                await expect(readings).toHaveCount(0);
+                for (const machineId of [LOCAL, LEGACY]) {
+                    const row = page.getByTestId(`machine-monitoring-${machineId}-details`);
+                    const name = page.getByTestId(`machine-monitoring-${machineId}-name`);
+                    const summary = page.getByTestId(`machine-monitoring-${machineId}-summary`);
+                    const nameBox = await name.boundingBox();
+                    const summaryBox = await summary.boundingBox();
+                    expect(nameBox).not.toBeNull(); expect(summaryBox).not.toBeNull();
+                    expect(Math.abs(nameBox!.y + nameBox!.height / 2 - summaryBox!.y - summaryBox!.height / 2)).toBeLessThan(2);
+                    const geometry = await row.evaluate((element) => ({ width: element.clientWidth, scrollWidth: element.scrollWidth }));
+                    expect(geometry.width).toBeGreaterThan(0);
+                    expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.width + 1);
+                    for (const text of [name, summary]) {
+                        const line = await text.evaluate((element) => ({ height: element.clientHeight, fontSize: parseFloat(getComputedStyle(element).fontSize) }));
+                        expect(line.height).toBeLessThan(line.fontSize * 2);
+                    }
+                }
+                await expect(page.getByTestId(`machine-monitoring-${LEGACY}-summary`)).toContainText('does not support host metrics');
+                await expect(page.getByTestId(`machine-monitoring-${LEGACY}-details`)).toHaveAttribute('aria-label', /online.*does not support host metrics/);
+                await page.screenshot({ path: join(suiteDir, `compact-${themePreference}-${uiFontScale}.png`) });
+                await button.focus();
+                await page.keyboard.press('Enter');
+                await expect(button).toHaveAttribute('aria-expanded', 'true');
+                await expect(button).toBeFocused();
+                await expect(readings).toContainText('Local Mac · actual host');
+                for (const metric of ['CPU', 'MEM', 'GPU', 'Storage used', 'LA 1/5/15m']) await expect(readings).toContainText(metric);
+                await expect(readings).toContainText('Storage capacity used, not I/O');
+                await expect(readings).toContainText('Volume:');
+                const detailOverflow = await readings.evaluate((element) => ({ width: element.clientWidth, scrollWidth: element.scrollWidth }));
+                expect(detailOverflow.scrollWidth).toBeLessThanOrEqual(detailOverflow.width + 1);
+                const volume = readings.getByText(/^Volume:/);
+                await volume.scrollIntoViewIfNeeded();
+                await expect(volume).toBeInViewport({ ratio: 1 });
+                await page.screenshot({ path: join(suiteDir, `expanded-${themePreference}-${uiFontScale}.png`) });
+                await button.scrollIntoViewIfNeeded();
+                await button.focus();
+                await page.keyboard.press('Space');
+                await expect(button).toHaveAttribute('aria-expanded', 'false');
+                await expect(readings).toHaveCount(0);
+                await button.click();
+                await expect(readings).toBeVisible();
+                await button.click();
+                await expect(readings).toHaveCount(0);
+            }
+            await testInfo.attach('compact-dark-large-text', { path: join(suiteDir, 'compact-dark-2.png'), contentType: 'image/png' });
+            await testInfo.attach('expanded-dark-large-text', { path: join(suiteDir, 'expanded-dark-2.png'), contentType: 'image/png' });
         } catch (error) { throw appendBrowserDiagnostics(error, diagnostics()); }
     });
 

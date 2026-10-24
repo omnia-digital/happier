@@ -13,6 +13,7 @@ import { t } from '@/text';
 import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import { formatByteSize } from '@/utils/files/formatByteSize';
 import { useNowMs } from '@/hooks/time/useNowMs';
+import { PressableSurface } from '@/components/ui/interaction/PressableSurface';
 
 type Metric = { status: 'available'; usagePercent: number } | { status: 'unavailable'; reason: string };
 const percent = (value: number) => `${Math.round(value)}%`;
@@ -80,19 +81,23 @@ const MachineMonitoringRow = React.memo(function MachineMonitoringRow({ serverId
         `${t('machineMonitoring.storage')} ${value(snapshot?.storage)}`,
         `${t('machineMonitoring.load')} ${loadValues}`,
     ];
+    const readingState = [entry.status !== 'ready' || entry.refreshing || !online ? stateLabel : null, stale ? t('machineMonitoring.stale') : null].filter(Boolean).join(' · ');
     return <View style={styles.machine} testID={`machine-monitoring-${machineId}`}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${name}. ${stateLabel}. ${metrics.join('. ')}${stale ? `. ${t('machineMonitoring.stale')}` : ''}`}
-            accessibilityState={{ expanded }} onPress={() => setExpanded((previous) => !previous)} testID={`machine-monitoring-${machineId}-details`}>
-            <View style={styles.identity}>
-                <MachineDisplayGlyph serverId={serverId} machineId={machineId} size={14} color={theme.colors.text.secondary} />
-                <Text style={styles.name} numberOfLines={1}>{name}</Text>
-                <Text style={styles.secondary}>{online ? t('status.online') : t('status.offline')}</Text>
-            </View>
+        <PressableSurface accessibilityRole="button" accessibilityLabel={`${name}. ${online ? t('status.online') : t('status.offline')}. ${stateLabel}. ${metrics.join('. ')}${stale ? `. ${t('machineMonitoring.stale')}` : ''}`}
+            accessibilityState={{ expanded }} onPress={() => setExpanded((previous) => !previous)} testID={`machine-monitoring-${machineId}-details`}
+            style={styles.summary} focusRingPlacement="inside">
+            <MachineDisplayGlyph serverId={serverId} machineId={machineId} size={14} color={theme.colors.text.secondary} />
+            <Text style={styles.name} numberOfLines={1} testID={`machine-monitoring-${machineId}-name`}>{name}</Text>
+            <Text style={styles.summaryReadings} numberOfLines={1} testID={`machine-monitoring-${machineId}-summary`}>
+                {[readingState, ...metrics].filter(Boolean).join(' · ')}
+            </Text>
+            <Icon name={expanded ? 'caret-down' : 'caret-right'} size={14} color={theme.colors.text.secondary} />
+        </PressableSurface>
+        {expanded ? <View style={styles.details} testID={`machine-monitoring-${machineId}-readings`}>
+            <Text style={styles.expandedName}>{name}</Text>
+            <Text style={styles.secondary}>{online ? t('status.online') : t('status.offline')}</Text>
+            {readingState ? <Text style={styles.secondary}>{readingState}</Text> : null}
             <View style={styles.metrics}>{metrics.map((label, index) => <Text key={index} style={styles.metric}>{label}</Text>)}</View>
-            {stale ? <Text style={styles.secondary}>{t('machineMonitoring.stale')}</Text> : null}
-            {entry.status !== 'ready' || entry.refreshing ? <Text style={styles.secondary}>{stateLabel}</Text> : null}
-        </Pressable>
-        {expanded ? <View style={styles.details}>
             <Text style={styles.secondary}>{t('machineMonitoring.cpuDefinition')} {snapshot?.cpu.status === 'available' ? `${(snapshot.cpu.sampleMs / 1000).toFixed(2)} s` : unavailableReason(snapshot?.cpu)}</Text>
             <Text style={styles.secondary}>{t('machineMonitoring.memoryDefinition')} {snapshot?.memory.status === 'available'
                 ? `${formatByteSize(snapshot.memory.usedBytes)} / ${formatByteSize(snapshot.memory.totalBytes)}` : unavailableReason(snapshot?.memory)}</Text>
@@ -115,9 +120,11 @@ const styles = StyleSheet.create((theme) => ({
     title: { ...Typography.default('semiBold'), color: theme.colors.text.secondary },
     rows: { flexShrink: 1 },
     rowsContent: { gap: 10 },
-    machine: { gap: 6 },
-    identity: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 28 },
-    name: { flex: 1, ...Typography.default('semiBold'), color: theme.colors.text.primary },
+    machine: { minWidth: 0 },
+    summary: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 48, paddingHorizontal: 4 },
+    name: { flex: 1, minWidth: 0, ...Typography.default('semiBold'), color: theme.colors.text.primary },
+    summaryReadings: { flex: 2, minWidth: 0, ...Typography.mono(), color: theme.colors.text.secondary },
+    expandedName: { ...Typography.default('semiBold'), color: theme.colors.text.primary },
     metrics: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 2 },
     metric: { ...Typography.mono(), color: theme.colors.text.secondary },
     secondary: { ...Typography.default(), color: theme.colors.text.secondary },
