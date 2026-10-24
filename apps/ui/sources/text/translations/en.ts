@@ -7899,7 +7899,7 @@ export const en = {
 settingsSession: {
     archiveAutomation: {
         title: 'Archive automation',
-        footer: 'These choices sync with this Home account. Auto-archive checks run while Happier is open. Local cleanup needs host support; remote branches stay. Unarchiving cannot restore removed local resources.',
+        footer: 'These choices sync with this Home account. While Happier is open, auto-archive checks run about every 5 minutes. Local cleanup needs host support; remote branches stay. Unarchiving cannot restore removed local resources.',
         autoArchiveTitle: 'Archive after linked PRs merge',
         autoArchiveSubtitle: 'Archive inactive sessions only when every linked PR is freshly verified merged.',
         cleanupTitle: 'Clean up local resources after archive',

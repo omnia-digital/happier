@@ -7021,7 +7021,7 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
 settingsSession: {
     archiveAutomation: {
         title: '自動封存',
-        footer: '這些選項會與目前的 Home 帳戶同步。只有在 Happier 開啟時才會自動檢查。本機清理需要主機支援；遠端分支會保留。取消封存無法復原已移除的本機資源。',
+        footer: '這些選項會與目前的 Home 帳戶同步。Happier 開啟時約每 5 分鐘自動檢查一次。本機清理需要主機支援；遠端分支會保留。取消封存無法復原已移除的本機資源。',
         autoArchiveTitle: '關聯 PR 合併後封存',
         autoArchiveSubtitle: '只有在最新驗證確認所有關聯 PR 均已合併時，才封存非使用中的工作階段。',
         cleanupTitle: '封存後清理本機資源',

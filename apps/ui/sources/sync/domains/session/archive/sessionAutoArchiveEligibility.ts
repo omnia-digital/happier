@@ -31,8 +31,9 @@ export function assessSessionAutoArchiveCandidate(input: Readonly<{
     if (session.accessLevel !== 'admin' && (!input.accountId || session.owner !== input.accountId)) return skip('work_unverified');
     if (session.active !== false || typeof session.presence !== 'number' || !Number.isFinite(session.presence)
         || session.thinking !== false || session.pendingCount !== 0 || session.pendingBlockedCount !== 0
-        || session.runtimeActivityState !== 'idle' || session.runtimeActivityActiveCount != null && session.runtimeActivityActiveCount !== 0
-        || session.hasPendingPermissionRequests === true || session.hasPendingUserActionRequests === true
+        || session.runtimeActivityState !== 'idle' || session.runtimeActivityActiveCount !== 0
+        || session.latestTurnStatus === 'in_progress' || session.pendingActivationAuthorization != null
+        || session.hasPendingPermissionRequests !== false || session.hasPendingUserActionRequests !== false
         || session.metadata.agentActivityCounts?.live !== 0) return skip('work_unverified');
     return { eligible: true, reason: 'ready' };
 }

@@ -7864,7 +7864,7 @@ deps: {
 settingsSession: {
     archiveAutomation: {
         title: 'Arxivament automàtic',
-        footer: 'Aquestes opcions se sincronitzen amb aquest compte Home. La comprovació automàtica funciona mentre Happier és obert. La neteja local necessita suport de la màquina; les branques remotes es conserven. Desarxivar no restaura els recursos locals eliminats.',
+        footer: 'Aquestes opcions se sincronitzen amb aquest compte Home. Mentre Happier és obert, la comprovació automàtica es fa aproximadament cada 5 minuts. La neteja local necessita suport de la màquina; les branques remotes es conserven. Desarxivar no restaura els recursos locals eliminats.',
         autoArchiveTitle: 'Arxiva després de fusionar les PR vinculades',
         autoArchiveSubtitle: 'Arxiva sessions inactives només quan totes les PR vinculades es verifiquen com a fusionades.',
         cleanupTitle: 'Neteja els recursos locals després d’arxivar',

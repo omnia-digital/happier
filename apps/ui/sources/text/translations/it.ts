@@ -8641,7 +8641,7 @@ export const it: TranslationStructure = {
 settingsSession: {
     archiveAutomation: {
         title: 'Archiviazione automatica',
-        footer: 'Queste scelte si sincronizzano con questo account Home. Il controllo automatico viene eseguito mentre Happier è aperto. La pulizia locale richiede il supporto dell’host; i branch remoti restano. Il ripristino dall’archivio non recupera le risorse locali rimosse.',
+        footer: 'Queste scelte si sincronizzano con questo account Home. Mentre Happier è aperto, il controllo automatico avviene circa ogni 5 minuti. La pulizia locale richiede il supporto dell’host; i branch remoti restano. Il ripristino dall’archivio non recupera le risorse locali rimosse.',
         autoArchiveTitle: 'Archivia dopo il merge delle PR collegate',
         autoArchiveSubtitle: 'Archivia le sessioni inattive solo quando tutte le PR collegate risultano unite da una verifica recente.',
         cleanupTitle: 'Pulisci le risorse locali dopo l’archiviazione',

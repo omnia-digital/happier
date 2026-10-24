@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
+const metadataPatch = vi.hoisted(() => vi.fn());
+vi.mock('@/sync/runtime/getSyncSingleton', () => ({ getSyncSingleton: () => ({ patchSessionMetadataWithRetry: metadataPatch }) }));
 
 import { createDeferred, createSessionFixture, renderHook } from '@/dev/testkit';
 import { act } from 'react-test-renderer';
@@ -13,6 +15,7 @@ import { archiveSessionWithPendingState } from '@/components/sessions/sessionSto
 import { useVisibleSessionListViewData } from '@/hooks/session/useVisibleSessionListViewData';
 import { useResolvedActiveServerSelection } from '@/hooks/server/useEffectiveServerSelection';
 import { buildSessionListViewDataForRenderableState } from '@/sync/store/domains/sessionListRenderableCommit';
+import { afterSessionArchiveConfirmed } from '../sessions';
 
 const sessionId = 'same_session_id';
 const response = (archivedAt: number | null) => new Response(JSON.stringify({ success: true, archivedAt }));
@@ -56,6 +59,7 @@ describe('server-scoped session archive operations', () => {
     }
 
     beforeEach(() => {
+        metadataPatch.mockReset();
         storage.setState(storage.getInitialState(), true);
         serverA = upsertServerProfile({ serverUrl: 'https://archive-a.example' });
         serverB = upsertServerProfile({ serverUrl: 'https://archive-b.example' });
@@ -197,5 +201,24 @@ describe('server-scoped session archive operations', () => {
         activeResponse.mockResolvedValueOnce(new Response(JSON.stringify({ error: 'session-active' }), { status: 409 }));
         await expect(sessionArchiveWithServerScope(sessionId)).resolves.toMatchObject({ success: false, code: 'session_active' });
         expect(storage.getState().sessions[sessionId]).toBe(before);
+    });
+
+    it('runs the shared post-success seam for a manual archive without writing an automatic reason', async () => {
+        await expect(sessionArchiveWithServerScope(sessionId, { serverId: serverA.id }))
+            .resolves.toMatchObject({ success: true, archivedAt: 42 });
+        expect(metadataPatch).not.toHaveBeenCalled();
+    });
+
+    it('cannot read a same-id active session as proof of a foreign account archive reason', async () => {
+        storage.setState({ profileScope: { serverId: serverA.id, accountId: 'account-a' } });
+        const result = await afterSessionArchiveConfirmed({
+            sessionId, serverId: serverB.id, archivedAt: 42,
+            autoArchiveReason: { accountId: 'account-a', links: [{
+                providerKind: 'github', providerBaseUrl: 'https://github.com', repository: 'owner/repo',
+                number: 7, url: 'https://github.com/owner/repo/pull/7',
+            }], shouldContinue: () => true },
+        });
+        expect(result).toMatchObject({ historyRecorded: false, code: 'archive_reason_not_recorded' });
+        expect(metadataPatch).not.toHaveBeenCalled();
     });
 });
