@@ -39,10 +39,7 @@ import {
 } from './row/sessionRowTitleColorRole';
 import { resolveSessionRowAttentionStateColor } from './row/sessionRowAttentionColors';
 import {
-    SESSION_LIST_ROW_HEIGHT_COMPACT,
     SESSION_LIST_ROW_HEIGHT_DEFAULT,
-    SESSION_LIST_ROW_HEIGHT_MINIMAL,
-    SESSION_LIST_ROW_HEIGHT_MINIMAL_NATIVE_PHONE,
 } from './sessionListRowHeights';
 import {
     SESSION_LIST_ROW_CORNER_RADIUS,
@@ -50,6 +47,7 @@ import {
     SESSION_LIST_ROW_IDENTITY_METRICS,
     SESSION_LIST_ROW_STATUS_TEXT_METRICS,
     SESSION_LIST_ROW_TITLE_TEXT_METRICS,
+    resolveSessionListRowHeight,
     shouldUseReadableNativePhoneMinimalSessionRow,
 } from './sessionListRowDensity';
 import { planSessionTagDisplay } from './sessionTagPlacement';
@@ -280,15 +278,10 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderBottomColor: theme.colors.border.default,
     },
     sessionItemCompact: {
-        height: SESSION_LIST_ROW_HEIGHT_COMPACT,
         paddingHorizontal: 13,
     },
     sessionItemMinimal: {
-        height: SESSION_LIST_ROW_HEIGHT_MINIMAL,
         paddingHorizontal: 8,
-    },
-    sessionItemMinimalNativePhone: {
-        height: SESSION_LIST_ROW_HEIGHT_MINIMAL_NATIVE_PHONE,
     },
     sessionItemSelected: {
         backgroundColor: theme.colors.surface.selected,
@@ -863,11 +856,21 @@ const SessionItemContent = React.memo(
         const isWeb = Platform.OS === 'web';
         const isNativeMobile = Platform.OS === 'ios' || Platform.OS === 'android';
         const isTablet = useIsTablet();
+        const uiItemDensity = useLocalSetting('uiItemDensity');
+        const uiFontScale = useLocalSetting('uiFontScale');
         const useReadableNativePhoneMinimalRow = shouldUseReadableNativePhoneMinimalSessionRow({
             compact: Boolean(compact),
             compactMinimal: Boolean(compactMinimal),
             isTablet,
             platform: Platform.OS,
+        });
+        const sessionListRowHeight = resolveSessionListRowHeight({
+            compact: Boolean(compact),
+            compactMinimal: Boolean(compactMinimal),
+            isTablet,
+            platform: Platform.OS,
+            itemDensity: uiItemDensity,
+            fontScale: uiFontScale,
         });
         const showRowActions = isWeb && (isRowHovered || isRowFocused || isActionsHovered || tagMenuOpen || moreMenuOpen || isBeingDragged === true);
         const rowActionIconColor = theme.colors.text.secondary;
@@ -1497,9 +1500,9 @@ const SessionItemContent = React.memo(
                     isLast ? styles.sessionItemLast : null,
                     compact ? styles.sessionItemCompact : null,
                     isMinimal ? styles.sessionItemMinimal : null,
-                    useReadableNativePhoneMinimalRow ? styles.sessionItemMinimalNativePhone : null,
                     selected || rowSelection.isSelected ? styles.sessionItemSelected : null,
                     embedded && !embeddedIsLast ? styles.embeddedSeparator : null,
+                    { height: sessionListRowHeight },
                 ]}
                 onPress={handleRowPress}
                 // @ts-expect-error - react-native types do not model the web context-menu event; RN Web supports onContextMenu.

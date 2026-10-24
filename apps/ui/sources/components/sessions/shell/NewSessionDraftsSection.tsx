@@ -2,6 +2,7 @@ import * as React from 'react';
 import { Platform, Pressable, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { useLocalSetting } from '@/sync/domains/state/storage';
 
 import { AgentIcon } from '@/agents/registry/AgentIcon';
 import { getAgentPickerIconScale } from '@/agents/catalog/catalog';
@@ -87,6 +88,8 @@ const NewSessionDraftRow = React.memo(function NewSessionDraftRow(props: Readonl
     const { theme } = useUnistyles();
     const styles = stylesheet;
     const isTablet = useIsTablet();
+    const appItemDensity = useLocalSetting('uiItemDensity');
+    const appFontScale = useLocalSetting('uiFontScale');
     const presentation = buildNewSessionDraftRowPresentation(props.draft, props.names);
     const draftId = props.draft.draftId;
     const status = presentation.statusKey ? t(presentation.statusKey) : null;
@@ -109,6 +112,8 @@ const NewSessionDraftRow = React.memo(function NewSessionDraftRow(props: Readonl
         compactMinimal,
         isTablet,
         platform: Platform.OS,
+        itemDensity: appItemDensity,
+        fontScale: appFontScale,
     });
     const titleTextMetrics = resolveSessionListRowTitleTextMetrics({
         density: props.density,

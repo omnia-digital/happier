@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { renderScreen, standardCleanup } from '@/dev/testkit';
 import type { SessionStatus } from '@/utils/sessions/sessionUtils';
+import type { LocalSettings } from '@/sync/domains/settings/localSettings';
 import { createSessionItemTestRowModel, installSessionShellCommonModuleMocks } from './sessionShellTestHelpers';
 import { SessionListSelectionProvider, useSessionListSelectionActions } from './selection/SessionListSelectionContext';
 
@@ -71,7 +72,7 @@ installSessionShellCommonModuleMocks({
         });
         return {
             ...base,
-            useLocalSetting: ((key: string) => Object.prototype.hasOwnProperty.call(localPresentationSettings.current, key)
+            useLocalSetting: ((key: keyof LocalSettings) => Object.prototype.hasOwnProperty.call(localPresentationSettings.current, key)
                 ? localPresentationSettings.current[key]
                 : base.useLocalSetting(key)) as typeof base.useLocalSetting,
             useMachineDisplayIcon: ((serverId?: string | null, machineId?: string | null) =>
@@ -178,7 +179,9 @@ describe('SessionItem machine identity', () => {
             const screen = await renderMachineRow(false, false, { density: 'compact' });
             const style = screen.findByTestId(`session-list-item-${SESSION_ID}`)?.props.style;
             const flattened = Array.isArray(style) ? style.flat(Infinity) : [style];
-            const height = flattened.find((entry: any) => typeof entry?.height === 'number')?.height;
+            const height = flattened.reduce((lastHeight: number | undefined, entry: any) => (
+                typeof entry?.height === 'number' ? entry.height : lastHeight
+            ), undefined);
             await screen.unmount();
             return height;
         };
