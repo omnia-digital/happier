@@ -106,8 +106,10 @@ export function applyAccountSettingsCompatibilityMigrations<TSettings extends Re
 
     if (!Object.prototype.hasOwnProperty.call(input, 'transcriptMessageTimestampDisplayMode')) {
         const legacyTimestampsEnabled = z.boolean().safeParse(input.transcriptMessageTimestampsEnabled);
-        if (legacyTimestampsEnabled.success && legacyTimestampsEnabled.data === true) {
-            next.transcriptMessageTimestampDisplayMode = 'always';
+        if (legacyTimestampsEnabled.success) {
+            next.transcriptMessageTimestampDisplayMode = legacyTimestampsEnabled.data
+                ? 'always'
+                : 'hover_web_hidden_mobile';
         }
     } else if (!(TRANSCRIPT_MESSAGE_TIMESTAMP_DISPLAY_MODE_VALUES as readonly unknown[]).includes(next.transcriptMessageTimestampDisplayMode)) {
         next.transcriptMessageTimestampDisplayMode = 'hover_web_hidden_mobile';

@@ -40,6 +40,10 @@ export function MessageActionRow(props: Readonly<{
             {hasTimestamp ? (
                 <Text
                     testID={`transcript-message-timestamp:${props.messageId}`}
+                    accessibilityRole="text"
+                    accessibilityLabel={props.timestampText}
+                    title={props.timestampText}
+                    tabIndex={props.isWeb ? 0 : undefined}
                     style={[
                         styles.timestampText,
                         props.invertTimestampAndActions ? styles.timestampTextInverted : null,
