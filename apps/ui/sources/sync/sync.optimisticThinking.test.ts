@@ -4,6 +4,8 @@ import { renderHook, standardCleanup } from '@/dev/testkit';
 import { scopedSessionLocalStateKey } from '@/sync/domains/state/sessionLocalStateKeys';
 import type { ManagedEndpointSupervisor } from '@happier-dev/connection-supervisor';
 import { createSocketIoAckTimeoutError } from '@/sync/runtime/socketIoAckTimeout';
+import type { MessageAckResponse } from '@happier-dev/protocol/updates';
+import type { SyncMessageTransport } from './sync';
 
 type EndpointSupervisorLookup = typeof import('@/sync/runtime/connectivity/endpointSupervisorPool').getEndpointSupervisorForServer;
 type EndpointSupervisorAcquire = typeof import('@/sync/runtime/connectivity/endpointSupervisorPool').acquireEndpointSupervisor;
@@ -416,15 +418,18 @@ describe('sync.sendMessage optimistic thinking', () => {
         const { sync } = await import('./sync');
         sync.encryption = encryption;
         vi.spyOn(apiSocket, 'sessionRPC').mockRejectedValue(createRpcMethodNotAvailableError());
+        const ack: MessageAckResponse = {
+            ok: true,
+            id: 'm-stored-time',
+            seq: 1,
+            localId: 'local-stored-time',
+            createdAt: storedCreatedAt,
+            didWrite: true,
+        };
+        // The generic socket boundary returns the one ACK shape this test requests.
+        const emitWithAck: SyncMessageTransport['emitWithAck'] = async <T>() => ack as T;
         sync.setMessageTransport({
-            emitWithAck: vi.fn(async () => ({
-                ok: true,
-                id: 'm-stored-time',
-                seq: 1,
-                localId: 'local-stored-time',
-                createdAt: storedCreatedAt,
-                didWrite: true,
-            })) as any,
+            emitWithAck,
             send: vi.fn(),
         });
 
