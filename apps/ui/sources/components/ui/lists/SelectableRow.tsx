@@ -30,6 +30,8 @@ export type SelectableRowVariant = 'slim' | 'default' | 'selectable';
 export type SelectableRowProps = Readonly<{
     testID?: string;
     title: React.ReactNode;
+    /** Zero allows the full title to wrap within the available row width. */
+    titleLines?: number;
     subtitle?: React.ReactNode;
     left?: React.ReactNode;
     right?: React.ReactNode;
@@ -226,7 +228,7 @@ export function SelectableRow(props: SelectableRowProps) {
             ) : null}
 
             <View style={styles.content}>
-                <Text style={[styles.title, titleVariantStyle, titleColorStyle, props.titleStyle]} numberOfLines={1}>
+                <Text style={[styles.title, titleVariantStyle, titleColorStyle, props.titleStyle]} numberOfLines={props.titleLines ?? 1}>
                     {props.title}
                 </Text>
                 {props.subtitle ? (

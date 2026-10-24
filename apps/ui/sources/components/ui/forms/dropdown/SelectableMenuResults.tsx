@@ -206,6 +206,7 @@ export function SelectableMenuResults(props: {
                             rowRole="menu"
                             testID={optionTestID}
                             title={item.title}
+                            titleLines={0}
                             subtitle={item.subtitleNode ?? item.subtitle}
                             icon={item.left}
                             rightElement={item.right}
@@ -229,6 +230,7 @@ export function SelectableMenuResults(props: {
                             leftGap={item.leftGap}
                             right={item.right}
                             title={item.titleNode ?? item.title}
+                            titleLines={0}
                             subtitle={item.subtitleNode ?? item.subtitle}
                             containerStyle={item.rowContainerStyle}
                             titleStyle={item.rowTitleStyle}

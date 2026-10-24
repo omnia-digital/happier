@@ -1908,10 +1908,9 @@ const SessionItemContent = React.memo(
                                     items={moreMenuItems}
                                     openSubmenuId={shortcutSubmenuId}
                                     onSelect={handleMoreMenuSelect}
-                                    placement="left"
+                                    placement="auto-horizontal"
                                     variant="slim"
                                     matchTriggerWidth={false}
-                                    maxWidthCap={220}
                                     showCategoryTitles={false}
                                     popoverPortalWebTarget="body"
                                     trigger={({ toggle }) => (
