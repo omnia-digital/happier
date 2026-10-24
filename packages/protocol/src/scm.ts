@@ -154,6 +154,8 @@ export const ScmWorktreeSchema = z.object({
   branch: z.string().nullable(),
   isCurrent: z.boolean(),
   isMain: z.boolean().optional(),
+  isLocked: z.boolean().optional(),
+  isPrunable: z.boolean().optional(),
   /**
    * Total working-tree changes (modified + added + deleted + untracked).
    * Optional for back-compat with older SCM backends.
