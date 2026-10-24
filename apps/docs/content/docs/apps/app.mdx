@@ -44,6 +44,37 @@ adjusts the saved placement to the connected displays when restoring it.
 
 For detailed Relay profile, switching, and multi-daemon guidance, see [Features → Multi-server](/accounts/multi-server).
 
+## Session sidebar views
+
+<Callout type="info">
+  These list views and repository associations are available in the unreleased
+  Omnia development fork. They are not a stable-release announcement. Isolated
+  browser checks pass; native two-machine and restart acceptance is still pending.
+</Callout>
+
+Open the session list's **View options** menu and choose **Original layout**,
+**Group by machine**, or **Group by repository**. Machine grouping helps you find
+what is running on each computer. Repository grouping brings matching checkouts
+together across machines while retaining each session's real machine and path.
+
+Selecting **Group by repository** discovers repository information through the
+connected machines. Use **Refresh repositories** after remotes or checkouts
+change. Restoring the saved view does not start another scan. If a machine cannot
+be reached, existing associations remain available; retry Refresh when it reconnects.
+Repositories with matching folder names alone are kept separate.
+
+For a local checkout or remote alias that cannot be matched automatically, open
+the repository group's **… → Associate repository**, choose the checkout, then
+select an existing group or **New repository group**. Choose **Use automatic
+repository** to remove that checkout's manual choice. The view and associations
+are saved on this device.
+
+Choose **Custom order** to drag sessions into your preferred sequence, including
+between checkouts in one repository group. The order is saved through the relay's
+organization settings; switching views preserves their separate orders. Reordering
+does not move a session to another machine, folder or checkout. Repository header
+actions ask you to choose the real checkout when more than one is available.
+
 ## Notifications
 
 Happier supports push notifications for:

@@ -32,6 +32,22 @@ Independent review confirmed the final positive file bytes, actual agent history
 
 ### Launch only the forked Mac UI
 
+The unreleased OH-55 source now gives stable macOS bundles the display name
+**Omnia Happier** and development/testing bundles **(Dev) Omnia - Happier**.
+Development artwork uses a blue mark with an amber D badge; stable keeps the dark
+mark. Canonical variant configuration feeds both bundle artwork and runtime Dock
+icon selection, including stack launch/build paths. Stack-specific filenames and
+storage identities remain separate. The currently running app has not been
+rebuilt or renamed during source work.
+
+At `e82069c4f0`/`3046bbe80b`, author checks pass 37 Node cases and one compiled
+Rust Dock test; root independently passes 19 Node checks and reads the expected
+display names and distinct IDs from three isolated macOS bundle artifacts. Those
+artifacts use a pre-change executable to test metadata and icons. Native Dock,
+Finder, app-switcher and side-by-side relaunch acceptance remains pending; these
+checks do not establish a signed installer, new loaded runtime or daily-use
+cutover. OH-5 still owns fork bundle registration, signing and update identities.
+
 From this checkout, use the existing repo-local launcher against the hosted relay:
 
 ```sh
@@ -54,7 +70,7 @@ OH-6 now owns the hosted UI-only acceptance gate. OH-14 through OH-19 follow tha
 
 The feature branch contains development previews. A running window requires a coherent source reload before testing newly pushed changes; source checks do not prove its loaded bundle or native acceptance.
 
-Use the sidebar view menu to choose the original layout or group by machine (OH-14). Machine view, search, collapse and exact order roundtrips passed native QA. Broader cross-machine project/repository grouping and custom ordering remain open. OH-19 shows machine identity in normal and Pinned rows by default; the local Preferences switch hides row identity while the session detail header keeps its independent host information. Native toggle/reload/restart and compact layout checks passed. OH-48 empty Active-header correction also passed native pin/unpin, folder-collapse and reload checks.
+Use the sidebar view menu to choose Original layout, Group by machine, or the unreleased Group by repository (OH-14). Machine view, search, collapse and exact order roundtrips passed native QA. Repository source now passes root 24 deciding checks and the isolated Chrome flow at `1d7e1d4060`: explicit discovery/Refresh, matching and separate repositories, cross-machine A/B/A2 drag, saved ranks, view/reload, and manual association/reset persistence. Native two-machine/restart acceptance remains open. [App guidance](../apps/docs/content/docs/apps/app.mdx#session-sidebar-views) explains the controls and local association choices. OH-19 shows machine identity in normal and Pinned rows by default; the local Preferences switch hides row identity while the session detail header keeps its independent host information. Native toggle/reload/restart and compact layout checks passed. OH-48 empty Active-header correction also passed native pin/unpin, folder-collapse and reload checks.
 
 OH-17 adds macOS Command+1 through Command+9 for visible sessions and held-Command number hints. Keyboard shortcuts V2 must be enabled; individual commands are available in Keyboard shortcuts settings for disabling or rebinding. Those settings are account-scoped. The generated [keyboard reference](../apps/docs/content/docs/apps/keyboard-shortcuts.mdx) includes the numbered commands and macOS availability. Settings, guards, hint lifecycle and reference generation pass source tests; Josh explicitly deferred native navigation/hotkey acceptance.
 
@@ -62,7 +78,7 @@ OH-18 adds A on an eligible hovered session, even when another session is select
 
 OH-47 adds display-label Rename, local desktop/laptop/cloud/terminal icon choices, Automatic/Blue/Purple/Red icon colors and Reset in machine detail through `270b230f62`. Labels use existing synced metadata; icons/colors stay on this device, keyed by relay and machine. Automatic preserves the existing foreground; chosen colors affect only the machine glyph. Rows, machine groups, headers, settings and concrete machine pickers/context chips share that owner. Inbox replacement-machine and approval relay-scope corrections are independently verified; final color tests cover real local save/load, scope isolation, reset success/failure/pending interaction and built-in-theme contrast. Integrated UI typecheck passes. Native customization/reset/restart persistence is pending; separate label visibility/card placement remains OH-54.
 
-OH-46 (`1b93cf17b5`) clarifies Folder order in the sidebar and Session Settings. Date sorting always puts folders first; both choices explain that Custom order is required to change it. Switching back to Custom restores the saved choice. Mixed order is arranged by dragging within a project or folder in Original layout; machine view preserves order but does not offer structural dragging. Focused/adjacent tests, independent deciding replay and typecheck pass. Native folder/session ordering and restart acceptance remain pending.
+OH-46 (`1b93cf17b5`) clarifies Folder order in the sidebar and Session Settings. Date sorting always puts folders first; both choices explain that Custom order is required to change it. Switching back to Custom restores the saved choice. Mixed order is arranged by dragging within a project or folder in Original layout or Group by repository; machine view preserves order but does not offer structural dragging. Focused/adjacent tests, independent deciding replay and typecheck pass. Native folder/session ordering and restart acceptance remain pending.
 
 OH-15 is implemented through `0ed0585e79` on the setup feature branch. Desktop/web session right-click opens the same dropdown as the three-dot button without navigating. Actual native QA compared all ten action IDs/labels/order, exercised selected and unselected rows, dismissed with Escape, and renamed only the right-clicked scratch session before restoring its title. Full reload with Fast Refresh disabled loaded the change. The four relevant test files pass (23 tests), UI typecheck passes, and independent review reran those tests with no material findings (`/tmp/happier-oh15-review-tests.log`). Restricted shared-row availability is host-tested; no suitable hosted view-only QA fixture was available for live testing. Exact keyboard-origin focus return was not observed. This feature is pushed for development; it is not merged or distributed as a release.
 
