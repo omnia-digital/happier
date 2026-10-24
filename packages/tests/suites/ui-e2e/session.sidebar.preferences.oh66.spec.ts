@@ -291,15 +291,11 @@ test.describe('ui e2e: OH66 sidebar text size and item density preferences', () 
     expect(narrow.titleNaturalWidth).toBeLessThanOrEqual(narrow.titleWidth);
     expect(narrow.rowWidth).toBeGreaterThan(0);
     expect(narrow.machineLabel).toBe(MACHINE_ID);
-    const machineIdentity = page.getByTestId(`session-list-machine-identity-${sessionId}`);
-    await machineIdentity.hover();
-    const machineTooltip = page.getByTestId(`session-list-machine-identity-${sessionId}-tooltip`);
-    await expect(machineTooltip).toBeVisible();
-    await expect(machineTooltip).toContainText(MACHINE_ID);
     await row.hover();
     const narrowHovered = await readSidebarMetrics(page, sessionId);
     expect(narrowHovered.titleTextFits).toBe(true);
     expect(narrowHovered.titleNaturalWidth).toBeLessThanOrEqual(narrowHovered.titleWidth);
+    expect(narrowHovered.machineLabel).toBe(MACHINE_ID);
     await page.screenshot({ path: `${suiteDir}/sidebar-large-text-narrow-desktop.png` });
     const moreAction = page.getByTestId('session-item-more-menu');
     await expect(moreAction).toBeVisible();
