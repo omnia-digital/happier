@@ -37,7 +37,6 @@ type SidebarMetrics = Readonly<{
   sidebarHeaderColor: string;
   titleFits: boolean;
   titleTextFits: boolean;
-  machineTextFits: boolean;
 }>;
 
 async function readSidebarMetrics(page: Page, sessionId: string): Promise<SidebarMetrics> {
