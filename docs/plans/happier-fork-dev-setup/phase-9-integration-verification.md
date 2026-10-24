@@ -46,7 +46,11 @@ Source review accepts the Mac collector and lifecycle recovery. Router assessmen
 
 ## Next source lanes
 
-Actual Sol/high now owns OH-60 through the existing status/organization owners and [phase-8](phase-8-status-organization.md). [OH-52 discovery and cleanup constraints](phase-10-archive-automation.md) prepare the next bounded source investigation; no real archive/deletion or provider state change is implied.
+Actual Sol/high continues OH-60 through the existing status/organization owners and [phase-8](phase-8-status-organization.md). Metadata recovery `e48cf42d9b` passes author62 plus UI/tests types, including metadata-first hydration joined by a real route request without losing message demand. Root advisory review requires stable identity-set demand and the canonical concurrent-Home cache path before accepting bulk foreign metadata hydration. Chrome r4's all-rendered web row policy invalidated its DOM-absence setup assertion; the original r3 product failure remains recorded, with one failed Sol / zero failed Astra.
+
+OH-52 source slice1 through `f8b50926ef` is accepted at its bounded source boundary: final normal-tracing Chrome-r4 passes1/1 in1.9min, encrypted add/change/remove/reload assertions and both compact images independently inspected. Root independently passes UI20 and final GitHub case-alias protocol4/CLI1/UI2 delta. Diagnostic trace-on teardown failures remain separate evidence. Router assessment VERIFY Sol/high retains zero formal failed review cycles; this does not complete the full issue. Real provider authentication/read RPC, archive automation and safe cleanup remain open under [phase-10](phase-10-archive-automation.md); no actual archive/deletion or provider change is implied.
+
+OH-4 browser-build correction `fa79cbb6e4` tracks shared runtime bytes and preserves both export/Metro errors. Independent checks and one affected OH-59 GPU browser replay follow [phase-12](phase-12-browser-build-reliability.md). OH-5 source release ownership through `c80443d75e` is under review, with Cargo found outside PATH and focused Rust compilation running. No native installation, release, provider or daily-service action is authorized by these source checks.
 
 ## Parent maintenance
 
