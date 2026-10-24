@@ -92,10 +92,10 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await page.getByText('status-organization', { exact: true }).click();
             // Preserve the user's collapsed original project while the fixture is seeded offline.
             await page.goto('about:blank');
-            const idle = await seed('OH60 QA idle', 1);
+            const idle = await seed('OH60 QA idle status compare', 1);
             const working = await seed('OH60 QA working', 2);
-            const testing = await seed('OH60 Testing', 3);
-            const production = await seed('OH60 Production', 4);
+            const testing = await seed('OH60 Testing status compare', 3);
+            const production = await seed('OH60 Production status compare', 4);
             const unavailable = await seed('OH60 Unavailable', 5);
             for (let index = 0; index < 32; index++) await seed('OH60 unlinked filler ' + index);
             const publish = async (sessionId: string) => {
@@ -133,6 +133,14 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
                 id: node.getAttribute('data-testid')!.slice('session-list-item-'.length), rect: node.getBoundingClientRect(),
             })).filter(row => row.rect.width > 0 && row.rect.height > 0).sort((left, right) => left.rect.top - right.rect.top).map(row => row.id));
             const position = async (id: string) => (await visibleIds()).indexOf(id);
+            const expectFilteredOrder = async (query: string, firstId: string, secondId: string) => {
+                await page.getByTestId('session-list-search-trigger').first().click();
+                await page.getByTestId('session-list-search-input').first().fill(query);
+                await expect(row(firstId)).toBeVisible();
+                await expect(row(secondId)).toBeVisible();
+                await expect.poll(async () => (await position(firstId)) < (await position(secondId))).toBe(true);
+                await page.getByTestId('session-list-search-clear').first().click();
+            };
             await expect(page.getByTestId('session-list-ordering-menu-trigger').first()).toBeVisible({ timeout: 120_000 });
             await expect(row(noTicket)).toBeVisible();
             await expect(page.getByText('Pinned', { exact: true })).toBeVisible();
@@ -145,11 +153,11 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             expect((await readFile(readLog, 'utf8')).split('\n')).toContain('DEV-1');
             await publishRuntimeActivity(workingPublisher, working, 'active');
             await choose('session-list-status-sort-agent');
-            await expect.poll(async () => (await position(working)) < (await position(idle))).toBe(true);
+            await expectFilteredOrder('OH60 QA', working, idle);
             await expect(page.getByTestId('session-row-status-' + working + '-working')).toBeVisible({ timeout: 60_000 });
             const statusHeaders = page.locator('[data-testid^="session-list-header:status-view:"]:visible');
             await expect(statusHeaders.filter({ hasText: 'Q/A - Dev' }).first()).toContainText('linear · fixture · delivery');
-            await expect.poll(async () => (await position(testing)) < (await position(production))).toBe(true);
+            await expectFilteredOrder('status compare', testing, production);
             await expect(page.getByText('Status unavailable', { exact: true }).first()).toBeVisible();
             // Actual settings owner persisted only the override; the saved Created choice survives.
             await expect.poll(async () => (await readUiE2eScopedAccountSettings({ page })).sessionListStatusSortV1).toBe('agent');
@@ -176,7 +184,7 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await page.getByTestId('session-list-search-clear').first().click();
             await expect(page).toHaveURL(new RegExp('/session/' + idle));
             await choose('session-list-status-sort-ticket');
-            await expect.poll(async () => (await position(testing)) < (await position(production))).toBe(true);
+            await expectFilteredOrder('status compare', testing, production);
             await choose('session-list-status-group-none');
             await expect(statusHeaders).toHaveCount(0);
             await choose('session-list-status-group-ticket');
@@ -188,7 +196,7 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await page.getByTestId('session-ticket-refresh').click();
             await expect(page.getByTestId('session-ticket-header-status')).toContainText('Ready for Prod', { timeout: 60_000 });
             await expect(page).toHaveURL(new RegExp('/session/' + idle));
-            await expect.poll(async () => (await position(testing)) < (await position(idle))).toBe(true);
+            await expectFilteredOrder('status compare', testing, idle);
             // Keyboard navigation follows the new visible row order after the selected row moves.
             const ordered = await visibleIds(); const next = ordered[ordered.indexOf(idle) + 1];
             if (!next) throw new Error('Expected a next visible fixture session');
