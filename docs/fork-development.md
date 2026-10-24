@@ -93,10 +93,21 @@ Current external-write policy allows Linear planning and git pushes to the task'
 - `origin`: `https://github.com/omnia-digital/happier.git`
 - `upstream`: `https://github.com/happier-dev/happier.git`
 - Development base and PR target: `dev`.
-- Setup branch: `chore/happier-fork-dev-setup`.
-- Local checkout: `/Users/Josh/Developer/Projects/Omnia/apps/happier`.
+- Permanent development checkout: `/Users/Josh/Developer/Projects/Omnia/apps/happier-dev`, always on `dev`.
+- Permanent stable checkout: `/Users/Josh/Developer/Projects/Omnia/apps/happier-production`, always on protected `production`.
 
-Create ticket-named feature branches from the fork's current `origin/dev`. Commit and push completed steps, including their plan documents. Review upstream changes on a feature branch and merge through a PR into the fork's `dev`; do not automatically overwrite fork changes. Use `preview` for a tested release candidate and promote through the repository's branch model when release automation is ready. A fast-moving upstream `dev` snapshot is not a stable daily-use release.
+Create ticket-named feature worktrees from the permanent dev clone at the fork's
+current `origin/dev`. Commit and push completed steps and open PRs targeting
+`dev`. After a task is merged and its local data/processes are safely handled,
+remove its worktree. Nightly promotion moves tested `dev` into `production`;
+the stable checkout accepts only guarded updates from GitHub. See the
+[canonical checkout and release workflow](fork-production.md) for commands.
+
+The old `happier` directory and `chore/happier-fork-dev-setup` branch are temporary
+migration state, not another permanent development repo. Preserve their existing
+work until it has been integrated through PRs and their active runtimes have moved;
+start new tasks in worktrees owned by `happier-dev`. Review upstream changes in a
+task worktree too, preserving fork functionality and targeting `dev` through a PR.
 
 The full clone includes upstream history; fetch updates without changing the working tree:
 
@@ -135,7 +146,7 @@ At initial setup the Mac had approximately 9 GiB free after cloning. Dependency 
 
 ## Daily source workflow
 
-Once storage and toolchains are ready, run from the repository root:
+Once storage and toolchains are ready, run from the task worktree's root:
 
 ```sh
 yarn install --frozen-lockfile

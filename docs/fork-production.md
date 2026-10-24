@@ -15,13 +15,20 @@ relay, installed CLI and daemon remain the existing daily services.
 | --- | --- | --- |
 | `/Users/Josh/Developer/Projects/Omnia/apps/happier-dev` | `dev` | Integration baseline and starting point for feature worktrees |
 | `/Users/Josh/Developer/Projects/Omnia/apps/happier-production` | `production` | Pull-only daily-use source |
-| `/Users/Josh/Developer/Projects/Omnia/apps/happier` | Existing feature branch | Preserved existing development and running stack |
 
-The first two are independent clones. Production never shares a Git directory,
-working source, or a mutable `node_modules` symlink with development. The existing
-feature checkout is preserved until its work is integrated; do not switch it or
-delete it during setup. A branch name alone does not certify its starting commit
-as a tested release.
+These are the only two permanent clones. Production never shares a Git directory,
+working source, or a mutable `node_modules` symlink with development. Task
+directories are temporary linked worktrees owned by `happier-dev`; neither
+permanent checkout is a feature branch. A branch name alone does not certify its
+starting commit as a tested release.
+
+The old `/Users/Josh/Developer/Projects/Omnia/apps/happier` checkout is temporary
+migration state. Its `chore/happier-fork-dev-setup` branch accumulated feature work
+that was absent from the first GitHub `dev`/`production` release. Reconcile that
+committed work through a PR into `dev`; do not call a release feature-complete
+until its source contains the intended changes. Existing active and unpublished
+work, linked worktrees, and running stacks still need preservation/migration
+before this old checkout can be removed. Start no new tasks there.
 
 Create ticket-named worktrees through the existing Stack owner, from `happier-dev`:
 
@@ -29,6 +36,14 @@ Create ticket-named worktrees through the existing Stack owner, from `happier-de
 git pull --ff-only origin dev
 node apps/stack/scripts/repo_local.mjs wt new OH-123-description --from=origin --base=origin/dev --deps=none
 ```
+
+Implement and validate in that task worktree, commit and push its branch, and open
+the PR with `--base dev`. After merge, fast-forward the clean `happier-dev`
+checkout. Verify all task work is pushed and merged and no process, unsaved work,
+or valuable ignored data depends on its directory before removing it through the
+existing worktree cleanup tools. Do not use forced removal to discard unfinished
+work. The nightly workflow then promotes tested `dev` source to `production`;
+update the protected clone only through the helper below.
 
 Use an explicitly named stack for concurrent feature runtimes. Linked worktrees
 can share the repo-local stack identity; the permanent production clone has its
