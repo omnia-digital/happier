@@ -69,6 +69,7 @@ function createReminderPresetItem(
         id: SESSION_ATTENTION_REMINDER_CURRENT_ID,
         title: formatSessionAttentionReminderDateTime(reminder.remindAt, nowMs),
         rightElement: check,
+        disabled: true,
     }] : [];
     return {
         id: SESSION_ATTENTION_REMINDER_MENU_ID,

@@ -248,6 +248,31 @@ describe('SessionsList numbered shortcuts', () => {
         await act(async () => { finishArchive?.(); });
     });
 
+    it('does not archive the selected row after hover and focus leave, while other menu commands retain selected fallback', async () => {
+        routeState.pathname = '/session/s3';
+        listViewData.items = [sessionRow('s3')];
+        const { SessionsListContent } = await import('./SessionsList');
+        const screen = await renderScreen(<SessionsListContent data={listViewData.items} />);
+        const row = screen.root.findByType('SessionItem' as any);
+        const execute = vi.fn(async () => undefined);
+        await act(async () => {
+            row.props.onShortcutTargetChange('server_a:s3', {
+                target: { sessionId: 's3', serverId: 'server_a', canArchive: true, isArchived: false },
+                items: [
+                    { id: 'ui.session.archive', title: 'Archive' },
+                    { id: 'ui.session.rename', title: 'Rename' },
+                ],
+                execute,
+                mutating: false,
+            });
+        });
+        expect(keyboardState.handlers?.['session.hovered.archive']?.()).toBe(false);
+        expect(execute).not.toHaveBeenCalled();
+        expect(keyboardState.handlers?.['session.menu.rename']?.()).toBe(true);
+        await act(async () => undefined);
+        expect(execute).toHaveBeenCalledWith('ui.session.rename', undefined);
+    });
+
     it('clears hovered Archive on leave, scroll, missing projection and inactive surface', async () => {
         const { SessionsListContent } = await import('./SessionsList');
         const screen = await renderScreen(<SessionsListContent data={listViewData.items} />);

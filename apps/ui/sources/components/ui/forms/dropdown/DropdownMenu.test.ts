@@ -107,6 +107,23 @@ describe('DropdownMenu', () => {
         vi.unstubAllGlobals();
     });
 
+    it('opens a requested submenu through its registered menu row anchor', async () => {
+        const { DropdownMenu } = await import('./DropdownMenu');
+        const onSelect = vi.fn();
+        const items = [{ id: 'reminder', title: 'Remind me', submenu: { items: [{ id: 'tomorrow', title: 'Tomorrow' }] } }];
+        const baseProps = { open: true, onOpenChange: vi.fn(), items, onSelect, trigger: React.createElement('View') };
+        const screen = await renderScreen(React.createElement(DropdownMenu, { ...baseProps, openSubmenuId: null }));
+        const results = screen.findByType('SelectableMenuResults' as any);
+        act(() => results?.props?.onRegisterSubmenuAnchor?.('reminder', {
+            current: { getBoundingClientRect: () => ({ width: 20, height: 20 }) },
+        }));
+        await act(async () => {
+            screen.tree.update(React.createElement(DropdownMenu, { ...baseProps, openSubmenuId: 'reminder' }));
+        });
+        expect(screen.findAllByType('Popover' as any)).toHaveLength(2);
+        expect(onSelect).not.toHaveBeenCalled();
+    });
+
     it('provides a toggle handler to the trigger and uses it to open/close', async () => {
         const { DropdownMenu } = await import('./DropdownMenu');
         const { Pressable, Text } = await import('react-native');

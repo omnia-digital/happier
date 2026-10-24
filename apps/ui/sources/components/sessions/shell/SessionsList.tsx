@@ -1637,7 +1637,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         ],
     );
     React.useEffect(() => {
-        hoveredArchiveTargetRef.current = null;
+        rowShortcutPresenceRef.current.hover = null;
     }, [focusedFolderId, searchQuery, selectedHeaderTags, surfaceOwnership.dataActive, surfaceOwnership.interactive]);
     const sessionListSelectionStore = useSessionListSelectionController({
         scopeKey: sessionListSelectionScopeKey,
@@ -1772,7 +1772,9 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         const selectedKey = selectedEntry ? `${selectedEntry.serverId ?? ''}:${selectedEntry.sessionId}` : null;
         const keys = presence.menu
             ? [presence.menu]
-            : [presence.hover, presence.focus, selectedKey];
+            : commandId === 'session.hovered.archive'
+                ? [presence.hover, presence.focus]
+                : [presence.hover, presence.focus, selectedKey];
         const key = keys.find((candidate) => candidate != null && rowShortcutTargetsRef.current.has(candidate));
         if (!key) return false;
         if (!renderedListItems.some((item) => item.type === 'session'

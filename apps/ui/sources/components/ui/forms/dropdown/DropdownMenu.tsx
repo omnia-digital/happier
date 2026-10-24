@@ -122,6 +122,8 @@ export type DropdownMenuProps = Readonly<{
      * If it points to a disabled item, it is ignored.
      */
     selectedId?: string | null;
+    /** Open an existing submenu when the menu is presented by a command rather than its row trigger. */
+    openSubmenuId?: string | null;
 
     /**
      * Visual style of rows:
@@ -380,7 +382,7 @@ export function DropdownMenu(props: DropdownMenuProps) {
     } = useSelectableMenu({
         items: selectableItems,
         onRequestClose,
-        initialSelectedId: props.selectedId ?? null,
+        initialSelectedId: props.openSubmenuId ?? props.selectedId ?? null,
         onCreateItem: props.onCreateItem ?? null,
         allowEmptySelection: props.allowEmptySelection ?? false,
         createItemFactory: createItemDisplay
@@ -450,6 +452,11 @@ export function DropdownMenu(props: DropdownMenuProps) {
         };
         retryWhenAnchorSettles(0);
     }, [props.items]);
+    React.useEffect(() => {
+        if (!props.open || !props.openSubmenuId) return;
+        const anchorRef = submenuAnchorRefs.current.get(props.openSubmenuId);
+        if (anchorRef) handleOpenSubmenu(props.openSubmenuId, anchorRef);
+    }, [handleOpenSubmenu, props.open, props.openSubmenuId]);
     const handleKeyDown = React.useCallback((e: any) => {
         if (Platform.OS !== 'web' || activeSubmenu || e?.defaultPrevented === true) return;
         const key = e?.nativeEvent?.key ?? e?.key;

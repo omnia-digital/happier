@@ -5,6 +5,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createDeferred, createSessionFixture, pressTestInstanceAsync, renderScreen, standardCleanup } from '@/dev/testkit';
 import { createSessionItemTestRowModel, installSessionShellCommonModuleMocks } from './sessionShellTestHelpers';
 import { SESSION_ACTION_ARCHIVE_ID } from '@/components/sessions/actions/sessionActionIds';
+import { SESSION_ATTENTION_REMINDER_MENU_ID } from './row/actionMenu/sessionAttentionReminderAction';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -15,6 +16,12 @@ vi.mock('react-native-reanimated', async () => {
     return { ...mock, default: { ...mock.default, View, Text, ScrollView }, View, Text, ScrollView };
 });
 vi.mock('react-native-gesture-handler', () => ({ Swipeable: 'Swipeable' }));
+vi.mock('@/components/ui/popover', () => ({
+    Popover: (props: any) => React.createElement('Popover', props,
+        typeof props.children === 'function'
+            ? props.children({ maxHeight: 240, maxWidth: 260, placement: 'left' })
+            : props.children),
+}));
 vi.mock('@/utils/sessions/sessionUtils', () => ({
     getSessionName: () => 'Session',
     getSessionSubtitle: () => 'Subtitle',
@@ -100,6 +107,31 @@ async function revealRowActions(screen: Awaited<ReturnType<typeof renderScreen>>
 }
 
 describe('SessionItem hover Archive action (web)', () => {
+    it('opens the existing reminder choices for its row shortcut', async () => {
+        const onShortcutTargetChange = vi.fn();
+        const session = createSessionFixture({ id: 'sess_reminder_shortcut', active: false, metadata: null });
+        const screen = await renderScreen(
+            <SessionItem session={session} serverId="server_reminder" selected={false}
+                isFirst isLast isSingle variant="default" compact={false} attentionStandingEnabled
+                onShortcutTargetChange={onShortcutTargetChange} />,
+        );
+        const registration = onShortcutTargetChange.mock.calls
+            .map((call) => call[1])
+            .find((value) => value?.items.some((item: { id: string }) => item.id === SESSION_ATTENTION_REMINDER_MENU_ID));
+        expect(registration).toBeTruthy();
+        const { Modal } = await import('@/modal');
+        vi.mocked(Modal.show).mockImplementationOnce((options) => {
+            options.onRequestClose?.();
+            return 'dismissed-reminder-modal';
+        });
+        await act(async () => registration.execute(SESSION_ATTENTION_REMINDER_MENU_ID));
+        expect(Modal.show).not.toHaveBeenCalled();
+        const { DropdownMenu } = await import('@/components/ui/forms/dropdown/DropdownMenu');
+        const reminderMenu = screen.findAllByType(DropdownMenu).find((item) => item.props.items
+            .some((choice: { id: string }) => choice.id === SESSION_ATTENTION_REMINDER_MENU_ID));
+        expect(reminderMenu?.props.open).toBe(true);
+        expect(reminderMenu?.props.openSubmenuId).toBe(SESSION_ATTENTION_REMINDER_MENU_ID);
+    });
     it('publishes only the eligible pointer-hovered target and clears it on leave and unmount', async () => {
         const onHoverArchiveTarget = vi.fn();
         const session = createSessionFixture({ id: 'sess_hover_target', active: false, metadata: null });

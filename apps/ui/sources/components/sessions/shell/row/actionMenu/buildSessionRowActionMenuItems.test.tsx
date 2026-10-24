@@ -223,6 +223,7 @@ describe('buildSessionRowMoreMenuItems', () => {
 
         expect(reminder?.submenu?.items[0]?.id).toBe('attention-reminder:current');
         expect(reminder?.submenu?.items[0]?.rightElement).toBeDefined();
+        expect(reminder?.submenu?.items[0]?.disabled).toBe(true);
     });
 
     it('shows the registered shortcut beside every available command and keeps reminder choices keyboard reachable', () => {

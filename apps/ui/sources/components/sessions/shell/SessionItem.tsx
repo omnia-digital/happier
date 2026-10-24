@@ -56,7 +56,7 @@ import { planSessionTagDisplay } from './sessionTagPlacement';
 import { useIsTablet } from '@/utils/platform/responsive';
 import type { SessionStatus } from '@/utils/sessions/sessionUtils';
 import { useSessionRowActionMenu } from './row/actionMenu/useSessionRowActionMenu';
-import { formatSessionAttentionReminderDateTime } from './row/actionMenu/sessionAttentionReminderAction';
+import { formatSessionAttentionReminderDateTime, SESSION_ATTENTION_REMINDER_MENU_ID } from './row/actionMenu/sessionAttentionReminderAction';
 import { createSessionActionTarget } from '@/components/sessions/actions/sessionActionContext';
 import { executeSessionAction } from '@/components/sessions/actions/sessionActionExecution';
 import type { SessionActionTarget } from '@/components/sessions/actions/sessionActionTypes';
@@ -848,6 +848,7 @@ const SessionItemContent = React.memo(
         const [tagMenuOpen, setTagMenuOpen] = React.useState(false);
         const [tagMenuEverOpened, setTagMenuEverOpened] = React.useState(false);
         const [moreMenuOpen, setMoreMenuOpen] = React.useState(false);
+        const [shortcutSubmenuId, setShortcutSubmenuId] = React.useState<string | null>(null);
         const copyFeedback = useTemporaryCopyFeedback();
         const [rowWidth, setRowWidth] = React.useState<number | null>(null);
         const isWeb = Platform.OS === 'web';
@@ -1226,19 +1227,30 @@ const SessionItemContent = React.memo(
         });
 
         const hoverArchiveKey = `${sessionActionTarget.serverId ?? ''}:${sessionActionTarget.sessionId}`;
+        const handleShortcutExecute = React.useCallback(async (
+            itemId: string,
+            options?: Readonly<{ forceArchiveConfirmation?: boolean }>,
+        ) => {
+            if (itemId === SESSION_ATTENTION_REMINDER_MENU_ID) {
+                setShortcutSubmenuId(itemId);
+                if (isNativeMobile) setContextMenuOpen(true);
+                else setMoreMenuOpen(true);
+                return;
+            }
+            await (isNativeMobile ? handleContextMenuSelect : handleMoreMenuSelect)(itemId, options);
+        }, [handleContextMenuSelect, handleMoreMenuSelect, isNativeMobile, setContextMenuOpen]);
         React.useEffect(() => {
             if (!onShortcutTargetChange) return;
             onShortcutTargetChange(hoverArchiveKey, {
                 target: sessionActionTarget,
                 items: isNativeMobile ? contextMenuItems : moreMenuItems,
-                execute: isNativeMobile ? handleContextMenuSelect : handleMoreMenuSelect,
+                execute: handleShortcutExecute,
                 mutating: mutatingSession || openingSameSetup || sessionStatus.state === 'archiving',
             });
             return () => onShortcutTargetChange(hoverArchiveKey, null);
         }, [
             contextMenuItems,
-            handleContextMenuSelect,
-            handleMoreMenuSelect,
+            handleShortcutExecute,
             hoverArchiveKey,
             isNativeMobile,
             moreMenuItems,
@@ -1867,8 +1879,12 @@ const SessionItemContent = React.memo(
                             {moreMenuItems.length > 0 ? (
                                 <DropdownMenu
                                     open={moreMenuOpen}
-                                    onOpenChange={setMoreMenuOpen}
+                                    onOpenChange={(next) => {
+                                        setMoreMenuOpen(next);
+                                        if (!next) setShortcutSubmenuId(null);
+                                    }}
                                     items={moreMenuItems}
+                                    openSubmenuId={shortcutSubmenuId}
                                     onSelect={handleMoreMenuSelect}
                                     placement="left"
                                     variant="slim"
@@ -1965,9 +1981,13 @@ const SessionItemContent = React.memo(
                 {shouldRenderNativeContextMenu ? (
                     <ContextMenu
                         open={contextMenuOpen}
-                        onOpenChange={setContextMenuOpen}
+                        onOpenChange={(next) => {
+                            setContextMenuOpen(next);
+                            if (!next) setShortcutSubmenuId(null);
+                        }}
                         anchorRef={contextMenuAnchorRef}
                         items={contextMenuItems}
+                        openSubmenuId={shortcutSubmenuId}
                         onSelect={handleContextMenuSelect}
                         placement="auto"
                         variant="slim"
