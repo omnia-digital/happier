@@ -201,6 +201,10 @@ test.describe('ui e2e: OH66 sidebar text size and item density preferences', () 
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/settings/appearance?happier_hmr=0`, 180_000);
     await waitForInitialAppUi({ page, timeoutMs: 120_000 });
     await openTextSetting(page, 'Item Density', 'compact');
+    const settingBeforeHomeNavigation = await page.evaluate(() => {
+      const raw = window.localStorage.getItem('mmkv.default\\local-settings');
+      return raw ? JSON.parse(raw) as Record<string, unknown> : {};
+    });
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
     await expect(row).toHaveCount(1, { timeout: 120_000 });
     const compact = await readSidebarMetrics(page, sessionId);
@@ -208,7 +212,10 @@ test.describe('ui e2e: OH66 sidebar text size and item density preferences', () 
       rowStyle: document.querySelector<HTMLElement>(`[data-testid="session-list-item-${sessionId}"]`)?.getAttribute('style'),
       localSettings: window.localStorage.getItem('mmkv.default\\local-settings'),
     }), { sessionId });
-    expect(compact.rowHeight, JSON.stringify({ baseline, compact, compactState })).toBeLessThan(baseline.rowHeight);
+    expect(compactState.localSettings, JSON.stringify({ settingBeforeHomeNavigation, compactState }))
+      .toContain('"uiItemDensity":"compact"');
+    expect(compact.rowHeight, JSON.stringify({ baseline, compact, compactState }))
+      .toBeLessThan(baseline.rowHeight);
 
     await page.reload();
     await waitForInitialAppUi({ page, timeoutMs: 120_000 });
