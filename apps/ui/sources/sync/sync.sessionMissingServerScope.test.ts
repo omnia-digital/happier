@@ -978,7 +978,7 @@ describe('sync.fetchMessages server-scoped known-session checks', () => {
         let current = true;
         const { sync } = await import('./sync');
         (sync as any).encryption = { getSessionEncryption: () => ({ encryptMetadata: async () => { started.resolve(); return encrypted.promise; }, decryptMetadata: async () => null }) };
-        const operation = sync.patchSessionMetadataWithRetry(sessionId, (metadata) => ({ ...metadata, name: 'Ticket link' }), { serverId: 'captured-home', accountId: 'captured-account', shouldContinue: () => current } as any);
+        const operation = sync.patchSessionMetadataWithRetry(sessionId, (metadata) => ({ ...metadata, name: 'Ticket link' }), { serverId: 'captured-home', accountId: 'captured-account', shouldContinue: () => current });
         await started.promise;
         current = false;
         encrypted.resolve('ciphertext');
@@ -993,7 +993,7 @@ describe('sync.fetchMessages server-scoped known-session checks', () => {
         emitSessionMetadataUpdateWithServerScopeMock.mockResolvedValueOnce({ result: 'success' });
         const shouldContinue = () => true;
         const { sync } = await import('./sync');
-        await sync.patchSessionMetadataWithRetry(sessionId, (metadata) => ({ ...metadata, name: 'Ticket link' }), { serverId: 'captured-home', accountId: 'captured-account', shouldContinue } as any);
+        await sync.patchSessionMetadataWithRetry(sessionId, (metadata) => ({ ...metadata, name: 'Ticket link' }), { serverId: 'captured-home', accountId: 'captured-account', shouldContinue });
         expect(emitSessionMetadataUpdateWithServerScopeMock).toHaveBeenCalledWith(expect.objectContaining({ serverId: 'captured-home', accountId: 'captured-account', shouldContinue }));
     });
 

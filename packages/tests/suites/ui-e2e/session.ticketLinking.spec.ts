@@ -115,6 +115,18 @@ test.describe('session ticket link/read/status via isolated opt-in reader', () =
             await page.getByTestId('session-ticket-refresh').click();
             await expect(page.getByTestId('session-ticket-header-status')).toContainText('Stale', { timeout: 60_000 });
             await page.mouse.move(380, 800);
+            const visibleQualifier = await page.getByTestId('session-ticket-header-status').evaluate((node) => {
+                const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+                let text: Node | null;
+                while ((text = walker.nextNode())) {
+                    if (!text.textContent?.startsWith('Stale')) continue;
+                    const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, 'Stale'.length);
+                    const qualifier = range.getBoundingClientRect(); const bounds = node.getBoundingClientRect();
+                    return qualifier.width > 0 && qualifier.left >= bounds.left && qualifier.right <= bounds.right;
+                }
+                return false;
+            });
+            expect(visibleQualifier, 'the full stale qualifier must remain inside the compact badge clipping boundary').toBe(true);
             await page.screenshot({ path: testInfo.outputPath('oh58-compact-stale-verified.png') });
             await page.getByTestId('session-ticket-change').click();
             // A second real metadata writer changes the association while the editor is open.

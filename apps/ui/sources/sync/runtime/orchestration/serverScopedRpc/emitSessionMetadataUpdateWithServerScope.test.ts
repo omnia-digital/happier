@@ -34,7 +34,7 @@ describe('emitSessionMetadataUpdateWithServerScope', () => {
         let current = true;
         resolveContextSpy.mockImplementationOnce(async () => { current = false; return { scope: 'active', timeoutMs: 4000 }; });
         const { emitSessionMetadataUpdateWithServerScope } = await import('./emitSessionMetadataUpdateWithServerScope');
-        await expect(emitSessionMetadataUpdateWithServerScope({ sessionId: 's1', expectedVersion: 1, metadata: 'ciphertext', shouldContinue: () => current } as any)).rejects.toThrow('cancelled');
+        await expect(emitSessionMetadataUpdateWithServerScope({ sessionId: 's1', expectedVersion: 1, metadata: 'ciphertext', shouldContinue: () => current })).rejects.toThrow('cancelled');
         expect(emitWithAckSpy).not.toHaveBeenCalled();
     });
     it('does not emit after scoped socket connection retires the caller lifetime', async () => {
@@ -44,7 +44,7 @@ describe('emitSessionMetadataUpdateWithServerScope', () => {
         const disconnect = vi.fn();
         createSocketSpy.mockImplementationOnce(async () => { current = false; return { timeout: () => ({ emitWithAck }), disconnect }; });
         const { emitSessionMetadataUpdateWithServerScope } = await import('./emitSessionMetadataUpdateWithServerScope');
-        await expect(emitSessionMetadataUpdateWithServerScope({ sessionId: 's1', expectedVersion: 1, metadata: 'ciphertext', shouldContinue: () => current } as any)).rejects.toThrow('cancelled');
+        await expect(emitSessionMetadataUpdateWithServerScope({ sessionId: 's1', expectedVersion: 1, metadata: 'ciphertext', shouldContinue: () => current })).rejects.toThrow('cancelled');
         expect(emitWithAck).not.toHaveBeenCalled();
         expect(disconnect).toHaveBeenCalledOnce();
     });
@@ -53,7 +53,7 @@ describe('emitSessionMetadataUpdateWithServerScope', () => {
         resolveContextSpy.mockResolvedValueOnce({ scope: 'scoped', timeoutMs: 4000, targetServerId: 'home', targetServerUrl: 'https://home.test', targetAccountId: 'other', token: 'token' });
         createSocketSpy.mockResolvedValueOnce({ timeout: () => ({ emitWithAck: emitWithAckSpy }), disconnect: vi.fn() });
         const { emitSessionMetadataUpdateWithServerScope } = await import('./emitSessionMetadataUpdateWithServerScope');
-        await expect(emitSessionMetadataUpdateWithServerScope({ sessionId: 's1', expectedVersion: 1, metadata: 'ciphertext', accountId: 'captured' } as any)).rejects.toThrow('cancelled');
+        await expect(emitSessionMetadataUpdateWithServerScope({ sessionId: 's1', expectedVersion: 1, metadata: 'ciphertext', accountId: 'captured' })).rejects.toThrow('cancelled');
         expect(emitWithAckSpy).not.toHaveBeenCalled();
     });
     afterEach(() => {

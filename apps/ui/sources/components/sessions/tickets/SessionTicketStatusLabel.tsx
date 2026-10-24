@@ -11,7 +11,8 @@ export function SessionTicketStatusLabel({ ticket, state, testID }: { ticket: Se
     const anchorRef = React.useRef<View | null>(null);
     const statusName = state.snapshot?.status.name ?? (state.phase === 'loading' ? t('sessionTickets.loading') : t('sessionTickets.unavailable'));
     const qualifier = state.phase === 'stale' ? t('sessionTickets.stale') : state.phase === 'loading' && state.snapshot ? t('sessionTickets.loading') : '';
-    const label = [statusName, qualifier].filter(Boolean).join(' · ');
+    // The freshness qualifier leads so truncating a long custom workflow name cannot hide it.
+    const label = [qualifier, statusName].filter(Boolean).join(' · ');
     const detail = [ticket.provider, ticket.key, state.snapshot?.ticket.title ?? ticket.title, label, state.error ? t(`sessionTickets.${state.error}`) : '', state.snapshot ? `${t('sessionTickets.verified')}: ${new Date(state.snapshot.fetchedAt).toLocaleString()}` : ''].filter(Boolean).join(' · ');
     return <View ref={anchorRef} style={styles.label} testID={testID} accessible accessibilityLabel={detail}
         tabIndex={Platform.OS === 'web' ? 0 : undefined}

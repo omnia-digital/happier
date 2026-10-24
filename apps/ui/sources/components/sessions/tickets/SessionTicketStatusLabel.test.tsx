@@ -17,6 +17,7 @@ describe('ticket workflow label', () => {
         expect(label?.props.accessibilityLabel).toContain('Q/A - Development / Approval');
         expect(label?.props.accessibilityLabel).toContain(ticket.title);
         expect(screen.getTextContent().toLowerCase()).toContain('stale');
+        expect(screen.getTextContent()).toMatch(/^Stale · Q\/A/);
         await screen.update(<SessionTicketStatusLabel ticket={ticket} state={{ ...state, phase: 'ready', error: null }} testID="ticket" />);
         expect(screen.getTextContent()).toContain('Q/A - Development / Approval');
         expect(screen.getTextContent().toLowerCase()).not.toContain('stale');
