@@ -204,7 +204,11 @@ test.describe('ui e2e: OH66 sidebar text size and item density preferences', () 
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
     await expect(row).toHaveCount(1, { timeout: 120_000 });
     const compact = await readSidebarMetrics(page, sessionId);
-    expect(compact.rowHeight).toBeLessThan(baseline.rowHeight);
+    const compactState = await page.evaluate(({ sessionId }) => ({
+      rowStyle: document.querySelector<HTMLElement>(`[data-testid="session-list-item-${sessionId}"]`)?.getAttribute('style'),
+      localSettings: window.localStorage.getItem('mmkv.default\\local-settings'),
+    }), { sessionId });
+    expect(compact.rowHeight, JSON.stringify({ baseline, compact, compactState })).toBeLessThan(baseline.rowHeight);
 
     await page.reload();
     await waitForInitialAppUi({ page, timeoutMs: 120_000 });
