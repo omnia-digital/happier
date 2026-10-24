@@ -10,11 +10,11 @@ const gitlab: ScmHostingProvider = { kind: 'gitlab', name: 'GitLab', baseUrl: 'h
 
 describe('pull request provider field mapping', () => {
     it('preserves GitHub REST and gh draft and head SHA, without inventing absent proof', () => {
-        const rest = { number: 3, title: 'PR', html_url: 'https://github.com/owner/repo/pull/3', state: 'closed', merged_at: '2026-01-01', base: { ref: 'main' }, head: { ref: 'topic', sha }, draft: true };
-        expect(mapGithubPullRequest(github, rest)).toMatchObject({ state: 'merged', draft: true, headSha: sha });
-        const gh = { number: 3, title: 'PR', url: rest.html_url, state: 'OPEN', baseRefName: 'main', headRefName: 'topic', isDraft: false, headRefOid: sha };
-        expect(mapGithubPullRequest(github, gh)).toMatchObject({ state: 'open', draft: false, headSha: sha });
-        expect(mapGithubPullRequest(github, { ...gh, isDraft: undefined, headRefOid: undefined })).not.toHaveProperty('headSha');
+        const rest = { number: 3, title: 'PR', html_url: 'https://github.com/owner/repo/pull/3', state: 'closed', merged_at: '2026-01-01', base: { ref: 'main' }, head: { ref: 'topic', sha, repo: { full_name: 'fork/repo' } }, draft: true };
+        expect(mapGithubPullRequest(github, rest)).toMatchObject({ state: 'merged', draft: true, headSha: sha, headRepository: 'fork/repo' });
+        const gh = { number: 3, title: 'PR', url: rest.html_url, state: 'OPEN', baseRefName: 'main', headRefName: 'topic', isDraft: false, headRefOid: sha, headRepository: { nameWithOwner: 'owner/repo' } };
+        expect(mapGithubPullRequest(github, gh)).toMatchObject({ state: 'open', draft: false, headSha: sha, headRepository: 'owner/repo' });
+        expect(mapGithubPullRequest(github, { ...gh, isDraft: undefined, headRefOid: undefined, headRepository: null })).not.toHaveProperty('headRepository');
     });
 
     it('preserves GitLab MR draft and head SHA only when supplied by glab', () => {

@@ -41,6 +41,8 @@ export const ScmPullRequestSummarySchema = z.object({
   state: ScmPullRequestStateSchema,
   draft: z.boolean().optional(),
   headSha: z.string().regex(/^[0-9a-f]{40,64}$/i).optional(),
+  /** Provider-reported source repository, distinct from the PR's base repository. */
+  headRepository: z.string().min(3).optional(),
 });
 export type ScmPullRequestSummary = z.infer<typeof ScmPullRequestSummarySchema>;
 

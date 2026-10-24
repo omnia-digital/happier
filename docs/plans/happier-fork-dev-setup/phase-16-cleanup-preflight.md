@@ -15,9 +15,17 @@ The caller supplies only the claim's account, machine, active Home, release ring
 
 ## Status
 
-- [ ] 🔴 Source-owner and contract inventory; record actual limitations here before edits.
-- [ ] 🔴 Exact Git and publication read-only proof with disposable fixtures.
-- [ ] 🔴 Session/process visibility and per-resource decision shape, with honest unknown state.
+- [x] 🟢 Source-owner and contract inventory. Canonical Git identity/status/worktree parsers, PR get, durable claim and V2 session readers identified; no exhaustive host process or branch-protection owner exists in this corridor.
+- [ ] 🟡 Exact Git and publication read-only proof with disposable fixtures; normal/squash/rebase history matrix remains.
+- [ ] 🟡 Session/process visibility and per-resource decision shape. Fresh bound archived session plus both visible list scopes are read; other accounts/processes remain unknown and every resource stays skipped.
 - [ ] 🔴 Focused tests, types, source review, and pushed checkpoint for independent root review.
 
 Source3a custody was accepted through `1e5c2af051`; phase13 is the source map, not a cleanup authorization. Root owns Linear/tasks/phase9 and integration review. This source3b slice stops before any removal or capability execution.
+
+## Source observations during implementation
+
+- `repository.ts` now uses actual linked checkout identity, realpaths, NUL porcelain status with staged/modified/untracked/ignored paths, and canonical worktree registration. Locked and prunable tokens are preserved by the existing parser. A clean status is only an observation; no removal permission is produced.
+- `pullRequestOperations.ts` exact `get` rereads the provider and validates the linked PR identity. GitHub CLI's published `gh pr view --json` contract includes `headRepository` ([official field list](https://cli.github.com/manual/gh_pr_view)); REST has the source repository in `head.repo.full_name`. The canonical summary now preserves that optional field. An absent source repository, a fork source against the linked base repository, or GitLab payload without source identity skips. No provider registration or write is needed.
+- Publication checks the live remote source ref and symbolic default HEAD with `git ls-remote`, not a stale remote-tracking ref. The exact source repo must match fetch and push remote identity. Deleted source refs skip because the current summary has no immutable deleted-branch publication proof. The local branch HEAD is re-read around the provider/remote lookups; a later executor still has to revalidate at its mutation boundary.
+- `readHostWorktreeCleanupPreflight` reads only a bound claim under the supplied Home/server/ring/machine/nonce and the account returned by the authenticated server profile. It requires the fresh V2 session to be archived, inactive, and machine/Home/path-consistent. Ordinary and archived visible sessions are paged; missing metadata/cursor/requests are incomplete. Since other accounts, unrelated processes and branch protection are not exhaustively observable here, observed worktree and local-branch decisions are always skipped. This is source evidence, not a cleanup capability.
+- Focused CLI tests and CLI typecheck passed after the canonical protocol build and bundled workspace declaration sync. Tests use disposable bare-origin and linked-worktree resources; provider/server boundaries are fixtures. No daily app, provider, or real checkout was changed.
