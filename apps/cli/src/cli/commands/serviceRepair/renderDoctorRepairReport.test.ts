@@ -10,6 +10,7 @@ import type {
 } from '@/diagnostics/doctorRepair';
 
 import { renderDoctorRepairReport } from './renderDoctorRepairReport';
+import { renderBackgroundServices } from './sections/renderBackgroundServices';
 import { renderAuthentication } from './sections/renderAuthentication';
 import { warn } from '@happier-dev/cli-common/output';
 
@@ -217,6 +218,57 @@ describe('renderDoctorRepairReport — mismatched state', () => {
 });
 
 describe('renderDoctorRepairReport — card layout', () => {
+  const serviceDaemon: RunningDaemonEntry = {
+    serverId: 'cloud', pid: 4321, httpPort: 41800, startedBy: 'automatic-startup',
+    startedWithReleaseChannel: 'dev', startedWithCliVersion: '0.12.3',
+    matchesCurrentCli: true, staleStateFile: false,
+  };
+  const userService: AutomaticStartupEntry = {
+    ...entry, name: 'User startup', mode: 'user', running: true,
+    configuredCliVersion: '0.12.1', runningCliVersion: null,
+    path: '/home/me/.config/systemd/user/happier-daemon.default.service',
+    managedServerIds: ['cloud'],
+  };
+  const systemService: AutomaticStartupEntry = {
+    ...entry, name: 'System startup', mode: 'system', running: true,
+    configuredCliVersion: '0.12.2', runningCliVersion: null,
+    path: '/etc/systemd/system/happier-daemon.default.service',
+    managedServerIds: ['cloud'],
+  };
+
+  it('keeps a service-started daemon separate when user and system services both qualify', () => {
+    const out = renderBackgroundServices([userService, systemService], [serviceDaemon], []).join('\n');
+
+    expect(out).toMatch(/User startup.*0\.12\.1.*running/);
+    expect(out).toMatch(/System startup.*0\.12\.2.*running/);
+    expect(out.match(/pid 4321/g)).toHaveLength(1);
+    expect(out).toMatch(/cloud.*0\.12\.3.*running/);
+  });
+
+  it('joins the service-started daemon when its channel identifies one active service', () => {
+    const stableService: AutomaticStartupEntry = {
+      ...userService, name: 'Stable startup', releaseChannel: 'stable', ringId: 'stable',
+    };
+    const out = renderBackgroundServices([stableService, systemService], [serviceDaemon], []).join('\n');
+
+    expect(out).toMatch(/Stable startup.*0\.12\.1.*running/);
+    expect(out).toMatch(/System startup.*0\.12\.2.*running/);
+    expect(out).not.toMatch(/Stable startup[^\n]*\n[^\n]*pid 4321/);
+    expect(out).toMatch(/System startup[^\n]*\n[^\n]*pid 4321/);
+    expect(out).not.toMatch(/\n  [^\n]*cloud[^\n]*0\.12\.3/);
+  });
+
+  it.each([
+    ['foreign Home', { ...userService, happierHomeDir: '/opt/other', isForeignHome: true }],
+    ['stopped service', { ...userService, running: false }],
+  ])('does not join a %s to the current service daemon', (_case, excludedService) => {
+    const out = renderBackgroundServices([excludedService, systemService], [serviceDaemon], []).join('\n');
+
+    expect(out).not.toMatch(/User startup[^\n]*\n[^\n]*pid 4321/);
+    expect(out).toMatch(/System startup[^\n]*\n[^\n]*pid 4321/);
+    expect(out.match(/pid 4321/g)).toHaveLength(1);
+  });
+
   it('a card with a finding renders an arrow-prefixed sub-line with the diagnostic text', () => {
     const finding: RepairFinding = {
       kind: 'automatic_startup_stale_definition',
