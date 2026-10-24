@@ -553,4 +553,78 @@ test.describe('ui e2e: session list ordering mode', () => {
     await page.getByTestId('dropdown-option-session_sameSetup').click();
     await expectBlankDraftAndCancel();
   });
+
+  test('dispatches labeled menu hotkeys on the clicked row and reaches a saved reminder choice', async ({ page }) => {
+    test.setTimeout(240_000);
+    if (!server || !uiBaseUrl || !token) throw new Error('missing server/ui fixtures');
+
+    const selectedTitle = `hotkey selected ${run.runId}`;
+    const clickedTitle = `hotkey clicked ${run.runId}`;
+    const selectedSessionId = await createPlainSession({
+      baseUrl: server.baseUrl, token, title: selectedTitle, rootPath: repoRootDir(),
+      machineId: SEEDED_MACHINE_ID, tagPrefix: 'session-menu-hotkey',
+    });
+    const clickedSessionId = await createPlainSession({
+      baseUrl: server.baseUrl, token, title: clickedTitle, rootPath: repoRootDir(),
+      machineId: SEEDED_MACHINE_ID, tagPrefix: 'session-menu-hotkey',
+    });
+    await patchPlainAccountSettingsV2({
+      baseUrl: server.baseUrl,
+      token,
+      settingsPatch: {
+        keyboardShortcutsV2Enabled: true,
+        keyboardSingleKeyShortcutsEnabled: false,
+        sessionListAttentionPromotionModeV1: 'global',
+        sessionReminderPresetsV1: [{ rule: { kind: 'relative_day', daysAhead: 1, minuteOfDay: 14 * 60 } }],
+      },
+    });
+
+    const sessionCreateRequests: string[] = [];
+    page.on('request', (request) => {
+      const path = new URL(request.url()).pathname;
+      if (/\/v[12]\/sessions(?:\/|$)/.test(path) && request.method() === 'POST') {
+        sessionCreateRequests.push(path);
+      }
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 300_000);
+    await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+    const selectedRow = page.getByTestId(`session-list-item-${selectedSessionId}`);
+    const clickedRow = page.getByTestId(`session-list-item-${clickedSessionId}`);
+    await expect(selectedRow).toHaveCount(1, { timeout: 120_000 });
+    await expect(clickedRow).toHaveCount(1, { timeout: 120_000 });
+    await selectedRow.click();
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 90_000 }).toBe(`/session/${selectedSessionId}`);
+
+    await clickedRow.click({ button: 'right' });
+    const rename = page.getByTestId('dropdown-option-ui.session.rename');
+    await expect(rename).toBeVisible();
+    await expect(rename).toContainText('Option+Shift+E');
+    await page.keyboard.press('Alt+Shift+E');
+    await expect(page.getByTestId('web-prompt-input')).toHaveValue(clickedTitle);
+    await page.getByTestId('web-prompt-cancel').click();
+    await expect.poll(() => new URL(page.url()).pathname).toBe(`/session/${selectedSessionId}`);
+
+    await clickedRow.click({ button: 'right' });
+    await expect(page.getByTestId('dropdown-option-attention-reminder')).toContainText('Option+Shift+D');
+    await page.keyboard.press('Alt+Shift+D');
+    const savedReminder = page.getByTestId('dropdown-option-attention-reminder:preset:relative_day:1:840');
+    await expect(savedReminder).toBeVisible();
+    await expect(savedReminder).toContainText('↑↓ Enter');
+    for (let index = 0; index < 4; index += 1) await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId(`session-list-reminder-indicator:${clickedSessionId}`)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId(`session-list-reminder-indicator:${selectedSessionId}`)).toHaveCount(0);
+
+    await clickedRow.hover();
+    await clickedRow.getByTestId('session-item-more-menu').click();
+    await expect(page.getByTestId('dropdown-option-session_sameSetup')).toContainText('Option+Shift+N');
+    await page.keyboard.press('Alt+Shift+N');
+    await page.waitForURL((url) => url.pathname.endsWith('/new'), { timeout: 60_000 });
+    await expect(page.getByTestId('new-session-composer-input')).toHaveValue('', { timeout: 60_000 });
+    expect(sessionCreateRequests).toEqual([]);
+    await page.keyboard.press('Escape');
+    await page.waitForURL((url) => !url.pathname.endsWith('/new'), { timeout: 60_000 });
+    expect(sessionCreateRequests).toEqual([]);
+  });
 });
