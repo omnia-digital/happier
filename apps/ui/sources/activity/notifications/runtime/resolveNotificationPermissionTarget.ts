@@ -6,6 +6,9 @@ import { parseToken } from '@/utils/auth/parseToken';
 
 /** Resolve the saved credential that owns this notification, independent of the active tab. */
 export async function resolveNotificationPermissionTarget(serverUrl: string, accountId?: string | null) {
+    // An occurrence alone does not identify which saved account received the push.
+    // Older unscoped notifications remain navigation-only.
+    if (!accountId) return null;
     const key = createServerUrlComparableKey(serverUrl);
     if (!key) return null;
     const profile = listServerProfiles().find((candidate) => createServerUrlComparableKey(candidate.serverUrl) === key);
@@ -15,6 +18,6 @@ export async function resolveNotificationPermissionTarget(serverUrl: string, acc
     const credentials = await TokenStorage.getCredentialsForServerUrl(profile.serverUrl, { serverId });
     if (!credentials) return null;
     const scope = createServerAccountScope(serverId, parseToken(credentials.token));
-    if (!scope || (accountId && scope.accountId !== accountId)) return null;
+    if (!scope || scope.accountId !== accountId) return null;
     return scope;
 }
