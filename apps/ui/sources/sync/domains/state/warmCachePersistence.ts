@@ -6,6 +6,7 @@ import {
     SessionRuntimeActivityStateSchema,
     SessionRuntimeIssueV1Schema,
     PendingActivationAuthorizationV1Schema,
+    SessionTicketAssociationV1Schema,
     type SessionOrganizationSnapshot,
 } from '@happier-dev/protocol';
 import { z } from 'zod';
@@ -234,6 +235,7 @@ export const SessionListCacheEntryV1Schema = z.object({
     canApprovePermissions: z.boolean().optional(),
     name: z.string().optional(),
     summaryText: z.string().nullable().optional(),
+    sessionTicketV1: SessionTicketAssociationV1Schema.nullable().optional(),
     path: z.string(),
     homeDir: z.string().nullable().optional(),
     host: z.string().nullable().optional(),

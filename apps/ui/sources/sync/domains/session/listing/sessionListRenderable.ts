@@ -1,4 +1,5 @@
 import type { Metadata, Session } from '@/sync/domains/state/storageTypes';
+import { readSessionTicketAssociation, type SessionTicketAssociationV1 } from '@happier-dev/protocol';
 import { resolveAgentIdFromSessionMetadata } from '@happier-dev/agents';
 import { computeHasUnreadActivity } from '@/sync/domains/messages/unread';
 import type {
@@ -44,6 +45,7 @@ import {
 export { derivePendingRequestFlagsFromAgentState } from '@/sync/domains/session/pending/listPendingSessionRequests';
 
 export interface SessionListRenderableMetadata {
+    sessionTicketV1?: SessionTicketAssociationV1 | null;
     name?: string;
     summaryText?: string | null;
     path: string;
@@ -268,6 +270,7 @@ export function buildSessionListRenderableMetadata(metadata: Metadata | null | u
         };
     })();
     return {
+        sessionTicketV1: readSessionTicketAssociation(metadata),
         name: typeof metadata.name === 'string' ? metadata.name : undefined,
         summaryText: typeof metadata.summary?.text === 'string' ? metadata.summary.text : null,
         path: typeof metadata.path === 'string' ? metadata.path : '',
@@ -517,7 +520,8 @@ function areSessionListRenderableMetadataEqual(
     if (previous === next) return true;
     if (!previous || !next) return previous === next;
 
-    return (previous.name ?? null) === (next.name ?? null)
+    return JSON.stringify(previous.sessionTicketV1 ?? null) === JSON.stringify(next.sessionTicketV1 ?? null)
+        && (previous.name ?? null) === (next.name ?? null)
         && (previous.summaryText ?? null) === (next.summaryText ?? null)
         && previous.path === next.path
         && (previous.homeDir ?? null) === (next.homeDir ?? null)
