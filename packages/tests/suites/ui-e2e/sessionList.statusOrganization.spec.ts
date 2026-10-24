@@ -170,6 +170,7 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             // Keep every ticket candidate visible while exercising runtime group movement below.
             await page.getByTestId('session-list-search-trigger').first().click();
             await page.getByTestId('session-list-search-input').first().fill('OH60');
+            await page.mouse.move(1000, 400);
             await page.screenshot({ path: testInfo.outputPath('oh60-ticket-groups-agent-sort.png') });
             await choose('session-list-status-group-agent');
             await expect(statusHeaders.filter({ hasText: 'working...' }).first()).toBeVisible();
@@ -206,6 +207,8 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await gotoDomContentLoadedWithRetries(page, baseUrl, 120_000);
             await expect(page.getByTestId('machine-monitoring-toggle')).toHaveCount(0);
             await expect(statusHeaders.filter({ hasText: 'Ready for Prod' }).first()).toBeVisible({ timeout: 60_000 });
+            await expect(row(unavailable).getByText('Status unavailable', { exact: true })).toBeVisible({ timeout: 60_000 });
+            await page.mouse.move(385, 2);
             await page.screenshot({ path: testInfo.outputPath('oh60-compact-status-organization.png') });
             await page.setViewportSize({ width: 1360, height: 900 });
             await gotoDomContentLoadedWithRetries(page, `${baseUrl}/session/${idle}`, 120_000);
