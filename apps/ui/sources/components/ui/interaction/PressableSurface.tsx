@@ -29,6 +29,8 @@ export type PressableSurfaceProps = Readonly<{
     onPress?: (event: GestureResponderEvent) => void;
     onLongPress?: (event: GestureResponderEvent) => void;
     disabled?: boolean;
+    /** Decorative hover targets can keep a tooltip without creating another keyboard stop. */
+    focusable?: boolean;
     /** Renders the resting fill as if hovered — a control that is toggled on. */
     active?: boolean;
     tone?: PressFeedbackTone;
@@ -106,6 +108,8 @@ export const PressableSurface = React.memo((props: PressableSurfaceProps) => {
             onHoverOut={props.webTooltip ? handleHoverOut : undefined}
             hitSlop={props.hitSlop}
             disabled={disabled}
+            focusable={props.focusable}
+            tabIndex={props.focusable === false ? -1 : undefined}
             accessibilityRole={props.accessibilityRole ?? 'button'}
             accessibilityLabel={props.accessibilityLabel}
             accessibilityHint={props.accessibilityHint}

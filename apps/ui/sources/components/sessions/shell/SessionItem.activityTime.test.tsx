@@ -112,7 +112,8 @@ vi.mock('@/agents/registry/AgentIcon', () => ({
     AgentIcon: 'AgentIcon',
 }));
 
-vi.mock('@/agents/catalog/catalog', () => ({
+vi.mock('@/agents/catalog/catalog', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@/agents/catalog/catalog')>(),
     DEFAULT_AGENT_ID: 'codex',
     resolveAgentIdFromFlavor: (flavor: string | null | undefined) => flavor === 'claude' || flavor === 'grok' ? flavor : null,
     getAgentPickerIconScale: (agentId: string) => agentId === 'grok' ? 1.25 : 1,
@@ -799,7 +800,7 @@ describe('SessionItem activity time', () => {
         );
 
         const rowStyle = flattenStyle(screen.findByTestId('session-list-item-sess_compact_height')?.props.style);
-        expect(rowStyle.height).toBe(34);
+        expect(rowStyle.height).toBe(44);
         expect(rowStyle.paddingHorizontal).toBe(8);
 
         expect(screen.findByTestId('session-row-attention-indicator-sess_compact_height')).toBeNull();
@@ -825,7 +826,7 @@ describe('SessionItem activity time', () => {
         );
 
         const rowStyle = flattenStyle(screen.findByTestId('session-list-item-sess_compact_avatar_web')?.props.style);
-        expect(rowStyle.height).toBe(34);
+        expect(rowStyle.height).toBe(44);
         expect(screen.findAllByType(AvatarMock)[0].props).toMatchObject({
             id: 'avatar',
             size: 18,
@@ -1077,7 +1078,7 @@ describe('SessionItem activity time', () => {
         const rowStyle = flattenStyle(screen.findByTestId('session-list-item-sess_compact_web')?.props.style);
         const titleStyle = flattenStyle(findSessionTitleText(screen, 'Session')?.props.style);
 
-        expect(rowStyle.height).toBe(34);
+        expect(rowStyle.height).toBe(44);
         expect(titleStyle.fontSize).toBe(12);
         expect(titleStyle.lineHeight).toBe(16);
     });

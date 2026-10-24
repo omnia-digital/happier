@@ -1387,7 +1387,10 @@ const SessionItemContent = React.memo(
         );
         const shouldEmphasizeTitle = rowPresentation.titleTone === 'emphasized';
         const shouldMuteTitle = rowPresentation.titleTone === 'quiet';
-        const trailingAttentionIndicator = isMinimal ? rowPresentation.attentionIndicator : 'none';
+        // The leading lifecycle badge now owns live-work animation. Keep attention marks for
+        // retained work and other independent signals, but never paint a second live spinner.
+        const showsLeadingLiveWork = visualStatus === 'working' && rowPresentation.attentionIndicator === 'working';
+        const trailingAttentionIndicator = isMinimal && !showsLeadingLiveWork ? rowPresentation.attentionIndicator : 'none';
         const showTrailingAttentionIndicator = trailingAttentionIndicator !== 'none';
         const trailingAttentionReplacesTime = trailingAttentionIndicator === 'working';
         const showTrailingActivityTime = Boolean(activityTimeLabel) && !trailingAttentionReplacesTime;
@@ -1503,7 +1506,7 @@ const SessionItemContent = React.memo(
             <Pressable
                 testID={`session-list-item-${resolvedSession.id}`}
                 accessibilityActions={accessibilityActions}
-                accessibilityHint={resolveSessionRowStatusLabel(visualStatus)}
+                accessibilityLabel={[sessionNameResolved, showMachineLabel ? machineLabel : null, resolveSessionRowStatusLabel(visualStatus)].filter(Boolean).join(', ')}
                 accessibilityState={{ selected: Boolean(selected || rowSelection.isSelected) }}
                 onAccessibilityAction={accessibilityActions.length > 0 ? handleAccessibilityAction : undefined}
                 onLayout={sourceTagChips.length > 0 ? handleRowLayout : undefined}
@@ -1544,6 +1547,7 @@ const SessionItemContent = React.memo(
                         status={visualStatus}
                         hasUnreadMessages={hasUnreadMessages}
                         animationEnabled={attentionIndicatorAnimationEnabled}
+                        workingMode={workingIndicatorMode}
                     />
                 </View>
                 {shouldRenderLeadingIdentity || shouldRenderSelectionCheckbox ? (
@@ -1731,7 +1735,7 @@ const SessionItemContent = React.memo(
                                 style={styles.secondaryLineRow}
                             >
                                 <View style={styles.secondaryStatusDotContainer}>
-                                    {rowPresentation.attentionIndicator !== 'none' ? (
+                                    {rowPresentation.attentionIndicator !== 'none' && !showsLeadingLiveWork ? (
                                         <SessionRowAttentionIndicator
                                             indicator={rowPresentation.attentionIndicator}
                                             sessionId={`${resolvedSession.id}-secondary`}

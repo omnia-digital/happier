@@ -2,6 +2,7 @@ import React from 'react';
 import { View } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { ActivitySpinner } from '@/components/ui/feedback/ActivitySpinner';
+import { StatusDot } from '@/components/ui/status/StatusDot';
 import { Icon } from '@/components/ui/icons/Icon';
 import type { IconName } from '@/components/ui/icons/iconRegistry.generated';
 import { PressableSurface } from '@/components/ui/interaction/PressableSurface';
@@ -65,6 +66,7 @@ export const SessionRowStatusBadge = React.memo(function SessionRowStatusBadge(p
     status: SessionListVisualStatus;
     hasUnreadMessages: boolean;
     animationEnabled: boolean;
+    workingMode: 'spinner' | 'pulse';
 }>) {
     const { theme } = useUnistyles();
     const role = resolveSessionRowStatusRole(props.status);
@@ -91,13 +93,17 @@ export const SessionRowStatusBadge = React.memo(function SessionRowStatusBadge(p
             accessibilityRole="image"
             accessibilityLabel={label}
             webTooltip={label}
+            focusable={false}
             focusRingRadius={9}
             style={stylesheet.badge}
             styleOverride={{ borderColor: palette.border, backgroundColor: palette.background }}
         >
-            {iconName ? <Icon name={iconName} size={11} color={palette.onTint} /> : (
-                <ActivitySpinner size={13} color={palette.onTint} animationEnabled={props.animationEnabled} />
-            )}
+            {iconName ? <Icon name={iconName} size={11} color={palette.onTint} />
+                : props.workingMode === 'pulse' ? (
+                    <StatusDot testID={`session-row-status-pulse-${props.sessionId}`} size={11} color={palette.onTint} isPulsing animationEnabled={props.animationEnabled} />
+                ) : (
+                    <ActivitySpinner testID={`session-row-status-spinner-${props.sessionId}`} size={13} color={palette.onTint} animationEnabled={props.animationEnabled} />
+                )}
             {props.hasUnreadMessages ? <View testID={`session-row-status-unread-${props.sessionId}`} style={[stylesheet.unread, { backgroundColor: theme.colors.text.link }]} /> : null}
         </PressableSurface>
     );

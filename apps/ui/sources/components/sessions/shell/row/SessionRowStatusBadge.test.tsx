@@ -30,7 +30,7 @@ describe('SessionRowStatusBadge', () => {
         ['working', 'info'], ['idle', 'neutral'], ['finished', 'success'], ['input', 'warning'], ['delivery_blocked', 'warning'], ['error', 'danger'],
     ] as const)('renders a prominent %s badge with its own semantic tint and accessible meaning', async (status, role) => {
         const { SessionRowStatusBadge } = await import('./SessionRowStatusBadge');
-        const screen = await renderScreen(<SessionRowStatusBadge sessionId="s" status={status} hasUnreadMessages={false} animationEnabled={false} />);
+        const screen = await renderScreen(<SessionRowStatusBadge sessionId="s" status={status} hasUnreadMessages={false} animationEnabled={false} workingMode="spinner" />);
         const badge = screen.findByTestId(`session-row-status-s-${status}`);
         expect(badge).toBeTruthy();
         expect(badge?.props.accessibilityLabel).toBeTruthy();
@@ -45,7 +45,7 @@ describe('SessionRowStatusBadge', () => {
 
     it.each(['queued', 'offline', 'resuming', 'archiving', 'cancelled'] as const)('keeps %s visibly distinct from an absent indicator', async (status) => {
         const { SessionRowStatusBadge } = await import('./SessionRowStatusBadge');
-        const screen = await renderScreen(<SessionRowStatusBadge sessionId="s" status={status} hasUnreadMessages={false} animationEnabled={false} />);
+        const screen = await renderScreen(<SessionRowStatusBadge sessionId="s" status={status} hasUnreadMessages={false} animationEnabled={false} workingMode="spinner" />);
         const badge = screen.findByTestId(`session-row-status-s-${status}`);
         expect(badge).toBeTruthy();
         expect(badge?.props.accessibilityLabel).toBeTruthy();
@@ -56,9 +56,19 @@ describe('SessionRowStatusBadge', () => {
         expect(resolveSessionRowStatusTint('finished', darkTheme)).toBe(darkTheme.colors.state.success.background);
         expect(resolveSessionRowStatusLabel('delivery_blocked')).toBe('action required');
         expect(resolveSessionRowStatusLabel('input')).toBe('Waiting for your response');
-        const screen = await renderScreen(<SessionRowStatusBadge sessionId="s" status="finished" hasUnreadMessages animationEnabled={false} />);
+        const screen = await renderScreen(<SessionRowStatusBadge sessionId="s" status="finished" hasUnreadMessages animationEnabled={false} workingMode="spinner" />);
         expect(screen.findByTestId('session-row-status-unread-s')).toBeTruthy();
-        await screen.update(<SessionRowStatusBadge sessionId="s" status="finished" hasUnreadMessages={false} animationEnabled={false} />);
+        await screen.update(<SessionRowStatusBadge sessionId="s" status="finished" hasUnreadMessages={false} animationEnabled={false} workingMode="spinner" />);
         expect(screen.findByTestId('session-row-status-unread-s')).toBeNull();
+    });
+
+    it('honors spinner and pulse preferences in the leading working badge', async () => {
+        const { SessionRowStatusBadge } = await import('./SessionRowStatusBadge');
+        const screen = await renderScreen(<SessionRowStatusBadge sessionId="s" status="working" hasUnreadMessages={false} animationEnabled={false} workingMode="spinner" />);
+        expect(screen.findByTestId('session-row-status-spinner-s')).toBeTruthy();
+        expect(screen.findByTestId('session-row-status-pulse-s')).toBeNull();
+        await screen.update(<SessionRowStatusBadge sessionId="s" status="working" hasUnreadMessages={false} animationEnabled={false} workingMode="pulse" />);
+        expect(screen.findByTestId('session-row-status-spinner-s')).toBeNull();
+        expect(screen.findByTestId('session-row-status-pulse-s')).toBeTruthy();
     });
 });

@@ -15,6 +15,7 @@ import { waitFor } from '../../src/testkit/timing';
 import { gotoDomContentLoadedWithRetries, normalizeLoopbackBaseUrl } from '../../src/testkit/uiE2e/pageNavigation';
 import { startForwardedHeaderProxy } from '../../src/testkit/uiE2e/forwardedHeaderProxy';
 import { waitForInitialAppUi } from '../../src/testkit/uiE2e/waitForInitialAppUi';
+import { mutateUiE2eLocalSettings } from '../../src/testkit/uiE2e/localSettingsStorage';
 import { appendBrowserDiagnostics, collectBrowserDiagnostics } from '../../src/testkit/uiE2e/browserDiagnostics';
 
 const run = createRunDirs({ runLabel: 'ui-e2e' });
@@ -646,18 +647,33 @@ test.describe('ui e2e: session list attention', () => {
       await waitForInitialAppUi({ page, timeoutMs: 180_000 });
       await expect(row(page, session.id)).toHaveCount(1, { timeout: 120_000 });
       await expect(badge('idle')).toHaveCount(1, { timeout: 30_000 });
+      await expect(row(page, session.id)).toHaveAttribute('aria-label', /Current lifecycle badge e2e, .*Idle/);
+      expect(await badge('idle').evaluate((element) => element.tabIndex)).toBe(-1);
       await badge('idle').hover();
       await expect(page.getByTestId(`session-row-status-${session.id}-idle-tooltip`)).toContainText('Idle');
 
       await markWorkingSessionInProgress({ baseUrl: server.baseUrl, token, sessionId: session.id });
       await expect(badge('working')).toHaveCount(1, { timeout: 30_000 });
+      await expect(page.getByTestId(`session-row-status-spinner-${session.id}`)).toHaveCount(1);
+      await expect(page.getByTestId(`session-row-attention-indicator-spinner-${session.id}-secondary`)).toHaveCount(0);
 
       await updateSessionRuntimeStatus({ baseUrl: server.baseUrl, token, sessionId: session.id, latestTurnStatus: 'completed' });
       await expect(badge('finished')).toHaveCount(1, { timeout: 30_000 });
       await badge('finished').hover();
       await expect(page.getByTestId(`session-row-status-${session.id}-finished-tooltip`)).toContainText('Latest turn finished');
+      const lightFinishedFill = await badge('finished').evaluate((element) => getComputedStyle(element).backgroundColor);
       await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
       await expect(badge('finished')).toHaveCount(1, { timeout: 120_000 });
+      await expect(row(page, session.id)).toHaveAttribute('aria-label', /Current lifecycle badge e2e, .*Latest turn finished/);
+
+      await chooseSessionListDensity({ page, baseUrl: uiBaseUrl, density: 'narrow' });
+      await mutateUiE2eLocalSettings({ page, settingsPatch: { themePreference: 'dark' } });
+      await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+      await expect(badge('finished')).toHaveCount(1, { timeout: 120_000 });
+      const darkBadge = await badge('finished').boundingBox();
+      expect(darkBadge?.width).toBeGreaterThanOrEqual(18);
+      const darkFinishedFill = await badge('finished').evaluate((element) => getComputedStyle(element).backgroundColor);
+      expect(darkFinishedFill).not.toBe(lightFinishedFill);
 
       await updateSessionRuntimeStatus({ baseUrl: server.baseUrl, token, sessionId: session.id, latestTurnStatus: 'cancelled' });
       await expect(badge('cancelled')).toHaveCount(1, { timeout: 30_000 });
