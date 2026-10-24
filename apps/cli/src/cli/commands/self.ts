@@ -30,7 +30,7 @@ import {
   normalizePublicReleaseRingId,
   type PublicReleaseRingId,
 } from '@happier-dev/release-runtime/releaseRings';
-import { FIRST_PARTY_RELEASE_REPOSITORY } from '@happier-dev/release-runtime/minisign';
+import * as releaseMinisign from '@happier-dev/release-runtime/minisign';
 import { handleSelfMigrateCommand } from './self/handleSelfMigrateCommand';
 import { maybeRunVersionGatedRuntimeMigration } from './self/maybeRunVersionGatedRuntimeMigration';
 import { maybeRunDoctorRepair } from './self/maybeRunDoctorRepair';
@@ -153,7 +153,7 @@ export function detectInstallSource(path: string): 'npm' | 'binary' {
 
 function resolveBinaryUpdateRepo(env: NodeJS.ProcessEnv): string {
   const raw = String(env.HAPPIER_GITHUB_REPO ?? '').trim();
-  return raw || FIRST_PARTY_RELEASE_REPOSITORY;
+  return raw || releaseMinisign.FIRST_PARTY_RELEASE_REPOSITORY || 'omnia-digital/happier';
 }
 
 function resolveBinaryUpdateToken(env: NodeJS.ProcessEnv): string {

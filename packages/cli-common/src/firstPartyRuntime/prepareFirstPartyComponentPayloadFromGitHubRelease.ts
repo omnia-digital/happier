@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { PublicReleaseRingId } from '@happier-dev/release-runtime/releaseRings';
 import { resolveReleaseAssetBundle } from '@happier-dev/release-runtime/assets';
 import { fetchGitHubReleaseByTag } from '@happier-dev/release-runtime/github';
-import { FIRST_PARTY_RELEASE_REPOSITORY, resolveFirstPartyReleasePublicKey } from '@happier-dev/release-runtime/minisign';
+import * as releaseMinisign from '@happier-dev/release-runtime/minisign';
 import { downloadVerifiedReleaseAssetBundle } from '@happier-dev/release-runtime/verifiedDownload';
 
 import type { FirstPartyComponentId } from './componentCatalog.js';
@@ -135,7 +135,10 @@ export async function prepareFirstPartyComponentPayloadFromGitHubRelease(params:
 }>): Promise<PreparedFirstPartyComponentPayload> {
   params.signal?.throwIfAborted();
   const githubRepoForTrust = resolveFirstPartyReleaseArtifactSource(params).githubRepo;
-  const minisignPublicKey = resolveFirstPartyReleasePublicKey({
+  if (!releaseMinisign.resolveFirstPartyReleasePublicKey) {
+    throw new Error('Fork release verification requires the current bundled release-runtime.');
+  }
+  const minisignPublicKey = releaseMinisign.resolveFirstPartyReleasePublicKey({
     githubRepo: githubRepoForTrust,
     configuredPublicKey: params.minisignPubkeyFile ?? process.env.HAPPIER_MINISIGN_PUBKEY,
   });
@@ -241,8 +244,9 @@ function resolveFirstPartyReleaseArtifactSource(params: Readonly<{
         ?? params.githubRepo
         ?? process.env.HAPPIER_FIRST_PARTY_RELEASE_REPO
         ?? process.env.HAPPIER_GITHUB_REPO
-        ?? FIRST_PARTY_RELEASE_REPOSITORY,
-      FIRST_PARTY_RELEASE_REPOSITORY,
+        ?? releaseMinisign.FIRST_PARTY_RELEASE_REPOSITORY
+        ?? 'omnia-digital/happier',
+      releaseMinisign.FIRST_PARTY_RELEASE_REPOSITORY ?? 'omnia-digital/happier',
     ),
     // A local QA mirror must never receive credentials intended for GitHub.
     githubToken: apiBaseUrl ? '' : normalizeFirstPartyReleaseValue(

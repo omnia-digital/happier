@@ -10,7 +10,7 @@
 
 import type { PublicReleaseRingId, PublicReleaseRingLabel } from '@happier-dev/release-runtime/releaseRings';
 import { getReleaseRingPublicLabel } from '@happier-dev/release-runtime/releaseRings';
-import { FIRST_PARTY_RELEASE_REPOSITORY } from '@happier-dev/release-runtime/minisign';
+import * as releaseMinisign from '@happier-dev/release-runtime/minisign';
 
 export type RelayChannelInput = PublicReleaseRingId | PublicReleaseRingLabel | string;
 
@@ -37,7 +37,7 @@ export function resolveRelayReleaseTag(channel: RelayChannelInput): string {
  */
 export function resolveHappierGithubRepo(): string {
   const raw = String(process.env.HAPPIER_GITHUB_REPO ?? '').trim();
-  return raw || FIRST_PARTY_RELEASE_REPOSITORY;
+  return raw || releaseMinisign.FIRST_PARTY_RELEASE_REPOSITORY || 'omnia-digital/happier';
 }
 
 function normaliseToPublicLabel(channel: RelayChannelInput): PublicReleaseRingLabel {

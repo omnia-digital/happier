@@ -20,7 +20,8 @@ SETUP_RELAY_SHORTCUT="0"
 DEBUG_MODE="${HAPPIER_INSTALLER_DEBUG:-0}"
 VERBOSE_MODE="${HAPPIER_INSTALLER_VERBOSE:-0}"
 PURGE_INSTALL_DIR="${HAPPIER_INSTALLER_PURGE:-0}"
-GITHUB_REPO="${HAPPIER_GITHUB_REPO:-happier-dev/happier}"
+GITHUB_REPO="${HAPPIER_GITHUB_REPO:-omnia-digital/happier}"
+GITHUB_REPO_ID="$(printf '%s' "${GITHUB_REPO}" | tr '[:upper:]' '[:lower:]')"
 GITHUB_TOKEN="${HAPPIER_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}"
 RELEASE_ASSETS_DIR="${HAPPIER_RELEASE_ASSETS_DIR:-}"
 DEFAULT_MINISIGN_PUBKEY="$(cat <<'EOF'
@@ -28,8 +29,19 @@ untrusted comment: minisign public key 91AE28177BF6E43C
 RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t
 EOF
 )"
-MINISIGN_PUBKEY="${HAPPIER_MINISIGN_PUBKEY:-${DEFAULT_MINISIGN_PUBKEY}}"
-MINISIGN_PUBKEY_URL="${HAPPIER_MINISIGN_PUBKEY_URL:-https://happier.dev/happier-release.pub}"
+if [[ "${GITHUB_REPO_ID}" == "happier-dev/happier" ]]; then
+  MINISIGN_PUBKEY="${HAPPIER_MINISIGN_PUBKEY:-${DEFAULT_MINISIGN_PUBKEY}}"
+  MINISIGN_PUBKEY_URL="${HAPPIER_MINISIGN_PUBKEY_URL:-https://happier.dev/happier-release.pub}"
+else
+  MINISIGN_PUBKEY="${HAPPIER_MINISIGN_PUBKEY:-}"
+  MINISIGN_PUBKEY_URL="${HAPPIER_MINISIGN_PUBKEY_URL:-}"
+  # Minisign ignores the untrusted comment; compare the verifier payload.
+  configured_key_line="$(printf '%s\n' "${MINISIGN_PUBKEY}" | awk 'NF { key=$0 } END { gsub(/^[[:space:]]+|[[:space:]]+$/, "", key); print key }')"
+  if [[ "${configured_key_line}" == "RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t" ]]; then
+    echo "Fork release cannot use the upstream minisign public key." >&2
+    exit 1
+  fi
+fi
 MINISIGN_BIN="minisign"
 
 INSTALLER_COLOR_MODE="${HAPPIER_INSTALLER_COLOR:-auto}" # auto|always|never
@@ -1816,25 +1828,19 @@ action_version() {
 usage() {
   cat <<'EOF'
 Usage:
-  curl -fsSL https://happier.dev/install | bash
+  bash install.sh
 
 Preview channel:
-  curl -fsSL https://happier.dev/install | bash -s -- --channel preview
-  curl -fsSL https://happier.dev/install | HAPPIER_CHANNEL=preview bash
-  curl -fsSL https://happier.dev/install-preview | bash
+  bash install.sh --channel preview
 
 Dev channel:
-  curl -fsSL https://happier.dev/install | bash -s -- --channel dev
-  curl -fsSL https://happier.dev/install | HAPPIER_CHANNEL=dev bash
-  curl -fsSL https://happier.dev/install-dev | bash
+  bash install.sh --channel dev
 
 Relay setup (install CLI if needed, then host a relay locally):
-  curl -fsSL https://happier.dev/install | bash -s -- --setup-relay
-  curl -fsSL https://happier.dev/install | bash -s -- --channel dev --setup-relay
+  bash install.sh --setup-relay
 
 Unattended install (CI or scripted; never prompts, declines optional automatic startup):
-  curl -fsSL https://happier.dev/install | bash -s -- --yes
-  curl -fsSL https://happier.dev/install | HAPPIER_NONINTERACTIVE=1 bash
+  bash install.sh --yes
 
 Options:
   --channel <stable|preview|dev>
@@ -2411,13 +2417,21 @@ write_minisign_public_key() {
   local target_path="$1"
   if [[ -n "${MINISIGN_PUBKEY}" ]]; then
     printf '%s\n' "${MINISIGN_PUBKEY}" > "${target_path}"
-    return
+  else
+    if [[ -z "${MINISIGN_PUBKEY_URL}" ]]; then
+      echo "HAPPIER_MINISIGN_PUBKEY_URL is empty; cannot fetch minisign public key." >&2
+      exit 1
+    fi
+    curl -fsSL "${MINISIGN_PUBKEY_URL}" -o "${target_path}"
   fi
-  if [[ -z "${MINISIGN_PUBKEY_URL}" ]]; then
-    echo "HAPPIER_MINISIGN_PUBKEY_URL is empty; cannot fetch minisign public key." >&2
-    exit 1
+  if [[ "${GITHUB_REPO_ID}" != "happier-dev/happier" ]]; then
+    local key_line
+    key_line="$(awk 'NF { key=$0 } END { gsub(/^[[:space:]]+|[[:space:]]+$/, "", key); print key }' "${target_path}")"
+    if [[ "${key_line}" == "RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t" ]]; then
+      echo "Fork release cannot use the upstream minisign public key." >&2
+      return 1
+    fi
   fi
-  curl -fsSL "${MINISIGN_PUBKEY_URL}" -o "${target_path}"
 }
 
 verify_archive_checksum() {
@@ -2586,7 +2600,9 @@ OS="$(detect_os)"
 ARCH="$(detect_arch)"
 if [[ "${OS}" == "unsupported" || "${ARCH}" == "unsupported" ]]; then
   echo "Unsupported platform: $(uname -s)/$(uname -m)" >&2
-  if [[ "${PRODUCT}" == "cli" ]]; then
+  if [[ "${GITHUB_REPO_ID}" != "happier-dev/happier" ]]; then
+    echo "No verified fork binary or published package is configured for this platform." >&2
+  elif [[ "${PRODUCT}" == "cli" ]]; then
     echo "Fallback: npm install -g @happier-dev/cli" >&2
   elif [[ "${PRODUCT}" == "stack" ]]; then
     echo "Fallback: npx --yes -p @happier-dev/stack@latest hstack --help" >&2
@@ -2633,6 +2649,11 @@ TAG="$(resolve_release_tag "${PRODUCT}" "${CHANNEL}" "${INSTALL_VERSION}")" || {
   echo "Unsupported product/channel combination: ${PRODUCT}/${CHANNEL}" >&2
   exit 1
 }
+
+if [[ "${GITHUB_REPO_ID}" != "happier-dev/happier" && -z "${MINISIGN_PUBKEY}" && -z "${MINISIGN_PUBKEY_URL}" ]]; then
+  echo "Fork release is unconfigured: set HAPPIER_MINISIGN_PUBKEY to the fork public key before installing." >&2
+  exit 1
+fi
 
 print_installer_welcome
 installer_phase "Download"

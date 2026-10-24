@@ -1828,25 +1828,19 @@ action_version() {
 usage() {
   cat <<'EOF'
 Usage:
-  curl -fsSL https://happier.dev/install | bash
+  bash install.sh
 
 Preview channel:
-  curl -fsSL https://happier.dev/install | bash -s -- --channel preview
-  curl -fsSL https://happier.dev/install | HAPPIER_CHANNEL=preview bash
-  curl -fsSL https://happier.dev/install-preview | bash
+  bash install.sh --channel preview
 
 Dev channel:
-  curl -fsSL https://happier.dev/install | bash -s -- --channel dev
-  curl -fsSL https://happier.dev/install | HAPPIER_CHANNEL=dev bash
-  curl -fsSL https://happier.dev/install-dev | bash
+  bash install.sh --channel dev
 
 Relay setup (install CLI if needed, then host a relay locally):
-  curl -fsSL https://happier.dev/install | bash -s -- --setup-relay
-  curl -fsSL https://happier.dev/install | bash -s -- --channel dev --setup-relay
+  bash install.sh --setup-relay
 
 Unattended install (CI or scripted; never prompts, declines optional automatic startup):
-  curl -fsSL https://happier.dev/install | bash -s -- --yes
-  curl -fsSL https://happier.dev/install | HAPPIER_NONINTERACTIVE=1 bash
+  bash install.sh --yes
 
 Options:
   --channel <stable|preview|dev>
@@ -2606,7 +2600,9 @@ OS="$(detect_os)"
 ARCH="$(detect_arch)"
 if [[ "${OS}" == "unsupported" || "${ARCH}" == "unsupported" ]]; then
   echo "Unsupported platform: $(uname -s)/$(uname -m)" >&2
-  if [[ "${PRODUCT}" == "cli" ]]; then
+  if [[ "${GITHUB_REPO_ID}" != "happier-dev/happier" ]]; then
+    echo "No verified fork binary or published package is configured for this platform." >&2
+  elif [[ "${PRODUCT}" == "cli" ]]; then
     echo "Fallback: npm install -g @happier-dev/cli" >&2
   elif [[ "${PRODUCT}" == "stack" ]]; then
     echo "Fallback: npx --yes -p @happier-dev/stack@latest hstack --help" >&2

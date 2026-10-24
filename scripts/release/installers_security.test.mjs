@@ -35,6 +35,22 @@ test('standalone installers refuse unconfigured fork trust and comment-edited up
   }
 });
 
+test('server installer wrappers enter the local fork installer without fetching an upstream script', async (t) => {
+  const home = await mkdtemp(join(tmpdir(), 'fork-server-wrapper-'));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  for (const wrapper of ['install-server', 'install-server.sh']) {
+    const source = await readFile(join(sourceRoot, wrapper), 'utf8');
+    assert.doesNotMatch(source, /https:\/\/happier\.dev\/install/);
+    const result = spawnSync('bash', [join(sourceRoot, wrapper), '--yes'], {
+      encoding: 'utf8', env: { ...process.env, HOME: home, HAPPIER_INSTALL_DIR: join(home, 'install'),
+        HAPPIER_GITHUB_REPO: '', HAPPIER_MINISIGN_PUBKEY: '', HAPPIER_MINISIGN_PUBKEY_URL: '',
+        HAPPIER_INSTALLER_SCRIPT_URL: '', HAPPIER_RELEASE_ASSETS_DIR: '' },
+    });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr + result.stdout, /Fork release is unconfigured/i);
+  }
+});
+
 test('release-owned installer scripts enforce minisign verification defaults', async () => {
   const installSh = await readFile(installShPath, 'utf8');
   const publicKey = (await readFile(publicKeyPath, 'utf8')).trim();

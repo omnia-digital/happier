@@ -10,7 +10,7 @@ import { resolveRunnerCacheRoot, resolveServerRunnerTarget } from '../src/target
 import { parseRunnerInvocation } from '../src/runnerConfig.mjs';
 import { downloadVerifiedReleaseAssetBundle } from '@happier-dev/release-runtime/verifiedDownload';
 import { fetchGitHubReleaseByTag } from '@happier-dev/release-runtime/github';
-import { FIRST_PARTY_RELEASE_REPOSITORY, resolveFirstPartyReleasePublicKey } from '@happier-dev/release-runtime/minisign';
+import * as releaseMinisign from '@happier-dev/release-runtime/minisign';
 
 
 function fail(msg) {
@@ -44,8 +44,12 @@ async function main() {
   const { serverTag: tag, uiWebTag, withUiWeb, positionals } = parsed;
 
   const target = resolveTarget();
-  const githubRepo = String(process.env.HAPPIER_GITHUB_REPO ?? '').trim() || FIRST_PARTY_RELEASE_REPOSITORY;
-  const pubkeyFile = resolveFirstPartyReleasePublicKey({
+  const githubRepo = String(process.env.HAPPIER_GITHUB_REPO ?? '').trim()
+    || releaseMinisign.FIRST_PARTY_RELEASE_REPOSITORY || 'omnia-digital/happier';
+  if (!releaseMinisign.resolveFirstPartyReleasePublicKey) {
+    fail('Fork release verification requires the current bundled release-runtime.');
+  }
+  const pubkeyFile = releaseMinisign.resolveFirstPartyReleasePublicKey({
     githubRepo,
     configuredPublicKey: process.env.HAPPIER_MINISIGN_PUBKEY,
   });
