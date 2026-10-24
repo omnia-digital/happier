@@ -373,9 +373,12 @@ export class ApiMachineClient {
         this.rpcLifecycleRegistrations.push(registerSessionHandlers(this.rpcHandlerManager, machineRpcWorkingDirectory, {
             accessPolicy: filesystemAccessPolicy,
             hasSessionAgentTransition: () => this.rpcHandlerManager.hasHandler(RPC_METHODS.SESSION_AGENT_TRANSITION),
-            ...(this.connectedServiceImportAccount?.credentials.token === this.token ? {
-                ticketReaderContext: { machineId: this.machine.id, credentials: this.connectedServiceImportAccount.credentials },
-            } : {}),
+            machineCapabilitiesContext: {
+                machineId: this.machine.id,
+                ...(this.connectedServiceImportAccount?.credentials.token === this.token ? {
+                    credentials: this.connectedServiceImportAccount.credentials,
+                } : {}),
+            },
             setAdditionalAllowedReadDirs: (dirs) => {
                 additionalAllowedReadDirs = dirs;
             },
