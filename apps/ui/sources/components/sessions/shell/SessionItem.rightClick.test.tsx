@@ -7,6 +7,7 @@ import { createSessionItemTestRowModel, installSessionShellCommonModuleMocks } f
 import { SESSION_ACTION_RENAME_ID } from '@/components/sessions/actions/sessionActionIds';
 import { getActiveServerSnapshot } from '@/sync/domains/server/serverRuntime';
 import { clearTempData, peekTempData, type NewSessionData } from '@/utils/sessions/tempDataStore';
+import { SessionListSelectionProvider, useSessionListSelectionActions } from './selection/SessionListSelectionContext';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -45,6 +46,14 @@ vi.mock('@/sync/ops', async (importOriginal) => {
 });
 const promptSpy = vi.fn(async () => 'Renamed');
 let platformOs: 'web' | 'ios' = 'web';
+function SelectForMultiSelection(props: Readonly<{ selectionKey: string }>) {
+    const actions = useSessionListSelectionActions();
+    return React.createElement('SelectionModeControl', {
+        testID: 'select-session-for-multi-selection',
+        onPress: () => actions.replaceWith(props.selectionKey),
+    });
+}
+
 installSessionShellCommonModuleMocks({
     router: async () => {
         const { createExpoRouterMock } = await import('@/dev/testkit/mocks/router');
@@ -103,6 +112,54 @@ afterEach(() => {
 });
 
 describe('SessionItem right-click menu (web)', () => {
+    it('keeps the current-conversation indicator on the routed row while another row menu opens', async () => {
+        const currentSession = createSessionFixture({ id: 'sess_current_conversation', active: true, metadata: null });
+        const otherSession = createSessionFixture({ id: 'sess_other_conversation', active: true, metadata: null });
+        const screen = await renderScreen(
+            <>
+                <SessionItem session={currentSession} serverId="server_right_click" selected isFirst variant="default" compact={false} />
+                <SessionItem session={otherSession} serverId="server_right_click" selected={false} isLast variant="default" compact={false} />
+            </>,
+        );
+        const currentIndicator = screen.findByTestId('session-item-current-indicator-sess_current_conversation');
+        expect(currentIndicator).toBeTruthy();
+        expect(screen.findByTestId('session-item-current-indicator-sess_other_conversation')).toBeNull();
+
+        const otherRow = screen.findByTestId('session-list-item-sess_other_conversation');
+        if (!otherRow) throw new Error('other session row not found');
+        await act(async () => otherRow.props.onContextMenu({ preventDefault: vi.fn(), stopPropagation: vi.fn() }));
+
+        expect(screen.findByTestId('session-item-current-indicator-sess_current_conversation')).toBe(currentIndicator);
+        expect(screen.findByTestId('session-item-current-indicator-sess_other_conversation')).toBeNull();
+        expect(navigateToSessionSpy).not.toHaveBeenCalled();
+
+        await screen.update(
+            <>
+                <SessionItem session={currentSession} serverId="server_right_click" selected={false} isFirst variant="default" compact={false} />
+                <SessionItem session={otherSession} serverId="server_right_click" selected isLast variant="default" compact={false} />
+            </>,
+        );
+        expect(screen.findByTestId('session-item-current-indicator-sess_current_conversation')).toBeNull();
+        expect(screen.findByTestId('session-item-current-indicator-sess_other_conversation')).toBeTruthy();
+    });
+
+    it('keeps multi-selected rows checked without presenting them as the open conversation', async () => {
+        const session = createSessionFixture({ id: 'sess_multi_selected', active: true, metadata: null });
+        const selectionKey = 'server_multi:sess_multi_selected';
+        const screen = await renderScreen(
+            <SessionListSelectionProvider scopeKey="scope-a" visibleOrderedKeys={[selectionKey]}>
+                <SelectForMultiSelection selectionKey={selectionKey} />
+                <SessionItem session={session} serverId="server_multi" selectionKey={selectionKey} selected={false} isFirst isLast isSingle variant="default" compact={false} />
+            </SessionListSelectionProvider>,
+        );
+        const control = screen.findByTestId('select-session-for-multi-selection');
+        if (!control) throw new Error('multi-selection control not found');
+        await act(async () => control.props.onPress());
+
+        expect(screen.findByTestId('session-list-selection-checkbox-sess_multi_selected')?.props.accessibilityState).toMatchObject({ checked: true });
+        expect(screen.findByTestId('session-item-current-indicator-sess_multi_selected')).toBeNull();
+    });
+
     it('opens the existing row menu without navigating and keeps its action target', async () => {
         const session = createSessionFixture({ id: 'sess_right_click', active: true, metadata: null });
         const screen = await renderScreen(
