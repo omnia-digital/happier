@@ -109,6 +109,29 @@ Stale and unavailable states are explicit when the reader or connection cannot
 verify current status. Native app receipt and real provider acceptance remain
 pending; isolated browser coverage is not a packaged-release announcement.
 
+## Machine monitoring
+
+The unreleased Omnia development fork adds a collapsible **Machines** section to
+the session sidebar. It shows machines in the current relay account independently
+of the selected session, using their chosen names, icons and colors. Each machine
+needs a connected fork CLI that provides host metrics; updating the app alone does
+not add telemetry to older CLIs.
+
+Expand a machine to see metric definitions, sample time, GPU device identities and
+the measured storage volume. CPU is overall utilization across logical cores;
+memory and storage show capacity used. Storage measures space occupied, not disk
+I/O activity. Load average shows the 1-, 5- and 15-minute values where supported;
+Windows reports it unavailable. GPU utilization appears per device when a supported
+host interface exposes it. Some Macs expose a device percentage through their GPU
+driver; absent or invalid statistics remain unavailable.
+
+Readings refresh every three minutes while the section is expanded and the app is
+visible and active. Collapsing it pauses its polling. Offline machines retain their
+last reading with a stale label; missing measurements appear as a dash instead of
+zero. Reconnect the machine to resume reads. Isolated browser and actual local Mac
+collection checks cover this development path; native and second-host acceptance
+remain pending.
+
 ## Notifications
 
 Happier supports push notifications for:
