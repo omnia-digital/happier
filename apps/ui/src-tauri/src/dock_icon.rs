@@ -33,7 +33,6 @@ pub fn apply(app: &tauri::AppHandle) {
     use objc2::AllocAnyThread;
     use objc2_app_kit::{NSApplication, NSImage};
     use objc2_foundation::{MainThreadMarker, NSData};
-    use tauri::Manager;
 
     let Some(mtm) = MainThreadMarker::new() else {
         log::warn!("dock_icon::apply called off the main thread; keeping the bundle icon");
