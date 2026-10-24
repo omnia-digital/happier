@@ -32,7 +32,7 @@ export function resolveSessionRowStatusLabel(status: SessionListVisualStatus): s
         case 'idle': return t('status.sidebarIdle');
         case 'finished': return t('status.sidebarFinished');
         case 'input': return t('status.waitingForYourResponse');
-        case 'delivery_blocked': return t('status.actionRequired');
+        case 'delivery_blocked': return t('inbox.sessionReason.deliveryBlocked');
         case 'error': return t('status.error');
         case 'queued': return t('session.pendingActivation.queued.title');
         case 'offline': return t('status.offline');

@@ -54,7 +54,7 @@ describe('SessionRowStatusBadge', () => {
     it('preserves unread as a separate marker and uses the same theme role in dark mode', async () => {
         const { SessionRowStatusBadge, resolveSessionRowStatusLabel, resolveSessionRowStatusTint } = await import('./SessionRowStatusBadge');
         expect(resolveSessionRowStatusTint('finished', darkTheme)).toBe(darkTheme.colors.state.success.background);
-        expect(resolveSessionRowStatusLabel('delivery_blocked')).toBe('action required');
+        expect(resolveSessionRowStatusLabel('delivery_blocked')).toBe('Message blocked · Review delivery');
         expect(resolveSessionRowStatusLabel('input')).toBe('Waiting for your response');
         const screen = await renderScreen(<SessionRowStatusBadge sessionId="s" status="finished" hasUnreadMessages animationEnabled={false} workingMode="spinner" />);
         expect(screen.findByTestId('session-row-status-unread-s')).toBeTruthy();
