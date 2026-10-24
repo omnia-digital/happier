@@ -20,6 +20,7 @@ import {
 } from '@happier-dev/agents';
 import { normalizeAskUserQuestionInputForPublication } from '@/agent/questions/normalizeAskUserQuestionInput';
 import { logger } from '@/ui/logger';
+import { serializeAxiosErrorForLog } from '@/api/client/serializeAxiosErrorForLog';
 import { deepEqual } from '@/utils/deterministicJson';
 import { randomUUID } from 'node:crypto';
 
@@ -152,9 +153,8 @@ export class AgentStateRequestStore {
         const normalizedToolInput = normalizeAskUserQuestionInputForPublication(params.toolName, params.toolInput);
         const wasClaimedBeforePublication = this.isOutstandingRequestClaimed(params.requestId);
         const candidateOccurrenceId = params.occurrenceId ?? randomUUID();
-        updateAgentStateBestEffort(
-            this.session,
-            (currentState) => {
+        let publishedOccurrenceId: string | undefined;
+        const update = (currentState: AgentState): AgentState => {
                 const requests = cloneStringKeyedRecordToNullProto<AgentStateRequestEntry>(currentState.requests);
                 const completedRequests = cloneStringKeyedRecordToNullProto<AgentStateCompletedEntry>(currentState.completedRequests);
                 const existingRequest = currentState.requests?.[params.requestId];
@@ -188,6 +188,7 @@ export class AgentStateRequestStore {
                     return typeof params.updateState === 'function' ? params.updateState(currentState) : currentState;
                 }
                 requests[params.requestId] = entry;
+                publishedOccurrenceId = entry.occurrenceId;
                 params.onOccurrenceAssigned?.(entry.occurrenceId);
 
                 const nextState: AgentState = {
@@ -196,18 +197,25 @@ export class AgentStateRequestStore {
                     completedRequests,
                 };
                 return typeof params.updateState === 'function' ? params.updateState(nextState) : nextState;
-            },
-            this.logPrefix,
-            'publish_request',
-        );
-
-        if (params.notifyPush !== false && !wasClaimedBeforePublication) {
-            this.notifyPermissionRequestPushBestEffort({
-                permissionId: params.requestId,
-                toolName: params.toolName,
-                toolInput: normalizedToolInput,
-                createdAtMs: params.createdAt,
+        };
+        try {
+            // Real Session updates enter its lock asynchronously. Push only after the
+            // committed request has a stable occurrence in the current snapshot.
+            void Promise.resolve(this.session.updateAgentState(update)).then(() => {
+                if (params.notifyPush === false || wasClaimedBeforePublication || !publishedOccurrenceId) return;
+                if (this.session.getAgentStateSnapshot?.()?.requests?.[params.requestId]?.occurrenceId !== publishedOccurrenceId) return;
+                if (this.isOutstandingRequestClaimed(params.requestId)) return;
+                this.notifyPermissionRequestPushBestEffort({
+                    permissionId: params.requestId,
+                    toolName: params.toolName,
+                    toolInput: normalizedToolInput,
+                    createdAtMs: params.createdAt,
+                });
+            }).catch((error) => {
+                logger.debug(`${this.logPrefix} Failed to update agent state (publish_request) (non-fatal)`, serializeAxiosErrorForLog(error));
             });
+        } catch (error) {
+            logger.debug(`${this.logPrefix} Failed to update agent state (publish_request) (non-fatal)`, serializeAxiosErrorForLog(error));
         }
     }
 

@@ -26,7 +26,7 @@ class FakeSession {
     }
 
 
-    updateAgentState(updater: (state: AgentState) => AgentState) {
+    updateAgentState(updater: (state: AgentState) => AgentState): void | Promise<void> {
         this.agentState = updater(this.agentState);
     }
 }
@@ -140,6 +140,31 @@ describe('AgentStateRequestStore', () => {
             arguments: { questions: [{ question: 'private terminal context' }] },
         });
         expect(sendToAllDevicesAsync).not.toHaveBeenCalled();
+    });
+
+    it('sends a notification only after the actual request occurrence is published', async () => {
+        const session = new FakeSession();
+        let publish!: () => void;
+        session.updateAgentState = (updater) => new Promise<void>((resolve) => {
+            publish = () => { session.agentState = updater(session.agentState); resolve(); };
+        });
+        const sendToAllDevicesAsync = vi.fn(async (_title: string, _body: string, _data: Record<string, unknown>) => {});
+        const settings = accountSettingsParse({
+            notificationsSettingsV1: { v: 1, pushEnabled: true, ready: true, permissionRequest: true },
+        });
+        const store = new AgentStateRequestStore({
+            session, logPrefix: '[Test]', pushSender: { sendToAllDevicesAsync }, getAccountSettings: () => settings,
+        });
+
+        store.publishRequest({ requestId: 'delayed', toolName: 'Write', toolInput: { path: '/workspace/file' }, createdAt: Date.now() });
+        await Promise.resolve();
+        expect(sendToAllDevicesAsync).not.toHaveBeenCalled();
+
+        publish();
+        await vi.waitFor(() => expect(sendToAllDevicesAsync).toHaveBeenCalledTimes(1));
+        expect(sendToAllDevicesAsync.mock.calls[0]?.[2]).toMatchObject({
+            requestId: 'delayed', occurrenceId: session.agentState.requests?.delayed?.occurrenceId,
+        });
     });
 
     it('publishes and completes a request', () => {
