@@ -17,12 +17,15 @@
  * `GITHUB_TOKEN`/`GH_TOKEN` is used for the release metadata read when set.
  */
 
+import { readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
+import { assertForkDesktopReleaseOwnership, FORK_RELEASE_REPOSITORY } from '../tauri/channel-config.mjs';
 
-const DEFAULT_REPO = 'happier-dev/happier';
+const DEFAULT_REPO = FORK_RELEASE_REPOSITORY;
+const DEFAULT_TAURI_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../../../apps/ui/src-tauri');
 
 /**
  * The first CLI release that is correct under Homebrew: `self update` defers to `brew upgrade`
@@ -208,10 +211,18 @@ export function renderHappierFormulaFromRelease({
 }
 
 /**
- * @param {{ release: Release; checksumsText: string; repo?: string }} params
+ * @param {{ release: Release; checksumsText: string; repo?: string; tauriDir?: string }} params
  * @returns {string}
  */
-export function renderHappierCaskFromRelease({ release, checksumsText, repo = DEFAULT_REPO }) {
+export function renderHappierCaskFromRelease({ release, checksumsText, repo = DEFAULT_REPO, tauriDir = DEFAULT_TAURI_DIR }) {
+  const fork = repo.toLowerCase() === FORK_RELEASE_REPOSITORY;
+  const identifier = fork
+    ? assertForkDesktopReleaseOwnership({ environment: 'stable', tauriDir, repository: repo }).identifier
+    : 'dev.happier.app';
+  const appName = fork
+    ? String(JSON.parse(readFileSync(join(tauriDir, 'tauri.conf.json'), 'utf8')).productName ?? '').trim()
+    : 'Happier';
+  if (!appName) throw new Error('[homebrew] desktop product name is unconfigured');
   const version = readStableReleaseVersion(release, 'ui-desktop-v');
   const checksumsName = `checksums-happier-ui-desktop-v${version}.txt`;
   requireChecksumsAsset(release, checksumsName);
@@ -239,7 +250,7 @@ export function renderHappierCaskFromRelease({ release, checksumsText, repo = DE
     `         intel: "${sha256ByArch.intel}"`,
     '',
     `  url "${urlTemplate}"`,
-    '  name "Happier"',
+    `  name "${appName}"`,
     '  desc "Cross-device client for coding agents"',
     '  homepage "https://happier.dev/"',
     '',
@@ -255,19 +266,19 @@ export function renderHappierCaskFromRelease({ release, checksumsText, repo = DE
     '  auto_updates true',
     `  depends_on macos: :${HAPPIER_MIN_MACOS.symbol}`,
     '',
-    '  app "Happier.app"',
+    `  app "${appName}.app"`,
     '',
-    '  uninstall quit: "dev.happier.app"',
+    `  uninstall quit: "${identifier}"`,
     '',
     '  # ~/.happier is deliberately absent: it is the Happier CLI\'s home (account, machine and',
     '  # daemon state) and is shared with any CLI installed on this computer.',
     '  zap trash: [',
-    '    "~/Library/Caches/dev.happier.app",',
-    '    "~/Library/HTTPStorages/dev.happier.app",',
-    '    "~/Library/LaunchAgents/Happier.plist",',
-    '    "~/Library/Preferences/dev.happier.app.plist",',
-    '    "~/Library/Saved Application State/dev.happier.app.savedState",',
-    '    "~/Library/WebKit/dev.happier.app",',
+    `    "~/Library/Caches/${identifier}",`,
+    `    "~/Library/HTTPStorages/${identifier}",`,
+    ...(!fork ? ['    "~/Library/LaunchAgents/Happier.plist",'] : []),
+    `    "~/Library/Preferences/${identifier}.plist",`,
+    `    "~/Library/Saved Application State/${identifier}.savedState",`,
+    `    "~/Library/WebKit/${identifier}",`,
     '  ]',
     'end',
     '',

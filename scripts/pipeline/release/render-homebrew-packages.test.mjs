@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { writeConfiguredForkTauriFiles } from '../tauri/testkit/forkReleaseConfig.mjs';
 
 import {
   HAPPIER_MIN_MACOS,
@@ -17,7 +21,14 @@ const fixture = JSON.parse(readFileSync(new URL('./fixtures/homebrew-release-v0.
 const renderFixtureFormula = (overrides = {}) => renderHappierFormulaFromRelease({
   release: fixture.cli.release,
   checksumsText: fixture.cli.checksums,
+  repo: 'happier-dev/happier',
   minimumVersion: '0.2.12',
+  ...overrides,
+});
+const renderFixtureCask = (overrides = {}) => renderHappierCaskFromRelease({
+  release: fixture.desktop.release,
+  checksumsText: fixture.desktop.checksums,
+  repo: 'happier-dev/happier',
   ...overrides,
 });
 
@@ -31,7 +42,7 @@ test('the formula fixture and the committed cask are exactly what the generator 
     readFileSync(new URL('./fixtures/homebrew-formula-v0.2.12.rb', import.meta.url), 'utf8'),
   );
   assert.equal(
-    renderHappierCaskFromRelease({ release: fixture.desktop.release, checksumsText: fixture.desktop.checksums }),
+    renderFixtureCask(),
     readFileSync(`${repoRoot}packaging/homebrew/Casks/happier.rb`, 'utf8'),
   );
 });
@@ -65,7 +76,7 @@ test('refuses to render when GitHub\'s asset digest disagrees with the signed ch
   const dmg = release.assets.find((asset) => asset.name === 'happier-ui-desktop-darwin-x86_64-v0.2.12.dmg');
   dmg.digest = `sha256:${'0'.repeat(64)}`;
   assert.throws(
-    () => renderHappierCaskFromRelease({ release, checksumsText: fixture.desktop.checksums }),
+    () => renderFixtureCask({ release }),
     /happier-ui-desktop-darwin-x86_64-v0\.2\.12\.dmg.*digest/,
   );
 });
@@ -74,7 +85,7 @@ test('refuses a release that is missing a macOS DMG, a draft, or a prerelease', 
   const missing = clone(fixture.desktop.release);
   missing.assets = missing.assets.filter((asset) => !asset.name.endsWith('darwin-aarch64-v0.2.12.dmg'));
   assert.throws(
-    () => renderHappierCaskFromRelease({ release: missing, checksumsText: fixture.desktop.checksums }),
+    () => renderFixtureCask({ release: missing }),
     /happier-ui-desktop-darwin-aarch64-v0\.2\.12\.dmg/,
   );
   for (const flag of ['draft', 'prerelease']) {
@@ -87,7 +98,7 @@ test('refuses a release that is missing a macOS DMG, a draft, or a prerelease', 
 });
 
 test('the cask derives per-arch DMG URLs that match the published assets', () => {
-  const cask = renderHappierCaskFromRelease({ release: fixture.desktop.release, checksumsText: fixture.desktop.checksums });
+  const cask = renderFixtureCask();
   assert.match(cask, /sha256 arm: {3}"b9536e3244b30c891b4310bdcf892738682a84ad3f1afee00b9e64a9146eb509",\n {9}intel: "cc85a7d049a0d52fcd11d310d65310349a8535477789021303ea034a110451a9"/);
   assert.match(cask, /url "https:\/\/github\.com\/happier-dev\/happier\/releases\/download\/ui-desktop-v#\{version\}\/happier-ui-desktop-darwin-#\{arch\}-v#\{version\}\.dmg"/);
   assert.match(cask, /auto_updates true/);
@@ -98,7 +109,7 @@ test('the cask and the formula declare the same macOS minimum, which is the desk
   assert.deepEqual(HAPPIER_MIN_MACOS, { symbol: 'ventura', version: '13.0' });
   const tauriConfig = JSON.parse(readFileSync(`${repoRoot}apps/ui/src-tauri/tauri.conf.json`, 'utf8'));
   assert.equal(tauriConfig.bundle.macOS.minimumSystemVersion, HAPPIER_MIN_MACOS.version);
-  const cask = renderHappierCaskFromRelease({ release: fixture.desktop.release, checksumsText: fixture.desktop.checksums });
+  const cask = renderFixtureCask();
   assert.match(cask, new RegExp(`\n  depends_on macos: :${HAPPIER_MIN_MACOS.symbol}\n`));
   assert.doesNotMatch(cask, /depends_on :macos/);
   assert.match(renderFixtureFormula(), new RegExp(`    depends_on macos: :${HAPPIER_MIN_MACOS.symbol}\n`));
@@ -117,4 +128,26 @@ test('the formula requires the macOS release the CLI binary is built for, on mac
   const formula = renderFixtureFormula();
   assert.match(formula, /  on_macos do\n    depends_on macos: :ventura\n\n    on_arm do/);
   assert.doesNotMatch(formula.split('  on_linux do')[1], /depends_on/);
+});
+
+test('fork cask refuses the upstream desktop config and derives its app identity from configured Tauri source', () => {
+  const release = clone(fixture.desktop.release);
+  for (const asset of release.assets) {
+    asset.browser_download_url = asset.browser_download_url.replace('happier-dev/happier', 'omnia-digital/happier');
+  }
+  assert.throws(() => renderHappierCaskFromRelease({
+    release, checksumsText: fixture.desktop.checksums, repo: 'omnia-digital/happier',
+  }), /fork desktop release ownership/i);
+  const root = mkdtempSync(join(tmpdir(), 'happier-fork-cask-'));
+  try {
+    const tauriDir = writeConfiguredForkTauriFiles(root);
+    const cask = renderHappierCaskFromRelease({
+      release, checksumsText: fixture.desktop.checksums, repo: 'omnia-digital/happier', tauriDir,
+    });
+    assert.match(cask, /app "Omnia Happier\.app"/);
+    assert.match(cask, /uninstall quit: "com\.example\.fork"/);
+    assert.doesNotMatch(cask, /dev\.happier\.app|"Happier\.app"/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });
