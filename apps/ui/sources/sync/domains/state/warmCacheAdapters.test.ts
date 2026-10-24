@@ -13,6 +13,16 @@ import type { SessionListRenderableSession } from '@/sync/domains/session/listin
 import { createSessionFixture } from '@/dev/testkit';
 
 describe('warmCacheAdapters', () => {
+    it('retains qualified PR associations across compact cache reload without merge status', () => {
+        const link = { providerKind: 'github' as const, providerBaseUrl: 'https://github.com', repository: 'owner/repo', number: 7, url: 'https://github.com/owner/repo/pull/7' };
+        const renderable = buildSessionListRenderableFromSession(createSessionFixture({ metadata: {
+            path: '/repo', host: 'host', sessionPullRequestsV1: { v: 1, links: [link] },
+        } }));
+        const entry = SessionListCacheEntryV1Schema.parse(JSON.parse(JSON.stringify(buildSessionListCacheEntryFromRenderable(renderable))));
+        expect(buildSessionListRenderableFromCacheEntry(entry).metadata?.sessionPullRequestsV1?.links).toEqual([link]);
+        expect(entry).not.toHaveProperty('mergeStatus');
+        expect(buildSessionListCacheEntryFromRenderable(buildSessionListRenderableFromCacheEntry(entry), entry)).toBe(entry);
+    });
     it('preserves ticket association through cache serialization without persisting status authority', () => {
         const association = { v: 1, ticket: { v: 1, provider: 'linear', workspaceId: 'team', ticketId: 'uuid', key: 'ENG-123', title: 'Ticket', url: 'https://linear.app/team/issue/ENG-123' }, reader: { machineId: 'reader', mcpServerId: 'linear', directory: '/repo' } };
         const renderable = buildSessionListRenderableFromSession(createSessionFixture({ metadata: { path: '/repo', host: 'host', sessionTicketV1: association } }));
