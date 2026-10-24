@@ -597,7 +597,7 @@ test.describe('ui e2e: session list ordering mode', () => {
     await expect.poll(() => new URL(page.url()).pathname, { timeout: 90_000 }).toBe(`/session/${selectedSessionId}`);
 
     await clickedRow.click({ button: 'right' });
-    const rename = page.getByTestId('dropdown-option-ui.session.rename');
+    const rename = page.getByTestId('dropdown-option-ui_session_rename');
     await expect(rename).toBeVisible();
     await expect(rename).toContainText('Option+Shift+E');
     await page.keyboard.press('Alt+Shift+E');
@@ -608,7 +608,7 @@ test.describe('ui e2e: session list ordering mode', () => {
     await clickedRow.click({ button: 'right' });
     await expect(page.getByTestId('dropdown-option-attention-reminder')).toContainText('Option+Shift+D');
     await page.keyboard.press('Alt+Shift+D');
-    const savedReminder = page.getByTestId('dropdown-option-attention-reminder:preset:relative_day:1:840');
+    const savedReminder = page.getByTestId('dropdown-option-attention-reminder_preset_relative_day_1_840');
     await expect(savedReminder).toBeVisible();
     await expect(savedReminder).toContainText('↑↓ Enter');
     for (let index = 0; index < 4; index += 1) await page.keyboard.press('ArrowDown');
