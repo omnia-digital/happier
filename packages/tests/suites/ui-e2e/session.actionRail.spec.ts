@@ -155,14 +155,20 @@ test.describe('ui e2e: session action rail', () => {
         token: access.token,
         metadataCiphertextBase64: encryptLegacyBase64({ path: suiteDir, host: 'Timestamp fixture', version: '0.2.16', flavor: 'claude' }, secret),
       });
-      // An inactive session takes the socket commit path, independently of the CLI RPC floor.
+      // Explicit immediate-send in agent_queue mode takes the socket path for an
+      // inactive session; ordinary Send intentionally queues it instead.
       expect((await fetchSessionV2(server.baseUrl, access.token, sessionId)).active).toBe(false);
+      await mutateUiE2eScopedAccountSettings({ page, settingsPatch: { sessionMessageSendMode: 'agent_queue' } });
+      await mutateUiE2eLocalSettings({ page, settingsPatch: {
+        keyboardShortcutsV2Enabled: true,
+        keyboardShortcutOverridesV1: { 'composer.sendImmediate': [{ binding: 'Alt+Enter' }] },
+      } });
       await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/session/${sessionId}`);
       const prompt = `legacy ACK timestamp ${run.runId}`;
       await page.getByTestId('session-composer-input').fill(prompt);
       const lookupResponse = page.waitForResponse((response) => new URL(response.url()).pathname.startsWith(`/v2/sessions/${sessionId}/messages/by-local-id/`));
       await expect(page.getByTestId('session-composer-send')).toBeEnabled();
-      await page.getByTestId('session-composer-send').click();
+      await page.getByTestId('session-composer-input').press('Alt+Enter');
       const response = await lookupResponse;
       expect(response.status()).toBe(200);
       expect(omittedTimes).toHaveLength(1);
