@@ -318,17 +318,29 @@ The following earlier diagnostic reruns are history, not a substitute for that g
 - Five bootstrap fixtures originally inherited the real HOME while clearing only PATH and Happier's state directory. Intended macOS Dock search still found `~/.local/bin/happier`. The earlier isolated subprocess diagnosis passed 76 unchanged tests (`/tmp/happier-oh-6-isolated-bootstrap-tests.log`); current fixtures now set that scope directly. Fixed system search directories remain part of intended discovery and can still find a system-wide CLI on another host. Test/fixture updates are authorized under the current global instructions.
 - The CLI-choice suite also expects no result after creating a managed link in its own `HOME/.local/bin`; that conflicts with the intentional Dock search. Eight other failures simulate Windows on the Mac filesystem and compare `.exe`/`.EXE` or `.cmd`/`.CMD` spellings. Native Windows evidence is required before treating those as product defects.
 
-For the current root lane, supply its website discovery inputs:
+For the current root lane, supply its website discovery inputs and the repository-pinned Bun:
 
 ```sh
 HAPPIER_SHIPPED_TREE=/tmp/happier-oh4-website-sources.u1FylQ/released \
 HAPPIER_UNRELEASED_TREE=/tmp/happier-oh4-website-sources.u1FylQ/unreleased \
+HAPPIER_BUN_PATH=/Users/Josh/.happier/stacks/repo-happier-42a434c316/toolchains/bun-1.4.2/bun \
   ./apps/stack/bin/hstack-exec -- yarn test
 ```
 
 Recreate those source inputs from the named refs if the temporary directories are absent. Never
 point both discovery variables at the working checkout; that would remove the released/development
 distinction the tests enforce. Original root failures are not erased by the package reruns.
+
+The installed default Bun1.2.17 is older than CI's1.4.2. Current Sharp standalone-runtime tests fail
+with that older compiler but pass4/4 with the private pinned executable and inherited default TMPDIR
+(`.project/logs/tests/oh4-server-sharpRuntime-bun142-default-tmpdir.log`). No shared build-runner or
+Sharp source correction was needed. Verify the private executable reports1.4.2 before using the
+override; do not replace the global Bun. Current whole-repository typecheck passes
+(`.project/logs/tests/oh4-root-types-current.log`). The original unit run finished exit1. A successor
+with website inputs alone was intentionally interrupted with exit130 after identifying its missing
+Bun override; `.project/logs/tests/oh4-root-unit-configured-current.log` preserves that partial attempt.
+The pinned-toolchain successor remains a required gate. Earlier `/tmp` log pathnames disappeared
+during the original run; new logs use ignored repo `.project/logs/tests`.
 
 The installer failure is now corrected at `packages/cli-common/src/providers/install.ts`. The vendor recipe records CLI presence using the same execution environment before the entire command sequence. A nonzero command can recover only when the CLI was absent before that sequence and is available afterward. A previously installed CLI no longer masks a failed forced reinstall. Successful forced installs, default already-installed skipping, consent, timeout handling and newly-available recovery are retained.
 

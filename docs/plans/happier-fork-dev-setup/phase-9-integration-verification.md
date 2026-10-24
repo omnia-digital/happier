@@ -163,6 +163,16 @@ configured successor are still required; no full-suite green or stable-release v
 
 ### Earlier selective adoption evidence
 
+Whole-root typecheck now finishes exit0 at source59b801280d with the durable log above. The original
+unit process71413 finishes exit1. Fresh server Sharp reproduction fails under default Bun1.2.17;
+all4 cases pass under CI-pinned private Bun1.4.2, including a second run with inherited default
+TMPDIR (`oh4-server-sharpRuntime-bun142-default-tmpdir.log`). No shared build runner, fixture or
+Sharp production source changed. The first configured successor18287 had website inputs but lacked
+that compiler override, so root deliberately interrupts only its verified task process group24106
+(exit130) rather than spending another full run on known configuration drift. Its partial log is
+preserved as `oh4-root-unit-configured-current.log`; it supplies no whole-suite verdict. The next
+successor includes both source inputs and HAPPIER_BUN_PATH, without a TMPDIR/global-tool override.
+
 October24 baseline continuation: current UI fixture recheck passes22files/378tests with the package
 working directory and root-installed Vitest3.2.4 (`.project/logs/tests/oh4-ui-corrected-package-cwd.log`).
 The first root-cwd attempt failed only collection/setup-path resolution and is not behavioral RED.
