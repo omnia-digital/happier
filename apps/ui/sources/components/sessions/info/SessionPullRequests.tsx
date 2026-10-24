@@ -5,7 +5,7 @@ import { readSessionPullRequestLinks, type ScmPullRequestSummary, type SessionPu
 import { Icon } from '@/components/ui/icons/Icon';
 import { Item } from '@/components/ui/lists/Item';
 import { ItemGroup } from '@/components/ui/lists/ItemGroup';
-import { useSessionProjectScmSnapshot } from '@/sync/domains/state/storage';
+import { useActiveServerAccountScope, useSessionProjectScmSnapshot } from '@/sync/domains/state/storage';
 import { addSessionPullRequestLink, captureSessionPullRequestActionScope, parseSessionPullRequestUrl, readLinkedPullRequest, removeLinkedPullRequest, replaceSessionPullRequestLink, type SessionPullRequestActionScope } from '@/sync/ops/sessionPullRequestLinks';
 import { Modal } from '@/modal';
 import { t } from '@/text';
@@ -72,6 +72,7 @@ function LinkedPullRequest(props: Readonly<{
 export function SessionPullRequests(props: Readonly<{ sessionId: string; metadata: unknown; canEdit: boolean }>) {
     const { theme } = useUnistyles();
     const mountedRef = useMountedRef();
+    const activeScope = useActiveServerAccountScope();
     const snapshot = useSessionProjectScmSnapshot(props.sessionId);
     const links = readSessionPullRequestLinks(props.metadata);
     const configuredProvider = snapshot?.hostingProvider?.kind === 'github' || snapshot?.hostingProvider?.kind === 'gitlab'
@@ -124,7 +125,7 @@ export function SessionPullRequests(props: Readonly<{ sessionId: string; metadat
         ]);
     };
     return <ItemGroup title={t('sessionPullRequests.title')}>
-        {links.map((link) => <LinkedPullRequest key={link.url} sessionId={props.sessionId} link={link} canEdit={props.canEdit} onChange={change} onRemove={remove} />)}
+        {links.map((link) => <LinkedPullRequest key={`${activeScope?.serverId ?? 'none'}:${activeScope?.accountId ?? 'none'}:${link.url}`} sessionId={props.sessionId} link={link} canEdit={props.canEdit} onChange={change} onRemove={remove} />)}
         {props.canEdit && <Item testID="session-pr-add" title={t('sessionPullRequests.add')} subtitle={t('sessionPullRequests.addSubtitle')} icon={<Icon name="link" size={29} color={theme.colors.accent.blue} />} onPress={() => { void add(); }} />}
     </ItemGroup>;
 }

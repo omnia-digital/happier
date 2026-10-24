@@ -1,8 +1,9 @@
 import * as React from 'react';
 import { act } from 'react-test-renderer';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { renderScreen } from '@/dev/testkit';
 import { sessionPullRequestLinkFromUrl } from '@happier-dev/protocol';
+import { storage } from '@/sync/domains/state/storage';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 const readMock = vi.hoisted(() => vi.fn());
@@ -33,12 +34,14 @@ vi.mock('@/modal', async () => {
 
 const first = sessionPullRequestLinkFromUrl('https://github.com/owner/one/pull/7')!;
 const second = sessionPullRequestLinkFromUrl('https://github.com/owner/two/pull/7')!;
+const originalScope = storage.getState().profileScope;
 
 describe('SessionPullRequests', () => {
     beforeEach(() => {
         readMock.mockReset(); addMock.mockClear(); changeMock.mockClear(); removeMock.mockClear();
         openMock.mockClear(); promptMock.mockReset(); alertMock.mockClear(); captureScopeMock.mockClear();
     });
+    afterEach(async () => { await act(async () => { storage.setState({ profileScope: originalScope }); }); });
 
     it('shows distinct same-number repositories and unknown status when the host is unavailable', async () => {
         readMock.mockRejectedValue(new Error('offline'));
@@ -97,6 +100,24 @@ describe('SessionPullRequests', () => {
         expect(JSON.stringify(screen.tree.toJSON())).toContain('gitlab.corp.example');
         await act(async () => { await customRow!.props.onPress(); });
         expect(openMock).toHaveBeenCalledWith(customLink.url);
+    });
+
+    it('clears a previously fresh status when the active Home account changes', async () => {
+        storage.setState({ profileScope: { serverId: 'home-a', accountId: 'account-a' } });
+        readMock.mockResolvedValue(null);
+        readMock.mockResolvedValueOnce({
+            provider: { kind: 'github', baseUrl: 'https://github.com', nameWithOwner: 'owner/one' },
+            number: 7, url: first.url, state: 'merged', title: 'Merged', baseBranch: 'main', headBranch: 'feature',
+        }).mockRejectedValueOnce(new Error('offline'));
+        const { SessionPullRequests } = await import('./SessionPullRequests');
+        const metadata = { sessionPullRequestsV1: { v: 1, links: [first] } };
+        const screen = await renderScreen(<SessionPullRequests sessionId="s1" canEdit metadata={metadata} />);
+        expect(JSON.stringify(screen.tree.toJSON())).toContain('Merged');
+
+        await act(async () => { storage.setState({ profileScope: { serverId: 'home-b', accountId: 'account-b' } }); });
+        expect(readMock).toHaveBeenCalledTimes(2);
+        expect(JSON.stringify(screen.tree.toJSON())).toContain('Unknown');
+        expect(JSON.stringify(screen.tree.toJSON())).not.toContain('Merged');
     });
 
     it('shows links without mutation controls to a shared-session reader', async () => {
