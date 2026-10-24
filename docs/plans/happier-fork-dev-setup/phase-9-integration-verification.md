@@ -4,6 +4,14 @@ Continue source work without interacting with the running daily native app. Nati
 
 ## OH-58 ticket linking
 
+### Link-ticket dialog readability correction (2026-10-24)
+
+The link/change action now opts into the canonical modal card surface and header, retaining the editor's single scroll owner and standard responsive dimensions. Editor labels, loading text and resolved ticket details use the primary theme text color. This corrects the transparent dialog and the black-on-dark labels exposed during visual verification; ticket-reader and persistence behavior are unchanged.
+
+The original browser regression failed because the dialog had no opaque surface. Final Chrome replay passes in light/dark at 1360×900 and 390×844, including opaque coverage, label contrast of at least 4.5:1, long-directory input/cancel, and the existing link/read/save/change/remove/reload workflow. All four dialog screenshots were captured; desktop light and compact dark were visually inspected. Browser diagnostics contain no console, page or HTTP response errors; navigation cancelled three in-flight requests. Focused header/card/modal tests pass 19/19, and UI plus E2E-package typechecks pass. Independent review found no blocking issue. Logs: `/tmp/happier-ticket-browser-red.log`, `/tmp/happier-ticket-browser-final.log`, `/tmp/happier-ticket-modal-focused-vitest.log`, `/tmp/happier-ticket-modal-ui-typecheck.log`, and `/tmp/happier-ticket-e2e-types-final.log`. Screenshots are in `packages/tests/.project/logs/e2e/ui-playwright/session.ticketLinking-sess-b6c85-oves-and-persists-on-reload/ticket-dialog-*.png`.
+
+This is unmerged source work on `fix/link-ticket-modal-background`, targeting `dev`; the installed native app has not been updated or tested. PR creation awaits an exception to the standing rule prohibiting GitHub writes other than branch pushes. Notion publication is blocked: title/content search and the configured Omnia Software Documentation data source did not identify a canonical Happier page. This paragraph is the ready-to-publish update; next steps are to identify that page, open the PR when authorized, and validate the native app after integration.
+
 - 🟢 Protocol/CLI fixed-read reader remains opt-in and machine-only. Root independently passes reader/adapter 9 and encrypted machine/session authorization 4 (the latter overlaps OH-59).
 - 🟢 Root independently passes status/transport/opener 14 in `/tmp/happier-oh58-ui-root-final.log`.
 - 🟢 Save-race correction `35c3dbd44d` forwards the captured account and existing caller lifetime through the canonical metadata writer. Emission rechecks after awaited context/socket acquisition and uses the canonical credential guard immediately around emission. Root independently passes emitter/helper/real-Sync 89 in `/tmp/happier-oh58-metadata-root-independent.log`.

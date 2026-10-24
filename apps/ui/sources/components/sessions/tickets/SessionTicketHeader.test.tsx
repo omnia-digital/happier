@@ -1,6 +1,16 @@
 import React from 'react';
+import { act } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderScreen, standardCleanup } from '@/dev/testkit';
+
+const modalShow = vi.hoisted(() => vi.fn());
+vi.mock('@/modal', async () => {
+    const { createModalModuleMock } = await import('@/dev/testkit/mocks/modal');
+    return createModalModuleMock({ spies: { show: modalShow } }).module;
+});
+vi.mock('@/sync/domains/scope/activeServerAccountScope', () => ({
+    getActiveServerAccountScope: () => ({ serverId: 'home', accountId: 'account' }),
+}));
 
 vi.mock('react-native', async () => (await import('@/dev/testkit/mocks/reactNative')).createReactNativeWebMock());
 vi.mock('react-native-unistyles', async () => (await import('@/dev/testkit/mocks/unistyles')).createUnistylesMock());
@@ -31,5 +41,20 @@ describe('session ticket edit rights', () => {
         expect(screen.getTextContent()).toContain('Home Account changed');
         expect(screen.findByTestId('session-ticket-sources')?.props.disabled).toBe(true);
         expect(screen.findByTestId('session-ticket-url')?.props.editable).toBe(false);
+    });
+
+    it('opens ticket linking in a card surface around the existing editor scroll view', async () => {
+        const { SessionTicketHeader } = await import('./SessionTicketHeader');
+        const screen = await renderScreen(<SessionTicketHeader sessionId="session" metadata={{ path: '/repo', host: 'host', machineId: 'reader' }} serverId="home" accessLevel="edit" />);
+        const link = screen.findByTestId('session-ticket-link');
+        expect(link).toBeTruthy();
+        await act(() => link!.props.onPress());
+
+        const config = modalShow.mock.calls.at(-1)?.[0] as { chrome?: { kind: string; layout?: string; bodyScroll?: string } } | undefined;
+        expect(config?.chrome).toMatchObject({
+            kind: 'card',
+            layout: 'fill',
+            bodyScroll: 'none',
+        });
     });
 });

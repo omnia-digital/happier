@@ -15,6 +15,7 @@ import { encryptLegacyBase64, decryptLegacyBase64 } from '../../src/testkit/mess
 import { repoRootDir } from '../../src/testkit/paths';
 import { readUiE2eScopedAccountSettings } from '../../src/testkit/uiE2e/scopedAccountSettingsStorage';
 import { collectBrowserDiagnostics, appendBrowserDiagnostics } from '../../src/testkit/uiE2e/browserDiagnostics';
+import { mutateUiE2eLocalSettings } from '../../src/testkit/uiE2e/localSettingsStorage';
 
 const run = createRunDirs({ runLabel: 'ui-e2e' });
 test.describe('session ticket link/read/status via isolated opt-in reader', () => {
@@ -64,6 +65,58 @@ test.describe('session ticket link/read/status via isolated opt-in reader', () =
             const { sessionId } = await createSessionWithCiphertexts({ baseUrl: server.baseUrl, token: access.token, metadataCiphertextBase64: encryptLegacyBase64(metadata, secret) });
             await gotoDomContentLoadedWithRetries(page, `${baseUrl}/session/${sessionId}`, 120_000);
             await expect(page.getByTestId('session-ticket-link')).toBeVisible({ timeout: 120_000 });
+            // The dialog must cover the transcript with a solid surface, independently
+            // of the translucent backdrop. Exercise the actual portal in both themes.
+            for (const theme of ['light', 'dark'] as const) {
+                await mutateUiE2eLocalSettings({ page, settingsPatch: { themePreference: theme } });
+                await page.reload();
+                for (const viewport of [{ width: 1360, height: 900 }, { width: 390, height: 844 }]) {
+                    await page.setViewportSize(viewport);
+                    await page.getByTestId('session-ticket-link').click();
+                    const editor = page.getByTestId('session-ticket-editor');
+                    await expect(editor).toBeVisible();
+                    const opaqueSurface = await editor.evaluate((element) => {
+                        const dialog = element.closest('[role="dialog"]');
+                        for (let node: Element | null = element; node && node !== dialog; node = node.parentElement) {
+                            const style = getComputedStyle(node);
+                            const color = style.backgroundColor;
+                            const opaque = /^rgb\([^)]*\)$/.test(color) || /^rgba\([^,]+,[^,]+,[^,]+,\s*1\)$/.test(color);
+                            if (opaque && Number(style.opacity) === 1) {
+                                const bounds = node.getBoundingClientRect();
+                                return bounds.width > 0 && bounds.left >= 0 && bounds.right <= window.innerWidth;
+                            }
+                        }
+                        return false;
+                    });
+                    expect(opaqueSurface, `${theme} ticket dialog must obscure the session beneath it`).toBe(true);
+                    const labelContrast = await editor.getByText('Ticket URL', { exact: true }).evaluate((label) => {
+                        const luminance = (color: string) => {
+                            const channels = color.match(/[\d.]+/g)!.slice(0, 3).map((value) => {
+                                const channel = Number(value) / 255;
+                                return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+                            });
+                            return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+                        };
+                        const foreground = luminance(getComputedStyle(label).color);
+                        const dialog = label.closest('[role="dialog"]');
+                        for (let node: Element | null = label; node && node !== dialog; node = node.parentElement) {
+                            const background = getComputedStyle(node).backgroundColor;
+                            if (!/^rgb\([^)]*\)$/.test(background)) continue;
+                            const surface = luminance(background);
+                            return (Math.max(foreground, surface) + 0.05) / (Math.min(foreground, surface) + 0.05);
+                        }
+                        return 0;
+                    });
+                    expect(labelContrast, `${theme} ticket labels must remain readable on the opaque surface`).toBeGreaterThanOrEqual(4.5);
+                    await page.getByTestId('session-ticket-directory').fill('/workspace/' + 'long-project-directory/'.repeat(12));
+                    await page.getByTestId('session-ticket-cancel').scrollIntoViewIfNeeded();
+                    await expect(page.getByTestId('session-ticket-cancel')).toBeInViewport();
+                    await page.screenshot({ path: testInfo.outputPath(`ticket-dialog-${theme}-${viewport.width}.png`) });
+                    await page.getByTestId('session-ticket-cancel').click();
+                    await expect(editor).toBeHidden();
+                }
+            }
+            await page.setViewportSize({ width: 1360, height: 900 });
             await page.getByTestId('session-ticket-link').click();
             await page.getByTestId('session-ticket-url').fill('https://linear.app/fixture/issue/DEV-1');
             await page.getByTestId('session-ticket-sources').click();
@@ -146,5 +199,6 @@ test.describe('session ticket link/read/status via isolated opt-in reader', () =
             await page.reload();
             await expect(page.getByTestId('session-ticket-link')).toBeVisible({ timeout: 120_000 });
         } catch (error) { throw appendBrowserDiagnostics(error, diagnostics()); }
+        finally { await testInfo.attach('browser-diagnostics', { body: diagnostics(), contentType: 'text/plain' }); }
     });
 });
