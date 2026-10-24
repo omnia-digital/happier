@@ -371,7 +371,8 @@ Integration has additional prerequisites. UI integration passes205tests with2ski
 Legend native and Fabric host harnesses; those are not physical-device checks. Server's disposable
 SQLite harness is safe with REDIS_URL unset. Two stale exact ACK expectations were corrected in
 `06a8c5db33` to include the producer's stored creation time (5focused+41adjacent pass; final server
-typecheck passes). The complete server integration recheck remains pending.
+typecheck passes). Complete server integration now passes144files/1058tests with1skipped
+(`.project/logs/tests/oh4-server-integration-final-current.log`).
 
 CLI integration reads `apps/cli/.env.integration-test` after the inherited environment, so verify
 its effective HOME and server before dispatch. Current inspection finds dedicated `/tmp/happier-dev-test`,
@@ -382,6 +383,12 @@ Keep real provider/terminal opt-ins and HAPPIER_OPENCODE_SERVER_STATE_PATH unset
 bare `bun` also need the private1.4.2 directory prepended to PATH; HAPPIER_BUN_PATH alone does not
 select those subprocesses. Four WebSocket/compiled-module probes pass under that supported toolchain
 without source changes. Do not replace global Bun or copy daily credentials for this lane.
+
+CLI fixture follow-up `59c9d1767f` fixes a hoisted boundary spy and registration argument arity.
+Root review caught a dropped third-argument assertion and zero-argument mock tuple typing;
+`22a7dd0ebb` retains all three original positional checks, permits trailing optional fields, and
+types the spy from its actual owner. Focused150 and final deciding2+adjacent timeout1 pass;
+CLI typecheck passes after the delta. Full CLI integration rerun remains pending.
 
 Full Stack integration is blocked on release-owned artifacts: its ordinary `release_binary_smoke`
 and `self_host_binary_smoke` tests would build archives in `dist/release-assets`, which is absent.

@@ -163,6 +163,15 @@ configured successor are still required; no full-suite green or stable-release v
 
 ### Earlier selective adoption evidence
 
+Server integration delta now passes all144files,1058tests/1skip in271.30s; final servertypes pass.
+UI205pass/2skip remains applicable. CLI fixture `59c9d1767f` passes150 but root's delta review finds
+the original non-null third report-options assertion omitted and CLI types fail with tuple[] calls.
+`22a7dd0ebb` restores the first3 exact positional checks while accepting optional trailing args and
+types the OS/HTTP boundary spy from the real function. Final deciding2identity+1adjacent timeout
+and CLI types pass. This bounded fixture task retains1failedLuna/0Sol/0Astra; unrelated OH69 counts
+are unchanged. No production source or timestamp compatibility policy changed. Full CLI integration
+rerun and35regular Stack source cases remain pending, serialized over shared build outputs.
+
 Integration follows the unit/type gate. Canonical UI integration exits0: web160, Legend-native22,
 Fabric23pass/2skip,205pass total. This is host execution, not device acceptance. Server first full
 integration143files pass/1fail,1056pass/2fail/1skip. Both failures are exact ACK fixtures missing the
