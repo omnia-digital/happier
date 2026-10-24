@@ -41,6 +41,7 @@ vi.mock('@/sync/api/session/apiSocket', () => ({
 
 import { storage } from './domains/state/storage';
 import { markSessionVisible, markSessionHidden } from './domains/session/activeViewingSession';
+import { getActiveServerSnapshot } from './domains/server/serverRuntime';
 import type { ApiMessage, ApiUpdateContainer } from './api/types/apiTypes';
 import type { InvalidateSync } from '@/utils/sessions/sync';
 
@@ -96,6 +97,7 @@ function loadedSeqs(): number[] {
 async function seedSession(initialSeq = 1): Promise<SyncGapTestAccess> {
     const { sync } = await import('./sync');
     sync.disconnectServer();
+    storage.setState({ profileScope: { serverId: getActiveServerSnapshot().serverId, accountId: 'socket-gap-account' } });
     storage.getState().applySessions([createSessionFixture({
         id: SESSION_ID,
         seq: initialSeq,
@@ -241,7 +243,9 @@ describe('sync socket gap recovery', () => {
     ])('recovers the interval before a committed send ACK (prefix: $initialSeq, retry: $retry)', async ({ initialSeq, retry }) => {
         const syncForTest = await seedSession(initialSeq);
         const { sync } = await import('./sync');
-        const emitWithAck = vi.fn().mockResolvedValue({ ok: true, id: 'm5', seq: 5, localId: 'sent-local', didWrite: true });
+        const emitWithAck = vi.fn().mockResolvedValue({
+            ok: true, id: 'm5', seq: 5, localId: 'sent-local', createdAt: message(5).createdAt, didWrite: true,
+        });
         // A malformed first acknowledgement exercises the existing pending-commit retry owner.
         if (retry) emitWithAck.mockResolvedValueOnce({ malformed: true });
         sync.setMessageTransport({ emitWithAck, send: vi.fn() });

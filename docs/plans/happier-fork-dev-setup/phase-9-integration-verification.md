@@ -128,6 +128,41 @@ No source branch, alias, release representation or new coordination owner was ad
 
 ## Parent maintenance
 
+October24 follow-through: Windows process admission is corrected at one proc owner, shared by server
+and Expo (`230f517d70` RED,`832e619be5` source,`746e43429e` platform fixtures). Live Windows proves a
+wrapper child was rejected before the fix, then accepted while an independent listener remains rejected.
+Author Windows29/1DarwinSkip and root Mac29/1WindowsSkip pass; a different reviewer independently
+remeasures Windows19/19, checks CIM creation-time semantics, and finds no material admission defect.
+Server inspection uses the remaining caller budget; Expo retains its existing4s observation budget.
+This source intent's0.3 disposition remains blocked on the missing destination, with no new registry.
+
+Canonical Windows development now reaches native compilation. Local Bun1.4.2 matches the official
+release archive checksum, and Cargo finishes the dev profile in1m37s at source746e43429e, running the
+scoped `tauri-target/debug/app.exe`. WebView2 setup exits101 with0x80070578 in the SSH context;
+interactive Windows behavior is unverified, not inferred from compilation. Canonical stop observes
+ports53651/53652/19727/9223 and recorded PIDs absent but reports runtime-finalization cleanup_incomplete
+because server identity is unavailable. Four original dirty bundles and the selector-only lock change
+remain byte-identical; Cargo adds15 generated tracked permission/reference files, preserved. No
+daily CLI/service/account, installer, signing or updater change occurred. Desktop QA preference is pending.
+
+UI baseline follow-ups are fixture corrections, preserving real scoped owners. Mounted list suites
+pass144 (`e8facb4303`); verified worktree/automation fixtures50 (`8b07b0e9fc`); scoped voice/draft
+fixtures66 (`a3d32d9b65`); old folder/publication and pinned hydration fixtures42 with final alias8
+(`77655f9274`,`e5c0bc4d2e`); real attention store chain9 (`f8eee1c14d`). Counts overlap adjacent checks.
+Root socket-gap10/10 now supplies active account scope and the current server ACK's stored timestamp;
+the three prefix/retry assertions remain. The first timestamp-only correction still failed3/10 because
+null account scopes correctly fail equality; adding the missing actor fixture reaches the real commit.
+No message production code or legacy ACK browser test changed. Current UI typecheck passes.
+
+The original root process71413 remains live with already-recorded failures. Its temporary log pathname
+disappeared while the process still held stdout open; no cause is established. Earlier package/check
+terminal observations remain recorded, but the temporary paths above are historical evidence pointers,
+not a guarantee those files remain. New root checks use ignored repo `.project/logs/tests`, including
+`oh4-socket-gap-scoped-fixture.log` and `oh4-ui-types-current.log`. The full root terminal result and
+configured successor are still required; no full-suite green or stable-release verdict is claimed.
+
+### Earlier selective adoption evidence
+
 October24 fetch advances parent dev from `413054f17c` to `2bf968563b` by29 commits, with128 files changed. Five coherent intents have now been selectively adapted through fork owners. This supersedes the earlier fetched-only state; no full parent merge, runtime/version upgrade or daily-app cutover occurred, and the rest of the parent-exclusive history is not certified compatible.
 
 Systemd PATH-only drift uses the existing definition comparator/inventory (`1bb4a2a6c1`): RED2→GREEN20 and CLI types. Activated-binary repair (`5fabb5cb7b`) uses the canonical managed executable resolver, preserves fork update-source safeguards and ends the old guided plan after a successful update. Independent review corrected matching installed-service assessment even when the old plan is empty (`1dbf174d46`), stopped-service/manual-daemon conflation (`aae3956944`), and ambiguous multi-service PID attribution (`c6f9543e71`). Reviewer56 plus CLI types pass; root independently passes7 service/daemon report cases (`/tmp/happier-oh12-root-service-report.log`). No real update, OS service change or native platform execution ran. The private original repair RED log must not be printed/uploaded because its assertion dumped inherited environment; current tests project owned launch fields.
