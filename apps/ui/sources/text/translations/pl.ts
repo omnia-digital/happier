@@ -6542,6 +6542,16 @@ export const pl: TranslationStructure = {
     conflict: { title: 'Konflikt wersji roboczej', description: 'To pole zmieniono na innym urządzeniu.', mine: 'Na tym urządzeniu', synced: 'Zsynchronizowane', useSynced: 'Użyj zsynchronizowanej', keepDevice: 'Zachowaj z urządzenia', copyMine: 'Kopiuj moją', copied: 'Skopiowano', copyFailed: 'Nie udało się skopiować', field: { text: 'Tekst', mentions: 'Wzmianki', attachments: 'Załączniki', recipient: 'Odbiorca', agentContinuation: 'Kontynuacja agenta', executionRunDelivery: 'Dostarczenie wykonania' } },
   },
   sessionsList: {
+        statusOrganization: {
+            groupTitle: "Grupuj według",
+            agentGroup: "Grupuj według stanu agenta",
+            ticketGroup: "Grupuj według stanu zgłoszenia",
+            agentSort: "Sortuj według stanu agenta",
+            ticketSort: "Sortuj według stanu zgłoszenia",
+            restoreGrouping: "Użyj zapisanego układu",
+            description: "Zastępuje grupy komputerów i repozytoriów. Przypięte sesje pozostają osobno; foldery zawierają własne grupy stanów. Zapisany układ i kolejność ręczna zostają zachowane.",
+            noTicket: "Brak zgłoszenia",
+        },
     serverHeader: ({ server }: { server: string }) => `Serwer: ${server}`,
     storagePersistedTab: "Happier",
     storageDirectTab: "Bezpośrednie",

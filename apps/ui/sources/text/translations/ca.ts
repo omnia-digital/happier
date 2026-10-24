@@ -6164,6 +6164,16 @@ deps: {
         conflict: { title: 'Conflicte d’esborrany', description: 'Aquest camp ha canviat en un altre dispositiu.', mine: 'En aquest dispositiu', synced: 'Sincronitzat', useSynced: 'Utilitza el sincronitzat', keepDevice: 'Conserva el del dispositiu', copyMine: 'Copia el meu', copied: 'Copiat', copyFailed: 'No s’ha pogut copiar', field: { text: 'Contingut de text', mentions: 'Mencions', attachments: 'Adjunts', recipient: 'Destinatari', agentContinuation: 'Continuació de l’agent', executionRunDelivery: 'Lliurament de l’execució' } },
     },
     sessionsList: {
+        statusOrganization: {
+            groupTitle: "Agrupa per",
+            agentGroup: "Agrupa per estat de l’agent",
+            ticketGroup: "Agrupa per estat del tiquet",
+            agentSort: "Ordena per estat de l’agent",
+            ticketSort: "Ordena per estat del tiquet",
+            restoreGrouping: "Utilitza la disposició desada",
+            description: "Substitueix els grups d’ordinador i repositori. Les sessions fixades continuen separades; les carpetes contenen els seus propis grups d’estat. Es conserven la disposició desada i l’ordre manual.",
+            noTicket: "Sense tiquet",
+        },
         serverHeader: ({ server }: { server: string }) => `Servidor: ${server}`,
         storagePersistedTab: 'Happier',
         storageDirectTab: 'Directes',

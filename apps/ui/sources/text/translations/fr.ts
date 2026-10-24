@@ -6150,6 +6150,16 @@ export const fr: TranslationStructure = {
         conflict: { title: 'Conflit de brouillon', description: 'Ce champ a changé sur un autre appareil.', mine: 'Sur cet appareil', synced: 'Synchronisé', useSynced: 'Utiliser la version synchronisée', keepDevice: 'Garder cette version', copyMine: 'Copier ma version', copied: 'Copié', copyFailed: 'Copie impossible', field: { text: 'Texte', mentions: 'Références', attachments: 'Pièces jointes', recipient: 'Destinataire', agentContinuation: 'Suite de l’agent', executionRunDelivery: 'Livraison de l’exécution' } },
     },
     sessionsList: {
+        statusOrganization: {
+            groupTitle: "Regrouper par",
+            agentGroup: "Regrouper par état de l’agent",
+            ticketGroup: "Regrouper par état du ticket",
+            agentSort: "Trier par état de l’agent",
+            ticketSort: "Trier par état du ticket",
+            restoreGrouping: "Utiliser la disposition enregistrée",
+            description: "Remplace les groupes par ordinateur et dépôt. Les sessions épinglées restent séparées ; les dossiers contiennent leurs propres groupes d’état. La disposition enregistrée et l’ordre manuel sont conservés.",
+            noTicket: "Aucun ticket",
+        },
         serverHeader: ({ server }: { server: string }) => `Serveur : ${server}`,
         storagePersistedTab: 'Happier',
         storageDirectTab: 'Direct',

@@ -5443,6 +5443,16 @@ export const ru: TranslationStructure = {
     conflict: { title: 'Конфликт черновика', description: 'Это поле изменено на другом устройстве.', mine: 'На этом устройстве', synced: 'Синхронизировано', useSynced: 'Использовать синхронизированное', keepDevice: 'Оставить с устройства', copyMine: 'Скопировать моё', copied: 'Скопировано', copyFailed: 'Не удалось скопировать', field: { text: 'Текст', mentions: 'Упоминания', attachments: 'Вложения', recipient: 'Получатель', agentContinuation: 'Продолжение агента', executionRunDelivery: 'Доставка запуска' } },
   },
   sessionsList: {
+        statusOrganization: {
+            groupTitle: "Группировать по",
+            agentGroup: "Группировать по статусу агента",
+            ticketGroup: "Группировать по статусу задачи",
+            agentSort: "Сортировать по статусу агента",
+            ticketSort: "Сортировать по статусу задачи",
+            restoreGrouping: "Использовать сохранённый вид",
+            description: "Заменяет группы компьютеров и репозиториев. Закреплённые сеансы остаются отдельно; внутри папок создаются свои группы статусов. Сохранённый вид и ручной порядок сохраняются.",
+            noTicket: "Без задачи",
+        },
     serverHeader: ({ server }: { server: string }) => `Сервер: ${server}`,
     storagePersistedTab: "Happier",
     storageDirectTab: "Прямые",

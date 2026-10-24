@@ -6789,6 +6789,16 @@ localTailscale: {
     conflict: { title: '下書きの競合', description: 'このフィールドは別のデバイスで変更されました。', mine: 'このデバイス', synced: '同期済み', useSynced: '同期版を使用', keepDevice: 'デバイス版を保持', copyMine: '自分の版をコピー', copied: 'コピーしました', copyFailed: 'コピーできませんでした', field: { text: 'テキスト', mentions: 'メンション', attachments: '添付ファイル', recipient: '受信者', agentContinuation: 'エージェント継続', executionRunDelivery: '実行配信' } },
   },
   sessionsList: {
+        statusOrganization: {
+            groupTitle: "グループ化",
+            agentGroup: "エージェントの状態でグループ化",
+            ticketGroup: "チケットの状態でグループ化",
+            agentSort: "エージェントの状態で並べ替え",
+            ticketSort: "チケットの状態で並べ替え",
+            restoreGrouping: "保存したレイアウトを使用",
+            description: "マシン別・リポジトリ別のグループを置き換えます。ピン留めは別のまま、各フォルダー内を状態でグループ化します。保存したレイアウトと手動の順序は保持されます。",
+            noTicket: "チケットなし",
+        },
     serverHeader: ({ server }: { server: string }) => `サーバー: ${server}`,
     storagePersistedTab: "Happier",
     storageDirectTab: "ダイレクト",
