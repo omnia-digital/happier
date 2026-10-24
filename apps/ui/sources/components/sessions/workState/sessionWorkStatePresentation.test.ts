@@ -5,6 +5,7 @@ import {
     readSessionWorkStateFromMetadata,
     resolveActiveSessionGoalItem,
     resolvePrimarySessionWorkStateItem,
+    resolveSidebarGoalTone,
     resolveSessionWorkStateStatusBadgePresentation,
 } from './sessionWorkStatePresentation';
 
@@ -60,6 +61,31 @@ describe('sessionWorkStatePresentation goalCapabilities + active selector', () =
         expect(resolveActiveSessionGoalItem(snapshotWithGoal('complete'))).toBeNull();
         expect(resolveActiveSessionGoalItem(snapshotWithGoal('cancelled'))).toBeNull();
         expect(resolveActiveSessionGoalItem(snapshotWithGoal('paused'))).toBeNull();
+    });
+});
+
+describe('legacy goal lifecycle compatibility', () => {
+    it('keeps omitted legacy statuses active but presents an explicit future status as unknown', () => {
+        const legacyGoal = (goal: Record<string, unknown>) => readSessionWorkStateFromMetadata({
+            sessionGoalV1: { objective: 'Ship the feature', ...goal },
+        })?.items[0] ?? null;
+
+        expect(legacyGoal({})?.status).toBe('active');
+        expect(legacyGoal({ status: 'futureStatus' })?.status).toBe('unknown');
+    });
+});
+
+describe('sidebar goal tone', () => {
+    it('colors only pursuing goals blue and completed goals green; interrupted and waiting goals stay neutral', () => {
+        const item = (status: string, statusReason?: string) => snapshotWithGoal(status)?.items[0]
+            ? { ...snapshotWithGoal(status)!.items[0]!, ...(statusReason ? { statusReason: statusReason as 'interrupted' } : {}) }
+            : null;
+
+        expect(resolveSidebarGoalTone(item('active')!)).toBe('active');
+        expect(resolveSidebarGoalTone(item('complete')!)).toBe('complete');
+        expect(resolveSidebarGoalTone(item('active', 'interrupted')!)).toBe('neutral');
+        expect(resolveSidebarGoalTone(item('paused')!)).toBe('neutral');
+        expect(resolveSidebarGoalTone(item('blocked')!)).toBe('neutral');
     });
 });
 

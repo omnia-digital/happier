@@ -5853,6 +5853,7 @@ export const it: TranslationStructure = {
         budgetReachedBody: "Questo obiettivo ha raggiunto il budget di token. Rimuovi il budget per continuare.",
         removeBudgetAndResume: "Rimuovi budget e continua",
         statusInterrupted: "Interrotto",
+        statusUnknown: "Sconosciuto",
         tokenBudget: "Budget token",
         budgetProgress: ({ used, budget }: { used: string; budget: string }) => `${used} / ${budget}`,
         budgetCaption: ({ budget }: { budget: string }) => `su ${budget} di budget`,

@@ -5180,6 +5180,7 @@ export const en = {
                 budgetReachedBody: 'This goal has reached its token budget. Remove the budget to continue.',
                 removeBudgetAndResume: 'Remove budget and continue',
                 statusInterrupted: 'Interrupted',
+                statusUnknown: 'Unknown',
                 tokenBudget: 'Token budget',
                 budgetProgress: ({ used, budget }: { used: string; budget: string }) => `${used} / ${budget}`,
                 budgetCaption: ({ budget }: { budget: string }) => `of ${budget} budget`,

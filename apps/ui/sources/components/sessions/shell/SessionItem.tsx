@@ -37,6 +37,8 @@ import { SessionRowStatusBadge, resolveSessionRowStatusLabel, resolveSessionRowS
 import type { SessionListVisualStatus } from '@/sync/domains/session/listing/deriveSessionListActivity';
 import type { SessionRowAttentionState, SessionRowPresentation } from './row/resolveSessionRowPresentation';
 import type { SessionListRowModel } from './row/sessionListRowModelTypes';
+import type { SessionWorkStateItem } from '@/components/sessions/workState/sessionWorkStateTypes';
+import { SessionRowGoalIndicator } from './row/SessionRowGoalIndicator';
 import {
     normalizeSessionListActiveColorMode,
     resolveSessionRowTitleColorRole,
@@ -141,6 +143,7 @@ type SessionItemBaseProps = Readonly<{
     embedded?: boolean;
     embeddedIsLast?: boolean;
     session: Session | SessionListRenderableSession;
+    goalIndicator?: SessionWorkStateItem | null;
     selectionKey?: string | null;
     shortcutHint?: number;
     subtitleOverride?: string | null;
@@ -207,6 +210,7 @@ type SessionItemRenderProps = Omit<SessionItemBaseProps, 'activityTimeMode' | 's
     reminder: SessionListRowModel['reminder'];
     /** Live agent work in this session, already named. `null` unless the person opted in (R-8). */
     agentActivityLabel: string | null;
+    goalIndicator?: SessionWorkStateItem | null;
     isSessionIdentityLoading: boolean;
     activityTimeLabel: string;
     rowAttentionState: SessionRowAttentionState;
@@ -781,6 +785,7 @@ const SessionItemContent = React.memo(
         draft,
         reminder,
         agentActivityLabel,
+        goalIndicator,
         isSessionIdentityLoading,
         activityTimeLabel,
         rowAttentionState,
@@ -1640,6 +1645,14 @@ const SessionItemContent = React.memo(
                                 {sessionNameResolved}
                             </Text>
                         )}
+                        {goalIndicator ? (
+                            <SessionRowGoalIndicator
+                                goal={goalIndicator}
+                                sessionId={resolvedSession.id}
+                                compact={compact === true}
+                                minimal={isMinimal}
+                            />
+                        ) : null}
                         {(shouldRenderTrailingAgentLogo && !shouldRenderSelectionCheckbox) || (showMachineIdentity && machineLabel) ? (
                             <View testID={`session-list-right-identity-${resolvedSession.id}`} style={styles.rightIdentity}>
                                 {shouldRenderTrailingAgentLogo && !shouldRenderSelectionCheckbox ? (
@@ -2178,6 +2191,7 @@ function SessionItemFromRowModel(props: SessionItemProps & { rowModel: SessionLi
             draft={rowModel.draft}
             reminder={rowModel.reminder}
             agentActivityLabel={rowModel.agentActivityLabel}
+            goalIndicator={rowModel.goalIndicator}
             isSessionIdentityLoading={rowModel.isIdentityLoading}
             activityTimeLabel={rowModel.activity.label}
             rowAttentionState={rowModel.attention.rowState}

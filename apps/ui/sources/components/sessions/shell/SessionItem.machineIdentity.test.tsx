@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { renderScreen, standardCleanup } from '@/dev/testkit';
 import type { SessionStatus } from '@/utils/sessions/sessionUtils';
 import type { LocalSettings } from '@/sync/domains/settings/localSettings';
+import type { SessionWorkStateItem } from '@/components/sessions/workState/sessionWorkStateTypes';
 import { createSessionItemTestRowModel, installSessionShellCommonModuleMocks } from './sessionShellTestHelpers';
 import { SessionListSelectionProvider, useSessionListSelectionActions } from './selection/SessionListSelectionContext';
 
@@ -345,5 +346,32 @@ describe('SessionItem machine identity', () => {
         await act(async () => indicator?.props.onPointerEnter());
         const tooltip = screen.root.findAll((node) => node.props?.label === 'Long named studio workstation');
         expect(tooltip.length).toBeGreaterThan(0);
+    });
+
+    it('shows an accessible goal target without displacing the title, agent, or machine identity', async () => {
+        const { SessionItem } = await import('./SessionItem');
+        const props: SessionItemProps = {
+            session, serverId: 'server-a', compact: true, compactMinimal: true,
+            pinned: true, variant: 'no-path',
+        };
+        const goal: SessionWorkStateItem = {
+            id: 'goal:claude', kind: 'goal', origin: 'vendor', status: 'active',
+            title: 'Finish the feature', updatedAt: 1,
+        };
+        const screen = await renderScreen(<SessionItem {...props} rowModel={createSessionItemTestRowModel(props, {
+            machineLabel: 'Long named studio workstation', machineId: 'machine-a', showMachineIdentity: true,
+            showMachineLabel: true, title: 'Review', isPinned: true, identityDisplay: 'agentLogo', goalIndicator: goal,
+        })} />);
+
+        const indicator = screen.findByTestId(`session-list-goal-indicator:${SESSION_ID}`);
+        expect(indicator?.props.accessibilityLabel).toContain('Finish the feature');
+        expect(indicator?.props.accessibilityLabel).toContain('statusActive');
+        expect(indicator?.props.focusable).toBe(true);
+        expect(typeof indicator?.props.onHoverIn).toBe('function');
+        await act(async () => indicator?.props.onHoverIn());
+        expect(screen.root.findAll((node) => node.props?.label === indicator?.props.accessibilityLabel).length).toBeGreaterThan(0);
+        expect(screen.findByTestId(`session-list-right-identity-${SESSION_ID}`)).not.toBeNull();
+        expect(screen.findByTestId(`session-list-machine-identity-${SESSION_ID}`)).not.toBeNull();
+        expect(screen.findByTestId(`session-list-item-${SESSION_ID}`)?.props.accessibilityLabel).toContain('Review');
     });
 });
