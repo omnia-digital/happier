@@ -82,16 +82,28 @@ function buildRows(
   automatic: readonly AutomaticStartupEntry[],
   running: readonly RunningDaemonEntry[],
 ): Row[] {
-  // Fold running-daemon info into the managing-service row when they
-  // represent the same physical slot (the daemon was service-started and
-  // its real serverId is in the service's `managedServerIds`). A manually
-  // started daemon on that profile is separate from an installed service.
+  // The daemon snapshot has no service mode or installed path. A shared
+  // profile alone cannot identify its owner when multiple services qualify.
+  const daemonCandidates = running.map((daemon) => {
+    if (daemon.startedBy !== 'automatic-startup') return [];
+    return automatic.flatMap((service, index) => {
+      const managed = service.managedServerIds ?? [service.serverId];
+      return service.running === true
+        && service.happierHomeDir !== null
+        && !service.isForeignHome
+        && (daemon.startedWithReleaseChannel === null || service.releaseChannel === daemon.startedWithReleaseChannel)
+        && managed.includes(daemon.serverId)
+        ? [index]
+        : [];
+    });
+  });
   const consumed = new Set<number>(); // indexes of running daemons folded into a service row
-  const rows: Row[] = automatic.map((e) => {
-    const managed = e.managedServerIds ?? [e.serverId];
-    const matchIdx = running.findIndex((d) => d.startedBy === 'automatic-startup' && managed.includes(d.serverId));
+  const rows: Row[] = automatic.map((service, serviceIndex) => {
+    const matches = daemonCandidates.flatMap((candidates, daemonIndex) =>
+      candidates.length === 1 && candidates[0] === serviceIndex ? [daemonIndex] : []);
+    const matchIdx = matches.length === 1 ? matches[0] : -1;
     if (matchIdx >= 0) consumed.add(matchIdx);
-    return rowFromAutomaticStartup(e, matchIdx >= 0 ? running[matchIdx] : null);
+    return rowFromAutomaticStartup(service, matchIdx >= 0 ? running[matchIdx] : null);
   });
   for (let i = 0; i < running.length; i += 1) {
     if (consumed.has(i)) continue;
