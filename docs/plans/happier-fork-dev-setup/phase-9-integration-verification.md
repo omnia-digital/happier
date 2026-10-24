@@ -24,7 +24,8 @@ Continue source work without interacting with the running daily native app. Nati
 
 - 🟢 Partial content source `ecf1d2b66d` reuses the existing gated machine-memory status/search owner. Scope is explicitly one Home and machine; results are indexed summaries with message sequence navigation. No account-wide transcript coverage or automatic indexing enablement is claimed.
 - 🟢 Scope controls/credential-event correction `c116edab2c` has author mounted 13/13 and current UI typecheck green. A held old result is discarded on the actual credential event; changing Home/machine clears old results and restores input focus.
-- 🟢 Earlier title and content Chrome cases pass individually. Current scope-control browser replay and complete new-copy localization remain pending; final source review follows those results. Preserve one failed Sol / zero failed Astra from the title-account boundary.
+- 🟢 Title and content Chrome cases pass individually; final content replay includes Change Home/machine and message navigation. Detailed new-copy localization is pushed at `eb86719ffd`; monitoring locale integrity remains independently pending.
+- 🔴 Root rejects the mounted credential/foreign-Home proof because it mocks the internal scoped machine RPC owner. This bypasses real context/encryption/transport. Preserve two cumulative failed Sol / zero failed Astra review cycles, including the earlier title-account finding. Router returns ESCALATE Astra/high; an actual native Astra/high worker now owns the canonical external socket/API boundary correction and final content review. Existing 13 green mounted tests do not establish that transport boundary.
 
 ## Parent maintenance
 
