@@ -163,6 +163,24 @@ configured successor are still required; no full-suite green or stable-release v
 
 ### Earlier selective adoption evidence
 
+Final permitted integration boundary is GREEN: UI205pass/2skip; server144files/1058pass/1skip;
+CLI8/8shards,113filespass/9skip and880testspass/61skip in296.91s; Stack35selectedregularfiles,
+177/177 in289.59s. CLI uses both the pinned Bun executable override and its directory on PATH,
+auth-bootstrap0 and the verified dedicated HOME. Reinspection finds only a test account-settings
+cache; source settings.json and legacy/server access.key inputs remain absent. No cache/data was
+removed. Logs are the final corresponding `.project/logs/tests/oh4-*-integration-*-current.log` files.
+The first Stack selection attempt failed before test dispatch on a path callback argument; its log
+is preserved, and the corrected invocation only filters existing collector results and consumes
+the same environment/process owners. No new runner or product guard was introduced.
+
+Current whole-root types also pass in18.27s (`oh4-root-types-final-current.log`). Whole-root units
+remain applicable because later changes are only integration fixtures and documentation. The two
+Stack archive cases remain [blocked] by AGENTS.md249 on release-owned artifacts/dispatch, and four
+real-service files remain disabled. No full root integration, provider/account, old-ACK browser,
+new native,0.3 port or release completion is implied. Archive-cleanup execution remains absent.
+OH-4 remains open for the real isolated source-CLI session recipe; the overall project goal remains
+active after this progress. Native idle-window and other recorded external prerequisites are pending.
+
 Server integration delta now passes all144files,1058tests/1skip in271.30s; final servertypes pass.
 UI205pass/2skip remains applicable. CLI fixture `59c9d1767f` passes150 but root's delta review finds
 the original non-null third report-options assertion omitted and CLI types fail with tuple[] calls.
