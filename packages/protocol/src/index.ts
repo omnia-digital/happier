@@ -3693,6 +3693,19 @@ export {
 
 export { assertAccountKeyProvisioningAllowed, AccountKeyProvisioningUnavailableError, verifyAccountContentPublicKeyBinding, createAccountContentPublicKeyBindingMessage } from './auth/accountKeyProvisioning.js';
 export {
+  SessionPullRequestLinkV1Schema,
+  SessionPullRequestsV1Schema,
+  appendSessionPullRequestLink,
+  readSessionPullRequestLinks,
+  removeSessionPullRequestLink,
+  sessionPullRequestLinkFromSummary,
+  sessionPullRequestLinkFromUrl,
+  sessionPullRequestLinkKey,
+  type SessionPullRequestLinkV1,
+  type SessionPullRequestsV1,
+} from './sessionMetadata/sessionPullRequestsV1.js';
+
+export {
   TICKET_READER_CAPABILITY_ID,
   SessionTicketProviderSchema,
   SessionTicketIdentityV1Schema,
