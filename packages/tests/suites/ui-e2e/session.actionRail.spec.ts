@@ -17,6 +17,9 @@ import { waitForInitialAppUi } from '../../src/testkit/uiE2e/waitForInitialAppUi
 import { ensureAccountReadyForConnect } from '../../src/testkit/uiE2e/ensureAccountReadyForConnect';
 import { authenticateAndStartDaemon } from '../../src/testkit/uiE2e/authenticateAndStartDaemon';
 import { appendBrowserDiagnostics, collectBrowserDiagnostics } from '../../src/testkit/uiE2e/browserDiagnostics';
+import { createSessionWithCiphertexts, fetchSessionV2 } from '../../src/testkit/sessions';
+import { encryptLegacyBase64 } from '../../src/testkit/messageCrypto';
+import { parseAckFrame, buildAckFrame } from '../../src/testkit/uiE2e/desktopSetup/relayMachineRpcTap';
 
 const run = createRunDirs({ runLabel: 'ui-e2e' });
 
@@ -92,6 +95,7 @@ test.describe('ui e2e: session action rail', () => {
       env: {
         ...process.env,
         EXPO_PUBLIC_DEBUG: '1',
+        EXPO_PUBLIC_HAPPIER_SOCKET_FORCE_WEBSOCKET: '1',
         EXPO_PUBLIC_HAPPY_SERVER_URL: server.baseUrl,
         EXPO_PUBLIC_HAPPY_STORAGE_SCOPE: `e2e-${run.runId}`,
         // On cold caches, the initial Metro web bundle can take >2 minutes; avoid aborting the request
@@ -108,6 +112,77 @@ test.describe('ui e2e: session action rail', () => {
     await daemon?.stop().catch(() => {});
     await ui?.stop().catch(() => {});
     await server?.stop().catch(() => {});
+  });
+
+  test('resolves a legacy message ACK through authenticated stored history before and after reload', async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+    if (!server || !uiBaseUrl) throw new Error('missing server/ui fixtures');
+    const diagnostics = collectBrowserDiagnostics({ page });
+    const omittedTimes: Array<{ id: string; localId: string; createdAt: number }> = [];
+    // server-v0.2.17 (a2c45c86804b24e60ac0b76146a3ef36dfcaa15b) omits
+    // ACK.createdAt but serves the same authenticated by-local-id route. Emulate only
+    // that wire difference; persistence, auth, HTTP lookup, Sync and rendering stay real.
+    await page.routeWebSocket((url) => url.pathname === '/v1/updates/', (route) => {
+      const upstream = route.connectToServer();
+      upstream.onMessage((packet) => {
+        const parsed = typeof packet === 'string' ? parseAckFrame(packet) : null;
+        const ack = parsed?.ack as Record<string, unknown> | null | undefined;
+        if (parsed && ack?.ok === true && typeof ack.id === 'string'
+          && typeof ack.localId === 'string' && typeof ack.seq === 'number' && typeof ack.createdAt === 'number') {
+          omittedTimes.push({ id: ack.id, localId: ack.localId, createdAt: ack.createdAt });
+          const { createdAt: _storedTime, ...legacyAck } = ack;
+          route.send(buildAckFrame(parsed.ackId, legacyAck));
+          return;
+        }
+        route.send(packet);
+      });
+    });
+    try {
+      await gotoDomContentLoadedWithRetries(page, uiBaseUrl);
+      await waitForInitialAppUi({ page, browserDiagnostics: diagnostics });
+      await ensureAccountReadyForConnect({ page, timeoutMs: 120_000 });
+      // Read only this isolated browser fixture's generated credentials.
+      const access = await page.evaluate(() => {
+        const keys = Object.keys(localStorage).filter((key) => key.startsWith('auth_credentials__srv_'));
+        if (keys.length !== 1) throw new Error('Expected one isolated fixture account');
+        const credentials = JSON.parse(localStorage.getItem(keys[0]!) ?? '{}');
+        if (typeof credentials.token !== 'string' || typeof credentials.secret !== 'string') throw new Error('Missing fixture credentials');
+        return { token: credentials.token as string, secret: credentials.secret as string };
+      });
+      const secret = Uint8Array.from(Buffer.from(access.secret, 'base64url'));
+      const { sessionId } = await createSessionWithCiphertexts({
+        baseUrl: server.baseUrl,
+        token: access.token,
+        metadataCiphertextBase64: encryptLegacyBase64({ path: suiteDir, host: 'Timestamp fixture', version: '0.2.16', flavor: 'claude' }, secret),
+      });
+      // An inactive session takes the socket commit path, independently of the CLI RPC floor.
+      expect((await fetchSessionV2(server.baseUrl, access.token, sessionId)).active).toBe(false);
+      await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/session/${sessionId}`);
+      const prompt = `legacy ACK timestamp ${run.runId}`;
+      await page.getByTestId('session-composer-input').fill(prompt);
+      const lookupResponse = page.waitForResponse((response) => new URL(response.url()).pathname.startsWith(`/v2/sessions/${sessionId}/messages/by-local-id/`));
+      await expect(page.getByTestId('session-composer-send')).toBeEnabled();
+      await page.getByTestId('session-composer-send').click();
+      const response = await lookupResponse;
+      expect(response.status()).toBe(200);
+      expect(omittedTimes).toHaveLength(1);
+      const stored = (await response.json()).message;
+      expect(stored).toMatchObject(omittedTimes[0]!);
+      const expectedTime = await formatStoredMessageTimestamp(page, stored.createdAt);
+      const message = page.locator('[data-testid^="transcript-message-"]').filter({ hasText: prompt });
+      await expect(message).toHaveCount(1);
+      await expect(message.locator('[data-testid^="transcript-message-timestamp-text:"]')).toHaveText(expectedTime);
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await expect(message).toHaveCount(1);
+      await expect(message.locator('[data-testid^="transcript-message-timestamp-text:"]')).toHaveText(expectedTime);
+      await testInfo.attach('legacy-ack-stored-timestamp', {
+        body: JSON.stringify({ wireEmulation: 'server-v0.2.17 ACK without createdAt', message: omittedTimes[0], expectedTime, lookupStatus: response.status() }),
+        contentType: 'application/json',
+      });
+      await page.screenshot({ path: testInfo.outputPath('legacy-ack-timestamp-after-reload.png') });
+    } catch (error) {
+      throw appendBrowserDiagnostics(error, diagnostics());
+    }
   });
 
   test('opens independent panes and preserves access across responsive layouts', async ({ page }, testInfo) => {
