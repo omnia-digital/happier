@@ -53,6 +53,7 @@ import { MachineDisplayGlyph } from '@/components/sessions/SessionMachineIdentit
 import { useSessionMachineTarget } from '@/components/sessions/model/useSessionMachineTarget';
 import { getActionSpec } from '@happier-dev/protocol';
 import { SessionRetentionNotice } from '@/components/sessions/info/SessionRetentionNotice';
+import { SessionPullRequests } from '@/components/sessions/info/SessionPullRequests';
 import { useSessionRouteServerScope, type SessionRouteServerScope } from '@/hooks/session/sessionRouteServerScope';
 import { useServerFeaturesSnapshotForServerId } from '@/sync/domains/features/featureDecisionRuntime';
 import {
@@ -1047,6 +1048,7 @@ function SessionInfoContent({ session, sessionServerId, sourceMachineIdForHandof
                 )}
 
                 <SessionRetentionNotice sessionId={session.id} />
+                <SessionPullRequests sessionId={session.id} metadata={session.metadata} canEdit={!session.accessLevel} />
 
                 {/* Session Details */}
                 <ItemGroup>

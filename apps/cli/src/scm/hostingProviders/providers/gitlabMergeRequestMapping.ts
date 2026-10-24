@@ -31,6 +31,7 @@ export function mapGitlabMergeRequest(
     const base = readString(raw.target_branch) ?? readString(raw.targetBranch);
     const head = readString(raw.source_branch) ?? readString(raw.sourceBranch);
     if (!number || !title || !url || !base || !head) return null;
+    const headSha = readString(raw.sha) ?? (isRecord(raw.diff_refs) ? readString(raw.diff_refs.head_sha) : null);
     return {
         provider,
         number,
@@ -39,5 +40,8 @@ export function mapGitlabMergeRequest(
         baseBranch: base,
         headBranch: head,
         state: mapGitlabMergeRequestState(raw),
+        ...(typeof raw.draft === 'boolean' ? { draft: raw.draft }
+            : typeof raw.work_in_progress === 'boolean' ? { draft: raw.work_in_progress } : {}),
+        ...(headSha && /^[0-9a-f]{40,64}$/i.test(headSha) ? { headSha } : {}),
     };
 }

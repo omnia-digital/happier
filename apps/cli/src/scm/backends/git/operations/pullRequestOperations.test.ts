@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   buildConnectedServiceCredentialRecord,
+  sessionPullRequestLinkFromUrl,
   type ScmHostingProvider,
   type ScmPullRequestSummary,
   type ScmWorkingSnapshot,
@@ -104,6 +105,52 @@ const gitlabMergeRequest: ScmPullRequestSummary = {
 };
 
 describe('git pull request operations', () => {
+  it('reads a linked request from its explicit repository and rejects a same-number response from the current checkout', async () => {
+    const { createGitPullRequestBackend } = await import('./pullRequestOperations');
+    const linkedIdentity = sessionPullRequestLinkFromUrl('https://github.com/happier-dev/other/pull/51');
+    if (!linkedIdentity) throw new Error('expected linked identity');
+    let returned: ScmPullRequestSummary = { ...pullRequest, provider: { ...provider, nameWithOwner: 'happier-dev/other' }, url: linkedIdentity.url };
+    const backend = createGitPullRequestBackend({
+      readSnapshot: async () => createSnapshot(),
+      prStatusCache: createPrStatusCache(),
+      githubRestAdapter: { kind: 'github', name: 'REST', detectRemote: () => null, buildCompareUrl: () => null },
+      githubCliAdapter: {
+        kind: 'github', name: 'CLI', detectRemote: () => null, buildCompareUrl: () => null,
+        getPullRequest: async (input) => {
+          expect(input.provider.nameWithOwner).toBe('happier-dev/other');
+          return returned;
+        },
+      },
+      detectGithubCliAuth: async () => ({ kind: 'authenticated', command: 'gh', host: 'github.com' }),
+    });
+    const input = {
+      context: { cwd: '/repo', projectKey: 'test:/repo', detection: { isRepo: true, rootPath: '/repo', mode: '.git' as const } },
+      request: { cwd: '.', prReference: { number: 51 }, linkedIdentity },
+    };
+    await expect(backend.get(input)).resolves.toMatchObject({ success: true, pullRequest: returned });
+    returned = pullRequest;
+    await expect(backend.get(input)).resolves.toMatchObject({ success: false });
+  });
+  it('uses configured GitLab hosts only for their matching checkout and repository', async () => {
+    const { createGitPullRequestBackend } = await import('./pullRequestOperations');
+    const host = 'https://gitlab.internal.example';
+    const identity = sessionPullRequestLinkFromUrl(`${host}/group/other/-/merge_requests/17`, { kind: 'gitlab', baseUrl: host });
+    if (!identity) throw new Error('expected custom GitLab identity');
+    const getPullRequest = async ({ provider: target }: { provider: ScmHostingProvider }) => {
+      expect(target.baseUrl).toBe(host);
+      expect(target.nameWithOwner).toBe('group/other');
+      return { ...gitlabMergeRequest, provider: target, url: identity.url };
+    };
+    const backend = createGitPullRequestBackend({
+      readSnapshot: async () => createSnapshot({ hostingProvider: { ...gitlabProvider, baseUrl: host } }),
+      gitlabCliAdapter: { kind: 'gitlab', name: 'glab', detectRemote: () => null, buildCompareUrl: () => null, getPullRequest },
+      detectGitlabCliAuth: async () => ({ kind: 'authenticated', command: 'glab', host: 'gitlab.internal.example' }),
+    });
+    const context = { cwd: '/repo', projectKey: 'test:/repo', detection: { isRepo: true, rootPath: '/repo', mode: '.git' as const } };
+    await expect(backend.get({ context, request: { prReference: { number: 17 }, linkedIdentity: identity } })).resolves.toMatchObject({ success: true, pullRequest: { url: identity.url } });
+    const unconfigured = createGitPullRequestBackend({ readSnapshot: async () => createSnapshot() });
+    await expect(unconfigured.get({ context, request: { prReference: { number: 17 }, linkedIdentity: identity } })).resolves.toMatchObject({ success: false });
+  });
   it('creates pull requests through connected account REST before local gh fallback', async () => {
     const mod = await import('./pullRequestOperations') as Record<string, unknown>;
     const createBackend = mod.createGitPullRequestBackend;

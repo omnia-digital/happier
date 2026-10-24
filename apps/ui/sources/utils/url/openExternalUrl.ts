@@ -1,5 +1,6 @@
 import { Linking, Platform } from 'react-native';
 import { invokeTauri, isTauriDesktop } from '@/utils/platform/tauri';
+import { parseSessionTicketUrl } from '@happier-dev/protocol';
 
 const SAFE_EXTERNAL_URL_SCHEME_PATTERN = /^(https?:\/\/|mailto:)/i;
 
@@ -8,7 +9,9 @@ export async function openExternalUrl(
   opts?: Readonly<{ platformOS?: string }>,
 ): Promise<boolean> {
   const normalized = String(url ?? '').trim();
-  if (!SAFE_EXTERNAL_URL_SCHEME_PATTERN.test(normalized)) return false;
+  const linearWebUrl = normalized.startsWith('linear://linear.app/') ? normalized.replace(/^linear:/, 'https:') : null;
+  const isExactLinearTicket = linearWebUrl !== null && parseSessionTicketUrl(linearWebUrl)?.url === linearWebUrl;
+  if (!SAFE_EXTERNAL_URL_SCHEME_PATTERN.test(normalized) && !isExactLinearTicket) return false;
 
   const platformOS = String(opts?.platformOS ?? Platform.OS ?? '').toLowerCase();
   if (platformOS === 'web' && isTauriDesktop()) {

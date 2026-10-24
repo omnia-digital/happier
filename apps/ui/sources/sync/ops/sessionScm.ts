@@ -499,11 +499,13 @@ export async function sessionScmPullRequestList(
 export async function sessionScmPullRequestGet(
     sessionId: string,
     request: ScmPullRequestGetRequest,
+    scope?: ServerAccountScope,
 ): Promise<ScmPullRequestGetResponse> {
     return await callScmPreferMachine<ScmPullRequestGetResponse, ScmPullRequestGetRequest>(
         sessionId,
         RPC_METHODS.SCM_PULL_REQUEST_GET,
         request,
+        scope,
     );
 }
 

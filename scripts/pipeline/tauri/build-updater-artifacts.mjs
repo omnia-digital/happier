@@ -13,7 +13,7 @@ import { formatPublicReleaseChannelChoices, normalizePublicReleaseChannel } from
 import { execFileSyncPortable } from '../lib/exec-file-sync-portable.mjs';
 import { applyExpoWebModalEnv } from '../expo/expoWebModalEnv.mjs';
 import { createTauriActoolEnvironment } from '../../../apps/ui/scripts/tauriActoolEnvironment.mjs';
-import { readTauriMainBinaryName, resolveTauriChannelConfigFile } from './channel-config.mjs';
+import { assertForkDesktopReleaseOwnership, readTauriMainBinaryName, resolveTauriChannelConfigFile } from './channel-config.mjs';
 import { validateLinuxWebKitRuntime, linuxWebKitAppImageFilesConfig } from './linux-webkit-runtime.mjs';
 
 function fail(message) {
@@ -420,6 +420,15 @@ function main() {
   if (!fs.existsSync(absUiDir)) {
     fail(`ui dir not found: ${uiDir}`);
   }
+
+  // This command prepares distributable candidates, including --no-bundle
+  // candidates later materialized into signed bundles. Refuse before doing any
+  // frontend/sidecar work when the effective fork ownership is still upstream.
+  assertForkDesktopReleaseOwnership({
+    environment,
+    tauriDir: path.join(absUiDir, 'src-tauri'),
+    repository: process.env.GITHUB_REPOSITORY || undefined,
+  });
 
   const tmpRoot = String(process.env.RUNNER_TEMP ?? '').trim() || os.tmpdir();
 

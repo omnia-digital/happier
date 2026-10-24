@@ -10,6 +10,7 @@ import {
   normalizePublicReleaseChannel,
 } from '../release/lib/public-release-rings.mjs';
 import { createSignedReleaseAssetEnvelope } from '../release/lib/signed-asset-envelope.mjs';
+import { FORK_RELEASE_REPOSITORY } from './channel-config.mjs';
 
 function fail(message) {
   console.error(message);
@@ -183,6 +184,7 @@ async function main() {
   if (!uiVersion) fail('--ui-version is required');
   const repo = String(values.repo ?? '').trim();
   if (!repo) fail('--repo is required (owner/repo)');
+  if (repo !== FORK_RELEASE_REPOSITORY) fail(`fork desktop release ownership requires --repo ${FORK_RELEASE_REPOSITORY}`);
 
   const artifactsDir = String(values['artifacts-dir'] ?? '').trim() || 'dist/tauri/updates';
   const publishDir = String(values['publish-dir'] ?? '').trim() || 'dist/tauri/publish';

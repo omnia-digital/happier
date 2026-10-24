@@ -196,6 +196,12 @@ export const LOCAL_SETTING_DEFINITIONS = defineSettingDefinitions({
         description: 'Local session list presentation by original groups, hosting machine or repository',
         storageScope: 'local',
     },
+    sessionListStatusGroupingV1: {
+        schema: z.enum(['none', 'agent', 'ticket']).catch('none'),
+        default: 'none',
+        description: 'Status grouping overlay that retains the saved original, machine or repository presentation',
+        storageScope: 'local',
+    },
     themePreference: {
         schema: z.enum(['light', 'dark', 'adaptive']),
         default: 'adaptive',

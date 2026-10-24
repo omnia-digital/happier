@@ -106,6 +106,8 @@ export function readCliUpdateFacts(params: Readonly<{
   platform: NodeJS.Platform;
   /** The npm package this CLI is published as (an npm origin of any other package is not this CLI). */
   npmPackageName: string;
+  /** The explicitly configured fork package for update guidance. */
+  npmUpdatePackageName?: string;
 }>): CliUpdateFacts {
   const cached = readCachedCliUpdateState({
     homeDir: params.homeDir,
@@ -114,12 +116,16 @@ export function readCliUpdateFacts(params: Readonly<{
   });
   const { installSource, packageManagerCommand } = resolveRunningCliInstallSource(params);
   const managed = installSource === 'managed';
+  const npmUpdatePackageName = resolveNpmPackageNameOverride({ envValue: params.npmUpdatePackageName, fallback: '' });
   return {
     currentVersion: params.currentVersion,
     latestVersion: cached?.latestVersion ?? null,
     channel: getReleaseRingCatalogEntry(params.publicReleaseRing).publicLabel,
     installSource,
-    updateCommand: managed ? `${resolveManagedCliToolNameForRing(params.publicReleaseRing)} self update` : packageManagerCommand,
+    updateCommand: managed ? `${resolveManagedCliToolNameForRing(params.publicReleaseRing)} self update`
+      : installSource === 'npm' ? (npmUpdatePackageName
+        ? `npm install -g ${npmUpdatePackageName}@latest` : null)
+      : packageManagerCommand,
     canUpdateRemotely: managed && params.platform !== 'win32',
     lastUpdate: managed
       ? readLastCliUpdateResult({ channel: params.publicReleaseRing, processEnv: { HAPPIER_HOME_DIR: params.homeDir } })
@@ -145,5 +151,9 @@ export function readCliUpdateFactsForThisCli(): CliUpdateFacts {
     invokedPath: process.argv[1] ?? process.execPath,
     platform: process.platform,
     npmPackageName: resolveThisCliNpmPackageName(),
+    npmUpdatePackageName: resolveNpmPackageNameOverride({
+      envValue: process.env.HAPPIER_CLI_UPDATE_PACKAGE_NAME,
+      fallback: '',
+    }),
   });
 }

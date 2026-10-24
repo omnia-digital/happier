@@ -3259,8 +3259,9 @@ class Sync {
     private async updateSessionMetadataWithRetry(
         sessionId: string,
         updater: (metadata: Metadata) => Metadata,
-        options?: Readonly<{ serverId?: string | null; shouldContinue?: () => boolean }>,
+        options?: Readonly<{ serverId?: string | null; accountId?: string | null; shouldContinue?: () => boolean }>,
     ): Promise<void> {
+        if (options?.shouldContinue?.() === false) return;
         const resolvedServerIdOverride =
             typeof options?.serverId === 'string' && options.serverId.trim().length > 0
                 ? options.serverId.trim()
@@ -3278,7 +3279,7 @@ class Sync {
                 sessionDataKeys: this.sessionDataKeys,
                 sessionDataKeyEnvelopes: this.sessionDataKeyEnvelopes,
                 activeRequest: (path, init) => apiSocket.request(path, init),
-                applySessions: (sessions) => this.applySessions(sessions),
+                applySessions: (sessions) => { if (options?.shouldContinue?.() !== false) this.applySessions(sessions); },
                 getExistingSession: (targetSessionId) => storage.getState().sessions[targetSessionId] ?? null,
                 log,
             });
@@ -3294,6 +3295,7 @@ class Sync {
         let patchContext = resolvePatchContext();
         if (!patchContext.session?.metadata || (patchContext.sessionEncryptionMode === 'e2ee' && !patchContext.encryption)) {
             await fetchLatestSession();
+            if (options?.shouldContinue?.() === false) return;
             patchContext = resolvePatchContext();
         }
 
@@ -3341,6 +3343,8 @@ class Sync {
                 expectedVersion: payload.expectedVersion,
                 metadata: payload.metadata,
                 ...(resolvedServerIdOverride ? { serverId: resolvedServerIdOverride } : {}),
+                ...(options?.accountId ? { accountId: options.accountId } : {}),
+                ...(options?.shouldContinue ? { shouldContinue: options.shouldContinue } : {}),
             }),
             applySessionMetadata: ({ metadataVersion, metadata }) => {
                 const currentSession = storage.getState().sessions[sessionId];
@@ -4862,7 +4866,7 @@ class Sync {
     public patchSessionMetadataWithRetry = async (
         sessionId: string,
         updater: (metadata: Metadata) => Metadata,
-        options?: Readonly<{ serverId?: string | null }>,
+        options?: Readonly<{ serverId?: string | null; accountId?: string | null; shouldContinue?: () => boolean }>,
     ): Promise<void> => {
         await this.updateSessionMetadataWithRetry(sessionId, updater, options);
     }

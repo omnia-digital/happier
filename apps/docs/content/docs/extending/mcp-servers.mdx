@@ -51,6 +51,40 @@ Use `happier mcp servers --help` for the current subcommands and flags.
 
 The same account-synced MCP settings are used by the app UI, the daemon, and the CLI.
 
+## Ticket reader in the Omnia development fork
+
+The unreleased Omnia fork can read a linked Linear, ClickUp or Jira Cloud ticket
+through an authorized Happier-managed MCP server. This requires a separate fork
+CLI/daemon with `HAPPIER_TICKET_READER_ENABLED=1` in its launch environment. It is
+off by default. The existing hosted relay and older daily CLI do not gain this
+capability just by updating the app.
+
+Use an isolated fork CLI profile for development, with its intended relay and
+account selected. Configure the provider connection under **Settings → MCP
+servers**, including its authentication and the machine/directory where it
+applies. Saved Secrets and machine environment references use the existing MCP
+configuration described below. Merely detecting a provider's native MCP config
+does not make it an authorized Happier-managed source.
+
+In the session header, choose **Link ticket**, paste a supported ticket URL,
+choose the reader machine and project directory, then **Find configured sources**.
+Select the intended connection and **Read ticket**. Confirm the returned ticket
+identity, title and workflow status before linking it. The reader checks the
+provider's returned identity; pasting a URL alone does not verify a ticket.
+
+The reader uses fixed ticket-read operations. Linking, changing or removing an
+association updates session metadata without changing the provider ticket.
+Current status is refreshed from the provider, not saved as session truth.
+An offline reader, revoked connection, missing ticket or older CLI remains
+explicitly unavailable or stale. Reconnect or refresh to check again.
+
+Jira support here is for supported Atlassian Cloud ticket URLs and configured
+MCP read tools. Arbitrary Jira Data Center hosts are not supported. Real provider
+authentication/status-change acceptance and native app-opening receipt remain
+separate from isolated fixture tests.
+
+See [session ticket links](/apps/app#session-ticket-links) for the app controls.
+
 ## Happier MCP (external control plane)
 
 In addition to managing *other* MCP servers, Happier can also run **its own MCP server** so external MCP clients can control sessions and execute Happier actions:

@@ -1586,6 +1586,7 @@ export function buildSessionListShellViewItemSignature(item: SessionListViewItem
     metadata?.host ?? '',
     metadata?.machineId ?? '',
     metadata?.flavor ?? '',
+    metadata?.sessionTicketV1 ? JSON.stringify(metadata.sessionTicketV1) : '',
     metadata?.directSessionV1?.providerId ?? '',
     metadata?.hiddenSystemSession === true ? '1' : '0',
     readState?.sessionSeq ?? '',

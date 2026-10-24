@@ -13,6 +13,13 @@ const openExternalUrlMock = vi.hoisted(() => vi.fn(async () => true));
 const invalidateFromMutationAndAwaitMock = vi.hoisted(() => vi.fn(async () => {}));
 const modalAlertMock = vi.hoisted(() => vi.fn());
 const modalPromptMock = vi.hoisted(() => vi.fn());
+const capturePullRequestMock = vi.hoisted(() => vi.fn(async () => true));
+const captureScopeMock = vi.hoisted(() => vi.fn(() => ({ serverId: 'home-a', accountId: 'account-a', shouldContinue: (): boolean => true })));
+
+vi.mock('@/sync/ops/sessionPullRequestLinks', () => ({
+    captureSessionPullRequestFromSummary: capturePullRequestMock,
+    captureSessionPullRequestActionScope: captureScopeMock,
+}));
 
 vi.mock('@/sync/ops', () => ({
     sessionScmPullRequestOpenOrReuse: sessionScmPullRequestOpenOrReuseMock,
@@ -104,6 +111,8 @@ describe('useScmPullRequestOperations', () => {
         invalidateFromMutationAndAwaitMock.mockClear();
         modalAlertMock.mockClear();
         modalPromptMock.mockReset();
+        capturePullRequestMock.mockClear();
+        captureScopeMock.mockClear();
     });
 
     it('opens an existing pull request URL without calling the PR create RPC', async () => {
@@ -157,7 +166,28 @@ describe('useScmPullRequestOperations', () => {
             body: '',
         });
         expect(openExternalUrlMock).toHaveBeenCalledWith('https://github.com/happier/dev/pull/42');
+        expect(capturePullRequestMock).toHaveBeenCalledWith('s1', existingModel().pullRequest, expect.objectContaining({ serverId: 'home-a', accountId: 'account-a' }));
         expect(invalidateFromMutationAndAwaitMock).toHaveBeenCalledWith('s1');
+    });
+
+    it('does not attach a delayed provider result after its original action scope changes', async () => {
+        let answer!: (response: any) => void;
+        let current = true;
+        captureScopeMock.mockReturnValueOnce({ serverId: 'home-a', accountId: 'account-a', shouldContinue: () => current });
+        sessionScmPullRequestOpenOrReuseMock.mockReturnValue(new Promise((resolve) => { answer = resolve; }));
+        const { useScmPullRequestOperations } = await import('./useScmPullRequestOperations');
+        const hook = await renderHook(() => useScmPullRequestOperations({ sessionId: 's1' }));
+
+        let pending!: Promise<void>;
+        await act(async () => { pending = hook.getCurrent().openOrReusePullRequest(readyModel()); });
+        expect(captureScopeMock.mock.invocationCallOrder[0]).toBeLessThan(sessionScmPullRequestOpenOrReuseMock.mock.invocationCallOrder[0]);
+        current = false;
+        await act(async () => {
+            answer({ success: true, kind: 'opened', reused: false, pullRequest: existingModel().pullRequest });
+            await pending;
+        });
+        expect(capturePullRequestMock).not.toHaveBeenCalled();
+        expect(modalAlertMock).toHaveBeenCalled();
     });
 
     it('opens the compare URL when the daemon reports no authenticated PR creator', async () => {
@@ -174,6 +204,7 @@ describe('useScmPullRequestOperations', () => {
         });
 
         expect(openExternalUrlMock).toHaveBeenCalledWith('https://github.com/happier/dev/compare/main...feature/prs');
+        expect(capturePullRequestMock).not.toHaveBeenCalled();
         expect(invalidateFromMutationAndAwaitMock).not.toHaveBeenCalled();
     });
 
@@ -248,6 +279,7 @@ describe('useScmPullRequestOperations', () => {
         });
         expect(sessionScmPullRequestOpenOrReuseMock).not.toHaveBeenCalled();
         expect(openExternalUrlMock).toHaveBeenCalledWith('https://github.com/happier/dev/pull/42');
+        expect(capturePullRequestMock).toHaveBeenCalledWith('s1', existingModel().pullRequest, expect.objectContaining({ serverId: 'home-a', accountId: 'account-a' }));
     });
 
     it('opens stacked action nextAction compose URLs before legacy fields', async () => {
@@ -271,5 +303,6 @@ describe('useScmPullRequestOperations', () => {
         });
 
         expect(openExternalUrlMock).toHaveBeenCalledWith('https://github.com/happier/dev/compare/main...feature%2Fprs');
+        expect(capturePullRequestMock).not.toHaveBeenCalled();
     });
 });

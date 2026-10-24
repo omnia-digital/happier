@@ -13,6 +13,28 @@ const installShPath = join(sourceRoot, 'install.sh');
 const installPs1Path = join(sourceRoot, 'install.ps1');
 const publicKeyPath = join(sourceRoot, 'happier-release.pub');
 
+test('standalone installers refuse unconfigured fork trust and comment-edited upstream trust before download', async (t) => {
+  const home = await mkdtemp(join(tmpdir(), 'fork-installer-trust-'));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  const upstreamKey = (await readFile(publicKeyPath, 'utf8')).trim();
+  for (const [label, key, repo] of [
+    ['missing', '', ''],
+    ['edited comment', upstreamKey.replace('minisign public key ', 'minisign public key fork '), ''],
+    ['case-variant fork', upstreamKey.replace('minisign public key ', 'minisign public key fork '), 'Omnia-Digital/Happier'],
+  ]) {
+    const env = { ...process.env, USERPROFILE: home, HOME: home, HAPPIER_INSTALL_DIR: join(home, 'install'),
+      HAPPIER_GITHUB_REPO: repo, HAPPIER_MINISIGN_PUBKEY: key, HAPPIER_MINISIGN_PUBKEY_URL: '', HAPPIER_RELEASE_ASSETS_DIR: '' };
+    for (const [command, args] of [['bash', [installShPath, '--yes']], ['pwsh', ['-NoProfile', '-File', installPs1Path, '-Yes']]]) {
+      const result = spawnSync(command, args, { env, encoding: 'utf8' });
+      if (result.error?.code === 'ENOENT' && command === 'pwsh') continue;
+      assert.ifError(result.error);
+      assert.notEqual(result.status, 0, `${command}: ${label}`);
+      assert.match(result.stderr + result.stdout, /fork release (?:is unconfigured|cannot use the upstream minisign public key)/i);
+      assert.doesNotMatch(result.stderr + result.stdout, /Fetching .*release metadata/i);
+    }
+  }
+});
+
 test('release-owned installer scripts enforce minisign verification defaults', async () => {
   const installSh = await readFile(installShPath, 'utf8');
   const publicKey = (await readFile(publicKeyPath, 'utf8')).trim();

@@ -44,14 +44,23 @@ async function mirror() {
 }
 
 describe('development first-party release mirror', () => {
+  it('refuses a fork payload before a release lookup when fork signature trust is unconfigured', async () => {
+    vi.spyOn(https, 'request').mockImplementation(() => { throw new Error('Unexpected public network request'); });
+    syncBuiltinESMExports();
+    await expect(prepareFirstPartyComponentPayloadFromGitHubRelease({
+      ...params,
+      githubRepo: 'omnia-digital/happier',
+    })).rejects.toThrow(/fork release.*public key/i);
+  });
+
   it('resolves through loopback without forwarding GitHub credentials and keeps official signature verification', async () => {
     const fixture = await mirror();
     vi.stubEnv('NODE_ENV', 'development');
     vi.stubEnv(override, fixture.baseUrl);
-    const release = await resolveFirstPartyComponentRelease({ ...params, githubToken: 'fixture-token' });
+    const release = await resolveFirstPartyComponentRelease({ ...params, githubRepo: 'happier-dev/happier', githubToken: 'fixture-token' });
     expect(release.versionId).toBe('99.0.0');
     expect(fixture.authorization()).toBeUndefined();
-    await expect(prepareFirstPartyComponentPayloadFromGitHubRelease(params)).rejects.toThrow(/signature verification failed/i);
+    await expect(prepareFirstPartyComponentPayloadFromGitHubRelease({ ...params, githubRepo: 'happier-dev/happier' })).rejects.toThrow(/signature verification failed/i);
   });
 
   it.each(['production', 'test', undefined])('rejects the override outside development (%s)', async (mode) => {
