@@ -236,11 +236,13 @@ exit 1
             await expect(page.getByTestId('session-pr-autoarchive-history')).toContainText('owner/two #7');
             await expect.soft(page.getByTestId('session-info-header-status')).toHaveCount(0);
             await expect.soft(page.getByTestId('session-info-activity-status')).toHaveCount(0);
+            await expect.soft(page.getByText('Activity', { exact: true })).toHaveCount(0);
             await page.screenshot({ path: testInfo.outputPath('oh52-confirmed-autoarchive-history.png') });
             await page.reload();
             await expect(page.getByTestId('session-pr-autoarchive-history')).toBeVisible({ timeout: 120_000 });
             await expect.soft(page.getByTestId('session-info-header-status')).toHaveCount(0);
             await expect.soft(page.getByTestId('session-info-activity-status')).toHaveCount(0);
+            await expect.soft(page.getByText('Activity', { exact: true })).toHaveCount(0);
             await gotoDomContentLoadedWithRetries(page, `${baseUrl}/session/${unknownWork}/info`, 120_000);
             await expect(page.getByTestId('session-pr-autoarchive-skipped')).toBeVisible({ timeout: 120_000 });
             await expect(page.getByTestId('session-pr-autoarchive-skipped')).toContainText('Older hosts may not report these signals');
