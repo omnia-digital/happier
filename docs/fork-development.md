@@ -4,6 +4,8 @@ This is the fork-specific runbook for `omnia-digital/happier`. Develop against a
 
 ## First adoption: custom macOS UI, existing Happier services
 
+Current QA decision (October 24): Josh chose **Keep native QA deferred**, including hotkeys. The pending idle-window request is superseded. Do not launch or automate native acceptance until he resumes it. Earlier native results below remain historical evidence for their recorded source; newer native behavior and daily-use release readiness remain unverified. Independent source/browser checks may continue.
+
 Josh prefers to keep his current hosted account, relay, machines, CLI/daemons and sessions, and adopt only the forked macOS UI/app. Use that as the first daily-use target. Keep the isolated local relay/account for development tests and the original installed app for rollback. Self-hosting, account migration and source CLI pairing are not prerequisites for this UI-only path.
 
 The installed app reports 0.2.17 and the installed CLI 0.2.16. The hosted relay's `/v1/features` responds, and an actual `OPTIONS /v1/auth/ping` preflight allows the dev origin and authorization/content-type headers. The checked `/v1/version` returns only `ok`, so its exact deployed revision remains unknown. These checks establish reachability and the checked browser seam, not authenticated mixed-version session compatibility.

@@ -1,6 +1,6 @@
 # OH-56, OH-58 and OH-59: Integration verification
 
-Continue source work without interacting with the running daily native app. Native hotkeys remain explicitly deferred. Other native and provider/remote-host acceptance stays open; isolated browser evidence does not close it.
+Josh explicitly chose **Keep native QA deferred** on October 24. This supersedes the pending macOS idle-window request and includes native hotkeys. Do not launch or automate native acceptance until he resumes it. Continue independent source/browser work without interacting with the daily native app. Remaining native checks are deferred and unverified; provider/remote-host acceptance stays open, and isolated browser evidence does not close those gates.
 
 ## OH-58 ticket linking
 
