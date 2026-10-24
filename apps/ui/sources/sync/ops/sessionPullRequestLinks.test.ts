@@ -7,7 +7,7 @@ vi.mock('@/sync/runtime/getSyncSingleton', () => ({ getSyncSingleton: () => ({ p
 vi.mock('@/sync/ops/sessionScm', () => ({ sessionScmPullRequestGet: getMock }));
 
 import { storage } from '@/sync/domains/state/storage';
-import { addSessionPullRequestLink, readLinkedPullRequest, replaceSessionPullRequestLink, removeLinkedPullRequest } from './sessionPullRequestLinks';
+import { addSessionPullRequestLink, captureSessionPullRequestActionScope, readLinkedPullRequest, replaceSessionPullRequestLink, removeLinkedPullRequest } from './sessionPullRequestLinks';
 
 const originalState = storage.getState();
 const link = sessionPullRequestLinkFromUrl('https://github.com/owner/other/pull/51')!;
@@ -76,5 +76,30 @@ describe('session pull request links', () => {
         storage.setState({ profileScope: { serverId: 'home-a', accountId: 'account-b' } });
         release({ success: true, pullRequest: { ...wrongRepo, provider: { ...wrongRepo.provider, nameWithOwner: link.repository }, url: link.url } });
         await expect(reading).rejects.toThrow(/account.*changed/i);
+    });
+
+    it('does not rebind a delayed link mutation to a replacement Home with the same session id', async () => {
+        storage.setState({ profileScope: { serverId: 'home-a', accountId: 'account-a' }, sessions: {
+            s1: { id: 's1', serverId: 'home-a', metadata: { path: '/work', host: 'machine' } } as any,
+        } });
+        const captured = captureSessionPullRequestActionScope('s1');
+        storage.setState({ profileScope: { serverId: 'home-b', accountId: 'account-b' }, sessions: {
+            s1: { id: 's1', serverId: 'home-b', metadata: { path: '/work', host: 'machine' } } as any,
+        } });
+        await expect(addSessionPullRequestLink('s1', link, captured)).rejects.toThrow(/account.*changed/i);
+        await expect(replaceSessionPullRequestLink('s1', link, link, captured)).rejects.toThrow(/account.*changed/i);
+        await expect(removeLinkedPullRequest('s1', link, captured)).rejects.toThrow(/account.*changed/i);
+        expect(patchMock).not.toHaveBeenCalled();
+    });
+
+    it('does not save after the initiating editor has closed', async () => {
+        storage.setState({ profileScope: { serverId: 'home-a', accountId: 'account-a' }, sessions: {
+            s1: { id: 's1', serverId: 'home-a', metadata: { path: '/work' } } as any,
+        } });
+        let mounted = true;
+        const captured = captureSessionPullRequestActionScope('s1', () => mounted);
+        mounted = false;
+        await expect(addSessionPullRequestLink('s1', link, captured)).rejects.toThrow(/action changed/);
+        expect(patchMock).not.toHaveBeenCalled();
     });
 });

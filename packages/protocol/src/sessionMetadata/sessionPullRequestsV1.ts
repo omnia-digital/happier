@@ -12,7 +12,8 @@ export const SessionPullRequestLinkV1Schema = z.object({
   url: z.string().url(),
 }).strict().superRefine((link, ctx) => {
   const parsed = sessionPullRequestLinkFromUrl(link.url, { kind: link.providerKind, baseUrl: link.providerBaseUrl });
-  if (!parsed || parsed.repository !== link.repository || parsed.number !== link.number || parsed.url !== link.url) {
+  if (!parsed || parsed.providerKind !== link.providerKind || parsed.providerBaseUrl !== link.providerBaseUrl
+    || parsed.repository !== link.repository || parsed.number !== link.number || parsed.url !== link.url) {
     ctx.addIssue({ code: 'custom', message: 'Pull request URL must match its provider, repository and number', path: ['url'] });
   }
 });

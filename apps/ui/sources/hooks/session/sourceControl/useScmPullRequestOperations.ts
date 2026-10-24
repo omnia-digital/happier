@@ -10,7 +10,7 @@ import {
 import { t } from '@/text';
 import { useMountedRef } from '@/hooks/ui/useMountedRef';
 import { openExternalUrl } from '@/utils/url/openExternalUrl';
-import { captureSessionPullRequestFromSummary } from '@/sync/ops/sessionPullRequestLinks';
+import { captureSessionPullRequestActionScope, captureSessionPullRequestFromSummary, type SessionPullRequestActionScope } from '@/sync/ops/sessionPullRequestLinks';
 import type { PullRequestUiModel } from '@/components/sessions/sourceControl/pullRequests/pullRequestUiModel';
 import { sessionPullRequestLinkFromSummary, type ScmHostingProvider, type ScmPullRequestRunStackedResponse, type ScmPullRequestSummary } from '@happier-dev/protocol';
 
@@ -57,7 +57,17 @@ export function useScmPullRequestOperations(input: Readonly<{
         });
     }, [openProviderUrl]);
 
-    const captureOpenedPullRequest = React.useCallback(async (pullRequest: ScmPullRequestSummary, expectedProvider: ScmHostingProvider) => {
+    const beginLinkCapture = React.useCallback((): SessionPullRequestActionScope | null => {
+        try { return captureSessionPullRequestActionScope(input.sessionId, () => mountedRef.current); }
+        catch { return null; }
+    }, [input.sessionId, mountedRef]);
+
+    const captureOpenedPullRequest = React.useCallback(async (pullRequest: ScmPullRequestSummary, expectedProvider: ScmHostingProvider, scope: SessionPullRequestActionScope | null) => {
+        if (!mountedRef.current) return;
+        if (!scope?.shouldContinue()) {
+            Modal.alert(t('common.error'), t('sessionPullRequests.saveFailed'));
+            return;
+        }
         const link = sessionPullRequestLinkFromSummary(pullRequest);
         if (!link || link.providerKind !== expectedProvider.kind || link.providerBaseUrl !== expectedProvider.baseUrl
             || link.repository !== expectedProvider.nameWithOwner) {
@@ -65,15 +75,16 @@ export function useScmPullRequestOperations(input: Readonly<{
             return;
         }
         try {
-            await captureSessionPullRequestFromSummary(input.sessionId, pullRequest);
+            await captureSessionPullRequestFromSummary(input.sessionId, pullRequest, scope);
         } catch {
             Modal.alert(t('common.error'), t('sessionPullRequests.saveFailed'));
         }
-    }, [input.sessionId]);
+    }, [input.sessionId, mountedRef]);
 
     const openStackedPullRequestResult = React.useCallback(async (
         response: ScmPullRequestRunStackedResponse,
         expectedProvider: ScmHostingProvider,
+        captureScope: SessionPullRequestActionScope | null,
     ) => {
         if (!response.success) {
             Modal.alert(
@@ -88,7 +99,7 @@ export function useScmPullRequestOperations(input: Readonly<{
                 ? response.nextAction.url
                 : null;
         const url = nextActionUrl ?? response.pullRequest?.url ?? response.composeUrl;
-        if (response.pullRequest) await captureOpenedPullRequest(response.pullRequest, expectedProvider);
+        if (response.pullRequest) await captureOpenedPullRequest(response.pullRequest, expectedProvider, captureScope);
         if (url) {
             await openProviderUrl({
                 providerBaseUrl: response.pullRequest?.provider.baseUrl ?? expectedProvider.baseUrl,
@@ -100,6 +111,7 @@ export function useScmPullRequestOperations(input: Readonly<{
     }, [input.sessionId, openProviderUrl, captureOpenedPullRequest]);
 
     const openOrReusePullRequest = React.useCallback(async (model: ReadyPullRequestModel) => {
+        const captureScope = beginLinkCapture();
         if (!model.canCreatePullRequest) {
             Modal.alert(
                 t('common.error'),
@@ -127,7 +139,7 @@ export function useScmPullRequestOperations(input: Readonly<{
                     title: model.headBranch,
                     body: '',
                 });
-                await openStackedPullRequestResult(response, model.provider);
+                await openStackedPullRequestResult(response, model.provider, captureScope);
                 return;
             }
 
@@ -154,7 +166,7 @@ export function useScmPullRequestOperations(input: Readonly<{
                 return;
             }
 
-            await captureOpenedPullRequest(response.pullRequest, model.provider);
+            await captureOpenedPullRequest(response.pullRequest, model.provider, captureScope);
             await openProviderUrl({
                 providerBaseUrl: response.pullRequest.provider.baseUrl,
                 url: response.pullRequest.url,
@@ -165,7 +177,7 @@ export function useScmPullRequestOperations(input: Readonly<{
             setBusySafe(false);
             setStatusSafe(null);
         }
-    }, [input.sessionId, openProviderUrl, openStackedPullRequestResult, captureOpenedPullRequest, setBusySafe, setStatusSafe]);
+    }, [input.sessionId, openProviderUrl, openStackedPullRequestResult, captureOpenedPullRequest, beginLinkCapture, setBusySafe, setStatusSafe]);
 
     const promptForFeatureBranchName = React.useCallback(async (model: ReadyPullRequestModel): Promise<string | null> => {
         const suggestedBranchName = model.defaultBranchAction?.suggestedBranchName ?? 'feature/changes-update';
@@ -227,6 +239,7 @@ export function useScmPullRequestOperations(input: Readonly<{
     }, [input.sessionId, promptForFeatureBranchName, setBusySafe, setStatusSafe]);
 
     const createFeatureBranchAndOpenPullRequest = React.useCallback(async (model: ReadyPullRequestModel) => {
+        const captureScope = beginLinkCapture();
         if (model.defaultBranchAction?.kind !== 'create_feature_branch_and_open_pr') {
             Modal.alert(
                 t('common.error'),
@@ -247,12 +260,12 @@ export function useScmPullRequestOperations(input: Readonly<{
                 title: branchName,
                 body: '',
             });
-            await openStackedPullRequestResult(response, model.provider);
+            await openStackedPullRequestResult(response, model.provider, captureScope);
         } finally {
             setBusySafe(false);
             setStatusSafe(null);
         }
-    }, [input.sessionId, openStackedPullRequestResult, promptForFeatureBranchName, setBusySafe, setStatusSafe]);
+    }, [input.sessionId, openStackedPullRequestResult, beginLinkCapture, promptForFeatureBranchName, setBusySafe, setStatusSafe]);
 
     return {
         busy,

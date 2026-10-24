@@ -6,10 +6,11 @@ import { Icon } from '@/components/ui/icons/Icon';
 import { Item } from '@/components/ui/lists/Item';
 import { ItemGroup } from '@/components/ui/lists/ItemGroup';
 import { useSessionProjectScmSnapshot } from '@/sync/domains/state/storage';
-import { addSessionPullRequestLink, parseSessionPullRequestUrl, readLinkedPullRequest, removeLinkedPullRequest, replaceSessionPullRequestLink } from '@/sync/ops/sessionPullRequestLinks';
+import { addSessionPullRequestLink, captureSessionPullRequestActionScope, parseSessionPullRequestUrl, readLinkedPullRequest, removeLinkedPullRequest, replaceSessionPullRequestLink, type SessionPullRequestActionScope } from '@/sync/ops/sessionPullRequestLinks';
 import { Modal } from '@/modal';
 import { t } from '@/text';
 import { openExternalUrl } from '@/utils/url/openExternalUrl';
+import { useMountedRef } from '@/hooks/ui/useMountedRef';
 
 function LinkedPullRequest(props: Readonly<{
     sessionId: string;
@@ -48,14 +49,17 @@ function LinkedPullRequest(props: Readonly<{
                 : lastKnown?.summary.state === 'closed' ? t('files.sourceControlOperations.update.pullRequests.states.closed')
                     : t('sessionPullRequests.unknown');
     const freshness = checking ? t('sessionPullRequests.checking') : fresh && lastKnown ? `${t('sessionPullRequests.checked')} ${new Date(lastKnown.at).toLocaleString()}`
-        : lastKnown ? t('sessionPullRequests.stale') : t('sessionPullRequests.unknown');
+        : lastKnown ? t('sessionPullRequests.stale') : null;
     const label = `${props.link.repository} #${props.link.number}`;
-    const testIdentity = `${props.link.providerKind}-${props.link.repository}-${props.link.number}`;
+    const host = new URL(props.link.providerBaseUrl).hostname;
+    const testIdentity = `${props.link.providerKind}-${host}-${props.link.repository}-${props.link.number}`;
+    const providerLabel = props.link.providerKind === 'github' ? 'GitHub' : 'GitLab';
+    const hostLabel = host === 'github.com' || host === 'gitlab.com' ? null : host;
     return <>
         <Item
             testID={`session-pr-link-${testIdentity}`}
             title={label}
-            subtitle={`${props.link.providerKind === 'github' ? 'GitHub' : 'GitLab'} · ${state} · ${freshness}`}
+            subtitle={[providerLabel, hostLabel, state, freshness].filter(Boolean).join(' · ')}
             icon={<Icon name="link" size={29} color={theme.colors.accent.blue} />}
             onPress={() => { void openExternalUrl(props.link.url); }}
         />
@@ -67,6 +71,7 @@ function LinkedPullRequest(props: Readonly<{
 
 export function SessionPullRequests(props: Readonly<{ sessionId: string; metadata: unknown; canEdit: boolean }>) {
     const { theme } = useUnistyles();
+    const mountedRef = useMountedRef();
     const snapshot = useSessionProjectScmSnapshot(props.sessionId);
     const links = readSessionPullRequestLinks(props.metadata);
     const configuredProvider = snapshot?.hostingProvider?.kind === 'github' || snapshot?.hostingProvider?.kind === 'gitlab'
@@ -86,23 +91,35 @@ export function SessionPullRequests(props: Readonly<{ sessionId: string; metadat
         if (!link) Modal.alert(t('common.error'), t('sessionPullRequests.invalidUrl'));
         return link;
     };
+    const beginEdit = (): SessionPullRequestActionScope | null => {
+        try { return captureSessionPullRequestActionScope(props.sessionId, () => mountedRef.current); }
+        catch { Modal.alert(t('common.error'), t('sessionPullRequests.saveFailed')); return null; }
+    };
     const add = async () => {
+        const scope = beginEdit();
+        if (!scope) return;
         const link = await promptForLink();
         if (!link) return;
-        try { await addSessionPullRequestLink(props.sessionId, link); }
-        catch { Modal.alert(t('common.error'), t('sessionPullRequests.saveFailed')); }
+        try { await addSessionPullRequestLink(props.sessionId, link, scope); }
+        catch { if (mountedRef.current) Modal.alert(t('common.error'), t('sessionPullRequests.saveFailed')); }
     };
     const change = async (previous: SessionPullRequestLinkV1) => {
+        const scope = beginEdit();
+        if (!scope) return;
         const next = await promptForLink(previous.url);
         if (!next) return;
-        try { await replaceSessionPullRequestLink(props.sessionId, previous, next); }
-        catch { Modal.alert(t('common.error'), t('sessionPullRequests.saveFailed')); }
+        try { await replaceSessionPullRequestLink(props.sessionId, previous, next, scope); }
+        catch { if (mountedRef.current) Modal.alert(t('common.error'), t('sessionPullRequests.saveFailed')); }
     };
     const remove = async (link: SessionPullRequestLinkV1) => {
+        const scope = beginEdit();
+        if (!scope) return;
         Modal.alert(t('sessionPullRequests.remove'), t('sessionPullRequests.removeConfirm'), [
             { text: t('common.cancel'), style: 'cancel' },
             { text: t('sessionPullRequests.remove'), style: 'destructive', onPress: () => {
-                void removeLinkedPullRequest(props.sessionId, link).catch(() => Modal.alert(t('common.error'), t('sessionPullRequests.saveFailed')));
+                void removeLinkedPullRequest(props.sessionId, link, scope).catch(() => {
+                    if (mountedRef.current) Modal.alert(t('common.error'), t('sessionPullRequests.saveFailed'));
+                });
             } },
         ]);
     };

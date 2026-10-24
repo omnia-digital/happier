@@ -5,6 +5,7 @@ import {
   readSessionPullRequestLinks,
   removeSessionPullRequestLink,
   sessionPullRequestLinkFromUrl,
+  SessionPullRequestLinkV1Schema,
 } from './sessionPullRequestsV1.js';
 
 describe('session pull request links', () => {
@@ -32,5 +33,11 @@ describe('session pull request links', () => {
     })).toBeNull();
     expect(sessionPullRequestLinkFromUrl('https://github.com/team/repo/pull/0')).toBeNull();
     expect(sessionPullRequestLinkFromUrl('https://github.com.evil.test/team/repo/pull/4')).toBeNull();
+  });
+
+  it('rejects noncanonical provider base URLs that would create a second identity key', () => {
+    const canonical = sessionPullRequestLinkFromUrl('https://github.com/team/repo/pull/7')!;
+    expect(SessionPullRequestLinkV1Schema.safeParse({ ...canonical, providerBaseUrl: 'https://github.com/' }).success).toBe(false);
+    expect(SessionPullRequestLinkV1Schema.safeParse({ ...canonical, providerBaseUrl: 'https://github.com/other' }).success).toBe(false);
   });
 });
