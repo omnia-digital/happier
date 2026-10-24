@@ -1,9 +1,10 @@
 import React from 'react';
-import { Platform, View } from 'react-native';
+import { View } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { ActivitySpinner } from '@/components/ui/feedback/ActivitySpinner';
 import { Icon } from '@/components/ui/icons/Icon';
 import type { IconName } from '@/components/ui/icons/iconRegistry.generated';
+import { PressableSurface } from '@/components/ui/interaction/PressableSurface';
 import { t } from '@/text';
 import type { Theme } from '@/theme';
 import type { SessionListVisualStatus } from '@/sync/domains/session/listing/deriveSessionListActivity';
@@ -14,7 +15,7 @@ export function resolveSessionRowStatusRole(status: SessionListVisualStatus): St
     switch (status) {
         case 'working': case 'resuming': return 'info';
         case 'finished': return 'success';
-        case 'input': return 'warning';
+        case 'input': case 'delivery_blocked': return 'warning';
         case 'error': return 'danger';
         case 'idle': case 'queued': case 'offline': case 'archiving': case 'cancelled': return 'neutral';
     }
@@ -22,6 +23,22 @@ export function resolveSessionRowStatusRole(status: SessionListVisualStatus): St
 
 export function resolveSessionRowStatusTint(status: SessionListVisualStatus, theme: Theme): string {
     return theme.colors.state[resolveSessionRowStatusRole(status)].background;
+}
+
+export function resolveSessionRowStatusLabel(status: SessionListVisualStatus): string {
+    switch (status) {
+        case 'working': return t('status.working');
+        case 'idle': return t('status.sidebarIdle');
+        case 'finished': return t('status.sidebarFinished');
+        case 'input': return t('status.waitingForYourResponse');
+        case 'delivery_blocked': return t('status.actionRequired');
+        case 'error': return t('status.error');
+        case 'queued': return t('session.pendingActivation.queued.title');
+        case 'offline': return t('status.offline');
+        case 'resuming': return t('session.resuming');
+        case 'archiving': return t('status.archiving');
+        case 'cancelled': return t('status.sidebarCancelled');
+    }
 }
 
 const stylesheet = StyleSheet.create(() => ({
@@ -52,25 +69,13 @@ export const SessionRowStatusBadge = React.memo(function SessionRowStatusBadge(p
     const { theme } = useUnistyles();
     const role = resolveSessionRowStatusRole(props.status);
     const palette = theme.colors.state[role];
-    const label = (() => {
-        switch (props.status) {
-            case 'working': return t('status.working');
-            case 'idle': return t('status.sidebarIdle');
-            case 'finished': return t('status.sidebarFinished');
-            case 'input': return t('status.waitingForYourResponse');
-            case 'error': return t('status.error');
-            case 'queued': return t('session.pendingActivation.queued.title');
-            case 'offline': return t('status.offline');
-            case 'resuming': return t('session.resuming');
-            case 'archiving': return t('status.archiving');
-            case 'cancelled': return t('status.sidebarCancelled');
-        }
-    })();
+    const label = resolveSessionRowStatusLabel(props.status);
     const iconName = ((): IconName | null => {
         switch (props.status) {
             case 'idle': return 'circle';
             case 'finished': return 'check';
             case 'input': return 'question';
+            case 'delivery_blocked': return 'warning';
             case 'error': return 'x';
             case 'queued': return 'clock';
             case 'offline': return 'stop';
@@ -81,17 +86,19 @@ export const SessionRowStatusBadge = React.memo(function SessionRowStatusBadge(p
         }
     })();
     return (
-        <View
+        <PressableSurface
             testID={`session-row-status-${props.sessionId}-${props.status}`}
             accessibilityRole="image"
             accessibilityLabel={label}
-            {...(Platform.OS === 'web' ? { title: label } : {})}
-            style={[stylesheet.badge, { borderColor: palette.border, backgroundColor: palette.background }]}
+            webTooltip={label}
+            focusRingRadius={9}
+            style={stylesheet.badge}
+            styleOverride={{ borderColor: palette.border, backgroundColor: palette.background }}
         >
             {iconName ? <Icon name={iconName} size={11} color={palette.onTint} /> : (
                 <ActivitySpinner size={13} color={palette.onTint} animationEnabled={props.animationEnabled} />
             )}
             {props.hasUnreadMessages ? <View testID={`session-row-status-unread-${props.sessionId}`} style={[stylesheet.unread, { backgroundColor: theme.colors.text.link }]} /> : null}
-        </View>
+        </PressableSurface>
     );
 });

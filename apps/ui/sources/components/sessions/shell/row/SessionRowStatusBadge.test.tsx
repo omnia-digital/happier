@@ -27,15 +27,16 @@ function flat(style: unknown): Record<string, unknown> {
 
 describe('SessionRowStatusBadge', () => {
     it.each([
-        ['working', 'info'], ['idle', 'neutral'], ['finished', 'success'], ['input', 'warning'], ['error', 'danger'],
+        ['working', 'info'], ['idle', 'neutral'], ['finished', 'success'], ['input', 'warning'], ['delivery_blocked', 'warning'], ['error', 'danger'],
     ] as const)('renders a prominent %s badge with its own semantic tint and accessible meaning', async (status, role) => {
         const { SessionRowStatusBadge } = await import('./SessionRowStatusBadge');
         const screen = await renderScreen(<SessionRowStatusBadge sessionId="s" status={status} hasUnreadMessages={false} animationEnabled={false} />);
         const badge = screen.findByTestId(`session-row-status-s-${status}`);
         expect(badge).toBeTruthy();
         expect(badge?.props.accessibilityLabel).toBeTruthy();
-        expect(badge?.props.title).toBe(badge?.props.accessibilityLabel);
-        expect(flat(badge?.props.style)).toMatchObject({
+        expect(flat(typeof badge?.props.style === 'function'
+            ? badge.props.style({ pressed: false, hovered: false })
+            : badge?.props.style)).toMatchObject({
             width: 18,
             height: 18,
             backgroundColor: lightTheme.colors.state[role].background,
@@ -51,8 +52,10 @@ describe('SessionRowStatusBadge', () => {
     });
 
     it('preserves unread as a separate marker and uses the same theme role in dark mode', async () => {
-        const { SessionRowStatusBadge, resolveSessionRowStatusTint } = await import('./SessionRowStatusBadge');
+        const { SessionRowStatusBadge, resolveSessionRowStatusLabel, resolveSessionRowStatusTint } = await import('./SessionRowStatusBadge');
         expect(resolveSessionRowStatusTint('finished', darkTheme)).toBe(darkTheme.colors.state.success.background);
+        expect(resolveSessionRowStatusLabel('delivery_blocked')).toBe('action required');
+        expect(resolveSessionRowStatusLabel('input')).toBe('Waiting for your response');
         const screen = await renderScreen(<SessionRowStatusBadge sessionId="s" status="finished" hasUnreadMessages animationEnabled={false} />);
         expect(screen.findByTestId('session-row-status-unread-s')).toBeTruthy();
         await screen.update(<SessionRowStatusBadge sessionId="s" status="finished" hasUnreadMessages={false} animationEnabled={false} />);

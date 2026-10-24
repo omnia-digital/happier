@@ -646,14 +646,16 @@ test.describe('ui e2e: session list attention', () => {
       await waitForInitialAppUi({ page, timeoutMs: 180_000 });
       await expect(row(page, session.id)).toHaveCount(1, { timeout: 120_000 });
       await expect(badge('idle')).toHaveCount(1, { timeout: 30_000 });
-      await expect(badge('idle')).toHaveAttribute('title', 'Idle');
+      await badge('idle').hover();
+      await expect(page.getByTestId(`session-row-status-${session.id}-idle-tooltip`)).toContainText('Idle');
 
       await markWorkingSessionInProgress({ baseUrl: server.baseUrl, token, sessionId: session.id });
       await expect(badge('working')).toHaveCount(1, { timeout: 30_000 });
 
       await updateSessionRuntimeStatus({ baseUrl: server.baseUrl, token, sessionId: session.id, latestTurnStatus: 'completed' });
       await expect(badge('finished')).toHaveCount(1, { timeout: 30_000 });
-      await expect(badge('finished')).toHaveAttribute('title', 'Latest turn finished');
+      await badge('finished').hover();
+      await expect(page.getByTestId(`session-row-status-${session.id}-finished-tooltip`)).toContainText('Latest turn finished');
       await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
       await expect(badge('finished')).toHaveCount(1, { timeout: 120_000 });
 

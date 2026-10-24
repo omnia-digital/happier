@@ -186,7 +186,7 @@ describe('buildSessionListRowModel', () => {
         expect(build({ ...completed, meaningfulActivityAt: NOW_MS + 1 }).visualStatus).toBe('idle');
         expect(build({ ...completed, latestTurnStatus: 'cancelled' }).visualStatus).toBe('cancelled');
         expect(build({ ...completed, latestTurnStatus: 'failed' }).visualStatus).toBe('error');
-        expect(build({ ...completed, pendingBlockedCount: 1 }).visualStatus).toBe('input');
+        expect(build({ ...completed, pendingBlockedCount: 1 }).visualStatus).toBe('delivery_blocked');
     });
 
     it('uses the maintained unread watermark in a row without a store renderable', () => {

@@ -1,11 +1,11 @@
 import type { SessionState } from '@/utils/sessions/sessionUtils';
 import { deriveSessionAttentionState } from '../attention/deriveSessionAttentionState';
 import type { PrimaryTurnStatusV1, SessionRuntimeIssueV1, SessionRuntimeActivityState } from '@happier-dev/protocol';
-import { hasUnseenSessionTurnCompletion, isSessionListReadyForReview } from './sessionListReadyForReview';
+import { hasNewerSessionListActivityThanTerminal, hasUnseenSessionTurnCompletion, isSessionListReadyForReview } from './sessionListReadyForReview';
 import { resolveSessionListBackgroundWorkAttention, type SessionListBackgroundWorkAttentionMode } from './sessionListBackgroundWorkAttention';
 
 export type SessionListSecondaryLineMode = 'status' | 'path';
-export type SessionListVisualStatus = 'working' | 'idle' | 'finished' | 'input' | 'error' | 'queued' | 'offline' | 'resuming' | 'archiving' | 'cancelled';
+export type SessionListVisualStatus = 'working' | 'idle' | 'finished' | 'input' | 'delivery_blocked' | 'error' | 'queued' | 'offline' | 'resuming' | 'archiving' | 'cancelled';
 
 /** The row's current lifecycle, independent of unread and list placement. */
 export function deriveSessionListVisualStatus(input: Readonly<{
@@ -20,7 +20,7 @@ export function deriveSessionListVisualStatus(input: Readonly<{
     if (input.sessionState === 'archiving') return 'archiving';
     if (input.sessionState === 'resuming') return 'resuming';
     if (input.sessionState === 'permission_required' || input.sessionState === 'action_required') return 'input';
-    if ((input.pendingBlockedCount ?? 0) > 0) return 'input';
+    if ((input.pendingBlockedCount ?? 0) > 0) return 'delivery_blocked';
     if (input.sessionState === 'failed') return 'error';
     if (input.sessionState === 'thinking' || input.sessionState === 'background_active') return 'working';
     if ((input.pendingCount ?? 0) > 0) return 'queued';
@@ -28,9 +28,8 @@ export function deriveSessionListVisualStatus(input: Readonly<{
     // A materialized terminal outcome is evidence about the latest turn only while no newer
     // meaningful activity has superseded it. Read state and attention placement play no role.
     const observedAt = input.latestTurnStatusObservedAt;
-    const meaningfulAt = input.meaningfulActivityAt;
     const terminalIsLatest = typeof observedAt === 'number' && Number.isFinite(observedAt)
-        && (typeof meaningfulAt !== 'number' || !Number.isFinite(meaningfulAt) || meaningfulAt <= observedAt + 1_000);
+        && !hasNewerSessionListActivityThanTerminal(input);
     if (terminalIsLatest && input.latestTurnStatus === 'completed') return 'finished';
     if (terminalIsLatest && input.latestTurnStatus === 'failed') return 'error';
     if (terminalIsLatest && input.latestTurnStatus === 'cancelled') return 'cancelled';

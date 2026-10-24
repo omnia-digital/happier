@@ -13,6 +13,14 @@ export type SessionListReadyForReviewInput = Readonly<{
 
 export const SESSION_LIST_TERMINAL_ACTIVITY_SKEW_MS = 1_000;
 
+/** A later committed/pending activity supersedes a materialized terminal turn outcome. */
+export function hasNewerSessionListActivityThanTerminal(input: Pick<SessionListReadyForReviewInput, 'latestTurnStatusObservedAt' | 'meaningfulActivityAt'>): boolean {
+    const observedAt = normalizeSeq(input.latestTurnStatusObservedAt);
+    const meaningfulAt = normalizeSeq(input.meaningfulActivityAt);
+    return observedAt !== null && meaningfulAt !== null
+        && meaningfulAt > observedAt + SESSION_LIST_TERMINAL_ACTIVITY_SKEW_MS;
+}
+
 export function isSessionListReadyForReview(input: SessionListReadyForReviewInput): boolean {
     // Losing observation of previously reported work is not evidence that it finished.
     if ((input.runtimeActivityActiveCount ?? 0) > 0 && input.runtimeActivityState !== 'idle') return false;
@@ -28,13 +36,7 @@ export function hasUnseenSessionTurnCompletion(input: SessionListReadyForReviewI
     if (input.latestTurnStatus !== 'completed') {
         return false;
     }
-    const latestTurnStatusObservedAt = normalizeSeq(input.latestTurnStatusObservedAt);
-    const meaningfulActivityAt = normalizeSeq(input.meaningfulActivityAt);
-    if (
-        latestTurnStatusObservedAt !== null
-        && meaningfulActivityAt !== null
-        && meaningfulActivityAt > latestTurnStatusObservedAt + SESSION_LIST_TERMINAL_ACTIVITY_SKEW_MS
-    ) {
+    if (hasNewerSessionListActivityThanTerminal(input)) {
         return false;
     }
     const sessionSeq = normalizeSeq(input.seq);
