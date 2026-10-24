@@ -69,7 +69,20 @@ describe('flash-list commitLayout guard patch', () => {
     expect(patchContent).toContain('HAPPIER PATCH(flash-list-commit-layout-guard)');
     expect(patchContent).toContain('HAPPIER PATCH(flash-list-measured-position-commit)');
     expect(patchContent).toContain('dist/recyclerview/RecyclerView.js');
+    expect(patchContent).toContain('src/recyclerview/RecyclerViewManager.ts');
     expect(patchContent).toContain('dist/recyclerview/ViewHolderCollection.js');
+  });
+
+  it('keeps measured-position commits in both the installed source and runtime', () => {
+    const flashListRoot = resolveFlashListRoot();
+    for (const relativePath of [
+      'src/recyclerview/RecyclerViewManager.ts',
+      'dist/recyclerview/RecyclerViewManager.js',
+    ]) {
+      const manager = readFileSync(join(flashListRoot, relativePath), 'utf8');
+      expect(manager, relativePath).toContain('HAPPIER PATCH(flash-list-measured-position-commit)');
+      expect(manager, relativePath).toContain('return measuredGeometryChanged || engagedIndicesChanged');
+    }
   });
 
   it('ships an installed RecyclerView with the guarded commitLayout path applied', () => {
