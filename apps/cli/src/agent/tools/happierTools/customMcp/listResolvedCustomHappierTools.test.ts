@@ -47,6 +47,13 @@ describe('listResolvedCustomHappierTools', () => {
     constructedTransports.length = 0;
   });
 
+  it('discovers tools beyond the first page and retains their read-only contract', async () => {
+    listToolsMock.mockResolvedValueOnce({ tools: [], nextCursor: 'next' }).mockResolvedValueOnce({ tools: [{ name: 'get_issue', inputSchema: { type: 'object', properties: { id: { type: 'string' } } }, annotations: { readOnlyHint: true } }] });
+    const { listResolvedCustomHappierTools } = await import('./listResolvedCustomHappierTools');
+    const result = await listResolvedCustomHappierTools({ mcpServers: { linear: { command: 'configured' } } });
+    expect(result.tools).toEqual([expect.objectContaining({ name: 'get_issue', annotations: { readOnlyHint: true } })]);
+  });
+
   it('skips failed MCP sources and keeps listing remaining tools', async () => {
     const listedSources: string[] = [];
 

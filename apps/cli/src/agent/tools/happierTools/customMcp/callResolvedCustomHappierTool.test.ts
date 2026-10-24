@@ -41,6 +41,15 @@ vi.mock('@modelcontextprotocol/sdk/client/stdio.js', () => ({
 }));
 
 describe('callResolvedCustomHappierTool', () => {
+  it('does not connect or call a provider when its containing request is cancelled', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const { callResolvedCustomHappierTool } = await import('./callResolvedCustomHappierTool');
+    const result = await callResolvedCustomHappierTool({ source: 'linear', toolName: 'get_issue', args: { id: 'DEV-1' }, mcpServers: { linear: { command: 'configured' } }, signal: controller.signal });
+    expect(result.ok).toBe(false);
+    expect(connectMock).not.toHaveBeenCalled();
+    expect(callToolMock).not.toHaveBeenCalled();
+  });
   const envKeys = [
     'HAPPIER_MCP_TOOL_CALL_TIMEOUT_MS',
     'HAPPIER_MCP_EXECUTION_RUN_WAIT_TIMEOUT_GRACE_MS',
