@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtemp, mkdir, realpath, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, realpath, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -42,6 +42,16 @@ afterEach(async () => {
 });
 
 describe('host worktree creation custody', () => {
+  it('does not create claim storage while a normal session has no worktree claim', async () => {
+    const f = await fixture();
+    const owner = { homeDir: f.homeDir, activeServerDir: f.activeServerDir, accountId: 'account-a', machineId: 'machine-a', launchNonce: 'normal-session-nonce' };
+    expect(await bindCreatedWorktreeToTrackedSession({
+      ...owner, sessionId: 'session-a', runnerPid: 12345, runnerPath: f.worktreePath,
+      serverResolution: 'created',
+    })).toBeNull();
+    expect(await readdir(f.activeServerDir)).toEqual([]);
+  });
+
   it('records actual Git identity and binds only the matching tracked created session across reload', async () => {
     const f = await fixture();
     const owner = { homeDir: f.homeDir, activeServerDir: f.activeServerDir, accountId: 'account-a', machineId: 'machine-a', launchNonce: 'nonce-a' };
