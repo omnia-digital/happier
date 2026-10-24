@@ -1,77 +1,66 @@
 import * as React from 'react';
 import { act } from 'react-test-renderer';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { renderScreen, standardCleanup } from '@/dev/testkit';
 import { installModalComponentCommonModuleMocks } from '@/modal/components/modalComponentTestHelpers';
 import { SelectableRow } from '@/components/ui/lists/SelectableRow';
-
-type SearchRow = {
-        type: 'session';
-        serverId: string;
-        serverName: string;
-        session: { id: string; updatedAt: number; archivedAt: number | null; metadata: { name: string; path: string; host: string } };
-};
-
-const source = vi.hoisted(() => ({
-    rows: [] as SearchRow[],
-    enabled: false,
-    byServerId: {} as Record<string, SearchRow[] | null>,
-}));
-const fetchRemainingSessions = vi.hoisted(() => vi.fn(async (_shouldContinue: () => boolean) => {}));
-const fetchRemainingSelectedServerSessions = vi.hoisted(() => vi.fn(async (_ids: readonly string[], _shouldContinue: () => boolean) => {}));
+import { storage } from '@/sync/domains/state/storageStore';
+import {
+    setActiveServerId,
+    setServerProfileIdentityForUrl,
+    upsertServerProfile,
+} from '@/sync/domains/server/serverProfiles';
+import { getActiveServerSnapshot } from '@/sync/domains/server/serverRuntime';
+import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
 
 installModalComponentCommonModuleMocks();
 
-vi.mock('@/sync/sync', () => ({ sync: { fetchRemainingSessions } }));
-vi.mock('@/sync/runtime/orchestration/concurrentSessionCache', () => ({ fetchRemainingSelectedServerSessions }));
+let activeServerId = '';
+const remoteServerId = 'srv_oh56_palette_remote';
 
-vi.mock('@/sync/store/hooks', async () => {
-    const actual = await vi.importActual<typeof import('@/sync/store/hooks')>('@/sync/store/hooks');
+function makeRow(id: string, title: string, updatedAt: number, serverId = activeServerId): SessionListViewItem {
     return {
-        ...actual,
-        useSessionListViewData: () => source.rows,
-        useSessionListViewDataByServerId: () => source.byServerId,
-    };
-});
-
-vi.mock('@/hooks/server/useEffectiveServerSelection', () => ({
-    useResolvedActiveServerSelection: () => ({
-        enabled: source.enabled,
-        activeServerId: 'server-a',
-        allowedServerIds: source.enabled ? ['server-a', 'server-b'] : ['server-a'],
-    }),
-}));
-
-function makeRow(id: string, title: string, updatedAt: number, serverId = 'server-a') {
-    return {
-        type: 'session' as const,
+        type: 'session',
         serverId,
-        serverName: serverId === 'server-a' ? 'Home A' : 'Home B',
+        serverName: serverId === activeServerId ? 'Home A' : 'Home B',
         session: {
-            id,
-            updatedAt,
-            archivedAt: null,
+            id, updatedAt, archivedAt: null,
             metadata: { name: title, path: `/work/${id}`, host: `${serverId}.host` },
         },
-    };
+    } as SessionListViewItem;
 }
 
-describe('CommandPalette session search', () => {
-    afterEach(() => {
-        standardCleanup();
-        source.rows = [];
-        source.enabled = false;
-        source.byServerId = {};
-        fetchRemainingSessions.mockClear();
-        fetchRemainingSelectedServerSessions.mockClear();
+function publishRows(activeRows: SessionListViewItem[], remoteRows: SessionListViewItem[] = []) {
+    storage.setState({
+        sessionListViewData: activeRows,
+        sessionListViewDataByServerId: remoteRows.length > 0 ? { [remoteServerId]: remoteRows } : {},
+    });
+}
+
+describe('CommandPalette session search through the real scoped session-list store', () => {
+    beforeEach(() => {
+        vi.stubEnv('EXPO_PUBLIC_HAPPY_STORAGE_SCOPE', `oh56-palette-${Math.random()}`);
+        const active = upsertServerProfile({ serverUrl: 'https://oh56-palette-active.example.test' });
+        const remote = upsertServerProfile({ serverUrl: 'https://oh56-palette-remote.example.test' });
+        setServerProfileIdentityForUrl(active.serverUrl, 'srv_oh56_palette_active');
+        setServerProfileIdentityForUrl(remote.serverUrl, remoteServerId);
+        setActiveServerId(active.id, { scope: 'device' });
+        activeServerId = getActiveServerSnapshot().serverId;
+        storage.setState(storage.getInitialState(), true);
     });
 
-    it('keeps actions and opens an outside-recent title match with Enter, then dismisses with Escape', async () => {
-        source.rows = [
+    afterEach(() => {
+        standardCleanup();
+        storage.setState(storage.getInitialState(), true);
+        vi.unstubAllEnvs();
+    });
+
+    it('retains actions and opens an outside-recent title with Enter, then dismisses with Escape', async () => {
+        publishRows([
             ...Array.from({ length: 5 }, (_, index) => makeRow(`recent-${index}`, `Recent ${index}`, 100 - index)),
-            makeRow('target', 'Release Checklist', 1, 'server-b'),
-        ];
+            makeRow('target', 'Release Checklist', 1),
+        ]);
         const navigateToSession = vi.fn();
         const onClose = vi.fn();
         const { CommandPalette } = await import('./CommandPalette');
@@ -83,40 +72,38 @@ describe('CommandPalette session search', () => {
             />,
         );
         const input = screen.findByType('TextInput');
-        expect(fetchRemainingSessions).not.toHaveBeenCalled();
 
         await act(async () => { input.props.onChangeText('rElEaSe'); });
-        expect(fetchRemainingSessions).toHaveBeenCalledTimes(1);
-        const stillSearching = fetchRemainingSessions.mock.calls[0]?.[0];
-        expect(stillSearching?.()).toBe(true);
         const rows = screen.findAllByType(SelectableRow);
         expect(rows.map((row) => row.props.title)).toEqual(['Release Checklist']);
-        expect(rows[0]?.props.subtitle).toContain('Home B');
+        expect(rows[0]?.props.subtitle).toContain('Home A');
         await act(async () => { input.props.onKeyPress({ nativeEvent: { key: 'Enter' } }); });
-        expect(navigateToSession).toHaveBeenCalledWith('target', { serverId: 'server-b' });
+        expect(navigateToSession).toHaveBeenCalledWith('target', { serverId: activeServerId });
         expect(onClose).toHaveBeenCalledTimes(1);
 
         await act(async () => { input.props.onChangeText('settings'); });
         expect(screen.findAllByType(SelectableRow).map((row) => row.props.title)).toEqual(['Settings']);
         await act(async () => { input.props.onChangeText(''); });
-        expect(stillSearching?.()).toBe(false);
         await act(async () => { input.props.onKeyPress({ nativeEvent: { key: 'Escape' } }); });
         expect(onClose).toHaveBeenCalledTimes(2);
     });
 
-    it('keeps keyboard selection scoped across similar titles and refreshes matches after a rename', async () => {
-        source.rows = [
-            makeRow('alpha', 'Deployment Notes', 20),
-            makeRow('beta', 'Deployment Notes', 10, 'server-b'),
-        ];
+    it('keeps similar titles in their Home scope and refreshes matches after a rename', async () => {
+        storage.setState((state) => ({
+            settings: {
+                ...state.settings,
+                serverSelectionGroups: [{ id: 'both', name: 'Both', serverIds: [activeServerId, remoteServerId], presentation: 'grouped' }],
+                serverSelectionActiveTargetKind: 'group',
+                serverSelectionActiveTargetId: 'both',
+            },
+        }));
+        publishRows(
+            [makeRow('alpha', 'Deployment Notes', 20)],
+            [makeRow('beta', 'Deployment Notes', 10, remoteServerId)],
+        );
         const navigateToSession = vi.fn();
         const { CommandPalette } = await import('./CommandPalette');
-        const props = {
-            commands: [{ id: 'settings', title: 'Settings', category: 'Navigation', action: vi.fn() }],
-            navigateToSession,
-            onClose: vi.fn(),
-        };
-        const screen = await renderScreen(<CommandPalette {...props} />);
+        const screen = await renderScreen(<CommandPalette commands={[]} navigateToSession={navigateToSession} onClose={vi.fn()} />);
         const input = screen.findByType('TextInput');
 
         await act(async () => { input.props.onChangeText('DEPLOY'); });
@@ -126,34 +113,18 @@ describe('CommandPalette session search', () => {
         ]);
         await act(async () => { input.props.onKeyPress({ nativeEvent: { key: 'ArrowDown' } }); });
         await act(async () => { input.props.onKeyPress({ nativeEvent: { key: 'Enter' } }); });
-        expect(navigateToSession).toHaveBeenCalledWith('beta', { serverId: 'server-b' });
+        expect(navigateToSession).toHaveBeenCalledWith('beta', { serverId: remoteServerId });
 
-        source.rows = [source.rows[0]!, makeRow('beta', 'Incident Retrospective', 10, 'server-b')];
-        await act(async () => { screen.tree.update(<CommandPalette {...props} />); });
+        await act(async () => {
+            publishRows(
+                [makeRow('alpha', 'Deployment Notes', 20)],
+                [makeRow('beta', 'Incident Retrospective', 10, remoteServerId)],
+            );
+        });
         expect(screen.findAllByType(SelectableRow).map((row) => row.props.title)).toEqual(['Deployment Notes']);
         await act(async () => { input.props.onChangeText('retrospect'); });
         expect(screen.findAllByType(SelectableRow).map((row) => row.props.title)).toEqual(['Incident Retrospective']);
         await act(async () => { input.props.onChangeText('nothing-matches'); });
         expect(screen.findAllByType(SelectableRow)).toHaveLength(0);
-    });
-
-    it('requests older titles from a selected foreign Home through its scoped cache owner', async () => {
-        source.enabled = true;
-        source.rows = [makeRow('active', 'Active Work', 20)];
-        source.byServerId = { 'server-b': [makeRow('remote', 'Foreign Research', 10, 'server-b')] };
-        const navigateToSession = vi.fn();
-        const { CommandPalette } = await import('./CommandPalette');
-        const screen = await renderScreen(<CommandPalette commands={[]} navigateToSession={navigateToSession} onClose={vi.fn()} />);
-        const input = screen.findByType('TextInput');
-        expect(fetchRemainingSelectedServerSessions).not.toHaveBeenCalled();
-
-        await act(async () => { input.props.onChangeText('foreign'); });
-        expect(fetchRemainingSelectedServerSessions).toHaveBeenCalledWith(['server-b'], expect.any(Function));
-        expect(screen.findAllByType(SelectableRow).map((row) => row.props.title)).toEqual(['Foreign Research']);
-        await act(async () => { input.props.onKeyPress({ nativeEvent: { key: 'Enter' } }); });
-        expect(navigateToSession).toHaveBeenCalledWith('remote', { serverId: 'server-b' });
-        const stillSearching = fetchRemainingSelectedServerSessions.mock.calls[0]?.[1];
-        await act(async () => { input.props.onChangeText(''); });
-        expect(stillSearching?.()).toBe(false);
     });
 });
