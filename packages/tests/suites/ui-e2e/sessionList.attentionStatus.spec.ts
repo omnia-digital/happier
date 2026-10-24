@@ -84,7 +84,7 @@ type SessionTurnMutationResponse = Readonly<{
   reason?: unknown;
 }>;
 
-type PrimaryTurnStatus = 'in_progress' | 'completed' | 'cancelled';
+type PrimaryTurnStatus = 'in_progress' | 'completed' | 'cancelled' | 'failed';
 
 function requireString(value: unknown, context: string): string {
   if (typeof value === 'string' && value.trim()) return value;
@@ -229,7 +229,8 @@ async function updateSessionRuntimeStatus(params: Readonly<{
   });
 
   if (params.latestTurnStatus !== 'in_progress') {
-    const action = params.latestTurnStatus === 'completed' ? 'complete' : 'cancel';
+    const action = params.latestTurnStatus === 'completed' ? 'complete'
+      : params.latestTurnStatus === 'failed' ? 'fail' : 'cancel';
     await postSessionTurnMutation({
       ...params,
       mutation: {
@@ -240,6 +241,15 @@ async function updateSessionRuntimeStatus(params: Readonly<{
         mutationId: `mutation-${randomUUID()}`,
         observedAt: observedAt + 1,
         provider: 'claude',
+        ...(action === 'fail' ? { issue: {
+          v: 1,
+          scope: 'primary_session',
+          status: 'failed',
+          code: 'provider_error',
+          source: 'provider_session_error',
+          occurredAt: observedAt + 1,
+          sanitizedPreview: 'The coding agent reported a failure.',
+        } } : {}),
       },
     });
   }
@@ -681,6 +691,55 @@ test.describe('ui e2e: session list attention', () => {
     } finally {
       stopKeepAlive();
       runtime.close();
+    }
+  });
+
+  test('renders five live primary statuses together in light and dark sidebar themes', async ({ page }) => {
+    test.setTimeout(240_000);
+    if (!server || !token || !uiBaseUrl) throw new Error('missing session list attention fixtures');
+
+    const statuses = ['idle', 'working', 'finished', 'input', 'error'] as const;
+    const sessions = await Promise.all(statuses.map(async (status) => createPlainSession({
+      baseUrl: server!.baseUrl,
+      token: token!,
+      title: `OH57 ${status} status`,
+    })));
+    const publishers: SocketCollector[] = [];
+    const stopKeepAlives: Array<() => void> = [];
+    try {
+      for (const session of sessions) {
+        const publisher = await connectAuthenticatedMachinePublisher({
+          baseUrl: server.baseUrl, token, sessionId: session.id, thinking: false,
+        });
+        publishers.push(publisher);
+        stopKeepAlives.push(startPresenceKeepAlive(publisher, session.id));
+      }
+      await markWorkingSessionInProgress({ baseUrl: server.baseUrl, token, sessionId: sessions[1]!.id });
+      await updateSessionRuntimeStatus({ baseUrl: server.baseUrl, token, sessionId: sessions[2]!.id, latestTurnStatus: 'completed' });
+      await publishPendingAgentRequest({ baseUrl: server.baseUrl, token, socket: publishers[3]!, sessionId: sessions[3]!.id });
+      await updateSessionRuntimeStatus({ baseUrl: server.baseUrl, token, sessionId: sessions[4]!.id, latestTurnStatus: 'failed' });
+
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+      await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+      await mutateUiE2eLocalSettings({ page, settingsPatch: { themePreference: 'light' } });
+      await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+      for (const [index, status] of statuses.entries()) {
+        await expect(page.getByTestId(`session-row-status-${sessions[index]!.id}-${status}`)).toHaveCount(1, { timeout: 60_000 });
+        await row(page, sessions[index]!.id).screenshot({ path: test.info().outputPath(`oh57-${status}-light-row.png`) });
+      }
+      await page.screenshot({ path: test.info().outputPath('oh57-five-statuses-light.png') });
+
+      await mutateUiE2eLocalSettings({ page, settingsPatch: { themePreference: 'dark' } });
+      await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+      for (const [index, status] of statuses.entries()) {
+        await expect(page.getByTestId(`session-row-status-${sessions[index]!.id}-${status}`)).toHaveCount(1, { timeout: 60_000 });
+        await row(page, sessions[index]!.id).screenshot({ path: test.info().outputPath(`oh57-${status}-dark-row.png`) });
+      }
+      await page.screenshot({ path: test.info().outputPath('oh57-five-statuses-dark.png') });
+    } finally {
+      stopKeepAlives.forEach((stop) => stop());
+      publishers.forEach((publisher) => publisher.close());
     }
   });
 
