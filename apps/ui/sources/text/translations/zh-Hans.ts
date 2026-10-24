@@ -618,7 +618,7 @@ export const zhHans: TranslationStructure = {
         storageDefinition: "存储已用容量，不是I/O：",
         loadDefinition: "LA · 1 / 5 / 15分钟平均负载：",
         storage: "存储已用",
-        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: 'LA 1/5/15m',
+        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: "负载 1/5/15分",
         volume: ({ volume, path }: { volume: string; path: string }) => "卷: " + volume + " · 文件系统: " + path,
         sampledAt: ({ time }: { time: string }) => "采样时间: " + time,
     },

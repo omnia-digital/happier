@@ -603,7 +603,7 @@ export const ja: TranslationStructure = {
         storageDefinition: "ストレージの使用容量（I/Oではありません）:",
         loadDefinition: "LA · 1 / 5 / 15分の平均:",
         storage: "ストレージ使用",
-        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: 'LA 1/5/15m',
+        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: "負荷 1/5/15分",
         volume: ({ volume, path }: { volume: string; path: string }) => "ボリューム: " + volume + " · ファイルシステム: " + path,
         sampledAt: ({ time }: { time: string }) => "測定日時: " + time,
     },

@@ -640,7 +640,7 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
         storageDefinition: "儲存已用容量，不是I/O：",
         loadDefinition: "LA · 1 / 5 / 15分鐘平均負載：",
         storage: "儲存已用",
-        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: 'LA 1/5/15m',
+        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: "負載 1/5/15分",
         volume: ({ volume, path }: { volume: string; path: string }) => "卷宗: " + volume + " · 檔案系統: " + path,
         sampledAt: ({ time }: { time: string }) => "取樣時間: " + time,
     },

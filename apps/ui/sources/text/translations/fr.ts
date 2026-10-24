@@ -418,7 +418,7 @@ function plural({ count, singular, plural }: { count: number; singular: string; 
  */
 export const fr: TranslationStructure = {
     machineMonitoring: {
-        title: "Machines",
+        title: "Ordinateurs",
         empty: "Aucune machine connectée.",
         cadence: "Actualisation toutes les 3 min lorsque visible.",
         olderCli: "La CLI de cette machine ne prend pas en charge ces mesures.",
@@ -436,7 +436,7 @@ export const fr: TranslationStructure = {
         storageDefinition: "Capacité de stockage utilisée, pas les E/S :",
         loadDefinition: "LA · moyennes sur 1 / 5 / 15 minutes :",
         storage: "Stockage utilisé",
-        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: 'LA 1/5/15m',
+        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: "Charge 1/5/15min",
         volume: ({ volume, path }: { volume: string; path: string }) => "Volume: " + volume + " · Système de fichiers: " + path,
         sampledAt: ({ time }: { time: string }) => "Mesuré: " + time,
     },

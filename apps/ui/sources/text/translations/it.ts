@@ -618,7 +618,7 @@ export const it: TranslationStructure = {
         storageDefinition: "Capacità di archiviazione usata, non I/O:",
         loadDefinition: "LA · medie di 1 / 5 / 15 minuti:",
         storage: "Spazio usato",
-        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: 'LA 1/5/15m',
+        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: "Carico 1/5/15min",
         volume: ({ volume, path }: { volume: string; path: string }) => "Volume: " + volume + " · File system: " + path,
         sampledAt: ({ time }: { time: string }) => "Rilevato: " + time,
     },

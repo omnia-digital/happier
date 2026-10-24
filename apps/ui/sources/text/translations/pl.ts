@@ -631,7 +631,7 @@ export const pl: TranslationStructure = {
         storageDefinition: "Zajęta pojemność dysku, nie operacje we/wy:",
         loadDefinition: "LA · średnie z 1 / 5 / 15 minut:",
         storage: "Zajęte miejsce",
-        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: 'LA 1/5/15m',
+        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: "Obciąż. 1/5/15min",
         volume: ({ volume, path }: { volume: string; path: string }) => "Wolumin: " + volume + " · System plików: " + path,
         sampledAt: ({ time }: { time: string }) => "Zmierzono: " + time,
     },

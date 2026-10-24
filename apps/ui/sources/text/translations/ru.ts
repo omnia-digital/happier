@@ -635,7 +635,7 @@ export const ru: TranslationStructure = {
         storageDefinition: "Занятая ёмкость хранилища, не ввод-вывод:",
         loadDefinition: "LA · среднее за 1 / 5 / 15 минут:",
         storage: "Место занято",
-        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: 'LA 1/5/15m',
+        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: "Нагрузка 1/5/15мин",
         volume: ({ volume, path }: { volume: string; path: string }) => "Том: " + volume + " · Файловая система: " + path,
         sampledAt: ({ time }: { time: string }) => "Измерено: " + time,
     },
