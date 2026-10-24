@@ -205,6 +205,36 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
         expect(requestMock.mock.calls.filter(([path]) => path === `/v2/sessions/${id}`)).toHaveLength(1);
     });
 
+    it('projects completed but unreadable metadata as unavailable through the mounted status-demand hook', async () => {
+        const activeServer = upsertServerProfile({ serverUrl: 'https://status-unreadable.example', name: 'Status unreadable fixture' });
+        setActiveServerId(activeServer.id);
+        const { sync } = await import('./sync');
+        const { Encryption } = await import('./encryption/encryption');
+        const { renderHook, flushHookEffects, createSessionFixture } = await import('@/dev/testkit');
+        const { buildSessionListRenderableFromSession } = await import('./domains/session/listing/sessionListRenderable');
+        const { useSessionListStatusInputs } = await import('@/components/sessions/shell/view-state/useSessionListStatusInputs');
+        const owner = sync as unknown as { credentials: unknown; encryption: unknown };
+        owner.credentials = { token: 'unreadable-token', secret: 'isolated-secret' };
+        owner.encryption = await Encryption.create(new Uint8Array(32).fill(6));
+        const id = 'unreadable-status-metadata';
+        const pending = buildSessionListRenderableFromSession(createSessionFixture({ id, metadata: null }));
+        storage.getState().mergeSessionListRenderables([pending]);
+        const confirmed = buildSessionListRenderableFromSession(createSessionFixture({ id: 'confirmed-metadata', metadata: { path: '/repo', host: 'fixture' } }));
+        const items = [{ type: 'session' as const, serverId: activeServer.id, session: pending }, { type: 'session' as const, serverId: activeServer.id, session: confirmed }];
+        requestMock.mockResolvedValue(new Response(JSON.stringify({ session: { id, seq: 0, createdAt: 1, updatedAt: 2, active: false, activeAt: 2,
+            encryptionMode: 'plain', dataEncryptionKey: null, metadata: 'null', metadataVersion: 1, agentState: null, agentStateVersion: 0, share: null } }), { status: 200 }));
+        const hook = await renderHook((rows: typeof items) => useSessionListStatusInputs(rows, activeServer.id, true, false, true), { initialProps: items });
+        try {
+            await flushHookEffects({ cycles: 15 });
+            expect(requestMock).toHaveBeenCalledTimes(1);
+            expect(hook.getCurrent().metadataStates.get(`${activeServer.id}:${id}`)?.phase).toBe('unavailable');
+            expect(hook.getCurrent().ticketAssociations.get(`${activeServer.id}:${id}`)).toBeUndefined();
+            await hook.rerender([...items].reverse());
+            expect(hook.getCurrent().metadataStates.get(`${activeServer.id}:${id}`)?.phase).toBe('unavailable');
+            expect(requestMock).toHaveBeenCalledTimes(1);
+        } finally { await hook.unmount(); }
+    });
+
     it('hydrates e2ee session encryption on deep link before sessions snapshot fetch', async () => {
         const sessionId = 'deep_link_session';
         storage.getState().applySessions([createSession({ sessionId })]);
