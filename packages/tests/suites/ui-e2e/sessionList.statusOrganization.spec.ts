@@ -123,8 +123,9 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await row(noTicket).hover();
             await page.getByRole('button', { name: 'Pin session', exact: true }).click();
             await expect(page.getByText('Pinned', { exact: true })).toBeVisible();
-            // This oldest linked row is outside the viewport before status organization demands it.
-            await expect(row(idle)).toHaveCount(0);
+            // Web keeps this row rendered, but it is outside the scroll viewport until status organization demands it.
+            await expect(row(idle)).toHaveCount(1);
+            await expect(row(idle)).not.toBeInViewport();
             expect((await readFile(readLog, 'utf8')).split('\n')).not.toContain('DEV-1');
             await choose('session-list-status-group-ticket');
             await expect(page.getByText('Q/A - Dev', { exact: true }).first()).toBeVisible({ timeout: 60_000 });
