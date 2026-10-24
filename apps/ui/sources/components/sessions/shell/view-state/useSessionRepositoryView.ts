@@ -145,10 +145,11 @@ export function useSessionRepositoryView(input: Input) {
             for (const key of Object.keys(orders)) addScope(key, scope);
         }
         for (const item of input.items ?? []) {
-            if (!item.groupKey || !(item.type === 'header'
-                ? item.headerKind === 'folder' || item.headerKind === 'project'
-                : item.groupKind === 'folder' || item.groupKind === 'project')) continue;
-            const serverId = item.serverId ?? activeScope?.serverId;
+            if (!item.groupKey) continue;
+            // Shared band headers have no Home of their own; their rows supply it.
+            // Empty physical folders/projects still belong to the implicit active Home.
+            const usesImplicitHome = item.type === 'session' || item.headerKind === 'folder' || item.headerKind === 'project';
+            const serverId = item.serverId ?? (usesImplicitHome ? activeScope?.serverId : undefined);
             if (serverId) addScope(item.groupKey, scopes[serverId] ?? { serverId: canonicalServerIds[serverId] ?? serverId });
         }
         if (input.mode === 'repository') for (const item of items ?? []) {

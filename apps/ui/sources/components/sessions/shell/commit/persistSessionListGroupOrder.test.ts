@@ -78,6 +78,44 @@ describe('session list group order persistence', () => {
         expect(orders('home-b')['pinned-v1']).toEqual(['home-b:b2', 'home-b:b1']);
     });
 
+    it.each(['date', 'shared', 'attention', 'working'] as const)('derives a first mixed-Home %s order from the row owners', async groupKind => {
+        const groupKey = `first-${groupKind}`;
+        const items: SessionListViewItem[] = [
+            { type: 'header', headerKind: groupKind, title: groupKind, groupKey },
+            ...[['home-b', 'b1'], ['home-a', 'a'], ['home-b', 'b2']].map(([serverId, id]) => ({
+                type: 'session' as const, serverId, groupKind, groupKey, session: createSessionFixture({ id, serverId }),
+            })),
+        ];
+        const hook = await renderHook(() => useSessionRepositoryView({ items, mode: 'original', setMode: () => {}, onFailure: () => {} }));
+        await act(async () => { await persistSessionListGroupOrder({
+            currentOrder: hook.getCurrent().groupOrder, nextOrder: { [groupKey]: ['home-b:b2', 'home-a:a', 'home-b:b1'] },
+            defaultServerId: 'home-a', groupScopes: hook.getCurrent().orderScopes,
+        }); });
+        expect(orders('home-a')[groupKey]).toEqual(['home-a:a']);
+        expect(orders('home-b')[groupKey]).toEqual(['home-b:b2', 'home-b:b1']);
+    });
+
+    it('retains foreign ownership of machine-projected date groups without a prior persisted rank', async () => {
+        const { projectSessionListMachineView } = await import('../view-state/projectSessionListMachineView');
+        const source: SessionListViewItem[] = [
+            { type: 'header', headerKind: 'date', title: 'Today', groupKey: 'today', serverId: 'home-b' },
+            ...['first', 'second'].map(id => ({ type: 'session' as const, serverId: 'home-b', groupKind: 'date' as const, groupKey: 'today',
+                session: createSessionFixture({ id, serverId: 'home-b', metadata: { machineId: 'machine-b', path: '/repo', host: 'foreign' } as never }),
+            })),
+        ];
+        const items = projectSessionListMachineView(source, {});
+        const groupKey = items.find(item => item.type === 'session')?.groupKey;
+        expect(groupKey).toMatch(/^machine-view:/);
+        const hook = await renderHook(() => useSessionRepositoryView({ items, mode: 'machine', setMode: () => {}, onFailure: () => {} }));
+        await act(async () => { await persistSessionListGroupOrder({
+            currentOrder: hook.getCurrent().groupOrder, nextOrder: { [groupKey!]: ['home-b:second', 'home-b:first'] },
+            defaultServerId: 'home-a', groupScopes: hook.getCurrent().orderScopes,
+        }); });
+        expect(boundary.reorder).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ serverUrl: 'https://b.example.com' }));
+        expect(orders('home-b')[groupKey!]).toEqual(['home-b:second', 'home-b:first']);
+        expect(orders('home-a')).toEqual({});
+    });
+
     it.each(['original', 'repository'] as const)('persists a physical foreign folder order to its Home in %s view', async mode => {
         const workspace = { t: 'workspaceScope' as const, serverId: 'home-b', machineId: 'machine-b', rootPath: '/repo' };
         const folderKey = 'server:home-b:project:repo:folder:foreign-folder';
