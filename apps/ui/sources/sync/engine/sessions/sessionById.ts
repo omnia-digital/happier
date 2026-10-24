@@ -18,6 +18,7 @@ import {
 } from '@/sync/runtime/connectivity/authErrors';
 
 import { parsePlainSessionAgentState, parsePlainSessionMetadata } from './parsePlainSessionPayload';
+import { resolveSessionAccessLevelFromV2Share } from './sessionAccessLevel';
 import { resolveSessionRuntimeActivityProjectionFields } from './sessionRuntimeActivityProjection';
 import {
   looksLikeCurrentV2SessionNotFound404,
@@ -325,8 +326,7 @@ export async function fetchAndApplySessionById(params: Readonly<{
       sessionEncryption!.decryptAgentState(row.agentStateVersion, row.agentState),
     ]);
 
-  const accessLevel = row.share?.accessLevel;
-  const normalizedAccessLevel = accessLevel === 'view' || accessLevel === 'edit' || accessLevel === 'admin' ? accessLevel : undefined;
+  const normalizedAccessLevel = resolveSessionAccessLevelFromV2Share(row.share);
   const sessionTurns = params.includeTurnsProjection === false
     ? null
     : await fetchSessionTurnsProjection({
