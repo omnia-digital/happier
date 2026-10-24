@@ -1,4 +1,5 @@
 import type { TranslationStructure } from '../_types';
+import { en } from './en';
 
 const mcpServersUxTranslationExtension = {
   mcpServersConfiguredEmptySubtitle: 'Crea un servidor, importa JSON de l’amfitrió o instal·la un preajust recomanat.',
@@ -5808,6 +5809,9 @@ deps: {
     },
 
     commandPalette: {
+        ...en.commandPalette,
+        titleMode: 'Títols',
+        contentMode: 'Missatges',
         placeholder: 'Escriu una comanda o cerca...',
         noCommandsFound: 'No s\'han trobat comandes',
         searchScope: 'Cerca sessions no arxivades dels servidors seleccionats disponibles. Les més antigues es carreguen si el servidor permet paginació.',

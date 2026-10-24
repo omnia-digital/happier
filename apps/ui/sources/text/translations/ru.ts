@@ -1,4 +1,5 @@
 import type { TranslationStructure } from '../_types';
+import { en } from './en';
 
 const mcpServersUxTranslationExtension = {
   mcpServersConfiguredEmptySubtitle: 'Создайте сервер, импортируйте JSON хоста или установите рекомендуемый пресет.',
@@ -6706,6 +6707,9 @@ export const ru: TranslationStructure = {
   },
 
   commandPalette: {
+    ...en.commandPalette,
+    titleMode: 'Названия',
+    contentMode: 'Сообщения',
     placeholder: "Введите команду или поиск...",
     noCommandsFound: "Команды не найдены",
     searchScope: 'Ищет неархивированные сеансы на доступных выбранных серверах. Старые названия загружаются, если сервер поддерживает страницы.',

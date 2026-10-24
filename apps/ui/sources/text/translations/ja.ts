@@ -6,6 +6,7 @@
  */
 
 import type { TranslationStructure } from "../_types";
+import { en } from './en';
 
 const mcpServersUxTranslationExtension = {
   mcpServersConfiguredEmptySubtitle: 'サーバーを作成し、ホスト JSON をインポートするか、推奨プリセットをインストールしてください。',
@@ -6429,6 +6430,9 @@ localTailscale: {
   },
 
   commandPalette: {
+    ...en.commandPalette,
+    titleMode: 'タイトル',
+    contentMode: 'メッセージ',
     placeholder: "コマンドを入力または検索...",
     noCommandsFound: "コマンドが見つかりません",
     searchScope: '利用可能な選択済みサーバーの未アーカイブのセッションを検索します。サーバーがページングに対応している場合は古いタイトルも読み込みます。',

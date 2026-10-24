@@ -1,4 +1,5 @@
 import type { TranslationStructure } from "../_types";
+import { en } from './en';
 
 const mcpServersUxTranslationExtension = {
   mcpServersConfiguredEmptySubtitle:
@@ -6279,6 +6280,9 @@ export const pt: TranslationStructure = {
   },
 
   commandPalette: {
+    ...en.commandPalette,
+    titleMode: 'Títulos',
+    contentMode: 'Mensagens',
     placeholder: "Digite um comando ou pesquise...",
     noCommandsFound: "Nenhum comando encontrado",
     searchScope: 'Pesquisa sessões não arquivadas nos servidores selecionados disponíveis. Carrega títulos antigos quando o servidor permite paginação.',

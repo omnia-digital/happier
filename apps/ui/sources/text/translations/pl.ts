@@ -1,4 +1,5 @@
 import type { TranslationStructure } from "../_types";
+import { en } from './en';
 
 const mcpServersUxTranslationExtension = {
   mcpServersConfiguredEmptySubtitle: 'Utwórz serwer, zaimportuj JSON hosta albo zainstaluj zalecany preset.',
@@ -6182,6 +6183,9 @@ export const pl: TranslationStructure = {
   },
 
   commandPalette: {
+    ...en.commandPalette,
+    titleMode: 'Tytuły',
+    contentMode: 'Wiadomości',
     placeholder: "Wpisz polecenie lub wyszukaj...",
     noCommandsFound: "Nie znaleziono poleceń",
     searchScope: 'Przeszukuje niezarchiwizowane sesje na dostępnych wybranych serwerach. Starsze tytuły wczytuje, jeśli serwer obsługuje stronicowanie.',

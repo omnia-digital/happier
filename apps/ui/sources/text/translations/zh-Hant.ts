@@ -6,6 +6,7 @@
  */
 
 import type { TranslationStructure } from '../_types';
+import { en } from './en';
 import { zhHans } from './zh-Hans';
 
 const mcpServersUxTranslationExtension = {
@@ -5350,6 +5351,9 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
     },
 
     commandPalette: {
+        ...en.commandPalette,
+        titleMode: '標題',
+        contentMode: '訊息',
         placeholder: '輸入命令或搜尋...',
         noCommandsFound: '找不到命令',
         searchScope: '搜尋可用的所選伺服器上未封存的工作階段。伺服器支援分頁時也會載入較早的標題。',

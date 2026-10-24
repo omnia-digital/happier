@@ -6,6 +6,7 @@
  */
 
 import type { TranslationStructure } from "../_types";
+import { en } from './en';
 
 const mcpServersUxTranslationExtension = {
   mcpServersConfiguredEmptySubtitle: '创建一个服务器、导入主机 JSON，或安装推荐预设。',
@@ -5964,6 +5965,9 @@ export const zhHans: TranslationStructure = {
   },
 
   commandPalette: {
+    ...en.commandPalette,
+    titleMode: '标题',
+    contentMode: '消息',
     placeholder: "输入命令或搜索...",
     noCommandsFound: "未找到命令",
     searchScope: '搜索可用的所选服务器上的未归档会话。服务器支持分页时也会加载较早的标题。',

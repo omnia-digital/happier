@@ -5,6 +5,7 @@ export interface Command {
     icon?: string;
     shortcut?: string;
     category?: string;
+    keepOpen?: boolean;
     action: () => void | Promise<void>;
 }
 
