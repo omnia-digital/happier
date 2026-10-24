@@ -510,8 +510,42 @@ test.describe('ui e2e: session list ordering mode', () => {
     const clickedRow = page.getByTestId(`session-list-item-${clickedSessionId}`);
     await expect(selectedRow).toHaveCount(1, { timeout: 120_000 });
     await expect(clickedRow).toHaveCount(1, { timeout: 120_000 });
+    await page.evaluate(() => {
+      const events: unknown[] = [];
+      (window as typeof window & { __oh50ClickEvents?: unknown[] }).__oh50ClickEvents = events;
+      for (const type of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click'] as const) {
+        document.addEventListener(type, (event) => {
+          const target = event.target instanceof Element ? event.target : null;
+          events.push({
+            type,
+            target: target?.getAttribute('data-testid') ?? null,
+            row: target?.closest('[data-testid^="session-list-item-"]')?.getAttribute('data-testid') ?? null,
+            path: event.composedPath().filter((node): node is Element => node instanceof Element)
+              .map((element) => element.getAttribute('data-testid')).filter(Boolean).slice(0, 5),
+            defaultPrevented: event.defaultPrevented,
+            pathname: location.pathname,
+          });
+        }, true);
+      }
+      const push = history.pushState.bind(history);
+      const replace = history.replaceState.bind(history);
+      history.pushState = (data, unused, url) => {
+        events.push({ type: 'pushState', url: String(url), pathname: location.pathname });
+        push(data, unused, url);
+      };
+      history.replaceState = (data, unused, url) => {
+        events.push({ type: 'replaceState', url: String(url), pathname: location.pathname });
+        replace(data, unused, url);
+      };
+    });
     await selectedRow.click();
-    await expect.poll(() => new URL(page.url()).pathname, { timeout: 90_000 }).toBe(`/session/${selectedSessionId}`);
+    try {
+      await expect.poll(() => new URL(page.url()).pathname, { timeout: 90_000 }).toBe(`/session/${selectedSessionId}`);
+    } catch (error) {
+      console.error('OH50 initial row click diagnostic', JSON.stringify(await page.evaluate(() =>
+        (window as typeof window & { __oh50ClickEvents?: unknown[] }).__oh50ClickEvents ?? [])));
+      throw error;
+    }
     await expect(page.getByTestId(`session-list-machine-identity-${selectedSessionId}-tooltip`)).toBeVisible();
 
     async function expectBlankDraftAndCancel(): Promise<void> {
