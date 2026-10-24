@@ -388,7 +388,11 @@ CLI fixture follow-up `59c9d1767f` fixes a hoisted boundary spy and registration
 Root review caught a dropped third-argument assertion and zero-argument mock tuple typing;
 `22a7dd0ebb` retains all three original positional checks, permits trailing optional fields, and
 types the spy from its actual owner. Focused150 and final deciding2+adjacent timeout1 pass;
-CLI typecheck passes after the delta. Full CLI integration rerun remains pending.
+CLI typecheck passes after the delta. Complete CLI integration now passes all8shards:
+880tests passed/61skipped,113files passed/9skipped, exit0 in296.91s
+(`.project/logs/tests/oh4-cli-integration-final-current.log`). The skips include unavailable real
+daemon/provider/terminal gates; no live account acceptance is inferred. Fresh whole-repository
+typecheck also passes in18.27s (`oh4-root-types-final-current.log`).
 
 Full Stack integration is blocked on release-owned artifacts: its ordinary `release_binary_smoke`
 and `self_host_binary_smoke` tests would build archives in `dist/release-assets`, which is absent.
@@ -398,6 +402,14 @@ to rebuild missing archives. Keep HAPPIER_STACK_RUN_REAL_INTEGRATION_TESTS disab
 real files can install OS services. The remaining35regular source cases can use the existing
 collector/environment/process helpers, serially, after shared build outputs are idle. Report that
 selection separately; it cannot supply a full root integration verdict.
+
+That35file Stack source selection now passes177/177 checks through the existing collector,
+sanitizer and serial process helpers (`.project/logs/tests/oh4-stack-source-integration-final-current.log`).
+The first selection command failed before tests because a path callback received Array.map's index;
+the corrected command changed no repository source. The two archive cases remain blocked and the
+four real-service files remain disabled. Full root integration and real source-CLI agent acceptance
+are still open. Native macOS QA awaits an idle window; iOS, native hotkeys and Embedded Terminal
+remain deferred as recorded above.
 
 The installer failure is now corrected at `packages/cli-common/src/providers/install.ts`. The vendor recipe records CLI presence using the same execution environment before the entire command sequence. A nonzero command can recover only when the CLI was absent before that sequence and is available afterward. A previously installed CLI no longer masks a failed forced reinstall. Successful forced installs, default already-installed skipping, consent, timeout handling and newly-available recovery are retained.
 
