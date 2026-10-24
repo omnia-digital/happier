@@ -149,6 +149,7 @@ test.describe('ui e2e: /new worktree picker (Phase 5 SelectionList migration)', 
         await page.getByTestId('selection-list:worktree-root:option:existing_git_worktree').click();
         await expect(page.getByTestId('selection-list:header:input')).toBeVisible();
         await page.keyboard.press('Escape');
+        await openPicker();
         await choose('current_path');
         await openPicker();
         await choose('create_git_worktree');
@@ -182,6 +183,41 @@ test.describe('ui e2e: /new worktree picker (Phase 5 SelectionList migration)', 
         }, { timeout: 120_000 }).toBe(true);
         await writeFile(testInfo.outputPath('oh65-worktree-proof.txt'), await list());
         await page.screenshot({ path: testInfo.outputPath('oh65-launched-worktree.png') });
+
+        // The fork modal's configurable route uses this same composer and must
+        // preserve its source recipe while changing checkout intent.
+        await expect(page.getByTestId('session-composer-input')).toBeVisible();
+        await page.getByLabel('Open session actions').click();
+        await page.getByRole('button', { name: /Fork session/i }).click();
+        await expect(page.getByTestId('session-fork-strategy-configure')).toBeVisible();
+        await page.getByTestId('session-fork-strategy-configure').click();
+        await page.waitForURL((url) => url.pathname === '/new');
+        await expect(page.getByTestId('new-session-checkout-chip')).toBeVisible();
+        await openPicker();
+        await page.getByTestId('selection-list:worktree-root:option:existing_git_worktree').click();
+        await page.getByTestId(`selection-list:worktree-existing:option:checkout:${newPath}`).click();
+        await expect(page.getByTestId('agent-input-selection-list-popover')).toBeHidden();
+        await openPicker();
+        await choose('create_git_worktree');
+        const beforeFork = await list();
+        expect(beforeFork).toContain(newPath);
+        await openPicker();
+        await expect(pending).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath('oh65-fork-new-intent.png') });
+        await page.keyboard.press('Escape');
+        expect(await list()).toBe(beforeFork);
+        await page.getByTestId('new-session-composer-input').fill('continue the fixture in a fresh worktree');
+        await expect(page.getByTestId('new-session-composer-send')).toBeEnabled();
+        await page.getByTestId('new-session-composer-send').click();
+        await page.waitForURL((url) => url.pathname.startsWith('/session/'), { timeout: 180_000 });
+        await expect.poll(async () => (await list()).split('worktree ').length - 1, { timeout: 60_000 }).toBe(3);
+        const forkPath = (await list()).split('\n').filter((line) => line.startsWith('worktree ')).map((line) => line.slice(9)).find((path) => !worktreePaths.includes(path))!;
+        await expect.poll(async () => {
+            const events = (await readFile(fakeClaudeLogPath, 'utf8')).split('\n').filter(Boolean).map((line) => JSON.parse(line));
+            return events.some((event) => event.type === 'invocation' && event.cwd === forkPath && !event.argv.includes('--version'));
+        }, { timeout: 120_000 }).toBe(true);
+        await writeFile(testInfo.outputPath('oh65-fork-worktree-proof.txt'), await list());
+        await page.screenshot({ path: testInfo.outputPath('oh65-fork-launched-worktree.png') });
         } catch (error) { throw appendBrowserDiagnostics(error, diagnostics()); }
     });
 });

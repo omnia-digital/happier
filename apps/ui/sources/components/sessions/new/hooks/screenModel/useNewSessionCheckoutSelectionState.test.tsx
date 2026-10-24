@@ -54,6 +54,16 @@ function makeParams(overrides: Partial<HookParams> = {}): HookParams {
 }
 
 describe('useNewSessionCheckoutSelectionState', () => {
+    it('preserves the restored name when the initial target and draft hydrate after mount', async () => {
+        const hook = await renderHook((props: HookParams) => useNewSessionCheckoutSelectionState(props), {
+            initialProps: makeParams({ targetScopeKey: null, selectedMachineId: null, selectedPath: '', repoScmSnapshot: null }),
+        });
+        const restoredDraft = { kind: 'git_worktree' as const, displayName: 'restored-forest', baseRef: 'release', branchMode: 'new' as const };
+        await hook.rerender(makeParams({ targetScopeKey: 'home:account', persistedDraft: { checkoutCreationDraft: restoredDraft } }));
+        await flushHookEffects();
+        expect(hook.getCurrent().checkoutCreationDraft).toEqual(restoredDraft);
+        await hook.unmount();
+    });
     it('revalidates the worktree base when the Home/account changes with the same machine and path', async () => {
         const hook = await renderHook((props: HookParams) => useNewSessionCheckoutSelectionState(props), {
             initialProps: makeParams({ targetScopeKey: 'home-a:account-a', persistedDraft: { checkoutCreationDraft: {

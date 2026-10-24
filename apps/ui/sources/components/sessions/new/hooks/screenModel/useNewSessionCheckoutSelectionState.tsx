@@ -135,6 +135,9 @@ export function useNewSessionCheckoutSelectionState(params: Readonly<{
     React.useEffect(() => {
         const selectionKey = JSON.stringify([params.targetScopeKey ?? null, params.selectedMachineId, params.selectedPath]);
         if (previousSelectionKeyRef.current === null) {
+            // Initial account/machine hydration is not a target change. Wait for
+            // the first usable target before binding the restored checkout draft.
+            if (params.targetScopeKey === null || !params.selectedMachineId || !params.selectedPath) return;
             previousSelectionKeyRef.current = selectionKey;
             return;
         }
