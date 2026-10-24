@@ -11,7 +11,10 @@ const read = (name) => JSON.parse(readFileSync(join(tauriDir, name), 'utf8'));
 const upstreamBase = read('tauri.conf.json');
 const upstreamDev = read('tauri.publicdev.conf.json');
 
-const forkKey = Buffer.from('untrusted comment: minisign public key for test only\nRW' + 'A'.repeat(54) + '\n').toString('base64');
+const forkKeyText = `untrusted comment: minisign public key for test only\n${Buffer.concat([
+  Buffer.from('Ed'), Buffer.alloc(8, 1), Buffer.alloc(32, 2),
+]).toString('base64')}\n`;
+const forkKey = Buffer.from(forkKeyText).toString('base64');
 
 function configured(channel = 'publicdev') {
   return {
@@ -74,6 +77,12 @@ test('configured fork channel must keep identity, feed and trust together', asyn
   assert.doesNotThrow(() => assertForkDesktopReleaseOwnership(source));
   assert.throws(() => assertForkDesktopReleaseOwnership({ ...source, overlayConfig: {
     ...source.overlayConfig, plugins: { updater: { ...source.overlayConfig.plugins.updater, pubkey: upstreamDev.plugins.updater.pubkey } },
+  } }), /upstream updater key/i);
+  const upstreamWithEditedComment = Buffer.from(
+    Buffer.from(upstreamDev.plugins.updater.pubkey, 'base64').toString('utf8').replace('minisign public key: ', 'minisign public key: fork '),
+  ).toString('base64');
+  assert.throws(() => assertForkDesktopReleaseOwnership({ ...source, overlayConfig: {
+    ...source.overlayConfig, plugins: { updater: { ...source.overlayConfig.plugins.updater, pubkey: upstreamWithEditedComment } },
   } }), /upstream updater key/i);
   assert.throws(() => assertForkDesktopReleaseOwnership({ ...source, overlayConfig: {
     ...source.overlayConfig, plugins: { updater: { ...source.overlayConfig.plugins.updater, endpoints: upstreamDev.plugins.updater.endpoints } },

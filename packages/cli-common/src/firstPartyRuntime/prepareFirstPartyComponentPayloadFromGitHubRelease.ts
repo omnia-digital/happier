@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { PublicReleaseRingId } from '@happier-dev/release-runtime/releaseRings';
 import { resolveReleaseAssetBundle } from '@happier-dev/release-runtime/assets';
 import { fetchGitHubReleaseByTag } from '@happier-dev/release-runtime/github';
-import { DEFAULT_MINISIGN_PUBLIC_KEY } from '@happier-dev/release-runtime/minisign';
+import { FIRST_PARTY_RELEASE_REPOSITORY, resolveFirstPartyReleasePublicKey } from '@happier-dev/release-runtime/minisign';
 import { downloadVerifiedReleaseAssetBundle } from '@happier-dev/release-runtime/verifiedDownload';
 
 import type { FirstPartyComponentId } from './componentCatalog.js';
@@ -134,6 +134,11 @@ export async function prepareFirstPartyComponentPayloadFromGitHubRelease(params:
   minisignPubkeyFile?: string;
 }>): Promise<PreparedFirstPartyComponentPayload> {
   params.signal?.throwIfAborted();
+  const githubRepoForTrust = resolveFirstPartyReleaseArtifactSource(params).githubRepo;
+  const minisignPublicKey = resolveFirstPartyReleasePublicKey({
+    githubRepo: githubRepoForTrust,
+    configuredPublicKey: params.minisignPubkeyFile ?? process.env.HAPPIER_MINISIGN_PUBKEY,
+  });
   let phase: CliAcquisitionProgress['phase'] = 'resolvingRelease';
   const report = (progress: CliAcquisitionProgress) => {
     phase = progress.phase;
@@ -148,7 +153,7 @@ export async function prepareFirstPartyComponentPayloadFromGitHubRelease(params:
     const downloaded = await downloadVerifiedReleaseAssetBundle({
       bundle,
       destDir: join(scratchRoot, 'download'),
-      pubkeyFile: String(params.minisignPubkeyFile ?? '').trim() || DEFAULT_MINISIGN_PUBLIC_KEY,
+      pubkeyFile: minisignPublicKey,
       userAgent,
       signal: params.signal,
       onProgress: report,
@@ -236,8 +241,8 @@ function resolveFirstPartyReleaseArtifactSource(params: Readonly<{
         ?? params.githubRepo
         ?? process.env.HAPPIER_FIRST_PARTY_RELEASE_REPO
         ?? process.env.HAPPIER_GITHUB_REPO
-        ?? 'happier-dev/happier',
-      'happier-dev/happier',
+        ?? FIRST_PARTY_RELEASE_REPOSITORY,
+      FIRST_PARTY_RELEASE_REPOSITORY,
     ),
     // A local QA mirror must never receive credentials intended for GitHub.
     githubToken: apiBaseUrl ? '' : normalizeFirstPartyReleaseValue(

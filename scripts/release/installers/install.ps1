@@ -63,7 +63,7 @@ function Normalize-Channel {
 
 $Channel = Normalize-Channel -Raw ([string]$Channel)
 
-$Repo = if ($env:HAPPIER_GITHUB_REPO) { $env:HAPPIER_GITHUB_REPO } else { "happier-dev/happier" }
+$Repo = if ($env:HAPPIER_GITHUB_REPO) { $env:HAPPIER_GITHUB_REPO } else { "omnia-digital/happier" }
 $Token = if ($env:HAPPIER_GITHUB_TOKEN) { $env:HAPPIER_GITHUB_TOKEN } elseif ($env:GITHUB_TOKEN) { $env:GITHUB_TOKEN } else { "" }
 $ReleaseAssetsDir = if ($env:HAPPIER_RELEASE_ASSETS_DIR) { $env:HAPPIER_RELEASE_ASSETS_DIR } else { "" }
 $GitHubHeaders = @{
@@ -108,8 +108,19 @@ $DefaultMinisignPubKey = @"
 untrusted comment: minisign public key 91AE28177BF6E43C
 RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t
 "@
-$MinisignPubKey = if ($env:HAPPIER_MINISIGN_PUBKEY) { $env:HAPPIER_MINISIGN_PUBKEY } else { $DefaultMinisignPubKey.Trim() }
-$MinisignPubKeyUrl = if ($env:HAPPIER_MINISIGN_PUBKEY_URL) { $env:HAPPIER_MINISIGN_PUBKEY_URL } else { "https://happier.dev/happier-release.pub" }
+if ($Repo -eq "happier-dev/happier") {
+  $MinisignPubKey = if ($env:HAPPIER_MINISIGN_PUBKEY) { $env:HAPPIER_MINISIGN_PUBKEY } else { $DefaultMinisignPubKey.Trim() }
+  $MinisignPubKeyUrl = if ($env:HAPPIER_MINISIGN_PUBKEY_URL) { $env:HAPPIER_MINISIGN_PUBKEY_URL } else { "https://happier.dev/happier-release.pub" }
+} else {
+  $MinisignPubKey = if ($env:HAPPIER_MINISIGN_PUBKEY) { $env:HAPPIER_MINISIGN_PUBKEY } else { "" }
+  $MinisignPubKeyUrl = if ($env:HAPPIER_MINISIGN_PUBKEY_URL) { $env:HAPPIER_MINISIGN_PUBKEY_URL } else { "" }
+  if ($MinisignPubKey) {
+    $configuredKeyLine = @($MinisignPubKey -split '\r?\n' | Where-Object { $_.Trim() })[-1].Trim()
+    if ($configuredKeyLine -eq "RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t") {
+      throw "Fork release cannot use the upstream minisign public key."
+    }
+  }
+}
 
 function Resolve-CliShimName {
   if ($Channel -eq "preview") { return "hprev" }
@@ -2487,14 +2498,23 @@ function Resolve-MinisignPublicKey {
   )
   if ($MinisignPubKey) {
     Set-Content -Path $TargetPath -Value "$MinisignPubKey`n" -NoNewline
-    return
+  } else {
+    if (-not $MinisignPubKeyUrl) {
+      throw "HAPPIER_MINISIGN_PUBKEY_URL is empty; cannot fetch minisign public key."
+    }
+    Invoke-InstallerWebRequestWithRetry -Uri $MinisignPubKeyUrl -OutFile $TargetPath
   }
-  if (-not $MinisignPubKeyUrl) {
-    throw "HAPPIER_MINISIGN_PUBKEY_URL is empty; cannot fetch minisign public key."
+  if ($Repo -ne "happier-dev/happier") {
+    $keyLine = @([IO.File]::ReadAllText($TargetPath) -split '\r?\n' | Where-Object { $_.Trim() })[-1].Trim()
+    if ($keyLine -eq "RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t") {
+      throw "Fork release cannot use the upstream minisign public key."
+    }
   }
-  Invoke-InstallerWebRequestWithRetry -Uri $MinisignPubKeyUrl -OutFile $TargetPath
 }
 
+if ($Repo -ne "happier-dev/happier" -and -not $MinisignPubKey -and -not $MinisignPubKeyUrl) {
+  throw "Fork release is unconfigured: set HAPPIER_MINISIGN_PUBKEY to the fork public key before installing."
+}
 $tag = if ($Version) { "cli-v$Version" } elseif ($Channel -eq "preview") { "cli-preview" } elseif ($Channel -eq "publicdev") { "cli-dev" } else { "cli-stable" }
 Write-InstallerHeader
 Write-InstallerStage -Name "Download"

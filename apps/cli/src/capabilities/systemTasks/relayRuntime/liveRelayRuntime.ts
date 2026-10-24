@@ -29,7 +29,7 @@ import {
 } from '@happier-dev/cli-common/firstPartyRuntime';
 import { resolveReleaseAssetBundle } from '@happier-dev/release-runtime/assets';
 import { fetchGitHubReleaseByTag } from '@happier-dev/release-runtime/github';
-import { DEFAULT_MINISIGN_PUBLIC_KEY } from '@happier-dev/release-runtime/minisign';
+import { resolveFirstPartyReleasePublicKey } from '@happier-dev/release-runtime/minisign';
 import { downloadVerifiedReleaseAssetBundle } from '@happier-dev/release-runtime/verifiedDownload';
 
 import { resolveHappierGithubRepo, resolveRelayReleaseTag } from './_releaseTagsAndRepo';
@@ -626,7 +626,10 @@ export async function installOrUpdateRelayRuntime(params: RelayRuntimeTaskParams
       const downloaded = await downloadVerifiedReleaseAssetBundle({
         bundle,
         destDir: tempDir,
-        pubkeyFile: DEFAULT_MINISIGN_PUBLIC_KEY,
+        pubkeyFile: resolveFirstPartyReleasePublicKey({
+          githubRepo: config.githubRepo,
+          configuredPublicKey: process.env.HAPPIER_MINISIGN_PUBKEY,
+        }),
         userAgent: 'happier-system-tasks',
       });
       extractedRoot = await extractReleasePayloadRootFromArchive({

@@ -4,12 +4,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizePublicReleaseChannel } from '../release/lib/public-release-rings.mjs';
+import { DEFAULT_MINISIGN_PUBLIC_KEY, getMinisignPublicKeyIdentity } from '@happier-dev/release-runtime/minisign';
 
 export const FORK_RELEASE_REPOSITORY = 'omnia-digital/happier';
-
-// Keep this known upstream verifier only as a refusal marker. It must never be
-// used to authorize a fork release or as the fork's signing configuration.
-const UPSTREAM_UPDATER_PUBLIC_KEY = 'dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFCRTk2MjE4RjNCMEYxRUYKUldUdjhiRHpHR0xwcTFIUjMvb1FBbW5HOUFYSkd5aGlHa204MWZuRk50ekF5WVZQdU1mVkRWWnkK';
+// The committed Happier Tauri updater key differs from the archive minisign key.
+// Retain its verifier material here so editing its untrusted comment cannot make
+// the same upstream signer look like a fork-owned updater signer.
+const UPSTREAM_TAURI_UPDATER_PUBLIC_KEY = `untrusted comment: minisign public key: ABE96218F3B0F1EF
+RWTv8bDzGGLpq1HR3/oQAmnG9AXJGyhiGkm81fnFNtzAyYVPuMfVDVZy
+`;
 
 /**
  * Validate the effective Tauri release config, after the channel overlay. This
@@ -44,12 +47,18 @@ export function assertForkDesktopReleaseOwnership({ environment, tauriDir = file
     throw new Error(`Fork desktop release ownership is unconfigured: expected fork update feed ${expectedFeed}`);
   }
   const pubkey = String(effective.plugins.updater.pubkey ?? '').trim();
-  if (!pubkey || pubkey === UPSTREAM_UPDATER_PUBLIC_KEY) {
-    throw new Error('Fork desktop release ownership is unconfigured: upstream updater key or missing fork key');
+  if (!pubkey) {
+    throw new Error('Fork desktop release ownership is unconfigured: missing fork updater key');
   }
-  const decoded = Buffer.from(pubkey, 'base64').toString('utf8').trim().split(/\r?\n/u);
-  if (decoded.length !== 2 || !decoded[0].startsWith('untrusted comment: minisign public key') || !/^RW[A-Za-z0-9+/=]{50,}$/u.test(decoded[1])) {
+  let keyIdentity;
+  try {
+    keyIdentity = getMinisignPublicKeyIdentity(Buffer.from(pubkey, 'base64').toString('utf8'));
+  } catch {
     throw new Error('Fork desktop release ownership is unconfigured: updater key is not an encoded minisign public key');
+  }
+  if ([UPSTREAM_TAURI_UPDATER_PUBLIC_KEY, DEFAULT_MINISIGN_PUBLIC_KEY]
+    .some((upstreamKey) => keyIdentity === getMinisignPublicKeyIdentity(upstreamKey))) {
+    throw new Error('Fork desktop release ownership is unconfigured: upstream updater key cannot verify fork releases');
   }
   if (repository && repository !== FORK_RELEASE_REPOSITORY) {
     throw new Error(`Fork desktop release ownership is unconfigured: release repository ${repository} differs from ${FORK_RELEASE_REPOSITORY}`);

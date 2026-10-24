@@ -10,6 +10,7 @@
 
 import type { PublicReleaseRingId, PublicReleaseRingLabel } from '@happier-dev/release-runtime/releaseRings';
 import { getReleaseRingPublicLabel } from '@happier-dev/release-runtime/releaseRings';
+import { FIRST_PARTY_RELEASE_REPOSITORY } from '@happier-dev/release-runtime/minisign';
 
 export type RelayChannelInput = PublicReleaseRingId | PublicReleaseRingLabel | string;
 
@@ -32,11 +33,11 @@ export function resolveRelayReleaseTag(channel: RelayChannelInput): string {
 /**
  * Resolve the owner/repo slug used for Happier GitHub releases.
  * Honours the `HAPPIER_GITHUB_REPO` env var (for forked or internal repos)
- * and falls back to the canonical `happier-dev/happier`.
+ * and defaults to this fork's release repository.
  */
 export function resolveHappierGithubRepo(): string {
   const raw = String(process.env.HAPPIER_GITHUB_REPO ?? '').trim();
-  return raw || 'happier-dev/happier';
+  return raw || FIRST_PARTY_RELEASE_REPOSITORY;
 }
 
 function normaliseToPublicLabel(channel: RelayChannelInput): PublicReleaseRingLabel {
