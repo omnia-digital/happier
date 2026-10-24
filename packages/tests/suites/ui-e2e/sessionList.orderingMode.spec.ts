@@ -510,40 +510,41 @@ test.describe('ui e2e: session list ordering mode', () => {
     const clickedRow = page.getByTestId(`session-list-item-${clickedSessionId}`);
     await expect(selectedRow).toHaveCount(1, { timeout: 120_000 });
     await expect(clickedRow).toHaveCount(1, { timeout: 120_000 });
-    await page.evaluate(() => {
+    await page.evaluate((sessionId) => {
+      const watched = document.querySelector(`[data-testid="session-list-item-${sessionId}"]`);
       const events: unknown[] = [];
-      (window as typeof window & { __oh50ClickEvents?: unknown[] }).__oh50ClickEvents = events;
-      for (const type of ['pointerdown', 'pointerup', 'mousedown', 'mouseup', 'click'] as const) {
-        document.addEventListener(type, (event) => {
-          const target = event.target instanceof Element ? event.target : null;
-          events.push({
-            type,
-            target: target?.getAttribute('data-testid') ?? null,
-            row: target?.closest('[data-testid^="session-list-item-"]')?.getAttribute('data-testid') ?? null,
-            path: event.composedPath().filter((node): node is Element => node instanceof Element)
-              .map((element) => element.getAttribute('data-testid')).filter(Boolean).slice(0, 5),
-            defaultPrevented: event.defaultPrevented,
-            pathname: location.pathname,
-          });
-        }, true);
+      (window as typeof window & { __oh50RowEvents?: unknown[] }).__oh50RowEvents = events;
+      const snapshot = (type: string, event?: PointerEvent | MouseEvent) => {
+        const current = document.querySelector(`[data-testid="session-list-item-${sessionId}"]`);
+        const rect = current?.getBoundingClientRect();
+        const target = event?.target instanceof Element ? event.target : null;
+        const hit = event ? document.elementFromPoint(event.clientX, event.clientY) : null;
+        const scroll = current?.closest('[data-testid="sessions-list-keyboard-zone"]');
+        events.push({
+          type,
+          watchedConnected: watched?.isConnected ?? null,
+          sameElement: watched === current,
+          rect: rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null,
+          point: event ? { x: event.clientX, y: event.clientY } : null,
+          targetRow: target?.closest('[data-testid^="session-list-item-"]')?.getAttribute('data-testid') ?? null,
+          hitRow: hit?.closest('[data-testid^="session-list-item-"]')?.getAttribute('data-testid') ?? null,
+          hitTestId: hit?.getAttribute('data-testid') ?? null,
+          scrollTop: scroll?.scrollTop ?? null,
+          rowOrder: Array.from(document.querySelectorAll('[data-testid^="session-list-item-"]'))
+            .map((row) => row.getAttribute('data-testid')).slice(0, 16),
+        });
+      };
+      snapshot('before-click');
+      for (const type of ['pointerdown', 'pointerup', 'click'] as const) {
+        document.addEventListener(type, (event) => snapshot(type, event), true);
       }
-      const push = history.pushState.bind(history);
-      const replace = history.replaceState.bind(history);
-      history.pushState = (data, unused, url) => {
-        events.push({ type: 'pushState', url: String(url), pathname: location.pathname });
-        push(data, unused, url);
-      };
-      history.replaceState = (data, unused, url) => {
-        events.push({ type: 'replaceState', url: String(url), pathname: location.pathname });
-        replace(data, unused, url);
-      };
-    });
+    }, selectedSessionId);
     await selectedRow.click();
     try {
       await expect.poll(() => new URL(page.url()).pathname, { timeout: 90_000 }).toBe(`/session/${selectedSessionId}`);
     } catch (error) {
-      console.error('OH50 initial row click diagnostic', JSON.stringify(await page.evaluate(() =>
-        (window as typeof window & { __oh50ClickEvents?: unknown[] }).__oh50ClickEvents ?? [])));
+      console.error('OH50 row lifecycle diagnostic', JSON.stringify(await page.evaluate(() =>
+        (window as typeof window & { __oh50RowEvents?: unknown[] }).__oh50RowEvents ?? [])));
       throw error;
     }
     await expect(page.getByTestId(`session-list-machine-identity-${selectedSessionId}-tooltip`)).toBeVisible();
