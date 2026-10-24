@@ -37,6 +37,7 @@ type SidebarMetrics = Readonly<{
   groupHeaderFontSizes: readonly number[];
   navigationFontSizes: readonly number[];
   machineLabel: string | null;
+  rowAccessibleLabel: string | null;
   sidebarHeaderFontSize: number;
   sidebarHeaderColor: string;
   titleFits: boolean;
@@ -90,6 +91,7 @@ async function readSidebarMetrics(page: Page, sessionId: string): Promise<Sideba
       groupHeaderFontSizes: groupHeaders.map((header) => fontSizeForText(header)).filter((size): size is number => size !== null),
       navigationFontSizes: navigationTabs.map((tab) => fontSizeForText(tab)).filter((size): size is number => size !== null),
       machineLabel: machine?.getAttribute('aria-label') ?? null,
+      rowAccessibleLabel: row.getAttribute('aria-label'),
       sidebarHeaderFontSize: Number.parseFloat(getComputedStyle(sidebarHeader).fontSize),
       sidebarHeaderColor: getComputedStyle(sidebarHeader).color,
       titleFits: titleBounds.left >= rowBounds.left && titleBounds.right <= rowBounds.right,
@@ -325,6 +327,20 @@ test.describe('ui e2e: OH66 sidebar text size and item density preferences', () 
     expect(narrowMinimal.titleTop).toBeGreaterThanOrEqual(narrowMinimal.rowTop);
     expect(narrowMinimal.titleBottom).toBeLessThanOrEqual(narrowMinimal.rowBottom);
     expect(narrowMinimal.machineLabel).toBe(MACHINE_ID);
+    expect(narrowMinimal.rowAccessibleLabel).toBe(narrow.rowAccessibleLabel);
+    await row.hover();
+    const minimalAction = page.getByTestId('session-item-more-menu');
+    await expect(minimalAction).toBeVisible();
+    const minimalActionBounds = await minimalAction.boundingBox();
+    const minimalRowBounds = await row.boundingBox();
+    const machineBounds = await page.getByTestId(`session-list-machine-identity-${sessionId}`).boundingBox();
+    expect(minimalActionBounds && minimalRowBounds && machineBounds).toBeTruthy();
+    expect(minimalActionBounds!.x).toBeGreaterThanOrEqual(minimalRowBounds!.x);
+    expect(minimalActionBounds!.x + minimalActionBounds!.width).toBeLessThanOrEqual(minimalRowBounds!.x + minimalRowBounds!.width);
+    expect(minimalActionBounds!.y).toBeGreaterThanOrEqual(minimalRowBounds!.y);
+    expect(minimalActionBounds!.y + minimalActionBounds!.height).toBeLessThanOrEqual(minimalRowBounds!.y + minimalRowBounds!.height);
+    expect(machineBounds!.y).toBeGreaterThanOrEqual(minimalRowBounds!.y);
+    expect(machineBounds!.y + machineBounds!.height).toBeLessThanOrEqual(minimalRowBounds!.y + minimalRowBounds!.height);
     await page.screenshot({ path: `${suiteDir}/sidebar-large-text-narrow-minimal.png` });
 
     const title = page.getByText(SESSION_TITLE, { exact: true });
@@ -342,5 +358,16 @@ test.describe('ui e2e: OH66 sidebar text size and item density preferences', () 
     expect(hit.text).toContain(SESSION_TITLE);
     await title.click();
     await expect(page).toHaveURL(new RegExp(`/session/${sessionId}(?:\\?|$)`), { timeout: 90_000 });
+    const currentIndicator = page.getByTestId(`session-item-current-indicator-${sessionId}`);
+    await expect(currentIndicator).toBeVisible();
+    const currentIndicatorBounds = await currentIndicator.boundingBox();
+    const selectedRowBounds = await row.boundingBox();
+    expect(currentIndicatorBounds && selectedRowBounds).toBeTruthy();
+    expect(currentIndicatorBounds!.width).toBeGreaterThan(0);
+    expect(currentIndicatorBounds!.height).toBeGreaterThan(0);
+    expect(currentIndicatorBounds!.x).toBeGreaterThanOrEqual(selectedRowBounds!.x);
+    expect(currentIndicatorBounds!.x + currentIndicatorBounds!.width).toBeLessThanOrEqual(selectedRowBounds!.x + selectedRowBounds!.width);
+    expect(currentIndicatorBounds!.y).toBeGreaterThanOrEqual(selectedRowBounds!.y);
+    expect(currentIndicatorBounds!.y + currentIndicatorBounds!.height).toBeLessThanOrEqual(selectedRowBounds!.y + selectedRowBounds!.height);
   });
 });
