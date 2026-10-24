@@ -87,6 +87,16 @@ OH66 journey gains section/control ownership and actual sidebar navigation check
 prior sizing/layout/reload assertions. RED is next, using the existing isolated harness and a stable
 export namespace, with no daily/native app or hosted-account mutation.
 
+Chrome RED exits1 in35s at the missing Global region; root inspects the flat Appearance screenshot.
+Shared header role also has a focused meaningful RED (no accessible heading). Source groups the
+existing controls with ListSection, preserving case and canonical content width, keeps Global sizing,
+links Sidebar layout to the existing Session Settings owner, and moves existing code-block switches
+to Task View. Section titles now expose header semantics through their canonical presentation owner.
+Focused8 and adjacent37/11files plus UI typecheck pass. `e35024fde0` localizes six labels in all12
+current locales and passes17 integrity/literal checks. The whole prior sidebar sizing journey remains
+in the browser spec, with new group/control/navigation requirements before it. Full Chrome GREEN,
+independent review, native acceptance and0.3 disposition remain open; override choice is pending.
+
 Actual routed Luna/high is implementing the existing issue under project-wide completion authorization. Discovery found that shared `Text` already consumes the app's `uiFontScale`, while fixed sidebar session heights ignore `uiItemDensity`. Reuse these existing Preferences rather than add overlapping controls. Apply spacing and larger-text geometry through the canonical row-height owner, retaining account-level detail modes and covering session drafts, section/navigation text and all group views. Preserve the selection rail, status, machine identity and actions. Mounted RED reproduces identical 84px height under comfortable and compact app density. Source implementation and isolated Chrome acceptance continue; native visual/restart acceptance remains pending. The initial accidental broad test command was canceled and reported unrelated spawn/Inbox failures; focused passes do not supersede the historical full-root failed result.
 
 Source checkpoint `089272a6f1` is pushed. Author focused checks pass 41/41 and integrated UI typecheck passes; root independently passes 25 rendered session/draft cases (`/tmp/happier-oh66-preferences-root-independent.log`). Root advisory caught draft settings wired to the readable-phone predicate instead of the height resolver; the corrected consumed-path draft case now passes. Actual Preferences-control-to-sidebar browser validation remains in progress. No new preference or persistence format was introduced.

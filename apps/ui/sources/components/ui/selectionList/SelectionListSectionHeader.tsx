@@ -99,7 +99,7 @@ export function SelectionListSectionHeader(
     const rightAccessory = renderSelectionListAccessory(props.rightAccessory);
     return (
         <View testID={props.testID} style={[styles.container, props.containerStyle]}>
-            <Text style={styles.label}>{title}</Text>
+            <Text accessibilityRole="header" style={styles.label}>{title}</Text>
             {typeof props.count === 'number' ? (
                 <Text style={[styles.count, Typography.tabular()]}>{String(props.count)}</Text>
             ) : null}
