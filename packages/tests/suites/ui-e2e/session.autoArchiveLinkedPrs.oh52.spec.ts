@@ -177,6 +177,11 @@ exit 1
             });
             receipt('real idle snapshots and old-host unknown work verified');
 
+            await gotoDomContentLoadedWithRetries(page, `${baseUrl}/session/${merged}/info`, 120_000);
+            await expect(page.getByTestId('session-pr-add')).toBeVisible({ timeout: 120_000 });
+            await expect(page.getByTestId('session-pr-change-github-github.com-owner/one-7')).toBeVisible();
+            receipt('owned session retains visible PR link and correction controls');
+
             await gotoDomContentLoadedWithRetries(page, `${baseUrl}/settings/session`, 120_000);
             await expect(page.getByTestId('settings-session-autoArchiveLinkedPrs-toggle')).not.toBeChecked();
             await expect(page.getByTestId('settings-session-cleanupOnArchive-toggle')).not.toBeChecked();
