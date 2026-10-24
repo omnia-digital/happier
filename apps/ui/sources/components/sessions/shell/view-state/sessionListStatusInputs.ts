@@ -14,15 +14,22 @@ export function createSessionListStatusInputsSelector(items: readonly SessionLis
     let signature = '';
     let previousInputs: Parameters<typeof selectRows>[0] | undefined;
     let previousAt: number | undefined;
+    let previousOverlay: ReturnType<typeof selectRows> | undefined;
     return (state: Parameters<typeof selectRows>[0]) => {
         const at = includeAgent ? now() : 0;
-        if (previous && previousAt === at && previousInputs
+        const sameClock = previousAt === at;
+        if (previous && sameClock && previousInputs
             && previousInputs.sessions === state.sessions
             && previousInputs.sessionListRenderables === state.sessionListRenderables
             && previousInputs.sessionMessages === state.sessionMessages
             && previousInputs.sessionPending === state.sessionPending) return previous;
-        previousInputs = state; previousAt = at;
+        previousInputs = { sessions: state.sessions, sessionListRenderables: state.sessionListRenderables,
+            sessionMessages: state.sessionMessages, sessionPending: state.sessionPending };
+        previousAt = at;
         const overlay = selectRows(state);
+        // Streaming messages with renderable-backed rows do not change the canonical row overlay.
+        if (previous && sameClock && overlay === previousOverlay) return previous;
+        previousOverlay = overlay;
         const agentStatuses = new Map<string, SessionListVisualStatus>();
         const ticketAssociations = new Map<string, SessionTicketAssociationV1 | null>();
         let nextWakeAt: number | null = null;
