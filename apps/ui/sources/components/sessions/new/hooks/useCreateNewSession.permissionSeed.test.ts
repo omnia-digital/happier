@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import renderer, { act } from 'react-test-renderer';
 import { buildNewSessionAuthoringDraft } from '@/components/sessions/authoring/draft/sessionAuthoringDraftAdapters';
 import type { PermissionMode, ModelMode } from '@/sync/domains/permissions/permissionTypes';
-import type { Settings } from '@/sync/domains/settings/settings';
+import { settingsDefaults, type Settings } from '@/sync/domains/settings/settings';
 import type { NewSessionAutomationDraft } from '@/sync/domains/automations/automationDraft';
 import type { UseMachineEnvPresenceResult } from '@/hooks/machine/useMachineEnvPresence';
 import { normalizeSessionAuthoringConnectedServices } from '@/sync/domains/sessionAuthoring/sessionAuthoringNormalization';
@@ -185,7 +185,7 @@ async function setupUseCreateNewSessionHarness() {
     vi.doMock('@/sync/domains/state/storage', () => ({
         storage: {
             getState: () => ({
-                settings: {},
+                settings: settingsDefaults,
                 machines: { m1: { id: 'm1' } },
                 sessions,
                 updateSessionPermissionMode: vi.fn(),
@@ -1228,6 +1228,9 @@ describe('useCreateNewSession permission seeding', () => {
                 selectedMachineId: 'm1',
                 selectedPath: '/tmp',
                 selectedMachine: { metadata: {} },
+                getVerifiedMachinePathTarget: async () => ({
+                    serverId: 'server-b', accountId: 'account-b', machineId: 'm1',
+                }),
                 checkoutCreationDraft: {
                     kind: 'git_worktree',
                     displayName: 'feature/scope-fix',
@@ -1312,6 +1315,9 @@ describe('useCreateNewSession permission seeding', () => {
                 selectedMachineId: 'm1',
                 selectedPath: '/tmp',
                 selectedMachine: { metadata: {} },
+                getVerifiedMachinePathTarget: async () => ({
+                    serverId: 'server-b', accountId: 'account-b', machineId: 'm1',
+                }),
                 checkoutCreationDraft: {
                     kind: 'git_worktree',
                     displayName: 'feature/scope-fix',
@@ -1576,6 +1582,9 @@ describe('useCreateNewSession permission seeding', () => {
                 selectedMachineId: 'm1',
                 selectedPath: '/tmp',
                 selectedMachine: { metadata: {} },
+                getVerifiedMachinePathTarget: async () => ({
+                    serverId: 'server-a', accountId: 'account-a', machineId: 'm1',
+                }),
                 setIsCreating: vi.fn(),
                 setIsResumeSupportChecking: vi.fn(),
                 checkoutCreationDraft: {
