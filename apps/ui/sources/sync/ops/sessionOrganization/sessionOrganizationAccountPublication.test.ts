@@ -5,10 +5,17 @@ import { deleteSessionFolder } from './deleteSessionFolder';
 import { reorderSessionOrganization } from './reorderSessionOrganization';
 import { setSessionFolderAssignment } from './setSessionFolderAssignment';
 import { moveSessionFolderAssignments } from './moveSessionFolderAssignments';
+import { setSessionAttentionStanding } from './setSessionAttentionStanding';
+import { setSessionTagAssignments } from './setSessionTagAssignments';
+import { upsertSessionTag } from './upsertSessionTag';
+import { deleteSessionTag } from './deleteSessionTag';
+import { upsertSessionLabel } from './upsertSessionLabel';
+import { deleteSessionLabel } from './deleteSessionLabel';
 
 const boundary = vi.hoisted(() => ({
     credentials: { token: '', secret: 'secret' },
     upsert: vi.fn(), delete: vi.fn(), reorder: vi.fn(), assign: vi.fn(), move: vi.fn(),
+    attention: vi.fn(), assignTags: vi.fn(), upsertTag: vi.fn(), deleteTag: vi.fn(), upsertLabel: vi.fn(), deleteLabel: vi.fn(),
     encryption: vi.fn(), encryptionMode: vi.fn(), readCredentials: vi.fn(),
     listeners: new Set<() => void>(),
 }));
@@ -32,6 +39,12 @@ vi.mock('@/sync/api/session/sessionOrganizationApi', async (original) => ({
     reorderSessionOrganization: boundary.reorder,
     setSessionFolderAssignment: boundary.assign,
     moveSessionFolderAssignments: boundary.move,
+    setSessionAttentionStanding: boundary.attention,
+    setSessionTagAssignments: boundary.assignTags,
+    upsertSessionOrganizationTag: boundary.upsertTag,
+    deleteSessionOrganizationTag: boundary.deleteTag,
+    upsertSessionOrganizationLabel: boundary.upsertLabel,
+    deleteSessionOrganizationLabel: boundary.deleteLabel,
 }));
 const token = (accountId: string, signature = 'signature') => `header.${Buffer.from(JSON.stringify({ sub: accountId })).toString('base64')}.${signature}`;
 const credentialsA = { token: token('account-a'), secret: 'secret' };
@@ -40,6 +53,10 @@ const folder = (name: string) => ({ folderId: 'folder', folderKey: 'folder', par
     sortKey: 'a', display: { t: 'plain' as const, v: { name, workspace } }, archivedAt: null, createdAt: 1, updatedAt: 1 });
 const request = { folderId: 'folder', folderKey: 'folder', parentFolderId: null, parentFolderKey: null,
     sortKey: 'b', display: folder('A edited').display };
+const tag = (label: string) => ({ tagId: 'tag', tagKey: 'tag', sortKey: null,
+    display: { t: 'plain' as const, v: { label } }, archivedAt: null, createdAt: 1, updatedAt: 1 });
+const label = (name: string) => ({ labelKind: 'workspace' as const, scopeKey: 'server:home',
+    display: { t: 'plain' as const, v: { name } }, archivedAt: null, createdAt: 1, updatedAt: 1 });
 const base = { credentials: credentialsA, serverId: 'home', serverUrl: 'https://home.test' };
 function deferred<T>() {
     let resolve!: (value: T) => void;
@@ -54,7 +71,9 @@ function seed(accountId: string) {
     store.getState().clearSessionOrganizationForServer('home');
     store.getState().applySessionOrganizationSnapshot('home', {
         schemaVersion: 1, version: 1, pins: [], folders: [folder(accountId)],
-        folderAssignments: [{ sessionId: 'session', folderId: accountId }], tags: [], tagAssignments: [], labels: [],
+        folderAssignments: [{ sessionId: 'session', folderId: accountId }],
+        tags: [tag(accountId)], tagAssignments: [{ sessionId: 'session', tagIds: [accountId] }], labels: [label(accountId)],
+        attentionStandings: [{ sessionId: 'session', standing: accountId === 'account-a', updatedAt: 1 }],
         orderEntries: [{ scopeKind: 'group', scopeKey: 'repo', itemKind: 'session', itemKey: accountId, sortKey: 'a' }],
     });
 }
@@ -64,10 +83,16 @@ function projection() {
         folders: state.sessionOrganizationFoldersByFolderKey,
         assignments: state.sessionOrganizationFolderAssignmentsBySessionKey,
         orders: state.sessionOrganizationOrderEntriesByScopeKey,
+        attention: state.sessionOrganizationAttentionStandingsBySessionKey,
+        tags: state.sessionOrganizationTagsByTagKey,
+        tagAssignments: state.sessionOrganizationTagAssignmentsBySessionKey,
+        labels: state.sessionOrganizationLabelsByLabelKey,
     };
 }
 beforeEach(() => {
-    for (const mock of [boundary.upsert, boundary.delete, boundary.reorder, boundary.assign, boundary.move, boundary.encryption, boundary.encryptionMode]) mock.mockReset();
+    for (const mock of [boundary.upsert, boundary.delete, boundary.reorder, boundary.assign, boundary.move,
+        boundary.attention, boundary.assignTags, boundary.upsertTag, boundary.deleteTag, boundary.upsertLabel, boundary.deleteLabel,
+        boundary.encryption, boundary.encryptionMode]) mock.mockReset();
     boundary.encryptionMode.mockResolvedValue({ mode: 'plain', updatedAt: 0 });
     boundary.encryption.mockResolvedValue({ getContentPrivateKey: () => new Uint8Array(32).fill(7) });
     boundary.readCredentials.mockReset();
@@ -76,6 +101,15 @@ beforeEach(() => {
 });
 
 describe('organization mutations publish only to their captured account', () => {
+    it('keeps attention out of B after an A-scoped action resumes under B', async () => {
+        seed('account-b');
+        const expected = projection();
+        boundary.attention.mockResolvedValue({ standing: { sessionId: 'session', standing: true, updatedAt: 2 } });
+        await setSessionAttentionStanding({ ...base, sessionId: 'session', standing: true });
+        expect(projection()).toEqual(expected);
+        expect(boundary.attention).toHaveBeenCalledWith(expect.objectContaining({ credentials: credentialsA, serverUrl: base.serverUrl }));
+    });
+
     it('does not publish after an account switch during display encryption, while preserving the captured remote write', async () => {
         const crypto = deferred<{ getContentPrivateKey: () => Uint8Array }>();
         boundary.encryptionMode.mockResolvedValue({ mode: 'e2ee', updatedAt: 0 });
@@ -98,6 +132,12 @@ describe('organization mutations publish only to their captured account', () => 
         { name: 'order', api: boundary.reorder, run: () => reorderSessionOrganization({ ...base, request: { scopeKind: 'group', scopeKey: 'repo', entries: [{ itemKind: 'session', itemKey: 'A order', sortKey: 'b' }] } }), response: { orderEntries: [{ scopeKind: 'group', scopeKey: 'repo', itemKind: 'session', itemKey: 'A response', sortKey: 'c' }] } },
         { name: 'assignment', api: boundary.assign, run: () => setSessionFolderAssignment({ ...base, sessionId: 'session', folderId: 'A folder' }), response: { sessionId: 'session', folderId: 'A response' } },
         { name: 'bulk move', api: boundary.move, run: () => moveSessionFolderAssignments({ ...base, fromFolderIds: ['account-a'], toFolderId: 'A folder' }), response: { assignments: [{ sessionId: 'session' }], toFolderId: 'A response' } },
+        { name: 'attention', api: boundary.attention, run: () => setSessionAttentionStanding({ ...base, sessionId: 'session', standing: false }), response: { standing: { sessionId: 'session', standing: false, updatedAt: 2 } } },
+        { name: 'tag assignment', api: boundary.assignTags, run: () => setSessionTagAssignments({ ...base, sessionId: 'session', tagIds: ['A tag'] }), response: { sessionId: 'session', tagIds: ['A response'] } },
+        { name: 'tag upsert', api: boundary.upsertTag, run: () => upsertSessionTag({ ...base, request: { tagId: 'tag', tagKey: 'tag', display: tag('A edit').display } }), response: { tag: tag('A response') } },
+        { name: 'tag delete', api: boundary.deleteTag, run: () => deleteSessionTag({ ...base, request: { tagId: 'tag' } }), response: { tagId: 'tag', removedAssignmentCount: 1 } },
+        { name: 'label upsert', api: boundary.upsertLabel, run: () => upsertSessionLabel({ ...base, request: { labelKind: 'workspace', scopeKey: 'server:home', display: label('A edit').display } }), response: { label: label('A response') } },
+        { name: 'label delete', api: boundary.deleteLabel, run: () => deleteSessionLabel({ ...base, request: { labelKind: 'workspace', scopeKey: 'server:home' } }), response: {} },
     ];
     for (const operation of operations) {
         it.each(['success', 'failure'] as const)(`${operation.name} does not reconcile or roll back A over B after API %s`, async (outcome) => {

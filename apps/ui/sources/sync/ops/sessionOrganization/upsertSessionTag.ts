@@ -2,6 +2,7 @@ import type { AuthCredentials } from '@/auth/storage/tokenStorage';
 import { upsertSessionOrganizationTag as upsertSessionOrganizationTagApi } from '@/sync/api/session/sessionOrganizationApi';
 import { readSessionOrganizationServerScopedId } from '@/sync/domains/session/organization';
 import { getStorage } from '@/sync/domains/state/storageStore';
+import { createSessionOrganizationMutationPublisher } from '@/sync/domains/session/organization/mutationScope';
 import type { CreateOrUpdateSessionOrganizationTagRequest, SessionOrganizationTag } from '@happier-dev/protocol';
 import { createSessionOrganizationOpaqueId } from './sessionOrganizationIdAllocation';
 import {
@@ -29,6 +30,7 @@ export async function upsertSessionTag(params: Readonly<{
     serverUrl?: string;
     request: CreateOrUpdateSessionOrganizationTagRequest;
 }>): Promise<SessionOrganizationTag> {
+    const publish = createSessionOrganizationMutationPublisher(params);
     const request: ConcreteSessionOrganizationTagRequest = {
         ...params.request,
         tagId: params.request.tagId ?? createSessionOrganizationOpaqueId({
@@ -54,23 +56,29 @@ export async function upsertSessionTag(params: Readonly<{
             updatedAt: now,
         },
     });
-    const recordId = getStorage().getState().upsertSessionOrganizationTagOptimistic(params.serverId, optimisticTag);
+    let recordId: string | null = null;
+    await publish(() => {
+        recordId = getStorage().getState().upsertSessionOrganizationTagOptimistic(params.serverId, optimisticTag);
+    });
     try {
         const response = await upsertSessionOrganizationTagApi({
             credentials: params.credentials,
             serverUrl: params.serverUrl,
             request,
         });
-        getStorage().getState().commitSessionOrganizationOptimistic(recordId);
         const tag = await openSessionOrganizationTagDisplay({
             credentials: params.credentials,
             tag: response.tag,
         });
-        const reconcileRecordId = getStorage().getState().upsertSessionOrganizationTagOptimistic(params.serverId, tag);
-        getStorage().getState().commitSessionOrganizationOptimistic(reconcileRecordId);
+        await publish(() => {
+            const reconcileRecordId = getStorage().getState().upsertSessionOrganizationTagOptimistic(params.serverId, tag);
+            getStorage().getState().commitSessionOrganizationOptimistic(reconcileRecordId);
+        });
         return tag;
     } catch (error) {
-        getStorage().getState().rollbackSessionOrganizationOptimistic(recordId);
+        if (recordId) await publish(() => getStorage().getState().rollbackSessionOrganizationOptimistic(recordId!));
         throw error;
+    } finally {
+        if (recordId) getStorage().getState().commitSessionOrganizationOptimistic(recordId);
     }
 }
