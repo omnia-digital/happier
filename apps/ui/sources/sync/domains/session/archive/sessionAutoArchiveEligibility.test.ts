@@ -13,7 +13,7 @@ const summary = (link: typeof first | typeof second, state: 'merged' | 'open' | 
 function idleSession() {
     return { ...buildSessionListRenderableFromSession(createSessionFixture({
         metadata: { path: '/repo', host: 'host', sessionPullRequestsV1: { v: 1, links: [first, second] } },
-    })), active: false, presence: 1, pendingCount: 0, pendingBlockedCount: 0,
+    })), active: false, owner: 'account-a', presence: 1, pendingCount: 0, pendingBlockedCount: 0,
         thinking: false, runtimeActivityState: 'idle' as const,
         hasPendingPermissionRequests: false, hasPendingUserActionRequests: false,
     };
@@ -23,9 +23,9 @@ describe('session autoarchive eligibility', () => {
     it('projects persisted cross-repository links and ignores disabled or missing links', () => {
         const session = idleSession();
         expect(session.metadata?.sessionPullRequestsV1?.links).toEqual([first, second]);
-        expect(assessSessionAutoArchiveCandidate({ session, enabled: false, archivePending: false }).eligible).toBe(false);
-        expect(assessSessionAutoArchiveCandidate({ session: { ...session, metadata: null }, enabled: true, archivePending: false }).eligible).toBe(false);
-        expect(assessSessionAutoArchiveCandidate({ session, enabled: true, archivePending: false }).eligible).toBe(true);
+        expect(assessSessionAutoArchiveCandidate({ session, enabled: false, archivePending: false, accountId: 'account-a' }).eligible).toBe(false);
+        expect(assessSessionAutoArchiveCandidate({ session: { ...session, metadata: null }, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(false);
+        expect(assessSessionAutoArchiveCandidate({ session, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(true);
     });
 
     it('skips active, live-host, pending, working, unknown and already-archived sessions', () => {
@@ -38,9 +38,9 @@ describe('session autoarchive eligibility', () => {
             { hasPendingUserActionRequests: true }, { archivedAt: 42 },
         ];
         for (const variant of variants) {
-            expect(assessSessionAutoArchiveCandidate({ session: { ...session, ...variant }, enabled: true, archivePending: false }).eligible).toBe(false);
+            expect(assessSessionAutoArchiveCandidate({ session: { ...session, ...variant }, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(false);
         }
-        expect(assessSessionAutoArchiveCandidate({ session, enabled: true, archivePending: true }).eligible).toBe(false);
+        expect(assessSessionAutoArchiveCandidate({ session, enabled: true, archivePending: true, accountId: 'account-a' }).eligible).toBe(false);
     });
 
     it('requires each exact qualified identity to have a fresh merged and explicitly non-draft result', () => {

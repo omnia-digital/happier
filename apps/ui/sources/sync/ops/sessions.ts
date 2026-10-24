@@ -35,9 +35,12 @@ import type {
     SessionInitialGoalRequestV1,
     SpawnSessionResult,
     SendableAskUserQuestionAnswerPayload,
+    SessionPullRequestLinkV1,
 } from '@happier-dev/protocol';
 import { ConnectedServiceAuthSelectionUnsupportedError, machineRpcWithConnectedServiceAuthAdmission } from './connectedServiceAuthSupport';
 import {
+    appendSessionAutoArchiveHistory,
+    readSessionAutoArchiveHistory,
     SessionForkRpcResultSchema,
     SessionRollbackRpcResultSchema,
     SessionAuthoringValueV1Schema,
@@ -816,6 +819,43 @@ export interface SessionArchiveResponse {
     archivedAt?: number | null;
     message?: string;
     code?: string;
+    /** A successful server archive may outlive an encrypted metadata write. */
+    historyRecorded?: boolean;
+}
+
+type AutoArchiveReason = Readonly<{
+    accountId: string;
+    links: readonly SessionPullRequestLinkV1[];
+    shouldContinue: () => boolean;
+}>;
+
+/** The single confirmed-archive seam used by manual, bulk and automatic callers. */
+async function afterSessionArchiveConfirmed(input: Readonly<{
+    sessionId: string;
+    serverId: string;
+    archivedAt: number | null;
+    autoArchiveReason?: AutoArchiveReason;
+}>): Promise<Pick<SessionArchiveResponse, 'historyRecorded' | 'code' | 'message'>> {
+    if (!input.autoArchiveReason) return {};
+    const reason = input.autoArchiveReason;
+    if (!input.archivedAt || !reason.shouldContinue()) {
+        return { historyRecorded: false, code: 'archive_reason_not_recorded', message: 'Archived, but the automatic archive reason could not be saved.' };
+    }
+    try {
+        await getSyncSingleton().patchSessionMetadataWithRetry(input.sessionId, (metadata) => appendSessionAutoArchiveHistory(metadata, {
+            trigger: 'all_linked_pull_requests_merged',
+            archivedAt: input.archivedAt!,
+            links: [...reason.links],
+        }), { serverId: input.serverId, accountId: reason.accountId, shouldContinue: reason.shouldContinue });
+        const recorded = reason.shouldContinue()
+            && readSessionAutoArchiveHistory(storage.getState().sessions[input.sessionId]?.metadata)
+                .some((event) => event.archivedAt === input.archivedAt);
+        return recorded ? { historyRecorded: true } : {
+            historyRecorded: false, code: 'archive_reason_not_recorded', message: 'Archived, but the automatic archive reason could not be saved.',
+        };
+    } catch {
+        return { historyRecorded: false, code: 'archive_reason_not_recorded', message: 'Archived, but the automatic archive reason could not be saved.' };
+    }
 }
 
 const SESSION_ACTIVE_ARCHIVE_MESSAGE = 'Cannot archive an active session';
@@ -886,7 +926,7 @@ async function applyArchivedAtToLocalSession(sessionId: string, archivedAt: numb
 
 export async function sessionArchiveWithServerScope(
     sessionId: string,
-    opts?: Readonly<{ serverId?: string | null }> & SessionArchiveRequestOptions,
+    opts?: Readonly<{ serverId?: string | null; autoArchiveReason?: AutoArchiveReason }> & SessionArchiveRequestOptions,
 ): Promise<SessionArchiveResponse> {
     try {
         const serverId = resolveSessionArchiveServerId(opts?.serverId ?? resolvePreferredServerIdForSessionId(sessionId));
@@ -922,9 +962,16 @@ export async function sessionArchiveWithServerScope(
         };
         // Stop-and-archive supplies one enclosing deadline across all 409 attempts. Direct archive
         // owns the same finite lifecycle here; a caller-provided signal never starts another timer.
-        return opts?.signal
+        const result = opts?.signal
             ? await archive(opts.signal)
             : await withSessionArchiveDeadline(async ({ signal }) => await archive(signal));
+        if (!result.success) return result;
+        return { ...result, ...await afterSessionArchiveConfirmed({
+            sessionId,
+            serverId,
+            archivedAt: result.archivedAt ?? null,
+            autoArchiveReason: opts?.autoArchiveReason,
+        }) };
     } catch (error) {
         if (error instanceof AsyncTimeoutError) return { success: false, code: 'session_archive_timeout' };
         return { success: false, message: error instanceof Error ? error.message : 'Unknown error' };
