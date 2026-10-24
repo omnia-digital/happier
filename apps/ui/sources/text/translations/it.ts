@@ -8639,6 +8639,14 @@ export const it: TranslationStructure = {
     },
 
 settingsSession: {
+    archiveAutomation: {
+        title: 'Archiviazione automatica',
+        footer: 'Queste scelte si sincronizzano con questo account Home. Il controllo automatico viene eseguito mentre Happier è aperto. La pulizia locale richiede il supporto dell’host; i branch remoti restano. Il ripristino dall’archivio non recupera le risorse locali rimosse.',
+        autoArchiveTitle: 'Archivia dopo il merge delle PR collegate',
+        autoArchiveSubtitle: 'Archivia le sessioni inattive solo quando tutte le PR collegate risultano unite da una verifica recente.',
+        cleanupTitle: 'Pulisci le risorse locali dopo l’archiviazione',
+        cleanupSubtitle: 'Salva la scelta per una pulizia sicura sul computer proprietario. La pulizia non è ancora disponibile in questa versione.',
+    },
     terminalHostTitle: 'Host terminale per le nuove sessioni',
     terminalHostNone: 'Nessun host terminale',
     newSessionDraftEntry: {

@@ -8560,6 +8560,14 @@ localTailscale: {
     },
 
 settingsSession: {
+    archiveAutomation: {
+        title: '自動アーカイブ',
+        footer: 'この設定は現在の Home アカウントと同期されます。自動確認は Happier を開いている間に行います。ローカルのクリーンアップにはホスト側の対応が必要です。リモートブランチは残り、アーカイブを解除しても削除済みのローカル資源は戻りません。',
+        autoArchiveTitle: '関連 PR のマージ後にアーカイブ',
+        autoArchiveSubtitle: '関連するすべての PR のマージが新しい確認結果で証明された場合にのみ、非アクティブなセッションをアーカイブします。',
+        cleanupTitle: 'アーカイブ後にローカル資源を整理',
+        cleanupSubtitle: '所有マシンで安全に整理するための選択を保存します。このビルドでは整理機能はまだ利用できません。',
+    },
     terminalHostTitle: '新しいセッションのターミナルホスト',
     terminalHostNone: 'ターミナルホストなし',
     newSessionDraftEntry: {

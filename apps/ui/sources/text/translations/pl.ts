@@ -8310,6 +8310,14 @@ export const pl: TranslationStructure = {
     },
 
 settingsSession: {
+    archiveAutomation: {
+        title: 'Automatyczna archiwizacja',
+        footer: 'Te ustawienia synchronizują się z tym kontem Home. Automatyczne sprawdzanie działa, gdy Happier jest otwarty. Lokalne czyszczenie wymaga obsługi na hoście; zdalne gałęzie pozostają. Przywrócenie z archiwum nie odzyska usuniętych zasobów lokalnych.',
+        autoArchiveTitle: 'Archiwizuj po scaleniu powiązanych PR',
+        autoArchiveSubtitle: 'Archiwizuje nieaktywne sesje tylko wtedy, gdy wszystkie powiązane PR są świeżo potwierdzone jako scalone.',
+        cleanupTitle: 'Czyść lokalne zasoby po archiwizacji',
+        cleanupSubtitle: 'Zapisz wybór bezpiecznego czyszczenia na komputerze właściciela. Czyszczenie nie jest jeszcze dostępne w tej wersji.',
+    },
     terminalHostTitle: 'Host terminala dla nowych sesji',
     terminalHostNone: 'Bez hosta terminala',
     newSessionDraftEntry: {
