@@ -3,13 +3,13 @@ title: Keyboard shortcuts
 description: Every rebindable shortcut and the command palette, with the defaults for web and native.
 ---
 
-Find the default bindings for 43 keyboard commands below. Defaults
+Find the default bindings for 62 keyboard commands below. Defaults
 differ between the web client and the native apps where the platform already
 claims a key.
 
 <Callout>
   This reference follows the current development source. Numbered session navigation
-  and hovered-session Archive are development additions with macOS defaults;
+  and session menu shortcuts are development additions;
   their availability in a stable release has not been verified.
 </Callout>
 
@@ -35,7 +35,7 @@ built-in commands, your custom prompts and Happier actions in one list.
 
 | Action | Default |
 | --- | --- |
-| Start a new session | `Alt+N` (web) · `Mod+Shift+N` (everywhere except web) |
+| Create new session | `Alt+N` (web) · `Mod+Shift+N` (everywhere except web) |
 | Open session 1 | `Mod+1` (macOS) |
 | Open session 2 | `Mod+2` (macOS) |
 | Open session 3 | `Mod+3` (macOS) |
@@ -45,35 +45,59 @@ built-in commands, your custom prompts and Happier actions in one list.
 | Open session 7 | `Mod+7` (macOS) |
 | Open session 8 | `Mod+8` (macOS) |
 | Open session 9 | `Mod+9` (macOS) |
-| Next recently used session | `Alt+PageDown` (web) · `Ctrl+Tab` (everywhere except web) |
-| Previous recently used session | `Alt+PageUp` (web) · `Ctrl+Shift+Tab` (everywhere except web) |
-| Next session in the list | `Alt+ArrowDown` |
-| Previous session in the list | `Alt+ArrowUp` |
+| Next recent session | `Alt+PageDown` (web) · `Ctrl+Tab` (everywhere except web) |
+| Previous recent session | `Alt+PageUp` (web) · `Ctrl+Shift+Tab` (everywhere except web) |
+| Next visible session | `Alt+ArrowDown` |
+| Previous visible session | `Alt+ArrowUp` |
 
 ### The session list
 
 | Action | Default |
 | --- | --- |
-| Archive the hovered session | `A` (macOS) |
-| Move the focused session up | `Alt+Shift+ArrowUp` |
-| Move the focused session down | `Alt+Shift+ArrowDown` |
-| Move to a folder | `Alt+Shift+F` |
-| Move out to the workspace root | `Alt+Shift+R` |
-| Select or deselect the focused row | `Space` (web) |
-| Extend the selection up | `Shift+ArrowUp` (web) |
-| Extend the selection down | `Shift+ArrowDown` (web) |
-| Select every session | `Mod+A` (web) |
-| Clear the selection | `Escape` (web) |
+| Archive Session | `A` |
+| Move selected row up | `Alt+Shift+ArrowUp` |
+| Move selected row down | `Alt+Shift+ArrowDown` |
+| Move selected row to folder | `Alt+Shift+F` |
+| Move selected row to workspace root | `Alt+Shift+R` |
+| Select focused session | `Space` (web) |
+| Extend session selection up | `Shift+ArrowUp` (web) |
+| Extend session selection down | `Shift+ArrowDown` (web) |
+| Select all visible sessions | `Mod+A` (web) |
+| Clear session selection | `Escape` (web) |
+
+### Session menu actions
+
+| Action | Default |
+| --- | --- |
+| Select | `Alt+Shift+T` |
+| Rename Session | `Alt+Shift+E` |
+| Mark as unread | `Alt+Shift+U` |
+| Keep in Needs attention | `Alt+Shift+K` |
+| Remind me | `Alt+Shift+D` |
+| In 1 hour | `Alt+Shift+1` |
+| In 3 hours | `Alt+Shift+2` |
+| Tomorrow morning | `Alt+Shift+3` |
+| Next week | `Alt+Shift+4` |
+| Choose date and time… | `Alt+Shift+5` |
+| Manage presets | `Alt+Shift+6` |
+| Remove reminder | `Alt+Shift+7` |
+| New session with same setup | `Alt+Shift+N` |
+| Delete draft | `Alt+Shift+Y` |
+| Copy information | `Alt+Shift+I` |
+| Fork session | `Alt+Shift+B` |
+| Stop Session | `Alt+Shift+X` |
+| Edit tags | `Alt+Shift+G` |
+| Pin session | `Alt+Shift+P` |
 
 ### Writing and sending
 
 | Action | Default |
 | --- | --- |
-| Jump to the composer | `Mod+I` |
-| Send now | `Mod+Enter` |
-| Queue without opening the composer | `Mod+Shift+Enter` |
-| Stop the current turn | `Mod+.` (web) · `Shift+Escape` (everywhere except web) |
-| Cycle session mode | `Alt+Shift+M` |
+| Focus composer | `Mod+I` |
+| Send immediately | `Mod+Enter` |
+| Send to pending queue | `Mod+Shift+Enter` |
+| Confirm abort | `Mod+.` (web) · `Shift+Escape` (everywhere except web) |
+| Cycle mode | `Alt+Shift+M` |
 | Cycle permission mode | _Unbound by default_ |
 
 ### Reading the transcript
@@ -82,10 +106,10 @@ built-in commands, your custom prompts and Happier actions in one list.
 | --- | --- |
 | Next message | _Unbound by default_ |
 | Previous message | _Unbound by default_ |
-| Jump to the top | `Home` |
-| Jump to the live tail | `End` |
-| Page up | `PageUp` |
-| Page down | `PageDown` |
+| Scroll transcript to top | `Home` |
+| Scroll transcript to bottom | `End` |
+| Scroll transcript page up | `PageUp` |
+| Scroll transcript page down | `PageDown` |
 | Select every message | `Alt+Shift+A` |
 | Copy the selected messages | `Alt+Shift+C` |
 | Send the selection to another session | `Alt+Shift+S` |
@@ -95,13 +119,20 @@ built-in commands, your custom prompts and Happier actions in one list.
 
 | Action | Default |
 | --- | --- |
-| Open the command palette | `Alt+K` (web) · `Mod+K` (everywhere except web) |
-| Show this list in the app | `?` |
+| Open command palette | `Alt+K` (web) · `Mod+K` (everywhere except web) |
+| Open shortcuts help | `?` |
 | Open settings | _Unbound by default_ |
 
 Shortcuts respect focus. Most do nothing while you are typing in the composer,
 which is why sending has its own explicitly editable-safe binding rather than
 relying on you leaving the field first.
+
+Session menu shortcuts act on the open menu's session, or the hovered row when
+no menu is open. They do nothing in text inputs or unrelated overlays. Archive's
+`A` binding remains available when single-key shortcuts are disabled; disabling
+or rebinding Archive itself still applies. On native iOS and Android, the hardware
+keyboard integration currently supports only Enter and Escape bindings, so these
+session menu chords are available on desktop and web.
 
 ## Changing them
 

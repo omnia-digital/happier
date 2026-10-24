@@ -48,14 +48,18 @@ describe('createKeyboardShortcutDispatcher', () => {
         expect(rename).toHaveBeenCalledTimes(2);
     });
 
-    it('dispatches hovered Archive A with single-key preference off, but never in editable, overlay, composition or repeat contexts', () => {
+    it.each([
+        ['macos', 'web'], ['macos', 'native'],
+        ['windows', 'web'], ['windows', 'native'],
+        ['linux', 'web'], ['linux', 'native'],
+    ] as const)('dispatches Archive A on %s/%s with single-key preference off while preserving focus and event guards', (platform, surface) => {
         const archive = vi.fn();
         const help = vi.fn();
         let currentContext = context;
         const dispatcher = createKeyboardShortcutDispatcher({
             enabled: true,
-            platform: 'macos',
-            surface: 'web',
+            platform,
+            surface,
             singleKeyShortcutsEnabled: false,
             disabledCommandIds: [],
             overrides: {},
@@ -68,12 +72,14 @@ describe('createKeyboardShortcutDispatcher', () => {
         expect(dispatcher(a)).toBe(false);
         currentContext = { ...context, isOverlayActive: true };
         expect(dispatcher(a)).toBe(false);
+        currentContext = { ...context, isOverlayActive: true, isOwnedSessionRowMenuActive: true };
+        expect(dispatcher(a)).toBe(true);
         currentContext = context;
         expect(dispatcher({ ...a, isComposing: true })).toBe(false);
         expect(dispatcher({ ...a, repeat: true })).toBe(false);
         expect(dispatcher(keyEvent({ key: '?', code: 'Slash', shiftKey: true }))).toBe(false);
         expect(help).not.toHaveBeenCalled();
-        expect(archive).toHaveBeenCalledOnce();
+        expect(archive).toHaveBeenCalledTimes(2);
     });
 
     it('honors disabling and rebinding the hovered Archive command', () => {

@@ -16,10 +16,12 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
+import { readTranslationString } from './readTranslationString.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '..', '..', '..');
 const COMMANDS = join(REPO, 'apps', 'ui', 'sources', 'keyboard', 'commands.ts');
+const TRANSLATIONS = join(REPO, 'apps', 'ui', 'sources', 'text', 'translations', 'en.ts');
 const SETTINGS = join(
   REPO, 'apps', 'ui', 'sources', 'sync', 'domains', 'settings', 'registry', 'account',
   'accountKeyboardShortcutSettingDefinitions.ts',
@@ -27,71 +29,81 @@ const SETTINGS = join(
 export const OUTPUT_PATH = join(HERE, '..', 'content', 'docs', 'apps', 'keyboard-shortcuts.mdx');
 
 /**
- * Human names for command ids, grouped the way someone looking for a shortcut
- * thinks about them rather than the way the registry is ordered.
+ * Group commands by task. Labels come from the command's settings title; the
+ * descriptions below only cover internal commands without a UI title.
  */
 const GROUPS = [
   {
     title: 'Moving between sessions',
-    commands: {
-      'session.new': 'Start a new session',
-      ...Object.fromEntries(Array.from({ length: 9 }, (_, index) => [`session.number.${index + 1}`, `Open session ${index + 1}`])),
-      'session.mru.next': 'Next recently used session',
-      'session.mru.previous': 'Previous recently used session',
-      'session.visible.next': 'Next session in the list',
-      'session.visible.previous': 'Previous session in the list',
-    },
+    commands: [
+      'session.new',
+      ...Array.from({ length: 9 }, (_, index) => `session.number.${index + 1}`),
+      'session.mru.next',
+      'session.mru.previous',
+      'session.visible.next',
+      'session.visible.previous',
+    ],
   },
   {
     title: 'The session list',
-    commands: {
-      'session.hovered.archive': 'Archive the hovered session',
-      'sessions.row.moveUp': 'Move the focused session up',
-      'sessions.row.moveDown': 'Move the focused session down',
-      'sessions.row.moveToFolder': 'Move to a folder',
-      'sessions.row.moveToWorkspaceRoot': 'Move out to the workspace root',
-      'sessions.selection.toggleFocused': 'Select or deselect the focused row',
-      'sessions.selection.extendUp': 'Extend the selection up',
-      'sessions.selection.extendDown': 'Extend the selection down',
-      'sessions.selection.selectAll': 'Select every session',
-      'sessions.selection.clear': 'Clear the selection',
-    },
+    commands: [
+      'session.hovered.archive',
+      'sessions.row.moveUp',
+      'sessions.row.moveDown',
+      'sessions.row.moveToFolder',
+      'sessions.row.moveToWorkspaceRoot',
+      'sessions.selection.toggleFocused',
+      'sessions.selection.extendUp',
+      'sessions.selection.extendDown',
+      'sessions.selection.selectAll',
+      'sessions.selection.clear',
+    ],
   },
   {
     title: 'Writing and sending',
-    commands: {
-      'composer.focus': 'Jump to the composer',
-      'composer.sendImmediate': 'Send now',
-      'composer.sendPending': 'Queue without opening the composer',
-      'composer.abortConfirm': 'Stop the current turn',
-      'mode.cycle': 'Cycle session mode',
-      'permission.cycle': 'Cycle permission mode',
-    },
+    commands: [
+      'composer.focus',
+      'composer.sendImmediate',
+      'composer.sendPending',
+      'composer.abortConfirm',
+      'mode.cycle',
+      'permission.cycle',
+    ],
   },
   {
     title: 'Reading the transcript',
-    commands: {
-      'transcript.message.next': 'Next message',
-      'transcript.message.previous': 'Previous message',
-      'transcript.scroll.top': 'Jump to the top',
-      'transcript.scroll.bottom': 'Jump to the live tail',
-      'transcript.scroll.pageUp': 'Page up',
-      'transcript.scroll.pageDown': 'Page down',
-      'transcript.selection.selectAll': 'Select every message',
-      'transcript.selection.copy': 'Copy the selected messages',
-      'transcript.selection.sendToSession': 'Send the selection to another session',
-      'transcript.selection.cancel': 'Cancel the selection',
-    },
+    commands: [
+      'transcript.message.next',
+      'transcript.message.previous',
+      'transcript.scroll.top',
+      'transcript.scroll.bottom',
+      'transcript.scroll.pageUp',
+      'transcript.scroll.pageDown',
+      'transcript.selection.selectAll',
+      'transcript.selection.copy',
+      'transcript.selection.sendToSession',
+      'transcript.selection.cancel',
+    ],
   },
   {
     title: 'Everything else',
-    commands: {
-      'commandPalette.open': 'Open the command palette',
-      'shortcutsHelp.open': 'Show this list in the app',
-      'settings.open': 'Open settings',
-    },
+    commands: [
+      'commandPalette.open',
+      'shortcutsHelp.open',
+      'settings.open',
+    ],
   },
 ];
+
+const COMMAND_DESCRIPTIONS = {
+  'permission.cycle': 'Cycle permission mode',
+  'transcript.message.next': 'Next message',
+  'transcript.message.previous': 'Previous message',
+  'transcript.selection.selectAll': 'Select every message',
+  'transcript.selection.copy': 'Copy the selected messages',
+  'transcript.selection.sendToSession': 'Send the selection to another session',
+  'transcript.selection.cancel': 'Cancel the selection',
+};
 
 function unsupported(node) {
   throw new Error(`Unsupported keyboard registry syntax: ${node?.getText() ?? 'missing value'}`);
@@ -174,7 +186,10 @@ export function parseKeyboardCommands(source) {
     const command = properties(node);
     const id = literal(command.get('id'), parameter);
     if (commands.has(id)) throw new Error(`Duplicate keyboard registry command: ${id}`);
-    commands.set(id, parseBindings(command, parameter));
+    commands.set(id, {
+      bindings: parseBindings(command, parameter),
+      settingsTitleKey: command.has('settingsTitleKey') ? literal(command.get('settingsTitleKey'), parameter) : null,
+    });
   };
   for (const entry of array.elements) {
     if (!ts.isSpreadElement(entry)) {
@@ -214,16 +229,31 @@ function formatBindings(bindings) {
 export async function renderKeyboardReferenceMarkdown({
   commandsPath = COMMANDS,
   settingsPath = SETTINGS,
+  translationsPath = TRANSLATIONS,
 } = {}) {
   const commands = parseKeyboardCommands(readFileSync(commandsPath, 'utf8'));
+  const translations = readFileSync(translationsPath, 'utf8');
   const settings = readFileSync(settingsPath, 'utf8');
   const paletteOn = readDefault(settings, 'commandPaletteEnabled');
   const shortcutsOn = readDefault(settings, 'keyboardShortcutsV2Enabled');
 
-  const grouped = GROUPS.map((group) => {
-    const rows = Object.entries(group.commands)
-      .filter(([id]) => commands.has(id))
-      .map(([id, label]) => `| ${label} | ${formatBindings(commands.get(id))} |`);
+  const labelFor = (id) => {
+    const key = commands.get(id).settingsTitleKey;
+    if (!key) return COMMAND_DESCRIPTIONS[id] ?? `\`${id}\``;
+    const label = readTranslationString(translations, key);
+    if (!label) throw new Error(`Missing keyboard command translation: ${key}`);
+    return label.replaceAll('|', '\\|').replaceAll('\n', ' ');
+  };
+  const rowFor = (id) => `| ${labelFor(id)} | ${formatBindings(commands.get(id).bindings)} |`;
+  const groups = [...GROUPS];
+  groups.splice(2, 0, {
+    title: 'Session menu actions',
+    commands: [...commands.keys()].filter((id) => id.startsWith('session.menu.')),
+  });
+  const grouped = groups.map((group) => {
+    const rows = group.commands
+      .filter((id) => commands.has(id))
+      .map(rowFor);
     return rows.length ? `### ${group.title}\n\n| Action | Default |\n| --- | --- |\n${rows.join('\n')}` : null;
   }).filter(Boolean);
 
@@ -235,12 +265,12 @@ export async function renderKeyboardReferenceMarkdown({
     ? `${off.length === 2 ? 'Both' : 'This'} ${off.length === 2 ? 'features are' : 'feature is'} **off by default**: turn on ${off.join(' and ')} under **Settings → Keyboard shortcuts** to use those features.`
     : 'Shortcuts are on by default.';
 
-  const covered = new Set(GROUPS.flatMap((g) => Object.keys(g.commands)));
+  const covered = new Set(groups.flatMap((g) => g.commands));
   const uncovered = [...commands.keys()].filter((id) => !covered.has(id));
 
   const extras = uncovered.length
     ? `\n### Not yet grouped\n\n| Command | Default |\n| --- | --- |\n${uncovered
-        .map((id) => `| \`${id}\` | ${formatBindings(commands.get(id))} |`)
+        .map(rowFor)
         .join('\n')}\n`
     : '';
 
@@ -255,7 +285,7 @@ claims a key.
 
 <Callout>
   This reference follows the current development source. Numbered session navigation
-  and hovered-session Archive are development additions with macOS defaults;
+  and session menu shortcuts are development additions;
   their availability in a stable release has not been verified.
 </Callout>
 
@@ -273,7 +303,7 @@ platform convention rather than for "the modifier key".
 The fastest way to reach anything without remembering a binding. It searches
 built-in commands, your custom prompts and Happier actions in one list.
 
-${formatBindings(commands.get('commandPalette.open'))}
+${formatBindings(commands.get('commandPalette.open')?.bindings)}
 
 ## Shortcuts
 
@@ -282,6 +312,13 @@ ${extras}
 Shortcuts respect focus. Most do nothing while you are typing in the composer,
 which is why sending has its own explicitly editable-safe binding rather than
 relying on you leaving the field first.
+
+Session menu shortcuts act on the open menu's session, or the hovered row when
+no menu is open. They do nothing in text inputs or unrelated overlays. Archive's
+\`A\` binding remains available when single-key shortcuts are disabled; disabling
+or rebinding Archive itself still applies. On native iOS and Android, the hardware
+keyboard integration currently supports only Enter and Escape bindings, so these
+session menu chords are available on desktop and web.
 
 ## Changing them
 
