@@ -405,6 +405,37 @@ describe('sync.sendMessage optimistic thinking', () => {
         expect(storage.getState().sessions[sessionId].optimisticThinkingAt ?? null).toBeNull();
     });
 
+    it('uses the stored creation time in the acknowledged outgoing message', async () => {
+        const sessionId = 's_stored_message_time';
+        const storedCreatedAt = Date.now() - 120_000;
+        storage.getState().applySessions([createSession({ sessionId })]);
+
+        const encryption = await Encryption.create(new Uint8Array(32).fill(9));
+        await encryption.initializeSessions(new Map([[sessionId, null]]));
+
+        const { sync } = await import('./sync');
+        sync.encryption = encryption;
+        vi.spyOn(apiSocket, 'sessionRPC').mockRejectedValue(createRpcMethodNotAvailableError());
+        sync.setMessageTransport({
+            emitWithAck: vi.fn(async () => ({
+                ok: true,
+                id: 'm-stored-time',
+                seq: 1,
+                localId: 'local-stored-time',
+                createdAt: storedCreatedAt,
+                didWrite: true,
+            })) as any,
+            send: vi.fn(),
+        });
+
+        await sync.sendMessage(sessionId, 'hello', undefined, undefined, { localId: 'local-stored-time' });
+        const transcript = storage.getState().sessionMessages[sessionId];
+        const user = transcript?.messageIdsOldestFirst
+            .map((id) => transcript.messagesById[id])
+            .find((message) => message?.kind === 'user-text');
+        expect(user?.createdAt).toBe(storedCreatedAt);
+    });
+
     it('notifies local pending projection after the pending row exists', async () => {
         const sessionId = 's_local_pending_projection_callback';
         storage.getState().applySessions([createSession({ sessionId })]);
@@ -1583,6 +1614,7 @@ describe('sync.sendMessage optimistic thinking', () => {
                     id: 'm_plain_retry_1',
                     seq: 1,
                     localId: null,
+                    createdAt: 42_000,
                     didWrite: true,
                 })) as any;
 
@@ -1612,6 +1644,11 @@ describe('sync.sendMessage optimistic thinking', () => {
                 expect.anything(),
             );
             expect(storage.getState().sessionPending[sessionId]?.messages ?? []).toEqual([]);
+            const transcript = storage.getState().sessionMessages[sessionId];
+            const user = transcript?.messageIdsOldestFirst
+                .map((id) => transcript.messagesById[id])
+                .find((message) => message?.kind === 'user-text');
+            expect(user?.createdAt).toBe(42_000);
         } finally {
             vi.useRealTimers();
         }

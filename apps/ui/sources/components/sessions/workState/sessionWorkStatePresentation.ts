@@ -87,13 +87,14 @@ function readItem(value: unknown): ReadItemResult {
     const origin = readString(raw.origin);
     const status = readString(raw.status);
     if (!kind || !origin || !status) return { type: 'invalid' };
-    if (!VALID_KINDS.has(kind) || !VALID_ORIGINS.has(origin) || !VALID_STATUSES.has(status)) {
+    if (!VALID_KINDS.has(kind) || !VALID_ORIGINS.has(origin)) {
         return { type: 'ignored' };
     }
     const id = readString(raw.id);
     const title = readString(raw.title);
     const updatedAt = readNonNegativeNumber(raw.updatedAt);
     if (!id || !title || updatedAt === null) return { type: 'invalid' };
+    const normalizedStatus = VALID_STATUSES.has(status) ? status : 'unknown';
     const statusReason = readStatusReason(raw.statusReason);
     const goalCapabilities = readGoalCapabilities(raw.goalCapabilities);
 
@@ -103,7 +104,7 @@ function readItem(value: unknown): ReadItemResult {
             id,
             kind: kind as SessionWorkStateKind,
             origin: origin as SessionWorkStateOrigin,
-            status: status as SessionWorkStateStatus,
+            status: normalizedStatus as SessionWorkStateStatus,
             title,
             updatedAt,
             ...(statusReason ? { statusReason } : {}),
