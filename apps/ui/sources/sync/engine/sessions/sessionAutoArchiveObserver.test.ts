@@ -25,7 +25,7 @@ describe('foreground session autoarchive observer', () => {
     let serverId: string;
     let foreground = true;
     let observer: ReturnType<typeof createSessionAutoArchiveObserver> | null = null;
-    const metadataHydrate = vi.fn(async () => true);
+    const metadataHydrate = vi.fn(async (_sessionId: string, _serverId: string, _shouldContinue: () => boolean, _forceRefresh: boolean) => true);
     const archiveRequest = vi.fn(async () => new Response(JSON.stringify({ archivedAt: 42 })));
 
     beforeEach(() => {

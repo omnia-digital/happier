@@ -223,6 +223,29 @@ describe('server-scoped session archive operations', () => {
         expect(metadataPatch).not.toHaveBeenCalled();
     });
 
+    it('does not patch a replacement account session after an admitted automatic archive response', async () => {
+        const network = createDeferred<Response>();
+        activeResponse.mockReturnValueOnce(network.promise);
+        storage.setState({ profileScope: { serverId: serverA.id, accountId: 'account-a' } });
+        const reason = {
+            accountId: 'account-a',
+            links: [{ providerKind: 'github' as const, providerBaseUrl: 'https://github.com', repository: 'owner/repo',
+                number: 7, url: 'https://github.com/owner/repo/pull/7' }],
+            shouldContinue: () => storage.getState().profileScope?.accountId === 'account-a',
+            shouldArchive: () => storage.getState().profileScope?.accountId === 'account-a',
+        };
+        const result = sessionArchiveWithServerScope(sessionId, { serverId: serverA.id, autoArchiveReason: reason });
+        await vi.waitFor(() => expect(activeRequest).toHaveBeenCalledTimes(1));
+        const replacement = createSessionFixture({ id: sessionId, archivedAt: null, owner: 'account-b' });
+        storage.setState({ profileScope: { serverId: serverA.id, accountId: 'account-b' }, sessions: { [sessionId]: replacement },
+            sessionListRenderables: { [sessionId]: buildSessionListRenderableFromSession(replacement) } });
+        network.resolve(response(42));
+        await expect(result).resolves.toMatchObject({ success: true, historyRecorded: false });
+        expect(storage.getState().sessions[sessionId]).toBe(replacement);
+        expect(storage.getState().sessionListRenderables[sessionId]?.archivedAt).toBeNull();
+        expect(metadataPatch).not.toHaveBeenCalled();
+    });
+
     it('keeps the encrypted automatic reason after the canonical unarchive operation', async () => {
         const current = storage.getState().sessions[sessionId]!;
         const link = { providerKind: 'github' as const, providerBaseUrl: 'https://github.com', repository: 'owner/repo',
