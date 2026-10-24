@@ -145,9 +145,8 @@ env -u HAPPIER_STACK_ENV_FILE \
 ```
 
 `--tauri-production` selects the stable Tauri config and Omnia Happier artwork.
-The explicit identifier keeps this local app's storage separate. The previous
-local bundle used the development Tauri overlay, so build and verify a fresh
-bundle before adopting this command's output.
+The explicit identifier keeps this local app's storage separate. Build and
+verify a fresh bundle after this integration before adopting its output.
 
 The local macOS 27 / Rust 1.94.1 build also required
 `CARGO_PROFILE_RELEASE_STRIP=none CARGO_PROFILE_RELEASE_BUILD_OVERRIDE_STRIP=none`.
@@ -181,7 +180,7 @@ env APPLE_SIGNING_IDENTITY=- \
   --config "$HOME/.happier/stacks/omnia-production-desktop/tauri.conf.happier-stack.json"
 ```
 
-On 2026-10-23 the earlier development-overlay bundle completed at `13c80eb975d37505b6d394f738da7a32f7da53c8`.
+On 2026-10-23 the earlier pre-integration bundle completed at `13c80eb975d37505b6d394f738da7a32f7da53c8`.
 The earlier UI export came from its tree-identical parent `f24db5a2ff`; the source
 diff is empty. The bundle passed `codesign --verify --deep --strict`, and the
 dedicated `com.omnia.happier.production` process opened its welcome/login window.
