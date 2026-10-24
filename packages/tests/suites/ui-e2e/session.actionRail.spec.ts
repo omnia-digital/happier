@@ -214,8 +214,13 @@ test.describe('ui e2e: session action rail', () => {
         await waitForInitialAppUi({ page, browserDiagnostics });
         await expect(page.getByText(prompt, { exact: true })).toBeVisible({ timeout: 60_000 });
         await expect(page.getByText('FAKE_CLAUDE_OK_1', { exact: true })).toBeVisible({ timeout: 60_000 });
-        await expect(page.getByTestId(`transcript-message-timestamp-text:${userMessageId}`)).toHaveText(userTimestampText);
-        await expect(page.getByTestId(`transcript-message-timestamp-text:${assistantMessageId}`)).toHaveText(assistantTimestampText);
+        const reloadedUserTestId = await page.locator('[data-testid^="transcript-message-"]').filter({ hasText: prompt }).first().getAttribute('data-testid');
+        const reloadedAssistantTestId = await page.locator('[data-testid^="transcript-message-"]').filter({ hasText: 'FAKE_CLAUDE_OK_1' }).first().getAttribute('data-testid');
+        if (!reloadedUserTestId || !reloadedAssistantTestId) throw new Error('missing reloaded transcript message test id');
+        const reloadedUserMessageId = reloadedUserTestId.replace(/^transcript-message-/, '');
+        const reloadedAssistantMessageId = reloadedAssistantTestId.replace(/^transcript-message-/, '');
+        await expect(page.getByTestId(`transcript-message-timestamp-text:${reloadedUserMessageId}`)).toHaveText(userTimestampText);
+        await expect(page.getByTestId(`transcript-message-timestamp-text:${reloadedAssistantMessageId}`)).toHaveText(assistantTimestampText);
         await page.setViewportSize({ width: 1920, height: 900 });
       });
 
