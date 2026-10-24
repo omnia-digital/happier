@@ -197,6 +197,7 @@ export function resolveUiWebExportSourceFingerprint(): string {
     resolvePath(uiWorkspaceDir, 'babel.config.js'),
     resolvePath(rootDir, 'package.json'),
     resolvePath(rootDir, 'yarn.lock'),
+    resolvePath(rootDir, 'packages', 'release-runtime', 'releaseRings.cjs'),
   ];
   const skipDirNames = new Set(['.expo', '.git', '.project', '__tests__', 'dist', 'node_modules', 'web-build']);
   const testFilePattern = /\.(?:test|spec)\.[cm]?[jt]sx?$/u;
