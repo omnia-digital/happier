@@ -132,7 +132,7 @@ test.describe('ui e2e: session action rail', () => {
       const sessionUrl = `${uiBaseUrl}/session/${sessionId}`;
 
       await mutateUiE2eScopedAccountSettings({ page, experiments: true, featureToggles: { 'terminal.embeddedPty': true } });
-      await mutateUiE2eLocalSettings({ page, settingsPatch: { themePreference: 'light', embeddedTerminalDockLocation: 'bottom', uiContentWidthMode: 'compact' } });
+      await mutateUiE2eLocalSettings({ page, settingsPatch: { themePreference: 'light', embeddedTerminalDockLocation: 'bottom', uiContentWidthMode: 'compact', uiFontScale: 1.5 } });
       await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
       const rail = page.getByTestId('session-action-rail');
       const review = page.getByTestId('session-action-rail:review');
@@ -157,12 +157,68 @@ test.describe('ui e2e: session action rail', () => {
       await expect(rightPaneLocator(page)).toHaveCount(0);
       await expect(detailsPaneLocator(page)).toHaveCount(0);
       const composer = page.getByTestId('session-composer-input');
-      await composer.fill(`action rail alignment ${run.runId}`);
+      const prompt = `action rail alignment ${run.runId}`;
+      await composer.fill(prompt);
       const send = page.getByTestId('session-composer-send');
       await expect(send).toBeEnabled({ timeout: 60_000 });
       await send.click();
       await expect(page.getByText('FAKE_CLAUDE_OK_1').first()).toBeVisible({ timeout: 180_000 });
       await expect(page.locator('[data-testid^="transcript-message-"]').first()).toBeVisible({ timeout: 60_000 });
+
+      await test.step('stored message timestamps stay visible and accessible in compact large text', async () => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        const userMessage = page.locator('[data-testid^="transcript-message-"]').filter({ hasText: prompt }).first();
+        const assistantMessage = page.locator('[data-testid^="transcript-message-"]').filter({ hasText: 'FAKE_CLAUDE_OK_1' }).first();
+        await expect(userMessage).toBeVisible();
+        await expect(assistantMessage).toBeVisible();
+
+        const userTestId = await userMessage.getAttribute('data-testid');
+        const assistantTestId = await assistantMessage.getAttribute('data-testid');
+        if (!userTestId || !assistantTestId) throw new Error('missing transcript message test id');
+        const userMessageId = userTestId.replace(/^transcript-message-/, '');
+        const assistantMessageId = assistantTestId.replace(/^transcript-message-/, '');
+        const userTimestamp = page.getByTestId(`transcript-message-timestamp:${userMessageId}`);
+        const assistantTimestamp = page.getByTestId(`transcript-message-timestamp:${assistantMessageId}`);
+        const userActionSlot = page.getByTestId(`transcript-message-actions:${userMessageId}`);
+
+        await expect(userTimestamp).toBeVisible();
+        await expect(assistantTimestamp).toBeVisible();
+        await expect(userActionSlot).toHaveCSS('opacity', '0');
+        const userTimestampText = await page.getByTestId(`transcript-message-timestamp-text:${userMessageId}`).innerText();
+        const assistantTimestampText = await page.getByTestId(`transcript-message-timestamp-text:${assistantMessageId}`).innerText();
+        expect(userTimestampText).not.toBe('');
+        expect(assistantTimestampText).not.toBe('');
+        await expect(userTimestamp).toHaveAttribute('aria-label', userTimestampText);
+
+        await userTimestamp.hover();
+        const userTimestampTooltip = page.getByRole('tooltip').filter({ hasText: userTimestampText });
+        await expect(userTimestampTooltip).toBeVisible();
+        await page.mouse.move(0, 0);
+        await page.keyboard.press('Tab');
+        await userTimestamp.focus();
+        await expect(userTimestampTooltip).toBeVisible();
+
+        const userTimestampBox = await userTimestamp.boundingBox();
+        const assistantTimestampBox = await assistantTimestamp.boundingBox();
+        expect(userTimestampBox?.width).toBeGreaterThan(0);
+        expect(userTimestampBox?.height).toBeGreaterThan(0);
+        expect(assistantTimestampBox?.width).toBeGreaterThan(0);
+        expect(assistantTimestampBox?.height).toBeGreaterThan(0);
+        await testInfo.attach('stored-message-timestamps', {
+          body: JSON.stringify({ userTimestampText, assistantTimestampText, viewport: { width: 390, height: 844 }, uiFontScale: 1.5 }),
+          contentType: 'application/json',
+        });
+
+        await page.mouse.move(0, 0);
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await waitForInitialAppUi({ page, browserDiagnostics });
+        await expect(page.getByText(prompt, { exact: true })).toBeVisible({ timeout: 60_000 });
+        await expect(page.getByText('FAKE_CLAUDE_OK_1', { exact: true })).toBeVisible({ timeout: 60_000 });
+        await expect(page.getByTestId(`transcript-message-timestamp-text:${userMessageId}`)).toHaveText(userTimestampText);
+        await expect(page.getByTestId(`transcript-message-timestamp-text:${assistantMessageId}`)).toHaveText(assistantTimestampText);
+        await page.setViewportSize({ width: 1920, height: 900 });
+      });
+
       const measureHeaderAlignment = async () => page.evaluate(() => {
         const avatar = document.querySelector('[data-testid="session-header-avatar"]')!;
         const info = document.querySelector('[data-testid="session-header-info-button"]')!;
