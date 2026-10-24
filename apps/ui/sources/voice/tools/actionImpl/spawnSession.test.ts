@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useVoiceTargetStore } from '@/voice/runtime/voiceTargetStore';
+import { machinePathTargetKey } from '@/sync/domains/settings/machinePathPreferences';
 
 const machineSpawnNewSessionMock = vi.fn();
 const state: any = {
@@ -30,8 +31,10 @@ vi.mock('./spawnSessionPostProcess', () => ({
 }));
 
 describe('spawnSessionForVoiceTool', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
         vi.resetModules();
+        const { registerStorageStateReader } = await import('@/sync/domains/state/storageStateReaderBridge');
+        registerStorageStateReader(() => state);
         machineSpawnNewSessionMock.mockReset();
         machineSpawnNewSessionMock.mockResolvedValue({ type: 'success', sessionId: 'voice-session' });
         useVoiceTargetStore.setState({
@@ -52,7 +55,9 @@ describe('spawnSessionForVoiceTool', () => {
         state.settings = {
             lastUsedAgent: 'claude',
             recentMachinePaths: [],
+            machinePathPreferencesByTargetV1: {},
         };
+        state.profileScope = { serverId: 'server-a', accountId: 'account-a' };
         state.getProjectForSession = undefined;
     });
 
@@ -78,6 +83,12 @@ describe('spawnSessionForVoiceTool', () => {
             },
         };
         state.settings.recentMachinePaths = [{ machineId: 'machine-old', path: '/Users/test/repo' }];
+        state.settings.machinePathPreferencesByTargetV1 = {
+            [machinePathTargetKey({ serverId: 'server-a', accountId: 'account-a', machineId: 'machine-old' })]: {
+                favorites: [],
+                recentPaths: ['/Users/test/repo'],
+            },
+        };
 
         await spawnSessionForVoiceTool({});
 
@@ -85,6 +96,7 @@ describe('spawnSessionForVoiceTool', () => {
             machineId: 'machine-current',
             directory: '/Users/test/repo',
         }));
+        expect(state.settings.recentMachinePaths).toEqual([{ machineId: 'machine-old', path: '/Users/test/repo' }]);
     });
 
     it('spawns from the resolved focused session machine target', async () => {

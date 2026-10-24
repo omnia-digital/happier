@@ -12,6 +12,7 @@ import {
     clearNewSessionDraftMock,
     computeNewSessionInputMaxHeightMock,
     featureFlags,
+    fetchSnapshotForMachinePathMock,
     flushInteractionQueue,
     loadNewSessionDraftMock,
     machineMcpServersPreviewMock,
@@ -41,6 +42,67 @@ import {
 } from './__tests__/draftPersistenceTestEnvironment';
 import { getCheckoutChipLabel } from './__tests__/checkoutChipSelectors';
 
+type ScopedServerProfileFixture = Readonly<{
+    id: string;
+    name: string;
+    serverUrl: string;
+    createdAt: number;
+    updatedAt: number;
+    lastUsedAt: number;
+}>;
+
+const scopedServerFixture = vi.hoisted(() => ({
+    profiles: [] as ScopedServerProfileFixture[],
+    credentialsByServerId: {} as Record<string, Readonly<{ token: string; secret: string }>>,
+}));
+
+vi.mock('@/sync/domains/server/serverProfiles', async (importOriginal) => {
+    const { createServerProfilesModuleMock } = await import('@/dev/testkit/mocks/serverProfiles');
+    return createServerProfilesModuleMock({
+        importOriginal,
+        overrides: {
+            listServerProfiles: () => [...scopedServerFixture.profiles],
+        },
+    });
+});
+
+vi.mock('@/sync/domains/server/serverRuntime', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@/sync/domains/server/serverRuntime')>();
+    return {
+        ...actual,
+        getActiveServerSnapshot: () => ({
+            serverId: 'server-a',
+            serverUrl: 'https://server-a.example.test',
+            generation: 1,
+        }),
+    };
+});
+
+vi.mock('@/auth/storage/tokenStorage', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@/auth/storage/tokenStorage')>();
+    return {
+        ...actual,
+        TokenStorage: {
+            ...actual.TokenStorage,
+            getCredentialsForServerUrl: async (serverUrl: string, options?: Readonly<{ serverId?: string | null }>) => {
+                const profile = scopedServerFixture.profiles.find((candidate) => (
+                    candidate.id === options?.serverId && candidate.serverUrl === serverUrl
+                ));
+                if (profile) return scopedServerFixture.credentialsByServerId[profile.id] ?? null;
+                return await actual.TokenStorage.getCredentialsForServerUrl(serverUrl, options);
+            },
+        },
+    };
+});
+
+function tokenForSub(sub: string): string {
+    const payload = globalThis.btoa(JSON.stringify({ sub }))
+        .replaceAll('+', '-')
+        .replaceAll('/', '_')
+        .replaceAll('=', '');
+    return `e30.${payload}.signature`;
+}
+
 // Slim core suite for cross-cutting draft hydration invariants. Domain-specific
 // behavior lives in the `.path.test.tsx`, `.machine.test.tsx`, and
 // `.checkout.test.tsx` sibling files. Shared mock graph + hoisted state lives
@@ -52,6 +114,8 @@ describe('useNewSessionScreenModel (draft hydration — core)', () => {
 
     beforeEach(async () => {
         await resetDraftPersistenceState();
+        scopedServerFixture.profiles = [];
+        scopedServerFixture.credentialsByServerId = {};
     });
 
     it('clears remembered Claude plan mode when the user switches the new-session mode back to build', async () => {
@@ -496,6 +560,26 @@ describe('useNewSessionScreenModel (draft hydration — core)', () => {
         targetServerState.allowedTargetServerIds = ['server-a', 'server-b'];
         targetServerState.targetServerId = 'server-b';
         targetServerState.targetServerName = 'Server B';
+        const { getActiveServerSnapshot } = await import('@/sync/domains/server/serverRuntime');
+        activeServerAccountScopeState.value = {
+            serverId: getActiveServerSnapshot().serverId,
+            accountId: 'account-a',
+        };
+        persistedDraft.targetServerId = 'server-b';
+        scopedServerFixture.profiles = [{
+            id: 'server-b',
+            name: 'Server B',
+            serverUrl: 'https://server-b.example.test',
+            createdAt: 1,
+            updatedAt: 1,
+            lastUsedAt: 1,
+        }];
+        scopedServerFixture.credentialsByServerId = {
+            'server-b': {
+                token: tokenForSub('account-b'),
+                secret: 'A'.repeat(43),
+            },
+        };
         persistedDraft.selectedWorkspaceId = 'ws_payments';
         persistedDraft.selectedWorkspaceLocationId = 'loc_local';
         persistedDraft.selectedWorkspaceCheckoutId = null as any;
@@ -513,12 +597,27 @@ describe('useNewSessionScreenModel (draft hydration — core)', () => {
                 defaultLocationId: 'loc_local',
             }),
         ];
+        await useNewSessionScreenModelModulePromise;
+        const { registerStorageStateReader } = await import('@/sync/domains/state/storageStateReaderBridge');
+        registerStorageStateReader(() => ({
+            profileScope: activeServerAccountScopeState.value,
+        }) as unknown as import('@/sync/store/types').StorageState);
+        const { getActiveServerAccountScope } = await import('@/sync/domains/scope/activeServerAccountScope');
+        expect(getActiveServerAccountScope()).toEqual(activeServerAccountScopeState.value);
 
         let model: any = null;
         await renderNewSessionScreenModel((nextModel) => {
             model = nextModel;
         });
+        await flushHookEffects({ cycles: 4, turns: 2 });
 
+        expect(model?.simpleProps?.selectedMachineId).toBe('machine-2');
+        expect(model?.simpleProps?.selectedPath).toBe('/repo/custom');
+        expect(fetchSnapshotForMachinePathMock).toHaveBeenCalledWith(expect.objectContaining({
+            machineId: 'machine-2',
+            path: '/repo/custom',
+            scope: { serverId: 'server-b', accountId: 'account-b' },
+        }));
         expect(loadNewSessionDraftMock).toHaveBeenCalled();
         expect(model?.simpleProps?.selectedWorkspaceId).toBeUndefined();
         expect(model?.simpleProps?.selectedWorkspaceLocationId).toBeUndefined();
