@@ -220,6 +220,7 @@ test('spawned listener proof rejects a listener from a foreign process group', a
       {
         listenerOwnershipTimeoutMs: 200,
         listenerOwnershipRetryDelayMs: 0,
+        platform: 'linux',
         listListenPidsWithStatusImpl: async (_port, options) => options.processGroupId
           ? { status: 'ok', supported: true, pids: [] }
           : { status: 'ok', supported: true, pids: [999] },

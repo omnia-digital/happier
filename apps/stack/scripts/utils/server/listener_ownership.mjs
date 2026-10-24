@@ -381,7 +381,7 @@ export async function resolveSpawnedProcessGroupListenPid(
       });
       if (!owned) {
         throw new Error(
-          `[local] server readiness was answered by another or unverified process on port ${serverPort}; ` +
+          `[local] server readiness was answered by another process or an unverified process on port ${serverPort}; ` +
             `spawned pid=${spawnedPid}, listeners=${listenPids.join(', ')}`,
         );
       }
