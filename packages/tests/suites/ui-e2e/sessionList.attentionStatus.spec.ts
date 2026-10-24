@@ -623,6 +623,49 @@ test.describe('ui e2e: session list attention', () => {
     await server?.stop().catch(() => {});
   });
 
+  test('shows current sidebar lifecycle across a real connected turn and reload', async ({ page }) => {
+    test.setTimeout(180_000);
+    if (!server || !token || !uiBaseUrl) throw new Error('missing session list attention fixtures');
+
+    const session = await createPlainSession({
+      baseUrl: server.baseUrl,
+      token,
+      title: 'Current lifecycle badge e2e',
+    });
+    const runtime = await connectAuthenticatedMachinePublisher({
+      baseUrl: server.baseUrl,
+      token,
+      sessionId: session.id,
+      thinking: false,
+    });
+    const stopKeepAlive = startPresenceKeepAlive(runtime, session.id);
+    const badge = (status: string) => page.getByTestId(`session-row-status-${session.id}-${status}`);
+    try {
+      await page.setViewportSize({ width: 1100, height: 800 });
+      await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 300_000);
+      await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+      await expect(row(page, session.id)).toHaveCount(1, { timeout: 120_000 });
+      await expect(badge('idle')).toHaveCount(1, { timeout: 30_000 });
+      await expect(badge('idle')).toHaveAttribute('title', 'Idle');
+
+      await markWorkingSessionInProgress({ baseUrl: server.baseUrl, token, sessionId: session.id });
+      await expect(badge('working')).toHaveCount(1, { timeout: 30_000 });
+
+      await updateSessionRuntimeStatus({ baseUrl: server.baseUrl, token, sessionId: session.id, latestTurnStatus: 'completed' });
+      await expect(badge('finished')).toHaveCount(1, { timeout: 30_000 });
+      await expect(badge('finished')).toHaveAttribute('title', 'Latest turn finished');
+      await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+      await expect(badge('finished')).toHaveCount(1, { timeout: 120_000 });
+
+      await updateSessionRuntimeStatus({ baseUrl: server.baseUrl, token, sessionId: session.id, latestTurnStatus: 'cancelled' });
+      await expect(badge('cancelled')).toHaveCount(1, { timeout: 30_000 });
+      await expect(badge('finished')).toHaveCount(0);
+    } finally {
+      stopKeepAlive();
+      runtime.close();
+    }
+  });
+
   test('keeps narrow rows compact while quiet rows have no attention indicator', async ({ page }) => {
     test.setTimeout(180_000);
     if (!server || !token || !uiBaseUrl || !quiet || !working || !ready) throw new Error('missing session list attention fixtures');
