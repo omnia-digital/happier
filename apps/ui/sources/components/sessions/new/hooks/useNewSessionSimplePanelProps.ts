@@ -151,6 +151,7 @@ export function useNewSessionSimplePanelProps(
         profilePopover,
         pathPopover,
         targetServerId: params.targetServerId,
+        scmScope: params.scmScope,
         attachmentFlowId: params.attachmentFlowId,
         resumePersistedLaunchKey: params.resumePersistedLaunchKey,
     }), [
@@ -209,6 +210,7 @@ export function useNewSessionSimplePanelProps(
         params.showResumePicker,
         params.submitAccessibilityLabel,
         params.targetServerId,
+        params.scmScope,
         params.attachmentFlowId,
         params.resumePersistedLaunchKey,
         params.useProfiles,

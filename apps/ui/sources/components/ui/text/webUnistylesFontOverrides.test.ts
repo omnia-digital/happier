@@ -12,6 +12,46 @@ import {
 } from './webUnistylesFontOverrides';
 
 describe('webUnistylesFontOverrides', () => {
+    it('scales late Unistyles rules when the existing stylesheet text is replaced', async () => {
+        const dom = new JSDOM('<!doctype html><html><head></head><body></body></html>');
+        const { document } = dom.window;
+        const previousMutationObserver = globalThis.MutationObserver;
+        globalThis.MutationObserver = dom.window.MutationObserver;
+        const source = document.createElement('style');
+        source.id = 'unistyles-web';
+        source.textContent = '.unistyles_initial { font-size: 12px; }';
+        document.head.appendChild(source);
+        const overrides = ensureOverrideStyleElement(document);
+        const metrics = new Map<string, { fontSize?: string }>();
+        const sync = vi.fn(() => {
+            scanDocumentForUnistylesFontMetrics(document, metrics);
+            syncOverrideStyleElement(overrides, metrics);
+        });
+        const dispose = observeWebUnistylesFontMetricSources(document, sync);
+        try {
+            sync();
+            // Installed Unistyles CSSState.recreate replaces styleTag.innerText. JSDOM's
+            // textContent exercises the same child-list replacement observed by the browser.
+            source.textContent += '.unistyles_lazy_menu { font-size: 15px; line-height: 20px; }';
+            await new Promise<void>((resolve) => setTimeout(resolve, 0));
+            expect(overrides.textContent).toContain('.unistyles_lazy_menu');
+            expect(overrides.textContent).toContain('calc(15px * var(--happier-ui-font-scale))');
+            expect(sync).toHaveBeenCalledTimes(2);
+
+            source.remove();
+            await new Promise<void>((resolve) => setTimeout(resolve, 0));
+            const callsAfterRemoval = sync.mock.calls.length;
+            source.textContent += '.unistyles_detached { font-size: 19px; }';
+            await new Promise<void>((resolve) => setTimeout(resolve, 0));
+            expect(sync).toHaveBeenCalledTimes(callsAfterRemoval);
+            expect(metrics.has('unistyles_detached')).toBe(false);
+        } finally {
+            dispose();
+            globalThis.MutationObserver = previousMutationObserver;
+            dom.window.close();
+        }
+    });
+
     it('generates calc(var(--scale)) overrides for Unistyles font rules', () => {
         const dom = new JSDOM(`<!doctype html><html><head></head><body></body></html>`);
         const { document } = dom.window;

@@ -4,6 +4,7 @@ import { act } from 'react-test-renderer';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { renderScreen, standardCleanup } from '@/dev/testkit';
+import type { LocalSettings } from '@/sync/domains/settings/localSettings';
 import type { NewSessionDraftProjection } from '@/sync/ops/sessionDrafts/sessionDraftRepository';
 import { FocusReturnProvider, useFocusReturnFallbackRef } from '@/keyboard/focusReturn';
 
@@ -14,6 +15,17 @@ import {
 } from './NewSessionDraftsSection';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+
+const localPresentationSettings = vi.hoisted(() => ({ current: {} as Partial<LocalSettings> }));
+
+vi.mock('@/sync/domains/state/storage', async (importOriginal) => {
+    const { createStorageModuleMock } = await import('@/dev/testkit/mocks/storage');
+    const base = await createStorageModuleMock({ importOriginal, overrides: {} });
+    return {
+        ...base,
+        useLocalSetting: ((key: keyof LocalSettings) => localPresentationSettings.current[key] ?? base.useLocalSetting(key)) as typeof base.useLocalSetting,
+    };
+});
 
 vi.mock('react-native', async () => {
     const { createReactNativeWebMock } = await import('@/dev/testkit/mocks/reactNative');
@@ -102,7 +114,10 @@ function draft(overrides: Partial<NewSessionDraftProjection> = {}): NewSessionDr
 }
 
 describe('NewSessionDraftsSection', () => {
-    afterEach(() => standardCleanup());
+    afterEach(() => {
+        localPresentationSettings.current = {};
+        standardCleanup();
+    });
 
     it('derives a prompt-first title without routine machine, folder, agent, or model metadata', () => {
         const presentation = buildNewSessionDraftRowPresentation(draft(), {});
@@ -231,8 +246,8 @@ describe('NewSessionDraftsSection', () => {
         expect(minimalRow?.props.titleLines).toBe(1);
         expect(minimalRow?.props.subtitle).toBeUndefined();
         expect(minimalRow?.props.style).toMatchObject({
-            height: 34,
-            minHeight: 34,
+            height: 44,
+            minHeight: 44,
             paddingVertical: 0,
         });
         expect(minimalRow?.props.titleStyle).toMatchObject({ fontSize: 12, lineHeight: 16 });
@@ -337,5 +352,34 @@ describe('NewSessionDraftsSection', () => {
         });
         await vi.waitFor(() => expect((globalThis as any).__sessionDraftFocusedTarget).toBe('session-list-focus-fallback'));
         await screen.unmount();
+    });
+
+    it('applies app item density and font scale to rendered draft row geometry', async () => {
+        const projection = draft();
+        const renderDraftRow = async (settings: Partial<LocalSettings>) => {
+            localPresentationSettings.current = settings;
+            const screen = await renderScreen(
+                <NewSessionDraftsSectionView
+                    drafts={[projection]}
+                    density="compact"
+                    onContinue={vi.fn()}
+                    onDelete={vi.fn(async () => false)}
+                />,
+            );
+            const row = screen.findByTestId(`session-draft-row:new-session:${projection.draftId}`);
+            const height = row?.props.style.height;
+            const deleteAction = screen.findByTestId(`session-draft-delete:new-session:${projection.draftId}`);
+            await screen.unmount();
+            return { height, deleteAction: Boolean(deleteAction) };
+        };
+
+        const cozy = await renderDraftRow({ uiItemDensity: 'cozy', uiFontScale: 1 });
+        const compact = await renderDraftRow({ uiItemDensity: 'compact', uiFontScale: 1 });
+        const largerText = await renderDraftRow({ uiItemDensity: 'compact', uiFontScale: 1.3 });
+
+        expect(cozy.height).toBe(58);
+        expect(compact.height).toBeLessThan(cozy.height!);
+        expect(largerText.height).toBeGreaterThan(compact.height!);
+        expect(cozy.deleteAction && compact.deleteAction && largerText.deleteAction).toBe(true);
     });
 });

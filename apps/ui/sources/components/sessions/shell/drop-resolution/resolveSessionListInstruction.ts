@@ -1,3 +1,4 @@
+import { isSessionListTreeDestinationCompatible } from './isSessionListTreeDestinationCompatible';
 import { resolveTreeInstruction, type TreeDropResult, type WindowPointer } from '@/components/ui/treeDragDrop';
 import { resolveSessionListIndexFolderDragEligibility } from '@/sync/domains/session/listing/sessionListIndex';
 import { SESSION_FOLDER_MAX_DEPTH } from '@/sync/domains/session/folders/constants';
@@ -22,12 +23,13 @@ function blocked(reason: SessionListInstructionBlockReason): SessionListTreeDrop
 
 export function resolveSessionListDragEligibilityBlock(params: Readonly<{
     source: SessionListTreeDragSource;
+    tree: SessionListTreeModel;
     foldersFeatureEnabled: boolean;
 }>): SessionListInstructionBlockReason | null {
     if (params.source.metadata.kind === 'workspace-root') return null;
 
     const eligibility = resolveSessionListIndexFolderDragEligibility(params.source.metadata.item, {
-        foldersFeatureEnabled: params.foldersFeatureEnabled,
+        foldersFeatureEnabled: params.foldersFeatureEnabled || params.tree.containerMetadataById.get(params.source.metadata.containerId)?.displayOrderOnly === true,
     });
     if (eligibility.reason === 'eligible') return null;
     if (eligibility.reason === 'feature-disabled') return 'feature-disabled';
@@ -45,9 +47,14 @@ export function resolveSessionListInstruction(params: Readonly<{
 }>): SessionListTreeDropResult {
     const eligibilityBlock = resolveSessionListDragEligibilityBlock({
         source: params.source,
+        tree: params.tree,
         foldersFeatureEnabled: params.foldersFeatureEnabled,
     });
     if (eligibilityBlock) return blocked(eligibilityBlock);
+
+    const allowsDestination = (container: Parameters<typeof isSessionListTreeDestinationCompatible>[1] | null | undefined) => Boolean(container
+        && isSessionListTreeDestinationCompatible(params.source.metadata, container)
+        && (params.foldersFeatureEnabled || (container.displayOrderOnly && container.containerId === params.source.metadata.containerId)));
 
     const resolved: TreeDropResult = resolveTreeInstruction({
         rows: params.tree.rows,
@@ -61,14 +68,16 @@ export function resolveSessionListInstruction(params: Readonly<{
                     return params.tree.containerMetadataById.get(zone.containerId)?.kind === 'workspace-order'
                         && zone.containerId === params.source.metadata.containerId;
                 }
-                return zone.rootId === params.source.metadata.rootId;
+                const container = params.tree.containerMetadataById.get(zone.containerId);
+                return allowsDestination(container);
             },
             canNestInto: (_source, targetId) => {
                 if (params.source.metadata.kind === 'workspace-root') return false;
                 const target = params.tree.rowMetadataById.get(targetId);
                 if (!target) return false;
                 if (target.kind === 'session') return false;
-                return target.rootId === params.source.metadata.rootId;
+                const container = target.childContainerId ? params.tree.containerMetadataById.get(target.childContainerId) : null;
+                return allowsDestination(container);
             },
             canReorderAround: (_source, target) => {
                 const targetMetadata = params.tree.rowMetadataById.get(target.id);
@@ -78,7 +87,8 @@ export function resolveSessionListInstruction(params: Readonly<{
                         && targetMetadata.containerId === params.source.metadata.containerId;
                 }
                 if (targetMetadata.kind === 'workspace-root') return false;
-                return targetMetadata.rootId === params.source.metadata.rootId;
+                const container = params.tree.containerMetadataById.get(targetMetadata.containerId);
+                return allowsDestination(container);
             },
         },
     });

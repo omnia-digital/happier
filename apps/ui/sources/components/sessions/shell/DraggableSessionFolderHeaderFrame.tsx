@@ -33,6 +33,7 @@ export const DraggableSessionFolderHeaderFrame = React.memo(function DraggableSe
     dragKey?: string;
     groupKey: string;
     treeRowId: string;
+    dragEnabled?: boolean;
     dataIndex: number;
     /** Numeric shared values for the single list-level drop overlay. */
     overlayShared: TreeDropOverlaySharedValues;
@@ -72,11 +73,11 @@ export const DraggableSessionFolderHeaderFrame = React.memo(function DraggableSe
             style={animatedStyle}
             onLayout={() => props.onRegisterTreeRowBounds(props.treeRowId, wrapperRef.current)}
         >
-            {props.children(Platform.OS === 'web' ? gesture : undefined)}
+            {props.children(props.dragEnabled !== false && Platform.OS === 'web' ? gesture : undefined)}
         </Animated.View>
     );
 
-    return Platform.OS !== 'web' && gesture
+    return props.dragEnabled !== false && Platform.OS !== 'web' && gesture
         ? <GestureDetector gesture={gesture}>{content}</GestureDetector>
         : content;
 });

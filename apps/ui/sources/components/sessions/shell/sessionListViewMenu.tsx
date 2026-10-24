@@ -32,6 +32,10 @@ function getOrderingModeTitle(mode: SessionListOrderingModeV1): string {
 }
 
 export function SessionListViewMenuButton(props: Readonly<{
+    machineViewMode: 'original' | 'machine' | 'repository';
+    onMachineViewModeChange: (mode: 'original' | 'machine' | 'repository') => void;
+    onRepositoryRefresh?: () => void;
+    repositoryRefreshing?: boolean;
     folderViewMode: SessionFolderViewModeV1;
     onFolderViewModeChange: (mode: SessionFolderViewModeV1) => void;
     orderingMode: SessionListOrderingModeV1;
@@ -53,6 +57,41 @@ export function SessionListViewMenuButton(props: Readonly<{
     const folderSortLockedByOrdering = props.orderingMode !== 'custom';
 
     const items = React.useMemo((): DropdownMenuItem[] => [
+        {
+            id: 'session-view-original',
+            testID: 'session-view-original',
+            category: t('sessionsList.viewOptions'),
+            title: t('sessionsList.machineViewOriginal'),
+            icon: <Icon name="list" size={ICON_SIZE.sm} color={iconColor} />,
+            rightElement: props.machineViewMode === 'original'
+                ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} /> : null,
+        },
+        {
+            id: 'session-view-machine',
+            testID: 'session-view-machine',
+            category: t('sessionsList.viewOptions'),
+            title: t('sessionsList.machineViewGrouped'),
+            icon: <Icon name="desktop" size={ICON_SIZE.sm} color={iconColor} />,
+            rightElement: props.machineViewMode === 'machine'
+                ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} /> : null,
+        },
+        {
+            id: 'session-view-repository',
+            testID: 'session-view-repository',
+            category: t('sessionsList.viewOptions'),
+            title: t('sessionsList.repositoryView'),
+            icon: <Icon name="git-branch" size={ICON_SIZE.sm} color={iconColor} />,
+            rightElement: props.machineViewMode === 'repository'
+                ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} /> : null,
+        },
+        ...(props.machineViewMode === 'repository' ? [{
+            id: 'session-repository-refresh',
+            testID: 'session-repository-refresh',
+            category: t('sessionsList.viewOptions'),
+            title: t('sessionsList.repositoryRefresh'),
+            icon: <Icon name="arrow-clockwise" size={ICON_SIZE.sm} color={iconColor} />,
+            disabled: props.repositoryRefreshing,
+        }] : []),
         ...SESSION_LIST_ORDERING_MODES_V1.map((mode): DropdownMenuItem => ({
             id: mode,
             testID: `session-list-ordering-mode-${mode}`,
@@ -84,9 +123,11 @@ export function SessionListViewMenuButton(props: Readonly<{
             testID: 'session-folder-sort-mode-folders-first',
             category: t('sessionsList.folderSortMode'),
             title: t('sessionsList.folderSortFoldersFirst'),
-            subtitle: t('sessionsList.folderSortFoldersFirstDescription'),
+            subtitle: folderSortLockedByOrdering
+                ? t('sessionsList.folderSortDisabledInDateMode')
+                : t('sessionsList.folderSortFoldersFirstDescription'),
             icon: <Icon name="folder" size={ICON_SIZE.sm} color={iconColor} />,
-            disabled: props.disabled,
+            disabled: props.disabled || folderSortLockedByOrdering,
             rightElement: effectiveFolderSortMode === 'foldersFirst'
                 ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} />
                 : null,
@@ -97,8 +138,10 @@ export function SessionListViewMenuButton(props: Readonly<{
             category: t('sessionsList.folderSortMode'),
             title: t('sessionsList.folderSortMixed'),
             subtitle: folderSortLockedByOrdering
-                ? t('sessionsList.folderSortMixedDisabledInDateMode')
-                : t('sessionsList.folderSortMixedDescription'),
+                ? t('sessionsList.folderSortDisabledInDateMode')
+                : props.machineViewMode === 'machine'
+                    ? t('sessionsList.folderSortMixedDescriptionMachineView')
+                    : t('sessionsList.folderSortMixedDescription'),
             icon: <Icon name="arrows-down-up" size={ICON_SIZE.sm} color={iconColor} />,
             disabled: props.disabled || folderSortLockedByOrdering,
             rightElement: effectiveFolderSortMode === 'mixed'
@@ -120,11 +163,19 @@ export function SessionListViewMenuButton(props: Readonly<{
         props.disabled,
         props.folderViewMode,
         props.hideInactiveSessions,
+        props.machineViewMode,
+        props.repositoryRefreshing,
         props.orderingMode,
         selectedIconColor,
     ]);
 
     const handleSelect = React.useCallback((itemId: string) => {
+        if (itemId === 'session-view-repository') { props.onMachineViewModeChange('repository'); return; }
+        if (itemId === 'session-repository-refresh') { if (!props.repositoryRefreshing) props.onRepositoryRefresh?.(); return; }
+        if (itemId === 'session-view-original' || itemId === 'session-view-machine') {
+            props.onMachineViewModeChange(itemId === 'session-view-machine' ? 'machine' : 'original');
+            return;
+        }
         const orderingMode = resolveOrderingModeAction(itemId);
         if (orderingMode) {
             props.onOrderingModeChange(orderingMode);

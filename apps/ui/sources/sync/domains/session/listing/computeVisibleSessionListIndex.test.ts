@@ -97,6 +97,153 @@ describe('computeVisibleSessionListIndex', () => {
         expect(result).toBe(source);
     });
 
+    it('omits date headers whose only rows moved to Pinned while retaining populated dates in order', () => {
+        const first = 'server:s1:inactive:day:2026-10-13';
+        const middle = 'server:s1:inactive:day:2026-10-12';
+        const last = 'server:s1:inactive:day:2026-10-11';
+        const source: SessionListIndexItem[] = [
+            { type: 'header', headerKind: 'inactive', title: 'Inactive', serverId: 's1' },
+            { type: 'header', headerKind: 'date', title: '10 days ago', serverId: 's1', groupKey: first },
+            { type: 'session', sessionId: 'first', serverId: 's1', section: 'inactive', groupKey: first, groupKind: 'date' },
+            { type: 'session', sessionId: 'first-extra', serverId: 's1', section: 'inactive', groupKey: first, groupKind: 'date' },
+            { type: 'header', headerKind: 'date', title: '11 days ago', serverId: 's1', groupKey: middle },
+            { type: 'session', sessionId: 'middle', serverId: 's1', section: 'inactive', groupKey: middle, groupKind: 'date' },
+            { type: 'header', headerKind: 'date', title: '12 days ago', serverId: 's1', groupKey: last },
+            { type: 'session', sessionId: 'last', serverId: 's1', section: 'inactive', groupKey: last, groupKind: 'date' },
+        ];
+        const rows = makeResolver({
+            's1:first': makeSessionRow('first'),
+            's1:first-extra': makeSessionRow('first-extra'),
+            's1:middle': makeSessionRow('middle'),
+            's1:last': makeSessionRow('last'),
+        });
+        const project = (pinnedSessionKeysV1: string[]) => computeVisibleSessionListIndex({
+            source,
+            resolveSessionRow: rows,
+            hideInactiveSessions: false,
+            pinnedSessionKeysV1,
+            sessionListGroupOrderV1: {},
+            sessionListOrderingModeV1: 'custom',
+            presentation: { enabled: false, presentation: 'grouped', selectedServerIds: [] },
+        })!.map((item) => item.type === 'header' ? `h:${item.title}` : `s:${item.sessionId}`);
+
+        expect(project(['s1:middle'])).toEqual([
+            'h:Pinned', 's:middle', 'h:Inactive', 'h:10 days ago', 's:first', 's:first-extra', 'h:12 days ago', 's:last',
+        ]);
+        expect(project(['s1:first-extra', 's1:middle'])).toEqual([
+            'h:Pinned', 's:first-extra', 's:middle', 'h:Inactive', 'h:10 days ago', 's:first', 'h:12 days ago', 's:last',
+        ]);
+        expect(project([])).toEqual([
+            'h:Inactive', 'h:10 days ago', 's:first', 's:first-extra', 'h:11 days ago', 's:middle', 'h:12 days ago', 's:last',
+        ]);
+    });
+
+    it('drops dates emptied by archive or inactive filtering without borrowing rows across sections or servers', () => {
+        const first = 'server:s1:inactive:day:2026-10-13';
+        const second = 'server:s1:inactive:day:2026-10-12';
+        const otherServer = 'server:s2:active:project:repo';
+        const source: SessionListIndexItem[] = [
+            { type: 'header', headerKind: 'inactive', title: 'Inactive', serverId: 's1' },
+            { type: 'header', headerKind: 'date', title: '10 days ago', serverId: 's1', groupKey: first },
+            { type: 'session', sessionId: 'archivable', serverId: 's1', section: 'inactive', groupKey: first, groupKind: 'date' },
+            { type: 'header', headerKind: 'date', title: '11 days ago', serverId: 's1', groupKey: second },
+            { type: 'session', sessionId: 'inactive', serverId: 's1', section: 'inactive', groupKey: second, groupKind: 'date' },
+            { type: 'header', headerKind: 'active', title: 'Active', serverId: 's2' },
+            { type: 'header', headerKind: 'project', title: 'Repo', serverId: 's2', groupKey: otherServer },
+            { type: 'session', sessionId: 'active', serverId: 's2', section: 'active', groupKey: otherServer, groupKind: 'project' },
+        ];
+        const project = (archived: boolean, hideInactiveSessions: boolean, archiveActive = false) => computeVisibleSessionListIndex({
+            source,
+            resolveSessionRow: makeResolver({
+                's1:archivable': makeSessionRow('archivable', { archivedAt: archived ? 1 : null }),
+                's1:inactive': makeSessionRow('inactive'),
+                's2:active': makeSessionRow('active', { active: true, archivedAt: archiveActive ? 1 : null }),
+            }),
+            hideInactiveSessions,
+            pinnedSessionKeysV1: [],
+            sessionListGroupOrderV1: {},
+            sessionListOrderingModeV1: 'custom',
+            presentation: { enabled: false, presentation: 'grouped', selectedServerIds: [] },
+        })!.map((item) => item.type === 'header' ? `h:${item.serverId}:${item.title}` : `s:${item.serverId}:${item.sessionId}`);
+
+        expect(project(true, false)).toEqual([
+            'h:s1:Inactive', 'h:s1:11 days ago', 's:s1:inactive', 'h:s2:Active', 'h:s2:Repo', 's:s2:active',
+        ]);
+        expect(project(false, false)).toEqual([
+            'h:s1:Inactive', 'h:s1:10 days ago', 's:s1:archivable', 'h:s1:11 days ago', 's:s1:inactive',
+            'h:s2:Active', 'h:s2:Repo', 's:s2:active',
+        ]);
+        expect(project(false, true)).toEqual(['h:s2:Active', 'h:s2:Repo', 's:s2:active']);
+        expect(project(true, true, true)).toEqual([]);
+    });
+
+    it('prunes an inactive-only date after filtering a unified sessions section', () => {
+        const hidden = 'server:s1:sessions:day:2026-10-13';
+        const visible = 'server:s1:sessions:day:2026-10-12';
+        const source: SessionListIndexItem[] = [
+            { type: 'header', headerKind: 'sessions', title: 'Sessions', serverId: 's1' },
+            { type: 'header', headerKind: 'date', title: '10 days ago', serverId: 's1', groupKey: hidden },
+            { type: 'session', sessionId: 'inactive', serverId: 's1', section: 'inactive', groupKey: hidden, groupKind: 'date' },
+            { type: 'header', headerKind: 'date', title: '11 days ago', serverId: 's1', groupKey: visible },
+            { type: 'session', sessionId: 'active', serverId: 's1', section: 'active', groupKey: visible, groupKind: 'date' },
+        ];
+
+        const result = computeVisibleSessionListIndex({
+            source,
+            resolveSessionRow: makeResolver({
+                's1:inactive': makeSessionRow('inactive'),
+                's1:active': makeSessionRow('active', { active: true }),
+            }),
+            hideInactiveSessions: true,
+            pinnedSessionKeysV1: [],
+            sessionListGroupOrderV1: {},
+            sessionListOrderingModeV1: 'custom',
+            sessionListSectionModeV1: 'single',
+            presentation: { enabled: false, presentation: 'grouped', selectedServerIds: [] },
+        })!;
+
+        expect(result.map((item) => item.type === 'header' ? `h:${item.title}` : `s:${item.sessionId}`))
+            .toEqual(['h:Sessions', 'h:11 days ago', 's:active']);
+    });
+
+    it('removes a date when its last row is promoted to global attention and restores it on resolution', () => {
+        const first = 'server:s1:active:day:2026-10-13';
+        const second = 'server:s1:active:day:2026-10-12';
+        const source: SessionListIndexItem[] = [
+            { type: 'header', headerKind: 'active', title: 'Active', serverId: 's1' },
+            { type: 'header', headerKind: 'date', title: '10 days ago', serverId: 's1', groupKey: first },
+            { type: 'session', sessionId: 'request', serverId: 's1', section: 'active', groupKey: first, groupKind: 'date' },
+            { type: 'header', headerKind: 'date', title: '11 days ago', serverId: 's1', groupKey: second },
+            { type: 'session', sessionId: 'ordinary', serverId: 's1', section: 'active', groupKey: second, groupKind: 'date' },
+        ];
+        const nowMs = 1_000_000;
+        const project = (pending: boolean) => computeVisibleSessionListIndex({
+            source,
+            resolveSessionRow: makeResolver({
+                's1:request': makeSessionRow('request', {
+                    active: true,
+                    presence: 'online',
+                    activeAt: nowMs,
+                    hasPendingPermissionRequests: pending,
+                    pendingRequestObservedAt: pending ? nowMs : null,
+                }),
+                's1:ordinary': makeSessionRow('ordinary', { active: true, presence: 'online', activeAt: nowMs }),
+            }),
+            hideInactiveSessions: false,
+            pinnedSessionKeysV1: [],
+            sessionListGroupOrderV1: {},
+            sessionListOrderingModeV1: 'custom',
+            presentation: { enabled: false, presentation: 'grouped', selectedServerIds: [] },
+            attentionPromotion: { mode: 'global' },
+            nowMs,
+        })!.map((item) => item.type === 'session'
+            ? `s:${item.sessionId}`
+            : item.headerKind === 'attention' ? 'h:attention' : `h:${item.title}`);
+
+        expect(project(true)).toEqual(['h:attention', 's:request', 'h:Active', 'h:11 days ago', 's:ordinary']);
+        expect(project(false)).toEqual(['h:Active', 'h:10 days ago', 's:request', 'h:11 days ago', 's:ordinary']);
+    });
+
     it('uses the normalized organization projection instead of legacy pin and order inputs', () => {
         const groupKey = 'server:s1:active:project:repo';
         const source: SessionListIndexItem[] = [

@@ -23,6 +23,10 @@ vi.mock('@/sync/domains/server/serverRuntime', () => ({
   getActiveServerSnapshot: () => ({ serverId: 'server-1' }),
 }));
 
+vi.mock('@/sync/domains/scope/activeServerAccountScope', () => ({
+  getActiveServerAccountScope: () => ({ serverId: 'server-1', accountId: 'account-1' }),
+}));
+
 vi.mock('@/sync/domains/session/directSessions/readDirectSessionLink', () => ({
   readDirectSessionLink: () => null,
 }));
@@ -184,8 +188,13 @@ describe('ensureVoiceConversationSessionForVoiceHome', () => {
   it('routes recent voice-home spawn targets through active machine replacements', async () => {
     state.settings.recentMachinePaths = [{
       machineId: 'machine-old',
-      path: '/Users/test/.happier/voice-agent',
+      path: '/other/account',
     }];
+    state.settings.machinePathPreferencesByTargetV1 = {
+      [JSON.stringify(['server-1', 'account-1', 'machine-old'])]: {
+        favorites: [], recentPaths: ['/Users/test/.happier/voice-agent'],
+      },
+    };
     state.machines = {
       'machine-old': {
         id: 'machine-old',

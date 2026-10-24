@@ -35,7 +35,16 @@ vi.mock('@/platform/randomUUID', () => ({
     randomUUID: mocks.randomUUID,
 }));
 
-const credentials = { token: 'token-a', secret: 'secret-a' };
+vi.mock('@/auth/storage/tokenStorage', async (original) => {
+    const actual = await original<typeof import('@/auth/storage/tokenStorage')>();
+    return { ...actual, TokenStorage: { ...actual.TokenStorage, getCredentialsForServerUrl: async () => credentials } };
+});
+vi.mock('@/sync/domains/server/serverProfiles', async (original) => ({
+    ...await original<typeof import('@/sync/domains/server/serverProfiles')>(),
+    getServerProfileById: () => ({ id: 'server-a', serverUrl: 'https://server-a.test' }),
+}));
+
+const credentials = { token: `header.${Buffer.from(JSON.stringify({ sub: 'account-a' })).toString('base64')}.signature`, secret: 'secret-a' };
 const machineKey = new Uint8Array(32).fill(8);
 
 describe('session organization display write ops', () => {
@@ -54,6 +63,7 @@ describe('session organization display write ops', () => {
         mocks.randomUUID.mockReset();
         mocks.randomUUID.mockReturnValue('11111111-2222-4333-8444-555555555555');
         const { getStorage } = await import('@/sync/domains/state/storageStore');
+        getStorage().setState({ profileScope: { serverId: 'server-a', accountId: 'account-a' } });
         getStorage().getState().clearSessionOrganizationForServer('server-a');
     });
 

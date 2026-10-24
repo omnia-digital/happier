@@ -1,3 +1,4 @@
+import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import React from 'react';
 
 import { useResolvedActiveServerSelection } from '@/hooks/server/useEffectiveServerSelection';
@@ -8,7 +9,7 @@ import {
     useLocalSettingMutable,
     useMachineDisplayById,
     useProfile,
-    useSessionOrganizationProjection,
+    useSessionOrganizationProjections,
     useSetting,
     useSettingMutable,
 } from '@/sync/domains/state/storage';
@@ -17,24 +18,21 @@ import {
     buildSessionListIndexFromViewData,
     type SessionListIndexItem,
 } from '@/sync/domains/session/listing/sessionListIndex';
-import type { SessionFolderV1, SessionFoldersV1 } from '@/sync/domains/session/folders';
+import type { SessionFoldersV1 } from '@/sync/domains/session/folders';
 import { normalizeSessionListFolderSortMode } from '@/sync/domains/session/listing/sessionListFolderSortMode';
 import {
     normalizeSessionListOrderingModeV1,
     resolveEffectiveSessionListFolderSortMode,
 } from '@/sync/domains/session/listing/sessionListOrderingRules';
 import {
-    buildSessionOrganizationListViewState,
-    buildSessionOrganizationReorderRequestFromGroupOrder,
+    buildSessionOrganizationListViewStateForServers,
     buildSessionOrganizationReorderRequestFromWorkspaceOrder,
 } from '@/sync/domains/session/organization/viewState';
 import {
-    deleteSessionFolder as deleteSessionOrganizationFolder,
     deleteSessionLabel as deleteSessionOrganizationLabel,
     reorderSessionOrganization,
     setSessionPin as setSessionOrganizationPin,
     setSessionTagLabels as setSessionOrganizationTagLabels,
-    upsertSessionFolder as upsertSessionOrganizationFolder,
     upsertSessionLabel as upsertSessionOrganizationLabel,
 } from '@/sync/ops/sessionOrganization';
 import { syncPerformanceTelemetry } from '@/sync/runtime/syncPerformanceTelemetry';
@@ -69,6 +67,10 @@ import {
 } from '../sessionListFilters';
 import { useSessionListSnapshotWhenInactive } from '../surface/useSessionListSnapshotWhenInactive';
 import { resolveSessionOrganizationMutationScope, type SessionOrganizationMutationScope } from '@/sync/domains/session/organization/mutationScope';
+import { persistSessionListFolders } from '../commit/persistSessionListFolders';
+import { persistSessionListGroupOrder } from '../commit/persistSessionListGroupOrder';
+import { projectSessionListMachineView } from './projectSessionListMachineView';
+import { useSessionRepositoryView, type SessionListViewMode } from './useSessionRepositoryView';
 
 const EMPTY_SESSION_KEYS: ReadonlyArray<string> = Object.freeze([]);
 const EMPTY_SESSION_LIST_GROUP_ORDER: Readonly<Record<string, ReadonlyArray<string> | undefined>> = Object.freeze({});
@@ -104,23 +106,6 @@ function normalizeStringArray(values: readonly string[] | null | undefined): str
         out.push(normalized);
     }
     return out;
-}
-
-function buildFolderDisplay(folder: SessionFolderV1): { t: 'plain'; v: { name: string; workspace: SessionFolderV1['workspace'] } } {
-    return {
-        t: 'plain',
-        v: {
-            name: folder.name,
-            workspace: folder.workspace,
-        },
-    };
-}
-
-function areFolderDefinitionsEqual(left: SessionFolderV1, right: SessionFolderV1): boolean {
-    return left.name === right.name
-        && left.parentId === right.parentId
-        && (left.sortKey ?? null) === (right.sortKey ?? null)
-        && JSON.stringify(left.workspace) === JSON.stringify(right.workspace);
 }
 
 function measureSessionListRenderDerivation<T>(
@@ -160,6 +145,7 @@ export function useSessionListViewState({
     const isTablet = useIsTablet();
     const [sessionMruOrderV1, setSessionMruOrderV1] = useLocalSettingMutable('sessionMruOrderV1');
     const [sessionListFolderSortModeRaw, setSessionListFolderSortModeV1] = useLocalSettingMutable('sessionListFolderSortModeV1');
+    const [sessionListMachineViewRaw, persistSessionListMachineViewV1] = useLocalSettingMutable('sessionListMachineViewV1');
     const [sessionListOrderingModeRaw, setSessionListOrderingModeV1] = useSettingMutable('sessionListOrderingModeV1');
     const [sessionFolderViewModeRaw, setSessionFolderViewModeV1] = useSessionFolderViewModeMutable('sessionFolderViewModeV1');
     const sessionTagsEnabled = useSetting('sessionTagsEnabled');
@@ -177,11 +163,8 @@ export function useSessionListViewState({
     );
     const selection = useResolvedActiveServerSelection();
     const activeOrganizationServerId = selection.activeServerId ?? null;
-    const organizationProjection = useSessionOrganizationProjection(activeOrganizationServerId);
-    const organizationListViewState = React.useMemo(() => buildSessionOrganizationListViewState({
-        serverId: activeOrganizationServerId ?? '',
-        projection: organizationProjection,
-    }), [activeOrganizationServerId, organizationProjection]);
+    const organizationProjections = useSessionOrganizationProjections(selection.enabled ? selection.allowedServerIds : [selection.activeServerId]);
+    const organizationListViewState = React.useMemo(() => buildSessionOrganizationListViewStateForServers(organizationProjections), [organizationProjections]);
     const sessionFoldersDecision = useFeatureDecision('sessions.folders');
 
     const hideInactiveSessions = hideInactiveSessionsSetting === true;
@@ -196,6 +179,8 @@ export function useSessionListViewState({
     const sessionFolderViewMode: SessionFolderViewModeV1 = sessionFolderViewModeRaw === 'tree' ? 'tree' : 'off';
     const sessionListSavedFolderSortMode = normalizeSessionListFolderSortMode(sessionListFolderSortModeRaw);
     const sessionListOrderingMode = normalizeSessionListOrderingModeV1(sessionListOrderingModeRaw);
+    const sessionListMachineViewMode: SessionListViewMode = sessionListMachineViewRaw === 'repository' ? 'repository' : sessionListMachineViewRaw === 'machine' ? 'machine' : 'original';
+    const sessionListSectionMode = useSetting('sessionListSectionModeV1') === 'single' ? 'single' : 'activity';
     const sessionListFolderSortMode = resolveEffectiveSessionListFolderSortMode({
         orderingMode: sessionListOrderingMode,
         folderSortMode: sessionListSavedFolderSortMode,
@@ -213,7 +198,7 @@ export function useSessionListViewState({
     const sessionListGroupOrderV1 = organizationListViewState.sessionListGroupOrderV1;
     const sessionWorkspaceOrderV1 = organizationListViewState.sessionWorkspaceOrderV1;
     const workspaceLabelsV1 = organizationListViewState.workspaceLabelsV1;
-    const currentGroupOrderMap = sessionListGroupOrderV1 ?? EMPTY_SESSION_LIST_GROUP_ORDER;
+    const activeGroupOrderMap = sessionListGroupOrderV1 ?? EMPTY_SESSION_LIST_GROUP_ORDER;
     const currentWorkspaceOrderMap = sessionWorkspaceOrderV1 ?? EMPTY_SESSION_WORKSPACE_ORDER;
 
     const pinnedKeySet = React.useMemo(() => {
@@ -284,20 +269,6 @@ export function useSessionListViewState({
         });
     }, [getOrganizationMutationContext, runOrganizationMutation, sessionTagsV1]);
 
-    const setSessionListGroupOrderV1 = React.useCallback((nextOrder: Record<string, readonly string[] | undefined>) => {
-        runOrganizationMutation(async () => {
-            const mutation = await getOrganizationMutationContext();
-            if (!mutation) return;
-            const requests = Object.entries(nextOrder ?? {})
-                .map(([scopeKey, itemKeys]) => buildSessionOrganizationReorderRequestFromGroupOrder({
-                    serverId: mutation.serverId,
-                    scopeKey,
-                    itemKeys: itemKeys ?? [],
-                }))
-                .filter((request): request is NonNullable<typeof request> => request != null);
-            await Promise.all(requests.map((request) => reorderSessionOrganization({ ...mutation, request })));
-        });
-    }, [getOrganizationMutationContext, runOrganizationMutation]);
 
     const setSessionWorkspaceOrderV1 = React.useCallback((nextOrder: Record<string, readonly string[] | undefined>) => {
         runOrganizationMutation(async () => {
@@ -314,41 +285,12 @@ export function useSessionListViewState({
         });
     }, [getOrganizationMutationContext, runOrganizationMutation]);
 
-    const setSessionFoldersV1 = React.useCallback((nextFolders: SessionFoldersV1) => {
-        runOrganizationMutation(async () => {
-            const mutation = await getOrganizationMutationContext();
-            if (!mutation) return;
-            const currentById = new Map((sessionFoldersV1.folders ?? []).map((folder) => [folder.id, folder]));
-            const nextById = new Map((nextFolders.folders ?? []).map((folder) => [folder.id, folder]));
-            const tasks: Promise<void>[] = [];
-            for (const folder of nextById.values()) {
-                const current = currentById.get(folder.id);
-                if (current && areFolderDefinitionsEqual(current, folder)) continue;
-                tasks.push(upsertSessionOrganizationFolder({
-                    ...mutation,
-                    request: {
-                        folderId: folder.id,
-                        folderKey: folder.id,
-                        parentFolderId: folder.parentId,
-                        parentFolderKey: folder.parentId,
-                        sortKey: folder.sortKey ?? null,
-                        display: buildFolderDisplay(folder),
-                    },
-                }));
-            }
-            for (const folder of currentById.values()) {
-                if (nextById.has(folder.id)) continue;
-                tasks.push(deleteSessionOrganizationFolder({
-                    ...mutation,
-                    request: {
-                        folderId: folder.id,
-                        assignmentBehavior: 'moveAssignmentsToParent',
-                    },
-                }));
-            }
-            await Promise.all(tasks);
-        });
-    }, [getOrganizationMutationContext, runOrganizationMutation, sessionFoldersV1]);
+    const setSessionFoldersV1 = React.useCallback((nextFolders: SessionFoldersV1, target?: Readonly<{ scope: ServerAccountScope; current: SessionFoldersV1 }>) => {
+        runOrganizationMutation(() => persistSessionListFolders({
+            current: target?.current ?? sessionFoldersV1, next: nextFolders,
+            serverId: activeOrganizationServerId, scope: target?.scope,
+        }));
+    }, [activeOrganizationServerId, runOrganizationMutation, sessionFoldersV1]);
 
     const setWorkspaceLabelsV1 = React.useCallback((nextLabelsRaw: Record<string, string>) => {
         runOrganizationMutation(async () => {
@@ -389,14 +331,42 @@ export function useSessionListViewState({
         });
     }, [getOrganizationMutationContext, runOrganizationMutation, workspaceLabelsV1]);
 
-    const folderPresentedData = React.useMemo(() => {
-        if (!data || !folderViewEnabled) return data;
-        return applySessionFoldersToSessionListViewData(data, {
+    const machinePresentedData = React.useMemo(() => {
+        if (!data || sessionListMachineViewMode !== 'machine') return data;
+        return projectSessionListMachineView(data, renderMachineDisplayById, workspaceLabelsV1);
+    }, [data, renderMachineDisplayById, sessionListMachineViewMode, workspaceLabelsV1]);
+
+    const physicalFolderPresentedData = React.useMemo(() => {
+        if (!machinePresentedData || !folderViewEnabled) return machinePresentedData;
+        return applySessionFoldersToSessionListViewData(machinePresentedData, {
             enabled: true,
             folders: sessionFoldersV1,
             assignmentsBySessionKey: sessionFolderAssignmentsBySessionKey,
         });
-    }, [data, folderViewEnabled, sessionFolderAssignmentsBySessionKey, sessionFoldersV1]);
+    }, [machinePresentedData, folderViewEnabled, sessionFolderAssignmentsBySessionKey, sessionFoldersV1]);
+
+    const reportRepositoryDiscoveryFailure = React.useCallback(() => {
+        Modal.alert(t('common.error'), t('sessionsList.repositoryRefreshFailed'));
+    }, []);
+    const repositoryView = useSessionRepositoryView({
+        items: physicalFolderPresentedData,
+        mode: sessionListMachineViewMode,
+        setMode: persistSessionListMachineViewV1,
+        onFailure: reportRepositoryDiscoveryFailure,
+        groupOrder: activeGroupOrderMap,
+        orderingMode: sessionListOrderingMode,
+        sectionMode: sessionListSectionMode,
+        folderSortMode: sessionListFolderSortMode,
+    });
+    const currentGroupOrderMap = repositoryView.groupOrder;
+    const setSessionListGroupOrderV1 = React.useCallback((nextOrder: Record<string, readonly string[] | undefined>) => {
+        runOrganizationMutation(() => persistSessionListGroupOrder({
+            currentOrder: currentGroupOrderMap, nextOrder, defaultServerId: activeOrganizationServerId,
+            groupScopes: repositoryView.orderScopes,
+        }));
+    }, [activeOrganizationServerId, currentGroupOrderMap, repositoryView.orderScopes, runOrganizationMutation]);
+    const folderPresentedData = repositoryView.items;
+    const setSessionListMachineViewV1 = repositoryView.selectMode;
 
     const headerFiltersActive = hasActiveSessionListHeaderFilters(headerFilters);
 
@@ -513,6 +483,12 @@ export function useSessionListViewState({
         sessionFolderViewMode,
         setSessionFolderViewModeV1,
         sessionListOrderingMode,
+        sessionListMachineViewMode,
+        refreshSessionRepositories: repositoryView.refresh,
+        getRepositoryAssociationChoices: repositoryView.getAssociationChoices,
+        associateSessionRepository: repositoryView.associate,
+        sessionRepositoriesRefreshing: repositoryView.refreshing,
+        setSessionListMachineViewV1,
         setSessionListOrderingModeV1,
         sessionListSavedFolderSortMode,
         sessionListFolderSortMode,

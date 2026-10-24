@@ -46,6 +46,36 @@ function getNodeByTestID(screen: { findByTestId: (testID: string) => any }, test
 }
 
 describe('WebAlertModal', () => {
+    it('confirms Enter only for the dialog that opts in and leaves Escape to the dialog close owner', async () => {
+        const { WebAlertModal } = await import('./WebAlertModal');
+        const onClose = vi.fn();
+        const onConfirm = vi.fn();
+        await renderScreen(<WebAlertModal
+            config={{ id: 'archive-shortcut', type: 'confirm', title: 'Archive', confirmOnEnter: true }}
+            onClose={onClose}
+            onConfirm={onConfirm}
+        />);
+        const [baseModalProps] = baseModalSpy.mock.calls.at(-1)!;
+        const event = {
+            key: 'Enter', repeat: false, nativeEvent: { isComposing: false }, defaultPrevented: false,
+            preventDefault: vi.fn(), stopPropagation: vi.fn(),
+        };
+        baseModalProps.onWebKeyDownCapture({ ...event, key: 'Escape' });
+        expect(onConfirm).not.toHaveBeenCalled();
+        baseModalProps.onWebKeyDownCapture({ ...event, repeat: true });
+        expect(onConfirm).not.toHaveBeenCalled();
+        baseModalProps.onWebKeyDownCapture(event);
+        expect(onConfirm).toHaveBeenCalledExactlyOnceWith(true);
+        expect(onClose).toHaveBeenCalledOnce();
+        expect(event.preventDefault).toHaveBeenCalledOnce();
+
+        await renderScreen(<WebAlertModal
+            config={{ id: 'unrelated-confirm', type: 'confirm', title: 'Unrelated' }}
+            onClose={vi.fn()}
+            onConfirm={vi.fn()}
+        />);
+        expect(baseModalSpy.mock.calls.at(-1)?.[0].onWebKeyDownCapture).toBeUndefined();
+    });
     it('keeps alert body content intrinsically measurable inside fit-layout cards', async () => {
         const { WebAlertModal } = await import('./WebAlertModal');
 

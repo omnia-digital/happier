@@ -133,7 +133,7 @@ describe('useNewSessionMachinePathState', () => {
         });
 
         expect(getSelection(hook.getCurrent())).toEqual({
-            selectedMachineId: 'machine-other',
+            selectedMachineId: 'machine-target',
             selectedPath: '/repo/desired',
         });
 
@@ -170,8 +170,8 @@ describe('useNewSessionMachinePathState', () => {
         });
 
         expect(getSelection(hook.getCurrent())).toEqual({
-            selectedMachineId: 'machine-other',
-            selectedPath: '/other',
+            selectedMachineId: 'machine-target',
+            selectedPath: '',
         });
 
         await hook.rerender({
@@ -186,6 +186,60 @@ describe('useNewSessionMachinePathState', () => {
             selectedPath: '/target',
         });
 
+        await hook.unmount();
+    });
+
+    it('keeps a newly requested unavailable machine and path instead of selecting another online machine', async () => {
+        const machines = toMachines({ id: 'machine-other', metadata: { homeDir: '/other' } });
+        const hook = await renderMachinePathState({
+            machines,
+            recentMachinePaths: [],
+            machineIdParam: null,
+            pathParam: null,
+        });
+        expect(getSelection(hook.getCurrent()).selectedMachineId).toBe('machine-other');
+
+        await hook.rerender({
+            machines,
+            recentMachinePaths: [],
+            machineIdParam: 'machine-unavailable',
+            pathParam: '/source/worktree',
+        });
+        expect(getSelection(hook.getCurrent())).toEqual({
+            selectedMachineId: 'machine-unavailable',
+            selectedPath: '/source/worktree',
+        });
+
+        await hook.rerender({
+            machines: toMachines({ id: 'machine-other', metadata: { homeDir: '/other' } }),
+            recentMachinePaths: [],
+            machineIdParam: 'machine-unavailable',
+            pathParam: '/source/worktree',
+        });
+        expect(getSelection(hook.getCurrent())).toEqual({
+            selectedMachineId: 'machine-unavailable',
+            selectedPath: '/source/worktree',
+        });
+        await hook.unmount();
+    });
+
+    it('keeps the new route target when navigating between two missing machines', async () => {
+        const machines = toMachines({ id: 'machine-other', metadata: { homeDir: '/other' } });
+        const hook = await renderMachinePathState({
+            machines,
+            recentMachinePaths: [],
+            machineIdParam: 'missing-a',
+            pathParam: '/repo/a',
+        });
+        expect(getSelection(hook.getCurrent())).toEqual({ selectedMachineId: 'missing-a', selectedPath: '/repo/a' });
+
+        await hook.rerender({
+            machines,
+            recentMachinePaths: [],
+            machineIdParam: 'missing-b',
+            pathParam: '/repo/b',
+        });
+        expect(getSelection(hook.getCurrent())).toEqual({ selectedMachineId: 'missing-b', selectedPath: '/repo/b' });
         await hook.unmount();
     });
 
@@ -579,8 +633,8 @@ describe('useNewSessionMachinePathState', () => {
         });
 
         expect(getSelection(hook.getCurrent())).toEqual({
-            selectedMachineId: 'machine-online',
-            selectedPath: '/offline',
+            selectedMachineId: 'machine-offline-next',
+            selectedPath: '',
         });
 
         await hook.unmount();

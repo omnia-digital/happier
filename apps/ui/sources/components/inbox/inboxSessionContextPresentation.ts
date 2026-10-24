@@ -4,6 +4,7 @@ import { resolveSessionWorkspacePresentation } from '@/sync/domains/session/list
 
 export type InboxSessionContextPresentation = Readonly<{
     machineLabel: string | null;
+    machineId: string | null;
     workspaceName: string | null;
 }>;
 
@@ -22,6 +23,7 @@ export function buildInboxSessionContextByKey(params: Readonly<{
         });
         result.set(key, {
             machineLabel: presentation.machineId ? presentation.machineLabel : null,
+            machineId: presentation.machineId,
             workspaceName: presentation.displayTitle || null,
         });
     }

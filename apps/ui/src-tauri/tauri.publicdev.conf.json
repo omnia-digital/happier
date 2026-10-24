@@ -1,8 +1,21 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Happier (dev)",
+  "productName": "(Dev) Omnia - Happier",
   "mainBinaryName": "happier-desktop-dev",
   "identifier": "dev.happier.app.publicdev",
+  "bundle": {
+    "macOS": {
+      "infoPlist": "Info.dev.plist"
+    },
+    "icon": [
+      "icons/dev/32x32.png",
+      "icons/dev/128x128.png",
+      "icons/dev/128x128@2x.png",
+      "icons/dev/AppIcon.icon",
+      "icons/dev/icon.icns",
+      "icons/dev/icon.ico"
+    ]
+  },
   "plugins": {
     "deep-link": {
       "desktop": {
@@ -29,7 +42,7 @@
       {
         "label": "main",
         "create": false,
-        "title": "Happier (dev)",
+        "title": "(Dev) Omnia - Happier",
         "width": 800,
         "height": 600,
         "visible": false,

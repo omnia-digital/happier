@@ -30,6 +30,7 @@ describe('CommandPalette', () => {
                     title: 'Command',
                     action: () => {},
                 }],
+                navigateToSession: () => {},
                 onClose: () => {},
                 setChrome,
             }),

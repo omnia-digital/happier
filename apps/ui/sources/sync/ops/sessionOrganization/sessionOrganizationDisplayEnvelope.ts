@@ -53,8 +53,9 @@ function plainEnvelope(value: unknown): PlainSessionOrganizationDisplayEnvelope 
 export async function prepareSessionOrganizationDisplayEnvelope(params: Readonly<{
     credentials: AuthCredentials;
     value: unknown;
+    serverUrl?: string;
 }>): Promise<SessionOrganizationContentEnvelope> {
-    const mode = await fetchAccountEncryptionMode(params.credentials);
+    const mode = await fetchAccountEncryptionMode(params.credentials, { endpointUrl: params.serverUrl });
     if (mode.mode === 'plain') {
         return plainEnvelope(params.value);
     }
@@ -68,12 +69,14 @@ export async function prepareSessionOrganizationDisplayEnvelope(params: Readonly
 export async function prepareSessionOrganizationDisplayEnvelopeForWrite(params: Readonly<{
     credentials: AuthCredentials;
     envelope: SessionOrganizationContentEnvelope | null | undefined;
+    serverUrl?: string;
 }>): Promise<SessionOrganizationContentEnvelope | null> {
     if (!params.envelope) return null;
     if (params.envelope.t === 'encrypted') return params.envelope;
     return prepareSessionOrganizationDisplayEnvelope({
         credentials: params.credentials,
         value: params.envelope.v,
+        serverUrl: params.serverUrl,
     });
 }
 

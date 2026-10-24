@@ -28,13 +28,12 @@ vi.mock('@/components/sessions/shell/SessionListIdentity', () => ({
     useSessionListIdentityDisplay: () => 'agentLogo',
 }));
 vi.mock('@/components/ui/feedback/ActivitySpinner', () => ({ ActivitySpinner: 'ActivitySpinner' }));
-vi.mock('@/components/ui/icons/Icon', () => ({ Icon: 'Icon' }));
 vi.mock('@/components/ui/lists/Item', () => ({ Item: 'Item' }));
 vi.mock('@/components/ui/text/Text', () => ({ Text: 'Text' }));
 vi.mock('@/components/ui/cards/UserCard', () => ({ UserCard: 'UserCard' }));
 vi.mock('@/text', async () => {
     const { createTextModuleMock } = await import('@/dev/testkit/mocks/text');
-    return createTextModuleMock({ translate: (key: string) => key });
+    return createTextModuleMock({ translate: (key: string) => key === 'inbox.panelDescription' ? 'Inbox panel explanation' : key });
 });
 
 const failedSession = {
@@ -116,12 +115,98 @@ function createModel(sessionListIdentityDisplay: InboxContentModel['sessionListI
 }
 
 describe('InboxContent', () => {
+    it('explains response requests, blocked delivery, and informational updates per row', async () => {
+        const model = createModel();
+        model.sessionsNeedingAttention.push({
+            key: 'home:blocked',
+            serverId: 'home',
+            sessionId: 'blocked',
+            session: { id: 'blocked', metadata: { name: 'Blocked' }, active: true } as never,
+            reason: 'delivery_blocked',
+            pendingPermissions: [],
+            pendingUserActions: [],
+        });
+        model.sessionsNeedingAttention.push({
+            key: 'home:permission',
+            serverId: 'home',
+            sessionId: 'permission',
+            session: { id: 'permission', metadata: { name: 'Permission' }, active: true } as never,
+            reason: 'permission_required',
+            pendingPermissions: [],
+            pendingUserActions: [],
+        });
+        const { InboxContent } = await import('./InboxContent');
+        const screen = await renderScreen(<InboxContent model={model} />);
+        const rows = screen.tree.root.findAllByType('Item' as never);
+
+        expect(rows.find((row) => row.props.testID === 'inbox.session_attention.home.actionable')?.props.subtitle).toContain('inbox.sessionReason.inputRequired');
+        expect(rows.find((row) => row.props.testID === 'inbox.session_attention.home.blocked')?.props.subtitle).toContain('inbox.sessionReason.deliveryBlocked');
+        expect(rows.find((row) => row.props.testID === 'inbox.session_attention.home.permission')?.props.subtitle).toContain('inbox.sessionReason.permissionRequired');
+        expect(screen.tree.root.findAllByType('InboxSessionReviewRow' as never).map((row) => row.props.statusLabel)).toEqual([
+            'inbox.sessionReason.failed',
+            'inbox.sessionReason.ready',
+        ]);
+        rows.find((row) => row.props.testID === 'inbox.session_attention.home.permission')?.props.onPress();
+        expect(model.openSession).toHaveBeenCalledWith('permission', 'home');
+    });
+
+    it('shows the current hydrated request inline and opens its scoped session', async () => {
+        const baseModel = createModel();
+        const request = { id: 'request-current', tool: 'Bash', kind: 'permission', arguments: {}, createdAt: 1 } as never;
+        const model = {
+            ...baseModel,
+            sessionsNeedingAttention: [{
+                key: 'other:actionable',
+                serverId: 'other',
+                sessionId: 'actionable',
+                session: { id: 'actionable', metadata: { name: 'Actionable' }, active: true, agentState: { requests: { 'request-current': request } } } as never,
+                reason: 'permission_required',
+                pendingPermissions: [request],
+                pendingUserActions: [],
+            }],
+        } as InboxContentModel;
+        const { InboxContent } = await import('./InboxContent');
+        const screen = await renderScreen(<InboxContent model={model} />);
+        const card = screen.tree.root.findByType('InboxSessionAttentionGroupCard' as never);
+
+        expect(card.props.permissionRequests).toEqual([request]);
+        expect(card.props.statusLabel).toBe('inbox.sessionReason.permissionRequired');
+        card.props.onOpenSession();
+        expect(model.openSession).toHaveBeenCalledWith('actionable', 'other');
+    });
+
+    it('presents blocked delivery as delivery review even if an offline hydrated request remains listed', async () => {
+        const baseModel = createModel();
+        const request = { id: 'old-permission', tool: 'Bash', kind: 'permission', arguments: {}, createdAt: 1 } as never;
+        const model = {
+            ...baseModel,
+            sessionsNeedingAttention: [{
+                key: 'home:blocked',
+                serverId: 'home',
+                sessionId: 'blocked',
+                session: { id: 'blocked', active: true, presence: 1, agentState: { requests: { 'old-permission': request } } } as never,
+                reason: 'delivery_blocked',
+                pendingPermissions: [request],
+                pendingUserActions: [],
+            }],
+        } as InboxContentModel;
+        const { InboxContent } = await import('./InboxContent');
+        const screen = await renderScreen(<InboxContent model={model} />);
+        const row = screen.tree.root.findAllByType('Item' as never).find((item) => item.props.testID === 'inbox.session_attention.home.blocked');
+
+        expect(screen.tree.root.findAllByType('InboxSessionAttentionGroupCard' as never)).toHaveLength(0);
+        expect(row?.props.subtitle).toContain('inbox.sessionReason.deliveryBlocked');
+        row?.props.onPress();
+        expect(model.openSession).toHaveBeenCalledWith('blocked', 'home');
+    });
+
     it('uses grouped sections on the full screen and keeps Mark all local to Ready for review', async () => {
         const model = createModel();
         const { InboxContent } = await import('./InboxContent');
         const screen = await renderScreen(<InboxContent model={model} />);
 
         const sections = screen.tree.root.findAllByType('ListSection' as never);
+        expect(screen.findByTestId('inbox-panel-description')?.props.children).toBe('Inbox panel explanation');
         expect(sections.map((section) => section.props.id)).toEqual([
             'errors',
             'ready',

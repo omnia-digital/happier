@@ -5,7 +5,7 @@ import {
     type SessionWorkspaceOrderV1,
 } from '@/sync/domains/session/listing/sessionWorkspaceOrderStateV1';
 import type { ReorderSessionOrganizationRequest } from '@happier-dev/protocol';
-import type { SessionAttentionStanding } from '@happier-dev/protocol';
+import type { SessionOrganizationFolder, SessionAttentionStanding } from '@happier-dev/protocol';
 
 import type { SessionOrganizationProjection } from './types';
 import { buildSessionOrganizationTagLabelById } from './tagLabels';
@@ -126,14 +126,14 @@ export function buildSessionOrganizationReorderRequestFromGroupOrder(params: Rea
     for (const [index, rawItemKey] of params.itemKeys.entries()) {
         const trimmed = typeof rawItemKey === 'string' ? rawItemKey.trim() : '';
         if (!trimmed) continue;
-        const isFolder = trimmed.startsWith('folder:');
-        const itemKey = isFolder ? stripFolderItemKey(trimmed) : stripServerSessionKey(serverId, trimmed);
+        const itemKind = trimmed.startsWith('folder:') ? 'folder' : trimmed.startsWith('group:') ? 'group' : 'session';
+        const itemKey = itemKind === 'folder' ? stripFolderItemKey(trimmed) : itemKind === 'group' ? trimmed : stripServerSessionKey(serverId, trimmed);
         if (!itemKey) continue;
-        const dedupeKey = `${isFolder ? 'folder' : 'session'}:${itemKey}`;
+        const dedupeKey = `${itemKind}:${itemKey}`;
         if (seen.has(dedupeKey)) continue;
         seen.add(dedupeKey);
         entries.push({
-            itemKind: isFolder ? 'folder' : 'session',
+            itemKind,
             itemKey,
             sortKey: buildSortKey(index),
         });
@@ -164,6 +164,54 @@ export function buildSessionOrganizationReorderRequestFromWorkspaceOrder(params:
         });
     }
     return { scopeKind: 'workspace', scopeKey, entries };
+}
+
+export function buildSessionOrganizationOrderViewState(serverId: string, orderEntriesByScopeKey: SessionOrganizationProjection['orderEntriesByScopeKey']) {
+    const sessionListGroupOrderV1: Record<string, string[]> = {};
+    const sessionWorkspaceOrderV1: Record<string, string[]> = {};
+    for (const entries of Object.values(orderEntriesByScopeKey)) {
+        const orderedEntries = [...entries].sort((a, b) => compareBySortKey(a, b) || a.itemKey.localeCompare(b.itemKey));
+        for (const entry of orderedEntries) {
+            if (entry.scopeKind === 'workspace') {
+                const itemKey = normalizeWorkspaceItemKey(entry.itemKey);
+                if (!itemKey) continue;
+                appendOrderedValue(sessionWorkspaceOrderV1, normalizeWorkspaceScopeKey(serverId, entry.scopeKey), itemKey);
+                continue;
+            }
+            const scopeKey = entry.scopeKind === 'pinned' ? PINNED_GROUP_KEY_V1 : entry.scopeKey.trim();
+            const itemKey = entry.itemKind === 'session'
+                ? buildServerSessionKey(serverId, entry.itemKey)
+                : entry.itemKind === 'folder'
+                    ? `folder:${entry.itemKey.trim().replace(/^folder:/, '')}`
+                    : entry.itemKey.trim();
+            if (scopeKey && itemKey) {
+                appendOrderedValue(sessionListGroupOrderV1, scopeKey, itemKey);
+            }
+        }
+    }
+    return { sessionListGroupOrderV1, sessionWorkspaceOrderV1 };
+}
+
+export function buildSessionOrganizationFolderViewState(entries: readonly SessionOrganizationFolder[]): SessionFoldersV1 {
+    const folders = entries
+        .filter((folder) => folder.archivedAt == null)
+        .map((folder) => {
+            const name = readFolderName(folder.display);
+            const workspace = readWorkspaceRef(folder.display);
+            if (!name || !workspace) return null;
+            return {
+                id: folder.folderId,
+                workspace,
+                parentId: folder.parentFolderId,
+                name,
+                createdAt: folder.createdAt,
+                updatedAt: folder.updatedAt,
+                ...(folder.sortKey ? { sortKey: folder.sortKey } : {}),
+            };
+        })
+        .filter((folder): folder is NonNullable<typeof folder> => folder != null)
+        .sort((a, b) => compareBySortKey(a, b) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+    return { v: 1, folders };
 }
 
 export function buildSessionOrganizationListViewState(params: Readonly<{
@@ -206,48 +254,10 @@ export function buildSessionOrganizationListViewState(params: Readonly<{
         ]),
     );
 
-    const folders = Object.values(projection.foldersById)
-        .filter((folder) => folder.archivedAt == null)
-        .map((folder) => {
-            const name = readFolderName(folder.display);
-            const workspace = readWorkspaceRef(folder.display);
-            if (!name || !workspace) return null;
-            return {
-                id: folder.folderId,
-                workspace,
-                parentId: folder.parentFolderId,
-                name,
-                createdAt: folder.createdAt,
-                updatedAt: folder.updatedAt,
-                ...(folder.sortKey ? { sortKey: folder.sortKey } : {}),
-            };
-        })
-        .filter((folder): folder is NonNullable<typeof folder> => folder != null)
-        .sort((a, b) => compareBySortKey(a, b) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+    const sessionFoldersV1 = buildSessionOrganizationFolderViewState(Object.values(projection.foldersById));
 
-    const sessionListGroupOrderV1: Record<string, string[]> = {};
-    const sessionWorkspaceOrderV1: Record<string, string[]> = {};
+    const { sessionListGroupOrderV1, sessionWorkspaceOrderV1 } = buildSessionOrganizationOrderViewState(serverId, projection.orderEntriesByScopeKey);
     const workspaceLabelsV1: Record<string, string> = {};
-    for (const entries of Object.values(projection.orderEntriesByScopeKey)) {
-        const orderedEntries = [...entries].sort((a, b) => compareBySortKey(a, b) || a.itemKey.localeCompare(b.itemKey));
-        for (const entry of orderedEntries) {
-            if (entry.scopeKind === 'workspace') {
-                const itemKey = normalizeWorkspaceItemKey(entry.itemKey);
-                if (!itemKey) continue;
-                appendOrderedValue(sessionWorkspaceOrderV1, normalizeWorkspaceScopeKey(serverId, entry.scopeKey), itemKey);
-                continue;
-            }
-            const scopeKey = entry.scopeKind === 'pinned' ? PINNED_GROUP_KEY_V1 : entry.scopeKey.trim();
-            const itemKey = entry.itemKind === 'session'
-                ? buildServerSessionKey(serverId, entry.itemKey)
-                : entry.itemKind === 'folder'
-                    ? `folder:${entry.itemKey.trim().replace(/^folder:/, '')}`
-                    : entry.itemKey.trim();
-            if (scopeKey && itemKey) {
-                appendOrderedValue(sessionListGroupOrderV1, scopeKey, itemKey);
-            }
-        }
-    }
     for (const label of Object.values(projection.labelsByLabelKey)) {
         if (label.labelKind !== 'workspace' || label.archivedAt != null) continue;
         const displayLabel = readLabel(label.display);
@@ -260,12 +270,37 @@ export function buildSessionOrganizationListViewState(params: Readonly<{
 
     return {
         pinnedSessionKeysV1,
-        sessionFoldersV1: { v: 1, folders },
+        sessionFoldersV1,
         sessionFolderAssignmentsBySessionKey,
         sessionTagsV1,
         attentionStandingOverridesBySessionKey,
         sessionListGroupOrderV1,
         sessionWorkspaceOrderV1,
         workspaceLabelsV1,
+    };
+}
+
+/** Combine selected Homes after each has been projected through its own scoped owner. */
+export function buildSessionOrganizationListViewStateForServers(
+    projections: Readonly<Record<string, SessionOrganizationProjection | null>>,
+): SessionOrganizationListViewState {
+    const states = Object.entries(projections).map(([serverId, projection]) =>
+        buildSessionOrganizationListViewState({ serverId, projection }));
+    if (states.length === 1) return states[0];
+    const groupOrder: Record<string, readonly string[]> = {};
+    for (const state of states) {
+        for (const [key, values] of Object.entries(state.sessionListGroupOrderV1)) {
+            groupOrder[key] = [...new Set([...(groupOrder[key] ?? []), ...values])];
+        }
+    }
+    return {
+        pinnedSessionKeysV1: states.flatMap(state => state.pinnedSessionKeysV1),
+        sessionFoldersV1: { v: 1, folders: states.flatMap(state => state.sessionFoldersV1.folders) },
+        sessionFolderAssignmentsBySessionKey: Object.assign({}, ...states.map(state => state.sessionFolderAssignmentsBySessionKey)),
+        sessionTagsV1: Object.assign({}, ...states.map(state => state.sessionTagsV1)),
+        attentionStandingOverridesBySessionKey: Object.assign({}, ...states.map(state => state.attentionStandingOverridesBySessionKey)),
+        sessionListGroupOrderV1: groupOrder,
+        sessionWorkspaceOrderV1: Object.assign({}, ...states.map(state => state.sessionWorkspaceOrderV1)),
+        workspaceLabelsV1: Object.assign({}, ...states.map(state => state.workspaceLabelsV1)),
     };
 }

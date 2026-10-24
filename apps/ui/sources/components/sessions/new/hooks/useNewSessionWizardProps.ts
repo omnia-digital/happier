@@ -1,3 +1,4 @@
+import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import type { ComposerSuggestionKindId } from '@/components/autocomplete/composerSuggestionKinds';
 import type { ActiveSuggestionsHandler } from '@/components/autocomplete/useActiveSuggestions';
 import * as React from 'react';
@@ -10,6 +11,7 @@ import { getRequiredSecretEnvVarNames } from '@/sync/domains/profiles/profileSec
 import type { AIBackendProfile } from '@/sync/domains/profiles/profileCompatibility';
 import type { SavedSecret } from '@/sync/domains/settings/savedSecretTypes';
 import type { Machine } from '@/sync/domains/state/storageTypes';
+import type { MachineFileBrowserIdentity } from '@/sync/domains/input/machineFileBrowser';
 import type { PermissionMode, ModelMode } from '@/sync/domains/permissions/permissionTypes';
 import type { CLIAvailability } from '@/hooks/auth/useCLIDetection';
 import type { UseMachineEnvPresenceResult } from '@/hooks/machine/useMachineEnvPresence';
@@ -140,6 +142,9 @@ export function useNewSessionWizardProps(params: Readonly<{
     // Machine section
     machines: ReadonlyArray<Machine>;
     targetServerId?: string | null;
+    scmScope?: ServerAccountScope | null;
+    targetScopeKey?: string | null;
+    browserIdentity?: MachineFileBrowserIdentity | null;
     selectedMachine: Machine | null;
     recentMachines: ReadonlyArray<Machine>;
     favoriteMachineItems: ReadonlyArray<Machine>;
@@ -156,6 +161,8 @@ export function useNewSessionWizardProps(params: Readonly<{
     usePathPickerSearch: boolean;
     favoriteDirectories: ReadonlyArray<string>;
     setFavoriteDirectories: (dirs: string[]) => void;
+    unassignedFavorites?: ReadonlyArray<string>;
+    onAssignUnassignedFavorite?: (path: string) => void;
 
     // Footer section
     promptStore: NewSessionPromptStore;
@@ -309,6 +316,7 @@ export function useNewSessionWizardProps(params: Readonly<{
         return params.wizardInstallableDeps.map(({ entry, depStatus, detectResult }) => ({
             machineId: params.selectedMachineId!,
             serverId: params.targetServerId,
+            targetScopeKey: params.targetScopeKey,
             enabled: true,
             groupTitle: `${tNoParams(entry.groupTitleKey)}${entry.experimental ? ' (experimental)' : ''}`,
             depId: entry.capabilityId,
@@ -432,6 +440,9 @@ export function useNewSessionWizardProps(params: Readonly<{
         return {
             machines: params.machines,
             serverId: params.targetServerId,
+            scmScope: params.scmScope,
+            targetScopeKey: params.targetScopeKey,
+            browserIdentity: params.browserIdentity,
             selectedMachine: params.selectedMachine || null,
             recentMachines: params.recentMachines,
             favoriteMachineItems: params.favoriteMachineItems,
@@ -448,15 +459,22 @@ export function useNewSessionWizardProps(params: Readonly<{
             usePathPickerSearch: params.usePathPickerSearch,
             favoriteDirectories: params.favoriteDirectories,
             setFavoriteDirectories: params.setFavoriteDirectories,
+            unassignedFavorites: params.unassignedFavorites,
+            onAssignUnassignedFavorite: params.onAssignUnassignedFavorite,
         };
     }, [
         enabled,
         params.favoriteDirectories,
+        params.unassignedFavorites,
+        params.onAssignUnassignedFavorite,
         params.favoriteMachineItems,
         params.favoriteMachines,
         params.getBestPathForMachine,
         params.machines,
         params.targetServerId,
+        params.scmScope,
+        params.targetScopeKey,
+        params.browserIdentity,
         params.recentMachines,
         params.recentPaths,
         params.refreshMachineData,

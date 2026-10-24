@@ -272,6 +272,7 @@ export function registerSessionHandlers(
         setAdditionalAllowedWriteDirs?: (dirs: string[]) => void;
         accessPolicy?: FilesystemAccessPolicy;
         hasSessionAgentTransition?: () => boolean;
+        ticketReaderContext?: import('@/capabilities/registry/toolTicketReader').TicketReaderContext;
         sessionRuntimeControls?: SessionRuntimeControls | null;
         getUsageLimitRecoveryCheckNow?: () => SessionRuntimeControls['checkUsageLimitRecoveryNow'];
         /** QAE-1: daemon-side propagation for successful wait-resume cancels. */
@@ -302,6 +303,7 @@ export function registerSessionHandlers(
     // Checklist-based machine capability registry (replaces legacy detect-cli / detect-capabilities / dep-status).
     registerCapabilitiesHandlers(rpcHandlerManager, {
         hasSessionAgentTransition: opts?.hasSessionAgentTransition,
+        ticketReaderContext: opts?.ticketReaderContext,
     });
     registerPreviewEnvHandler(rpcHandlerManager);
     registerSessionTransferRpcHandlers(rpcHandlerManager, {

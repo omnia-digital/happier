@@ -15,13 +15,20 @@ relay, installed CLI and daemon remain the existing daily services.
 | --- | --- | --- |
 | `/Users/Josh/Developer/Projects/Omnia/apps/happier-dev` | `dev` | Integration baseline and starting point for feature worktrees |
 | `/Users/Josh/Developer/Projects/Omnia/apps/happier-production` | `production` | Pull-only daily-use source |
-| `/Users/Josh/Developer/Projects/Omnia/apps/happier` | Existing feature branch | Preserved existing development and running stack |
 
-The first two are independent clones. Production never shares a Git directory,
-working source, or a mutable `node_modules` symlink with development. The existing
-feature checkout is preserved until its work is integrated; do not switch it or
-delete it during setup. A branch name alone does not certify its starting commit
-as a tested release.
+These are the only two permanent clones. Production never shares a Git directory,
+working source, or a mutable `node_modules` symlink with development. Task
+directories are temporary linked worktrees owned by `happier-dev`; neither
+permanent checkout is a feature branch. A branch name alone does not certify its
+starting commit as a tested release.
+
+The old `/Users/Josh/Developer/Projects/Omnia/apps/happier` checkout is temporary
+migration state. Its `chore/happier-fork-dev-setup` branch accumulated feature work
+that was absent from the first GitHub `dev`/`production` release. Reconcile that
+committed work through a PR into `dev`; do not call a release feature-complete
+until its source contains the intended changes. Existing active and unpublished
+work, linked worktrees, and running stacks still need preservation/migration
+before this old checkout can be removed. Start no new tasks there.
 
 Create ticket-named worktrees through the existing Stack owner, from `happier-dev`:
 
@@ -29,6 +36,14 @@ Create ticket-named worktrees through the existing Stack owner, from `happier-de
 git pull --ff-only origin dev
 node apps/stack/scripts/repo_local.mjs wt new OH-123-description --from=origin --base=origin/dev --deps=none
 ```
+
+Implement and validate in that task worktree, commit and push its branch, and open
+the PR with `--base dev`. After merge, fast-forward the clean `happier-dev`
+checkout. Verify all task work is pushed and merged and no process, unsaved work,
+or valuable ignored data depends on its directory before removing it through the
+existing worktree cleanup tools. Do not use forced removal to discard unfinished
+work. The nightly workflow then promotes tested `dev` source to `production`;
+update the protected clone only through the helper below.
 
 Use an explicitly named stack for concurrent feature runtimes. Linked worktrees
 can share the repo-local stack identity; the permanent production clone has its
@@ -121,13 +136,17 @@ env -u HAPPIER_STACK_ENV_FILE \
   HAPPIER_STACK_TAURI_SERVER_URL=https://api.happier.dev \
   HAPPIER_STACK_TAURI_DEBUG=0 \
   HAPPIER_STACK_TAURI_IDENTIFIER=com.omnia.happier.production \
-  HAPPIER_STACK_TAURI_PRODUCT_NAME='Happier Omnia Production' \
+  HAPPIER_STACK_TAURI_PRODUCT_NAME='Omnia Happier' \
   APP_ENV=production \
   EXPO_PUBLIC_HAPPIER_DESKTOP_UPDATES_ENABLED=0 \
   APPLE_SIGNING_IDENTITY=- \
   PATH="$HOME/.cargo/bin:$PATH" \
-  ./apps/stack/bin/hstack-exec -- node apps/stack/bin/hstack.mjs build --tauri
+  ./apps/stack/bin/hstack-exec -- node apps/stack/bin/hstack.mjs build --tauri --tauri-production
 ```
+
+`--tauri-production` selects the stable Tauri config and Omnia Happier artwork.
+The explicit identifier keeps this local app's storage separate. Build and
+verify a fresh bundle after this integration before adopting its output.
 
 The local macOS 27 / Rust 1.94.1 build also required
 `CARGO_PROFILE_RELEASE_STRIP=none CARGO_PROFILE_RELEASE_BUILD_OVERRIDE_STRIP=none`.
@@ -161,7 +180,7 @@ env APPLE_SIGNING_IDENTITY=- \
   --config "$HOME/.happier/stacks/omnia-production-desktop/tauri.conf.happier-stack.json"
 ```
 
-On 2026-10-23 this completed at `13c80eb975d37505b6d394f738da7a32f7da53c8`.
+On 2026-10-23 the earlier pre-integration bundle completed at `13c80eb975d37505b6d394f738da7a32f7da53c8`.
 The earlier UI export came from its tree-identical parent `f24db5a2ff`; the source
 diff is empty. The bundle passed `codesign --verify --deep --strict`, and the
 dedicated `com.omnia.happier.production` process opened its welcome/login window.

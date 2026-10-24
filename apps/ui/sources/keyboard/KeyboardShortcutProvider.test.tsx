@@ -258,6 +258,69 @@ describe('KeyboardShortcutProvider', () => {
         expect(newSession).toHaveBeenCalledTimes(1);
     });
 
+    it('leaves A unconsumed when the scoped hovered Archive handler declines without a target', async () => {
+        testState.settings = { ...testState.settings, keyboardSingleKeyShortcutsEnabled: false };
+        let eligible = false;
+        const { renderScreen } = await import('@/dev/testkit');
+        const { KeyboardShortcutProvider, useKeyboardShortcutHandlers } = await import('./KeyboardShortcutProvider');
+        function SessionListShortcuts() {
+            useKeyboardShortcutHandlers({ 'session.hovered.archive': () => eligible });
+            return <Child />;
+        }
+        await renderScreen(<KeyboardShortcutProvider handlers={{}}><SessionListShortcuts /></KeyboardShortcutProvider>);
+
+        const withoutHover = createKeyboardEvent({ key: 'a', code: 'KeyA' });
+        await act(async () => { window.dispatchEvent(withoutHover); });
+        expect(withoutHover.preventDefault).not.toHaveBeenCalled();
+        eligible = true;
+        const withHover = createKeyboardEvent({ key: 'a', code: 'KeyA' });
+        await act(async () => { window.dispatchEvent(withHover); });
+        expect(withHover.preventDefault).toHaveBeenCalledOnce();
+    });
+
+    it('dispatches a row menu chord only for its owned popover and yields to modal, editor, and repeat contexts', async () => {
+        const { renderScreen } = await import('@/dev/testkit');
+        const { KeyboardShortcutProvider, useKeyboardShortcutHandlers } = await import('./KeyboardShortcutProvider');
+        const { ESCAPE_LAYER_PRIORITIES, registerEscapeKeyBlocker } = await import('./escape');
+        const rename = vi.fn();
+        let ownedMenuOpen = false;
+        function RowCommands() {
+            useKeyboardShortcutHandlers({ 'session.menu.rename': rename }, {
+                isOwnedSessionRowMenuActive: () => ownedMenuOpen,
+            });
+            return <Child />;
+        }
+        await renderScreen(<KeyboardShortcutProvider handlers={{}}><RowCommands /></KeyboardShortcutProvider>);
+        const menuTarget = {
+            tagName: 'DIV', isContentEditable: false,
+            closest: (selector: string) => selector.includes('[role="menu"]') ? {} : null,
+        } as unknown as EventTarget;
+        const chord = (target: EventTarget, repeat = false) => createKeyboardEvent({
+            key: 'e', code: 'KeyE', altKey: true, shiftKey: true, target, repeat,
+        });
+        await act(async () => { window.dispatchEvent(chord(menuTarget)); });
+        expect(rename).not.toHaveBeenCalled();
+        ownedMenuOpen = true;
+        const ownedEvent = chord(menuTarget);
+        await act(async () => { window.dispatchEvent(ownedEvent); });
+        expect(rename).toHaveBeenCalledTimes(1);
+        expect(ownedEvent.preventDefault).toHaveBeenCalledOnce();
+
+        const releaseModal = registerEscapeKeyBlocker(ESCAPE_LAYER_PRIORITIES.modal);
+        try {
+            await act(async () => { window.dispatchEvent(chord(menuTarget)); });
+            expect(rename).toHaveBeenCalledTimes(1);
+        } finally {
+            releaseModal();
+        }
+        const editorTarget = { tagName: 'INPUT', isContentEditable: false, closest: () => null } as unknown as EventTarget;
+        await act(async () => {
+            window.dispatchEvent(chord(editorTarget));
+            window.dispatchEvent(chord(menuTarget, true));
+        });
+        expect(rename).toHaveBeenCalledTimes(1);
+    });
+
     it('keeps the web keydown listener mounted when descendant scoped handlers register', async () => {
         const newSession = vi.fn();
         let showRegisteredChild: (() => void) | null = null;

@@ -104,7 +104,7 @@ describe('machines ops server-scoped routing', () => {
             'machine-3',
             'echo ok',
             '/',
-            { serverId: 'server-d' },
+            { serverId: 'server-d', accountId: 'account-target' },
         );
 
         expect(result).toEqual({
@@ -116,6 +116,7 @@ describe('machines ops server-scoped routing', () => {
         expect(machineRpcWithServerScopeMock).toHaveBeenCalledWith(expect.objectContaining({
             machineId: 'machine-3',
             serverId: 'server-d',
+            accountId: 'account-target',
             method: 'bash',
         }));
     });

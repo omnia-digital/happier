@@ -117,4 +117,29 @@ describe('machineUpdateMetadata', () => {
             fields: { items: 1 },
         });
     });
+
+    it('retries an unrelated metadata update without clearing a concurrent rename', async () => {
+        const latestMetadata = { host: 'current-host', displayName: 'New label', windowsRemoteSessionLaunchMode: 'console' } as MachineMetadata;
+        getMachineEncryptionMock.mockReturnValue({
+            encryptRaw: (...args: any[]) => encryptRawMock(...args),
+            decryptRaw: vi.fn(async () => latestMetadata),
+        });
+        emitWithAckMock
+            .mockResolvedValueOnce({ result: 'version-mismatch', version: 2, metadata: 'enc_latest' })
+            .mockResolvedValueOnce({ result: 'success', version: 3, metadata: 'enc_merged' });
+
+        const { machineUpdateMetadata } = await machinesModulePromise;
+        await machineUpdateMetadata('m1', {
+            host: 'stale-host',
+            displayName: undefined,
+            windowsRemoteSessionLaunchMode: 'windows_terminal',
+        } as MachineMetadata, 1);
+
+        expect(encryptRawMock).toHaveBeenCalledTimes(2);
+        expect(encryptRawMock.mock.calls[1]?.[0]).toMatchObject({
+            host: 'current-host',
+            displayName: 'New label',
+            windowsRemoteSessionLaunchMode: 'windows_terminal',
+        });
+    });
 });

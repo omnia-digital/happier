@@ -1,5 +1,7 @@
+import { SessionRepositoryAssociationsSchema } from '@/sync/domains/session/listing/sessionRepositoryIdentity';
 import { buildSettingArtifacts, defineSettingDefinitions } from '@happier-dev/protocol';
 import { z } from 'zod';
+import { MachineDisplayColorSchema, MachineDisplayIconSchema } from '@/sync/domains/machines/machineDisplayIconPreference';
 import {
     PET_COMPANION_POSITION_DEFAULT,
     PetCompanionStoredPositionSchema,
@@ -157,6 +159,42 @@ export const LOCAL_SETTING_DEFINITIONS = defineSettingDefinitions({
         description: 'Session list folder sort mode',
         storageScope: 'local',
         analytics: { trackCurrentState: true, trackChanges: true, valueKind: 'enum', privacy: 'safe', identityScope: 'device_user' },
+    },
+    sessionListShowMachineIdentity: {
+        schema: z.boolean().catch(true),
+        default: true,
+        description: 'Show the hosting machine on session list rows on this device',
+        storageScope: 'local',
+    },
+    sessionListShowMachineLabel: {
+        schema: z.boolean().catch(true),
+        default: true,
+        description: 'Show the hosting machine name beside its icon on session list rows on this device',
+        storageScope: 'local',
+    },
+    machineDisplayIconByMachineV1: {
+        schema: z.record(z.string(), MachineDisplayIconSchema).catch({}),
+        default: {},
+        description: 'Display icon selections on this device, keyed by server and machine ID',
+        storageScope: 'local',
+    },
+    machineDisplayColorByMachineV1: {
+        schema: z.record(z.string(), MachineDisplayColorSchema).catch({}),
+        default: {},
+        description: 'Display icon color selections on this device, keyed by server and machine ID',
+        storageScope: 'local',
+    },
+    sessionRepositoryAssociationsV1: {
+        schema: SessionRepositoryAssociationsSchema,
+        default: {},
+        description: 'Local repository associations keyed by server, account, machine and workspace',
+        storageScope: 'local',
+    },
+    sessionListMachineViewV1: {
+        schema: z.enum(['original', 'machine', 'repository']).catch('original'),
+        default: 'original',
+        description: 'Local session list presentation by original groups, hosting machine or repository',
+        storageScope: 'local',
     },
     themePreference: {
         schema: z.enum(['light', 'dark', 'adaptive']),

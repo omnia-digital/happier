@@ -42,7 +42,16 @@ function createDeferred<T>(): Deferred<T> {
     return { promise, reject, resolve };
 }
 
-const credentials = { token: 'token-a', secret: 'secret-a' };
+vi.mock('@/auth/storage/tokenStorage', async (original) => {
+    const actual = await original<typeof import('@/auth/storage/tokenStorage')>();
+    return { ...actual, TokenStorage: { ...actual.TokenStorage, getCredentialsForServerUrl: async () => credentials } };
+});
+vi.mock('@/sync/domains/server/serverProfiles', async (original) => ({
+    ...await original<typeof import('@/sync/domains/server/serverProfiles')>(),
+    getServerProfileById: () => ({ id: 'server-a', serverUrl: 'https://server-a.test' }),
+}));
+
+const credentials = { token: `header.${Buffer.from(JSON.stringify({ sub: 'account-a' })).toString('base64')}.signature`, secret: 'secret-a' };
 
 describe('session organization optimistic ops', () => {
     beforeEach(async () => {
@@ -55,6 +64,7 @@ describe('session organization optimistic ops', () => {
         apiMocks.upsertSessionOrganizationTag.mockReset();
 
         const { getStorage } = await import('@/sync/domains/state/storageStore');
+        getStorage().setState({ profileScope: { serverId: 'server-a', accountId: 'account-a' } });
         getStorage().getState().clearSessionOrganizationForServer('server-a');
     });
 

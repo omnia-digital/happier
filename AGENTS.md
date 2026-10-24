@@ -1,6 +1,21 @@
 # Agent Constitution
 
-## Omnia production checkout
+## Omnia development and production checkouts
+
+On Josh's Mac there are exactly two permanent repositories under
+`/Users/Josh/Developer/Projects/Omnia/apps`: `happier-dev`, always on `dev`, and
+`happier-production`, always on `production`. New tasks create a ticket-named
+feature worktree from `happier-dev` at current `origin/dev`. Implement and
+checkpoint there, push the task branch, and open its PR against `dev`. Do not
+accumulate task work directly in either permanent checkout or in the legacy
+`happier` checkout. After the PR is merged, refresh the clean dev checkout with a
+fast-forward and remove the task worktree once all its work is preserved and no
+active process or valuable local data still depends on it.
+
+The legacy `happier` checkout is temporary migration state, not a third permanent
+development repository. Preserve its existing active and unpublished work until
+it has been transferred through task branches/PRs and its runtime dependencies
+have moved. Never remove it merely because one earlier checkpoint was merged.
 
 `happier-production`, or a clone with local Git configuration
 `happier.productionCheckout=true`, is the daily-use checkout. Never edit source,

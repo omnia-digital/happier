@@ -1,12 +1,15 @@
 import { Modal } from '@/modal';
 import { createDeferredOnce } from '@/modal/async/createDeferredOnce';
 import type { ModalPortalTarget } from '@/modal/portal/ModalPortalTarget';
+import type { MachineFileBrowserIdentity } from '@/sync/domains/input/machineFileBrowser';
 
 import { MachinePathBrowserModalEntry } from './MachinePathBrowserModalEntry';
 
 export async function openMachinePathBrowserModal(params: Readonly<{
     machineId: string;
     serverId?: string | null;
+    targetScopeKey?: string | null;
+    browserIdentity?: MachineFileBrowserIdentity | null;
     title?: string;
     initialPath?: string | null;
     includeFiles?: boolean;
@@ -24,6 +27,8 @@ export async function openMachinePathBrowserModal(params: Readonly<{
         props: {
             machineId: params.machineId,
             serverId: params.serverId ?? null,
+            targetScopeKey: params.targetScopeKey ?? null,
+            browserIdentity: params.browserIdentity ?? null,
             title: params.title,
             initialPath: params.initialPath ?? null,
             includeFiles: params.includeFiles ?? false,

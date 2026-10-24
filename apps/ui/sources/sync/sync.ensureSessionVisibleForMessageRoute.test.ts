@@ -22,6 +22,7 @@ vi.mock('@/log', () => ({
 
 vi.mock('@/voice/context/voiceHooks', () => ({
     voiceHooks: {
+        onAgentRequest: vi.fn(),
         onSessionFocus: vi.fn(),
         onSessionOffline: vi.fn(),
         onSessionOnline: vi.fn(),
@@ -62,11 +63,10 @@ vi.mock('@/utils/system/runtimeFetch', () => ({
     runtimeFetch: runtimeFetchMock,
 }));
 
-vi.mock('@/auth/storage/tokenStorage', () => ({
-    TokenStorage: {
-        getCredentialsForServerUrl: getCredentialsForServerUrlMock,
-    },
-}));
+vi.mock('@/auth/storage/tokenStorage', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@/auth/storage/tokenStorage')>();
+    return { ...actual, TokenStorage: { ...actual.TokenStorage, getCredentialsForServerUrl: getCredentialsForServerUrlMock } };
+});
 
 vi.mock('@/auth/encryption/createEncryptionFromAuthCredentials', () => ({
     createEncryptionFromAuthCredentials: createEncryptionFromAuthCredentialsMock,
@@ -79,6 +79,7 @@ import type { AccountSettingsScope } from './domains/settings/scope/accountSetti
 import type { Session } from './domains/state/storageTypes';
 import { encodeBase64 } from '@/encryption/base64';
 import { encodeUTF8 } from '@/encryption/text';
+import { clearTempData, peekTempData, type NewSessionData } from '@/utils/sessions/tempDataStore';
 
 const initialStorageState = storage.getState();
 
@@ -116,6 +117,7 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
         runtimeFetchMock.mockReset();
         getCredentialsForServerUrlMock.mockReset();
         createEncryptionFromAuthCredentialsMock.mockReset();
+        clearTempData();
 
         const { sync } = await import('./sync');
         sync.disconnectServer();
@@ -1011,6 +1013,368 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
             .toBe(`Bearer ${ownerToken}`);
         expect((sync as any).activeServerSessionIds.has(sessionId)).toBe(true);
         expect(initializeSessions).not.toHaveBeenCalled();
+    });
+
+    it('does not return an active Home session when an explicit foreign server owns the same id', async () => {
+        const sessionId = 'same_id_on_two_homes';
+        const activeServer = upsertServerProfile({ serverUrl: 'https://active.example', name: 'Active' });
+        const ownerServer = upsertServerProfile({ serverUrl: 'https://scoped.example', name: 'Owner' });
+        setActiveServerId(activeServer.id, { scope: 'device' });
+        storage.getState().applySessions([{
+            ...createSession({ sessionId }),
+            serverId: activeServer.id,
+            encryptionMode: 'plain',
+            metadata: { path: '/active', machineId: 'active-machine', host: 'active.example' },
+        }]);
+
+        const { sync } = await import('./sync');
+        (sync as any).credentials = { token: 'active-token', secret: 'active-secret' };
+        (sync as any).activeServerSessionIds = new Set([sessionId]);
+        (sync as any).hasFetchedSessionsSnapshotForActiveServer = true;
+        (sync as any).encryption = {
+            decryptEncryptionKey: async () => null,
+            initializeSessions: async () => {},
+            getSessionEncryption: () => null,
+        };
+        requestMock.mockRejectedValue(new Error('active request should not be used'));
+        getCredentialsForServerUrlMock.mockResolvedValue({
+            token: buildTokenWithSub('owner-account'),
+            secret: 'scoped-secret',
+        });
+        createEncryptionFromAuthCredentialsMock.mockResolvedValue({
+            decryptEncryptionKey: async () => null,
+            initializeSessions: async () => {},
+            getSessionEncryption: () => null,
+        });
+        runtimeFetchMock.mockResolvedValue(new Response(JSON.stringify({
+            session: {
+                id: sessionId,
+                createdAt: 1,
+                updatedAt: 2,
+                seq: 3,
+                active: true,
+                activeAt: 2,
+                encryptionMode: 'plain',
+                dataEncryptionKey: null,
+                metadataVersion: 1,
+                metadata: JSON.stringify({ path: '/owner', machineId: 'owner-machine' }),
+                agentStateVersion: 0,
+                agentState: null,
+                share: null,
+            },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+        await expect(sync.ensureSessionVisibleForMessageRoute(sessionId, { serverId: ownerServer.id }))
+            .resolves.toEqual(expect.objectContaining({ kind: 'available', serverId: ownerServer.id }));
+        expect(requestMock).not.toHaveBeenCalled();
+        expect(runtimeFetchMock.mock.calls.some(([url]) =>
+            matchServerFetchUrl(`https://scoped.example/v2/sessions/${sessionId}`).asymmetricMatch(url))).toBe(true);
+        expect(storage.getState().sessions[sessionId]).toEqual(expect.objectContaining({
+            serverId: ownerServer.id,
+            metadata: expect.objectContaining({ path: '/owner', machineId: 'owner-machine' }),
+        }));
+    });
+
+    it('does not return a stored foreign session when the active Home owns the same id', async () => {
+        const sessionId = 'same_id_foreign_record';
+        const activeServer = upsertServerProfile({ serverUrl: 'https://active.example', name: 'Active' });
+        const foreignServer = upsertServerProfile({ serverUrl: 'https://foreign.example', name: 'Foreign' });
+        setActiveServerId(activeServer.id, { scope: 'device' });
+        storage.getState().applySessions([{
+            ...createSession({ sessionId }),
+            serverId: foreignServer.id,
+            encryptionMode: 'plain',
+            metadata: { path: '/foreign', machineId: 'foreign-machine', host: 'foreign.example' },
+        }]);
+
+        const { sync } = await import('./sync');
+        (sync as any).credentials = { token: 'active-token', secret: 'active-secret' };
+        (sync as any).activeServerSessionIds = new Set([sessionId]);
+        (sync as any).hasFetchedSessionsSnapshotForActiveServer = true;
+        (sync as any).encryption = {
+            decryptEncryptionKey: async () => null,
+            initializeSessions: async () => {},
+            getSessionEncryption: () => null,
+        };
+        requestMock.mockResolvedValue(new Response(JSON.stringify({
+            session: {
+                id: sessionId,
+                createdAt: 1,
+                updatedAt: 2,
+                seq: 3,
+                active: true,
+                activeAt: 2,
+                encryptionMode: 'plain',
+                dataEncryptionKey: null,
+                metadataVersion: 1,
+                metadata: JSON.stringify({ path: '/active', machineId: 'active-machine' }),
+                agentStateVersion: 0,
+                agentState: null,
+                share: null,
+            },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+        await expect(sync.ensureSessionVisibleForMessageRoute(sessionId, { serverId: activeServer.id }))
+            .resolves.toEqual(expect.objectContaining({ kind: 'available', serverId: activeServer.id }));
+        expect(requestMock).toHaveBeenCalled();
+        expect(storage.getState().sessions[sessionId]).toEqual(expect.objectContaining({
+            serverId: activeServer.id,
+            metadata: expect.objectContaining({ path: '/active', machineId: 'active-machine' }),
+        }));
+    });
+
+    it('prepares Same Setup from the clicked thin row through its exact foreign server', async () => {
+        const sessionId = 'clicked_foreign_session';
+        const activeServer = upsertServerProfile({ serverUrl: 'https://active.example', name: 'Active' });
+        const foreignServer = upsertServerProfile({ serverUrl: 'https://foreign.example', name: 'Foreign' });
+        setActiveServerId(activeServer.id, { scope: 'device' });
+        storage.setState({ profileScope: { serverId: activeServer.id, accountId: 'active-account' } });
+        storage.getState().applySessions([{
+            ...createSession({ sessionId: 'selected_active_session' }),
+            serverId: activeServer.id,
+            encryptionMode: 'plain',
+            metadata: { path: '/active/other', machineId: 'active-machine', host: 'active.example', flavor: 'claude' },
+        }, {
+            ...createSession({ sessionId }),
+            serverId: foreignServer.id,
+            encryptionMode: 'plain',
+            metadata: null,
+        }]);
+
+        const { sync } = await import('./sync');
+        (sync as any).credentials = { token: 'active-token', secret: 'active-secret' };
+        (sync as any).activeServerSessionIds = new Set(['selected_active_session']);
+        (sync as any).hasFetchedSessionsSnapshotForActiveServer = true;
+        (sync as any).encryption = {
+            decryptEncryptionKey: async () => null,
+            initializeSessions: async () => {},
+            getSessionEncryption: () => null,
+        };
+        requestMock.mockRejectedValue(new Error('active request should not be used'));
+        getCredentialsForServerUrlMock.mockResolvedValue({
+            token: buildTokenWithSub('foreign-account'),
+            secret: 'foreign-secret',
+        });
+        createEncryptionFromAuthCredentialsMock.mockResolvedValue({
+            decryptEncryptionKey: async () => null,
+            initializeSessions: async () => {},
+            getSessionEncryption: () => null,
+        });
+        runtimeFetchMock.mockResolvedValue(new Response(JSON.stringify({
+            session: {
+                id: sessionId,
+                createdAt: 1,
+                updatedAt: 2,
+                seq: 3,
+                active: true,
+                activeAt: 2,
+                encryptionMode: 'plain',
+                dataEncryptionKey: null,
+                metadataVersion: 1,
+                metadata: JSON.stringify({
+                    path: '/foreign/worktree', machineId: 'foreign-machine', flavor: 'codex',
+                    profileId: 'foreign-profile', transcriptStorage: 'direct',
+                }),
+                agentStateVersion: 0,
+                agentState: null,
+                share: null,
+            },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+        const { prepareNewSessionSameSetupFromRow } = await import('@/components/sessions/new/navigation/newSessionSameSetup');
+        const prepared = await prepareNewSessionSameSetupFromRow({ sessionId, serverId: foreignServer.id });
+        expect(requestMock).not.toHaveBeenCalled();
+        expect(runtimeFetchMock.mock.calls.some(([url]) =>
+            matchServerFetchUrl(`https://foreign.example/v2/sessions/${sessionId}`).asymmetricMatch(url))).toBe(true);
+        expect(prepared.kind).toBe('ready');
+        if (prepared.kind !== 'ready') return;
+        expect(prepared.route).toEqual({
+            pathname: '/new',
+            params: expect.objectContaining({
+                machineId: 'foreign-machine', directory: '/foreign/worktree',
+                spawnServerId: foreignServer.id, dataId: expect.any(String),
+            }),
+        });
+        const seed = peekTempData<NewSessionData>(prepared.route.params.dataId);
+        expect(seed).toEqual(expect.objectContaining({
+            prompt: '', machineId: 'foreign-machine', directory: '/foreign/worktree',
+            agentType: 'codex', selectedProfileId: 'foreign-profile', transcriptStorage: 'direct',
+            replacePersistedDraftSelections: true,
+        }));
+        expect(seed?.resumeSessionId).toBeUndefined();
+        expect(seed?.sourceContext).toBeUndefined();
+        expect(seed?.checkoutCreationDraft).toBeNull();
+
+        // A full cached row from a previous login to this Home has no account stamp.
+        // Clicking it must fetch the current owner's setup instead of copying old metadata.
+        getCredentialsForServerUrlMock.mockResolvedValue({
+            token: buildTokenWithSub('next-foreign-account'), secret: 'next-foreign-secret',
+        });
+        runtimeFetchMock.mockClear();
+        runtimeFetchMock.mockImplementation(async () => new Response(JSON.stringify({
+            session: {
+                id: sessionId, createdAt: 1, updatedAt: 3, seq: 4,
+                active: true, activeAt: 3, encryptionMode: 'plain', dataEncryptionKey: null,
+                metadataVersion: 2,
+                metadata: JSON.stringify({
+                    path: '/foreign/next-account', machineId: 'next-machine', flavor: 'claude',
+                    profileId: 'next-profile',
+                }),
+                agentStateVersion: 0, agentState: null, share: null,
+            },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+        const nextPrepared = await prepareNewSessionSameSetupFromRow({ sessionId, serverId: foreignServer.id });
+        expect(runtimeFetchMock).toHaveBeenCalled();
+        expect(storage.getState().sessions[sessionId]?.metadata?.path).toBe('/foreign/next-account');
+        expect(nextPrepared.kind).toBe('ready');
+        if (nextPrepared.kind !== 'ready') return;
+        expect(nextPrepared.route.params).toEqual(expect.objectContaining({
+            machineId: 'next-machine', directory: '/foreign/next-account', spawnServerId: foreignServer.id,
+        }));
+        expect(peekTempData<NewSessionData>(nextPrepared.route.params.dataId))
+            .toEqual(expect.objectContaining({ agentType: 'claude', selectedProfileId: 'next-profile' }));
+    });
+
+    it.each(['new-account', 'old-account', 'active-reset'])('commits foreign hydration only while the captured account is current (%s)', async (nextAccount) => {
+        const { createDeferred } = await import('@/dev/testkit');
+        const { voiceHooks } = await import('@/voice/context/voiceHooks');
+        vi.mocked(voiceHooks.onAgentRequest).mockClear();
+        const validationStarted = createDeferred<void>();
+        const validationReady = createDeferred<void>();
+        let credentialReads = 0;
+        const sessionId = 'foreign_account_changed_during_hydration';
+        const activeServer = upsertServerProfile({ serverUrl: 'https://active.example', name: 'Active' });
+        const foreignServer = upsertServerProfile({ serverUrl: 'https://foreign.example', name: 'Foreign' });
+        setActiveServerId(activeServer.id, { scope: 'device' });
+
+        const { sync } = await import('./sync');
+        (sync as any).credentials = { token: 'active-token', secret: 'active-secret' };
+        (sync as any).activeServerSessionIds = new Set<string>();
+        (sync as any).hasFetchedSessionsSnapshotForActiveServer = true;
+        (sync as any).encryption = {
+            decryptEncryptionKey: async () => null,
+            initializeSessions: async () => {},
+            getSessionEncryption: () => null,
+        };
+        requestMock.mockRejectedValue(new Error('active request should not be used'));
+        let foreignToken = buildTokenWithSub('old-account');
+        getCredentialsForServerUrlMock.mockImplementation(async () => {
+            if (++credentialReads === 2 && nextAccount === 'active-reset') {
+                validationStarted.resolve();
+                await validationReady.promise;
+            }
+            return { token: foreignToken, secret: 'foreign-secret' };
+        });
+        createEncryptionFromAuthCredentialsMock.mockResolvedValue({
+            decryptEncryptionKey: async () => null,
+            initializeSessions: async () => {},
+            getSessionEncryption: () => null,
+        });
+
+        let startRequest: (() => void) | undefined;
+        const requestStarted = new Promise<void>((resolve) => { startRequest = resolve; });
+        let finishRequest: ((response: Response) => void) | undefined;
+        const pendingResponse = new Promise<Response>((resolve) => { finishRequest = resolve; });
+        runtimeFetchMock.mockImplementation(async () => {
+            startRequest?.();
+            return await pendingResponse;
+        });
+
+        const hydration = sync.ensureSessionVisibleForMessageRoute(sessionId, {
+            serverId: foreignServer.id,
+            forceRefresh: true,
+        });
+        await requestStarted;
+        foreignToken = buildTokenWithSub(nextAccount === 'active-reset' ? 'old-account' : nextAccount) + '-rotated';
+        finishRequest?.(new Response(JSON.stringify({
+            session: {
+                id: sessionId, createdAt: 1, updatedAt: 2, seq: 3,
+                active: true, activeAt: 2, encryptionMode: 'plain', dataEncryptionKey: null,
+                metadataVersion: 1,
+                metadata: JSON.stringify({ path: '/old-account', host: 'foreign.example', machineId: 'old-machine' }),
+                agentStateVersion: 1, agentState: JSON.stringify({ requests: { req: { tool: 'AskUserQuestion', kind: 'user_action', arguments: { question: 'Proceed?' }, createdAt: 1 } } }), share: null,
+            },
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+
+        if (nextAccount === 'active-reset') {
+            await validationStarted.promise;
+            sync.disconnectServer();
+            (sync as any).sessionDataKeys.set(sessionId, new Uint8Array([7]));
+            (sync as any).sessionDataKeyEnvelopes.set(sessionId, 'current-envelope');
+            validationReady.resolve();
+        }
+        const result = await hydration;
+        if (nextAccount === 'old-account') {
+            expect(storage.getState().sessions[sessionId]?.metadata?.path).toBe('/old-account');
+            expect(result).toMatchObject({ kind: 'available' });
+            expect(voiceHooks.onAgentRequest).toHaveBeenCalledOnce();
+        } else {
+            expect(storage.getState().sessions[sessionId]).toBeUndefined();
+            expect(result).toMatchObject({ kind: 'retryable_failure' });
+            expect(voiceHooks.onAgentRequest).not.toHaveBeenCalled();
+        }
+        if (nextAccount === 'active-reset') {
+            expect((sync as any).sessionDataKeys.get(sessionId)).toEqual(new Uint8Array([7]));
+            expect((sync as any).sessionDataKeyEnvelopes.get(sessionId)).toBe('current-envelope');
+        }
+        expect(requestMock).not.toHaveBeenCalled();
+    });
+
+    it.each(['new-account', 'old-account', 'declined'])('stages encrypted hydration keys through account validation after decryption (%s)', async (nextAccount) => {
+        const { createDeferred } = await import('@/dev/testkit');
+        const { voiceHooks } = await import('@/voice/context/voiceHooks');
+        vi.mocked(voiceHooks.onAgentRequest).mockClear();
+        const { fetchSessionByIdWithServerScope } = await import('./runtime/orchestration/serverScopedRpc/fetchSessionByIdWithServerScope');
+        const active = upsertServerProfile({ serverUrl: 'https://active.example', name: 'Active' });
+        const foreign = upsertServerProfile({ serverUrl: 'https://foreign.example', name: 'Foreign' });
+        setActiveServerId(active.id, { scope: 'device' });
+        let token = buildTokenWithSub('old-account');
+        getCredentialsForServerUrlMock.mockImplementation(async () => ({ token, secret: 'foreign-secret' }));
+        const decryptStarted = createDeferred<void>();
+        const metadata = createDeferred<{ path: string; host: string }>();
+        createEncryptionFromAuthCredentialsMock.mockResolvedValue({
+            decryptEncryptionKey: async () => new Uint8Array([9]),
+            initializeSessions: async () => {},
+            getSessionEncryption: () => ({
+                decryptMetadata: async () => { decryptStarted.resolve(); return await metadata.promise; },
+                decryptAgentState: async () => ({ requests: { req: { tool: 'AskUserQuestion', kind: 'user_action', arguments: { question: 'Proceed?' }, createdAt: 1 } } }),
+            }),
+        });
+        const sessionId = 'foreign_encrypted_pending';
+        runtimeFetchMock.mockResolvedValue(new Response(JSON.stringify({ session: {
+            id: sessionId, createdAt: 1, updatedAt: 2, seq: 3, active: true, activeAt: 2,
+            encryptionMode: 'e2ee', dataEncryptionKey: 'new-envelope', metadataVersion: 1,
+            metadata: 'encrypted', agentStateVersion: 0, agentState: null, share: null,
+        } }), { status: 200 }));
+        const keys = new Map([[sessionId, new Uint8Array([1])], ['unrelated', new Uint8Array([2])]]);
+        const envelopes = new Map([[sessionId, 'old-envelope'], ['unrelated', 'other-envelope']]);
+        const applySessions = vi.fn(() => nextAccount === 'declined' ? false : undefined);
+        const hydration = fetchSessionByIdWithServerScope({
+            sessionId, serverId: foreign.id, activeCredentials: { token: 'unused', secret: '' },
+            sessionDataKeys: keys, sessionDataKeyEnvelopes: envelopes,
+            activeRequest: requestMock, applySessions, log: { log: vi.fn() }, includeTurnsProjection: false,
+        });
+        await decryptStarted.promise;
+        expect(keys.get(sessionId)).toEqual(new Uint8Array([1]));
+        expect(envelopes.get(sessionId)).toBe('old-envelope');
+        token = buildTokenWithSub(nextAccount === 'declined' ? 'old-account' : nextAccount) + '-rotated';
+        metadata.resolve({ path: '/old-account', host: 'foreign.example' });
+        const result = await hydration;
+        expect(result.ok).toBe(nextAccount === 'old-account');
+        if (nextAccount === 'old-account') {
+            expect(applySessions).toHaveBeenCalledOnce();
+            expect(voiceHooks.onAgentRequest).toHaveBeenCalledOnce();
+            expect(keys.get(sessionId)).toEqual(new Uint8Array([9]));
+            expect(envelopes.get(sessionId)).toBe('new-envelope');
+        } else {
+            expect(result.errorCode).toBe('stale_context');
+            expect(applySessions).toHaveBeenCalledTimes(nextAccount === 'declined' ? 1 : 0);
+            expect(voiceHooks.onAgentRequest).not.toHaveBeenCalled();
+            expect(keys.get(sessionId)).toEqual(new Uint8Array([1]));
+            expect(envelopes.get(sessionId)).toBe('old-envelope');
+        }
+        expect(keys.get('unrelated')).toEqual(new Uint8Array([2]));
+        expect(envelopes.get('unrelated')).toBe('other-envelope');
     });
 
     it('ignores localStorage read errors while evaluating debug hydration logging', async () => {

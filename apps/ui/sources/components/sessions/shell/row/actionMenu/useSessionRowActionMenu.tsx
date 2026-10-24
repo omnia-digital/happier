@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { Platform } from 'react-native';
 
 import { Modal } from '@/modal';
 import { t } from '@/text';
@@ -20,6 +21,7 @@ import {
     resolveAttentionStandingFromSessionActionId,
     resolveManualReadStateFromSessionActionId,
     SESSION_ACTION_UNPIN_ID,
+    SESSION_ACTION_UNARCHIVE_ID,
 } from '@/components/sessions/actions/sessionActionIds';
 import { createSessionActionDropdownItem } from '@/components/sessions/actions/sessionActionPresentation';
 import type { SessionActionTarget } from '@/components/sessions/actions/sessionActionTypes';
@@ -44,6 +46,9 @@ import {
     type SessionReminderPresetV1,
 } from '@/sync/domains/session/organization/sessionReminderPreset';
 import { showSessionReminderDateTimeModal, showSessionReminderPresetManagerModal } from './sessionReminderModals';
+import { useKeyboardShortcutLabels } from '@/keyboard/KeyboardShortcutProvider';
+import { SESSION_ROW_MENU_SELECT_ID, withSessionRowMenuShortcutLabels } from './sessionRowMenuKeyboard';
+import { getSelectableMenuChoiceKeyboardHint } from '@/components/ui/forms/dropdown/useSelectableMenu';
 
 function showActionError(error: unknown) {
     if (error instanceof HappyError) {
@@ -109,6 +114,7 @@ export function useSessionRowActionMenu(params: Readonly<{
     archiving?: boolean;
 }>): SessionRowActionMenuState {
     const target = params.target;
+    const shortcutLabels = useKeyboardShortcutLabels();
     const [reminderPresets, setReminderPresets] = useSettingMutable('sessionReminderPresetsV1');
     const tagMenuItems = React.useMemo((): DropdownMenuItem[] => {
         return params.knownTags.map((tag) => ({
@@ -230,6 +236,8 @@ export function useSessionRowActionMenu(params: Readonly<{
             reminderPresets,
             reminder: params.reminder,
             reminderNowMs: Date.now(),
+            shortcutLabels,
+            reminderChoiceKeyboardHint: getSelectableMenuChoiceKeyboardHint(Platform.OS === 'web' ? 'web' : 'native'),
         });
         if (
             !params.isNativeMobile
@@ -237,14 +245,14 @@ export function useSessionRowActionMenu(params: Readonly<{
             && params.selectionModeActive !== true
             && typeof params.onEnterSelectionMode === 'function'
         ) {
-            return [
+            return withSessionRowMenuShortcutLabels([
                 {
-                    id: 'selection.select',
+                    id: SESSION_ROW_MENU_SELECT_ID,
                     title: t('sessionsList.selectionSelectAction'),
                     icon: <Icon name="check-circle" size={16} color={params.iconColor} />,
                 },
                 ...items,
-            ];
+            ], shortcutLabels);
         }
         return items;
     }, [
@@ -257,6 +265,7 @@ export function useSessionRowActionMenu(params: Readonly<{
         params.selectionModeAvailable,
         reminderPresets,
         params.reminder,
+        shortcutLabels,
         target,
     ]);
 
@@ -264,8 +273,11 @@ export function useSessionRowActionMenu(params: Readonly<{
         return new Set((params.leadingMenuItems ?? []).map((item) => item.id));
     }, [params.leadingMenuItems]);
 
-    const handleMoreMenuSelect = React.useCallback(async (itemId: string) => {
-        if (itemId === 'selection.select') {
+    const handleMoreMenuSelect = React.useCallback(async (
+        itemId: string,
+        options?: Readonly<{ forceArchiveConfirmation?: boolean }>,
+    ) => {
+        if (itemId === SESSION_ROW_MENU_SELECT_ID) {
             params.onEnterSelectionMode?.();
             return;
         }
@@ -273,6 +285,7 @@ export function useSessionRowActionMenu(params: Readonly<{
             await params.onSelectLeadingMenuItem?.(itemId);
             return;
         }
+        if (itemId === SESSION_ATTENTION_REMINDER_MENU_ID) itemId = `${SESSION_ATTENTION_REMINDER_MENU_ID}:custom`;
         if (itemId.startsWith(`${SESSION_ATTENTION_REMINDER_MENU_ID}:`)) {
             const nowMs = Date.now();
             const selection = resolveSessionAttentionReminderSelection(itemId, nowMs);
@@ -330,7 +343,29 @@ export function useSessionRowActionMenu(params: Readonly<{
                 await confirmStopSession();
                 break;
             case SESSION_ACTION_ARCHIVE_ID:
-                await confirmArchiveSession();
+                if (options?.forceArchiveConfirmation === true) {
+                    try {
+                        await executeSessionAction({
+                            actionId: SESSION_ACTION_ARCHIVE_ID,
+                            target,
+                            context: {
+                                hideInactiveSessions: params.hideInactiveSessions,
+                                forceArchiveConfirmation: true,
+                            },
+                        });
+                    } catch (error) {
+                        showActionError(error);
+                    }
+                } else {
+                    await confirmArchiveSession();
+                }
+                break;
+            case SESSION_ACTION_UNARCHIVE_ID:
+                try {
+                    await executeSessionAction({ actionId: SESSION_ACTION_UNARCHIVE_ID, target });
+                } catch (error) {
+                    showActionError(error);
+                }
                 break;
         }
     }, [
@@ -344,6 +379,7 @@ export function useSessionRowActionMenu(params: Readonly<{
         params.onEnterSelectionMode,
         params.onMoveToFolder,
         params.onSelectLeadingMenuItem,
+        params.hideInactiveSessions,
         reminderPresets,
         setReminderPresets,
     ]);
@@ -353,7 +389,7 @@ export function useSessionRowActionMenu(params: Readonly<{
         const items: DropdownMenuItem[] = [];
         if (params.selectionModeAvailable === true && typeof params.onEnterSelectionMode === 'function') {
             items.push({
-                id: 'selection.select',
+                id: SESSION_ROW_MENU_SELECT_ID,
                 title: t('sessionsList.selectionSelectAction'),
                 icon: <Icon name="check-circle" size={14} color={params.iconColor} />,
             });
@@ -375,7 +411,7 @@ export function useSessionRowActionMenu(params: Readonly<{
             if (pinItem) items.push(pinItem);
         }
         items.push(...moreMenuItems);
-        return items;
+        return withSessionRowMenuShortcutLabels(items, shortcutLabels);
     }, [
         moreMenuItems,
         params.iconColor,
@@ -386,10 +422,14 @@ export function useSessionRowActionMenu(params: Readonly<{
         params.selectionModeAvailable,
         params.tagsEnabled,
         target.isPinned,
+        shortcutLabels,
     ]);
 
-    const handleContextMenuSelect = React.useCallback((itemId: string) => {
-        if (itemId === 'selection.select') {
+    const handleContextMenuSelect = React.useCallback(async (
+        itemId: string,
+        options?: Readonly<{ forceArchiveConfirmation?: boolean }>,
+    ) => {
+        if (itemId === SESSION_ROW_MENU_SELECT_ID) {
             params.setContextMenuOpen(false);
             params.onEnterSelectionMode?.();
             return;
@@ -401,7 +441,7 @@ export function useSessionRowActionMenu(params: Readonly<{
         }
         if (itemId === SESSION_ACTION_PIN_ID || itemId === SESSION_ACTION_UNPIN_ID) {
             params.setContextMenuOpen(false);
-            void executeLocalSessionAction({
+            await executeLocalSessionAction({
                 target,
                 actionId: itemId,
                 onTogglePinned: params.onTogglePinned,
@@ -409,7 +449,7 @@ export function useSessionRowActionMenu(params: Readonly<{
             return;
         }
         params.setContextMenuOpen(false);
-        void handleMoreMenuSelect(itemId);
+        await handleMoreMenuSelect(itemId, options);
     }, [handleMoreMenuSelect, params, target]);
 
     return {

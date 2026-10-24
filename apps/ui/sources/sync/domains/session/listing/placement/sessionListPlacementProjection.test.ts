@@ -4,7 +4,7 @@ import type { SessionRuntimeIssueV1 } from '@happier-dev/protocol';
 
 import type { SessionAttentionStandingPolicy } from '../../organization/attentionStanding';
 import type { SessionListRenderableSession } from '../sessionListRenderable';
-import { projectSessionListPlacement } from './sessionListPlacementProjection';
+import { didSessionListPlacementProjectionDiverge, projectSessionListPlacement } from './sessionListPlacementProjection';
 
 const usageLimitIssue: SessionRuntimeIssueV1 = {
     v: 1,
@@ -322,7 +322,41 @@ describe('projectSessionListPlacement', () => {
             timestamp: 2_000,
             retainedWorking: false,
             explicitStanding: false,
+            attentionSource: 'blocked_delivery',
         });
+    });
+
+    it('keeps a fresh user request ahead of blocked delivery', () => {
+        const placement = projectSessionListPlacement({
+            nowMs: 10_000,
+            session: makeSession({
+                active: true,
+                presence: 'online',
+                activeAt: 9_000,
+                pendingBlockedCount: 1,
+                hasPendingUserActionRequests: true,
+                pendingRequestObservedAt: 9_000,
+            }),
+        });
+
+        expect(placement.kind).toBe('action_required');
+        expect(placement.attentionSource).toBeUndefined();
+    });
+
+    it('detects a change from a current user request to blocked delivery within action-required placement', () => {
+        const currentRequest = makeSession({
+            active: true,
+            presence: 'online',
+            activeAt: 9_000,
+            pendingBlockedCount: 1,
+            hasPendingUserActionRequests: true,
+            pendingRequestObservedAt: 9_000,
+        });
+        const blockedOnly = { ...currentRequest, hasPendingUserActionRequests: false };
+
+        expect(projectSessionListPlacement({ nowMs: 10_000, session: currentRequest }).kind).toBe('action_required');
+        expect(projectSessionListPlacement({ nowMs: 10_000, session: blockedOnly }).kind).toBe('action_required');
+        expect(didSessionListPlacementProjectionDiverge({ previous: currentRequest, next: blockedOnly, nowMs: 10_000 })).toBe(true);
     });
 
     it('keeps blocked-delivery ordering stable across unrelated transport updates', () => {

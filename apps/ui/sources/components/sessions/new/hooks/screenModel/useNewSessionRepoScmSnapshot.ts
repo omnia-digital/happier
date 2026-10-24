@@ -5,6 +5,7 @@ import {
     mergeWorktreesEnrichmentIntoSnapshot,
     scmRepositoryService,
 } from '@/scm/scmRepositoryService';
+import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import type { ScmWorkingSnapshot } from '@/sync/domains/state/storageTypes';
 
 import { pathBelongsToRepo } from './worktreePathComparison';
@@ -30,28 +31,35 @@ import { pathBelongsToRepo } from './worktreePathComparison';
 export function useNewSessionRepoScmSnapshot(input: Readonly<{
     machineId: string | null;
     path: string;
+    scope: ServerAccountScope | null;
 }>): ScmWorkingSnapshot | null {
-    const [snapshot, setSnapshot] = React.useState<ScmWorkingSnapshot | null>(() => {
+    const targetKey = input.scope && input.machineId?.trim()
+        ? JSON.stringify([input.scope.serverId, input.scope.accountId, input.machineId.trim()])
+        : null;
+    const [state, setState] = React.useState<{ targetKey: string | null; snapshot: ScmWorkingSnapshot | null }>(() => {
         const machineId = input.machineId?.trim() ?? '';
         const path = input.path.trim();
-        if (!machineId || !path) return null;
+        if (!input.scope || !machineId || !path) return { targetKey, snapshot: null };
         const light = scmRepositoryService.readCachedSnapshotForMachinePath({
             machineId,
             path,
+            scope: input.scope,
         });
-        if (!light) return null;
+        if (!light) return { targetKey, snapshot: null };
         const enrichment = scmRepositoryService.readCachedWorktreesEnrichment({
             machineId,
             path,
+            scope: input.scope,
         });
-        return enrichment ? mergeWorktreesEnrichmentIntoSnapshot(light, enrichment) : light;
+        return { targetKey, snapshot: enrichment ? mergeWorktreesEnrichmentIntoSnapshot(light, enrichment) : light };
     });
 
     const refreshSnapshot = React.useCallback(() => {
         const machineId = input.machineId?.trim() ?? '';
         const path = input.path.trim();
-        if (!machineId || !path) {
-            setSnapshot(null);
+        const scope = input.scope;
+        if (!scope || !machineId || !path) {
+            setState({ targetKey, snapshot: null });
             return () => {};
         }
 
@@ -59,10 +67,12 @@ export function useNewSessionRepoScmSnapshot(input: Readonly<{
         const cachedLight = scmRepositoryService.readCachedSnapshotForMachinePath({
             machineId,
             path,
+            scope,
         });
         const cachedEnrichment = scmRepositoryService.readCachedWorktreesEnrichment({
             machineId,
             path,
+            scope,
         });
         const seededFromCache = cachedLight && cachedEnrichment
             ? mergeWorktreesEnrichmentIntoSnapshot(cachedLight, cachedEnrichment)
@@ -76,16 +86,17 @@ export function useNewSessionRepoScmSnapshot(input: Readonly<{
         // round-trip until the new path's light fetch lands. (Honors the UI rule
         // against flashing empty states for already-hydrated lists.)
         const applySeed = () => {
-            setSnapshot((previous) => {
-                if (seededFromCache) return seededFromCache;
+            setState((previousState) => {
+                if (seededFromCache) return { targetKey, snapshot: seededFromCache };
+                const previous = previousState.targetKey === targetKey ? previousState.snapshot : null;
                 if (previous && pathBelongsToRepo({
                     candidatePath: path,
                     repoRootPath: previous.repo.rootPath,
                     worktreePaths: (previous.repo.worktrees ?? []).map((worktree) => worktree.path),
                 })) {
-                    return previous;
+                    return previousState;
                 }
-                return null;
+                return { targetKey, snapshot: null };
             });
         };
         applySeed();
@@ -96,6 +107,7 @@ export function useNewSessionRepoScmSnapshot(input: Readonly<{
                 const lightSnapshot = await scmRepositoryService.fetchSnapshotForMachinePath({
                     machineId,
                     path,
+                    scope,
                 });
                 if (cancelled) return;
                 // Apply any cached enrichment immediately so the chip doesn't
@@ -103,7 +115,7 @@ export function useNewSessionRepoScmSnapshot(input: Readonly<{
                 const lightWithCachedEnrichment = lightSnapshot && cachedEnrichment
                     ? mergeWorktreesEnrichmentIntoSnapshot(lightSnapshot, cachedEnrichment)
                     : lightSnapshot;
-                setSnapshot(lightWithCachedEnrichment);
+                setState({ targetKey, snapshot: lightWithCachedEnrichment });
 
                 // STAGE 2: Background enrichment for the freshly listed worktrees.
                 const worktreePaths = lightSnapshot?.repo.worktrees?.map((w) => w.path) ?? [];
@@ -112,10 +124,11 @@ export function useNewSessionRepoScmSnapshot(input: Readonly<{
                 const enrichment = await scmRepositoryService.fetchWorktreesEnrichment({
                     machineId,
                     path,
+                    scope,
                     worktreePaths,
                 });
                 if (cancelled || !enrichment || !lightSnapshot) return;
-                setSnapshot(mergeWorktreesEnrichmentIntoSnapshot(lightSnapshot, enrichment));
+                setState({ targetKey, snapshot: mergeWorktreesEnrichmentIntoSnapshot(lightSnapshot, enrichment) });
             } catch (_error) {
                 if (!cancelled) {
                     applySeed();
@@ -126,7 +139,7 @@ export function useNewSessionRepoScmSnapshot(input: Readonly<{
         return () => {
             cancelled = true;
         };
-    }, [input.machineId, input.path]);
+    }, [input.machineId, input.path, input.scope?.serverId, input.scope?.accountId, targetKey]);
 
     React.useEffect(() => {
         return refreshSnapshot();
@@ -134,5 +147,5 @@ export function useNewSessionRepoScmSnapshot(input: Readonly<{
 
     useFocusEffect(refreshSnapshot);
 
-    return snapshot;
+    return state.targetKey === targetKey ? state.snapshot : null;
 }

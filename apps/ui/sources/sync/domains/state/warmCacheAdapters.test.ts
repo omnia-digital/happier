@@ -13,6 +13,13 @@ import type { SessionListRenderableSession } from '@/sync/domains/session/listin
 import { createSessionFixture } from '@/dev/testkit';
 
 describe('warmCacheAdapters', () => {
+    it('preserves ticket association through cache serialization without persisting status authority', () => {
+        const association = { v: 1, ticket: { v: 1, provider: 'linear', workspaceId: 'team', ticketId: 'uuid', key: 'ENG-123', title: 'Ticket', url: 'https://linear.app/team/issue/ENG-123' }, reader: { machineId: 'reader', mcpServerId: 'linear', directory: '/repo' } };
+        const renderable = buildSessionListRenderableFromSession(createSessionFixture({ metadata: { path: '/repo', host: 'host', sessionTicketV1: association } }));
+        const entry = SessionListCacheEntryV1Schema.parse(JSON.parse(JSON.stringify(buildSessionListCacheEntryFromRenderable(renderable))));
+        expect(buildSessionListRenderableFromCacheEntry(entry).metadata?.sessionTicketV1).toEqual(association);
+        expect(buildSessionListCacheEntryFromRenderable(buildSessionListRenderableFromCacheEntry(entry), entry)).toBe(entry);
+    });
     it('persists resolved runtime identity through compact projection and JSON cache hydration', () => {
         const renderable = buildSessionListRenderableFromSession(createSessionFixture({
             metadata: {

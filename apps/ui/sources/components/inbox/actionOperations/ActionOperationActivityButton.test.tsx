@@ -21,9 +21,20 @@ vi.mock('react-native-unistyles', async () => {
     const { createUnistylesMock } = await import('@/dev/testkit/mocks/unistyles');
     return createUnistylesMock();
 });
+vi.mock('react-native-reanimated', async () => {
+    const { createReanimatedModuleMock } = await import('@/dev/testkit/mocks/reanimated');
+    return createReanimatedModuleMock();
+});
+vi.mock('@/hooks/ui/useReducedMotionPreference', () => ({
+    useReducedMotionPreference: () => false,
+}));
 vi.mock('@/text', async () => {
     const { createTextModuleMock } = await import('@/dev/testkit/mocks/text');
-    return createTextModuleMock({ translate: (key: string) => key === 'inbox.updates' ? 'Activity' : key });
+    return createTextModuleMock({ translate: (key: string) => ({
+        'inbox.updates': 'Activity',
+        'inbox.activityToolbarTooltip': 'Activity toolbar explanation',
+        'inbox.activityPanelDescription': 'Activity panel explanation',
+    }[key] ?? key) });
 });
 vi.mock('@/sync/domains/state/storage', async () => {
     const { createStorageModuleStub } = await import('@/dev/testkit/mocks/storage');
@@ -103,6 +114,17 @@ describe('ActionOperationActivityButtonView', () => {
             />,
         );
 
+        const trigger = screen.find((node) => (
+            node.props.testID === 'action-operation-activity-button'
+            && node.props.webTooltip === 'Activity toolbar explanation'
+        ));
+        expect(trigger.props).toMatchObject({
+            accessibilityLabel: 'Activity',
+            webTooltip: 'Activity toolbar explanation',
+            focusRingRadius: 22,
+        });
+        expect(screen.findByTestId('action-operation-activity-description')).toBeNull();
+
         await act(async () => {
             await screen.findByTestId('action-operation-activity-button')?.props.onPress({
                 currentTarget: {
@@ -112,6 +134,7 @@ describe('ActionOperationActivityButtonView', () => {
         });
 
         expect(screen.findByTestId('action-operation-activity-popover')).not.toBeNull();
+        expect(screen.findByTestId('action-operation-activity-description')?.props.children).toBe('Activity panel explanation');
         expect(screen.findByTestId('action-operation-row-operation-1')).not.toBeNull();
         expect(capturedPopoverProps.current?.placement).toBe('bottom');
         expect(capturedPopoverProps.current?.anchor).toEqual({
@@ -120,6 +143,7 @@ describe('ActionOperationActivityButtonView', () => {
             coordinateSpace: 'window',
         });
         expect(capturedPopoverProps.current?.boundaryRef).toBeNull();
+        expect(capturedPopoverProps.current?.anchorRef).toBe(trigger.props.anchorRef);
         expect(capturedPopoverProps.current?.portal).toEqual({
             web: { target: 'body' },
             native: true,
@@ -173,6 +197,29 @@ describe('ActionOperationActivityButtonView', () => {
 
         expect(screen.findByTestId('action-operation-activity-count')).toBeNull();
         expect(screen.findByTestId('action-operation-activity-attention-dot')).not.toBeNull();
+    });
+
+    it('clears the Activity attention dot when its summary clears while the open panel stays mounted', async () => {
+        const props = {
+            operations: [operation({ state: 'succeeded', settledAt: 200 })],
+            activeCount: 0,
+            hasAttention: true,
+            observationForOperation: () => 'available' as const,
+            contextForOperation: () => null,
+            onOpenOperation: () => {},
+            onMarkVisibleTerminalSeen: () => {},
+        };
+        const { ActionOperationActivityButtonView } = await import('./ActionOperationActivityButton');
+        const screen = await renderScreen(<ActionOperationActivityButtonView {...props} />);
+
+        await screen.pressByTestIdAsync('action-operation-activity-button');
+        expect(screen.findByTestId('action-operation-activity-attention-dot')).not.toBeNull();
+        expect(screen.findByTestId('action-operation-activity-popover')).not.toBeNull();
+
+        await screen.update(<ActionOperationActivityButtonView {...props} hasAttention={false} />);
+
+        expect(screen.findByTestId('action-operation-activity-attention-dot')).toBeNull();
+        expect(screen.findByTestId('action-operation-activity-popover')).not.toBeNull();
     });
 });
 

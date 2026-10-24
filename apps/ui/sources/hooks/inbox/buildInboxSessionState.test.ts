@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { storage } from '@/sync/domains/state/storageStore';
+import { createSessionMessagesFixture, createToolCallMessageFixture } from '@/dev/testkit/fixtures/transcriptFixtures';
 
 import type { SessionListRenderableSession } from '@/sync/domains/session/listing/sessionListRenderable';
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
@@ -373,11 +375,122 @@ describe('buildInboxSessionState', () => {
             nowMs: now,
         });
 
-        expect(state.sessionsNeedingAttention.map((entry) => entry.key)).toEqual([
-            'background:blocked-delivery',
+        expect(state.sessionsNeedingAttention.map(({ key, reason }) => ({ key, reason }))).toEqual([
+            { key: 'background:blocked-delivery', reason: 'delivery_blocked' },
         ]);
+        expect(state.sessionsNeedingAttention[0]).toMatchObject({
+            pendingPermissions: [],
+            pendingUserActions: [],
+        });
         expect(state.reviewSessions).toEqual([]);
         expect(state.markAllReadTargets).toEqual([]);
+    });
+
+    it('keeps a fresh agent question response-required ahead of blocked delivery', () => {
+        const session = makeSession({
+            serverId: 'server-a',
+            active: true,
+            activeAt: now,
+            presence: 'online',
+            pendingBlockedCount: 1,
+            latestTurnStatus: 'in_progress',
+            latestTurnStatusObservedAt: now,
+            agentState: {
+                controlledByUser: null,
+                requests: {
+                    current_question: {
+                        tool: 'AskUserQuestion',
+                        kind: 'user_action',
+                        arguments: { q: 'Which option?' },
+                        createdAt: now,
+                    },
+                },
+            },
+        });
+
+        const state = buildInboxSessionState({ sessions: [session], nowMs: now });
+        expect(state.sessionsNeedingAttention).toMatchObject([{
+            reason: 'action_required',
+            serverId: 'server-a',
+            pendingUserActions: [{ id: 'current_question' }],
+        }]);
+    });
+
+    it('identifies blocked delivery when an offline hydrated request is no longer a current action', () => {
+        const session = makeSession({
+            serverId: 'server-a',
+            active: true,
+            activeAt: now - 1_000,
+            presence: now - 1_000,
+            pendingBlockedCount: 1,
+            agentState: {
+                controlledByUser: null,
+                requests: {
+                    old_permission: {
+                        tool: 'Bash',
+                        kind: 'permission',
+                        arguments: {},
+                        createdAt: now - 10_000,
+                    },
+                },
+            },
+        });
+
+        const state = buildInboxSessionState({ sessions: [session], nowMs: now });
+        expect(state.sessionsNeedingAttention).toMatchObject([{
+            reason: 'delivery_blocked',
+            pendingPermissions: [{ id: 'old_permission' }],
+        }]);
+    });
+
+    it('uses current hydrated request state instead of a stale scoped permission row', () => {
+        const staleRow = makeUnreadRenderable({
+            id: 'resolved-request',
+            hasPendingPermissionRequests: true,
+            pendingRequestObservedAt: now,
+            activeAt: now,
+        });
+        const hydrated = makeSession({
+            id: 'resolved-request',
+            serverId: 'server-a',
+            activeAt: now,
+            latestTurnStatus: 'completed',
+            latestTurnStatusObservedAt: now,
+            latestReadyEventSeq: 4,
+            latestReadyEventAt: now,
+            agentState: { controlledByUser: null, requests: {} },
+        });
+        const state = buildInboxSessionState({
+            sessions: [hydrated],
+            sessionListViewDataByServerId: {
+                'server-a': makeScopedSessionList('server-a', [staleRow]),
+            },
+            nowMs: now,
+        });
+
+        expect(state.sessionsNeedingAttention).toEqual([]);
+        expect(state.reviewSessions.map((entry) => entry.reason)).toEqual(['ready']);
+    });
+
+    it('updates a blocked-delivery entry to a completed update when delivery clears', () => {
+        const blocked = makeUnreadRenderable({ id: 'delivery-cleared', pendingBlockedCount: 1 });
+        const input = {
+            sessions: [],
+            sessionListViewDataByServerId: {
+                background: makeScopedSessionList('background', [blocked]),
+            },
+            nowMs: now,
+        };
+        expect(buildInboxSessionState(input).sessionsNeedingAttention[0]?.reason).toBe('delivery_blocked');
+
+        const resolved = buildInboxSessionState({
+            ...input,
+            sessionListViewDataByServerId: {
+                background: makeScopedSessionList('background', [{ ...blocked, pendingBlockedCount: 0 }]),
+            },
+        });
+        expect(resolved.sessionsNeedingAttention).toEqual([]);
+        expect(resolved.reviewSessions.map((entry) => entry.reason)).toEqual(['ready']);
     });
 
     it('deduplicates actionable and unread presentation only within the same server scope', () => {
@@ -567,6 +680,106 @@ describe('buildInboxSessionState', () => {
         });
 
         expect(state.sessionsNeedingAttention.map((entry) => entry.session.id)).toEqual(['session-1']);
+    });
+
+    it('uses a newer scoped list request until hydrated state catches up, then accepts a newer resolution', () => {
+        const listRequest = makeUnreadRenderable({
+            id: 'current-request',
+            metadataVersion: 2,
+            agentStateVersion: 2,
+            hasPendingPermissionRequests: true,
+            hasUnreadMessages: false,
+            latestTurnStatus: null,
+            latestReadyEventSeq: null,
+            latestReadyEventAt: null,
+            activeAt: now,
+            pendingRequestObservedAt: now,
+        });
+        const list = { 'server-a': makeScopedSessionList('server-a', [listRequest]) };
+        const staleHydrated = makeSession({
+            id: 'current-request',
+            serverId: 'server-a',
+            agentStateVersion: 1,
+            agentState: null,
+            activeAt: now,
+        });
+
+        const waiting = buildInboxSessionState({ sessions: [staleHydrated], sessionListViewDataByServerId: list, nowMs: now });
+        expect(waiting.sessionsNeedingAttention.map((entry) => entry.reason)).toEqual(['permission_required']);
+        expect(waiting.sessionsNeedingAttention[0]?.session).toBe(listRequest);
+
+        const newerHydrated = makeSession({ ...staleHydrated, agentStateVersion: 3,
+            agentState: { controlledByUser: null, requests: {
+                newerQuestion: { tool: 'AskUserQuestion', kind: 'user_action', arguments: {}, createdAt: now },
+            } },
+        });
+        const changed = buildInboxSessionState({ sessions: [newerHydrated], sessionListViewDataByServerId: list, nowMs: now });
+        expect(changed.sessionsNeedingAttention.map(entry => entry.reason)).toEqual(['action_required']);
+        expect(changed.sessionsNeedingAttention[0].pendingUserActions.map(request => request.id)).toEqual(['newerQuestion']);
+        expect(changed.sessionByKey.get('server-a:current-request')?.session.metadataVersion).toBe(2);
+
+        const resolvedHydrated = makeSession({
+            ...staleHydrated,
+            agentStateVersion: 4,
+            agentState: { controlledByUser: null, requests: {}, completedRequests: {} },
+        });
+        const resolved = buildInboxSessionState({ sessions: [resolvedHydrated], sessionListViewDataByServerId: list, nowMs: now });
+        expect(resolved.sessionsNeedingAttention).toEqual([]);
+    });
+
+    it('keeps same-id foreign request details separate from the active Home overlay and transcript', () => {
+        const foreign = makeSession({ id: 'shared-request', serverId: 'server-b', activeAt: now,
+            agentState: { controlledByUser: null, requests: {
+                question: { tool: 'AskUserQuestion', kind: 'user_action', arguments: { q: 'Continue?' }, createdAt: now },
+            } },
+        });
+        const active = makeUnreadRenderable({ id: foreign.id, activeAt: now, agentStateVersion: 2,
+            hasPendingPermissionRequests: true, pendingRequestObservedAt: now });
+        const completed = createToolCallMessageFixture({ id: 'active-transcript', createdAt: now, tool: {
+            id: 'question', name: 'AskUserQuestion', state: 'error', input: {}, createdAt: now, startedAt: now,
+            completedAt: now + 1, description: null, permission: { id: 'question', status: 'canceled', kind: 'user_action' },
+        } });
+        const previousMessages = storage.getState().sessionMessages;
+        const sessionMessagesById = { [foreign.id]: createSessionMessagesFixture({
+            messageIdsOldestFirst: [completed.id], messagesById: { [completed.id]: completed },
+        }) };
+        storage.setState({ sessionMessages: sessionMessagesById });
+        try {
+            const state = buildInboxSessionState({ sessions: [foreign], activeServerId: 'server-a',
+                sessionListRenderables: { [foreign.id]: active },
+                sessionListViewDataByServerId: {
+                    'server-a': makeScopedSessionList('server-a', [{ ...active, agentStateVersion: 0, hasPendingPermissionRequests: false }]),
+                    'server-b': makeScopedSessionList('server-b', [makeUnreadRenderable({ id: foreign.id, activeAt: now })]),
+                },
+                sessionMessagesById, nowMs: now,
+            });
+            expect(state.sessionsNeedingAttention.map(entry => [entry.serverId, entry.reason])).toEqual([
+                ['server-a', 'permission_required'], ['server-b', 'action_required'],
+            ]);
+            expect(state.sessionsNeedingAttention[1].pendingUserActions.map(request => request.id)).toEqual(['question']);
+        } finally {
+            storage.setState({ sessionMessages: previousMessages });
+        }
+    });
+
+    it.each(['list', 'hydrated'] as const)('uses the newer %s unarchive state instead of suppressing its request with an older archive', (newerSource) => {
+        const hydrated = makeSession({
+            id: 'restored-request', serverId: 'server-a', activeAt: now,
+            updatedAt: newerSource === 'hydrated' ? 20 : 10,
+            archivedAt: newerSource === 'hydrated' ? null : 5,
+            agentState: { controlledByUser: null, requests: {
+                permission: { tool: 'Bash', kind: 'permission', arguments: {}, createdAt: now },
+            } },
+        });
+        const row = makeUnreadRenderable({
+            id: hydrated.id, activeAt: now, hasPendingPermissionRequests: true, pendingRequestObservedAt: now,
+            updatedAt: newerSource === 'list' ? 20 : 10,
+            archivedAt: newerSource === 'list' ? null : 5,
+        });
+        const state = buildInboxSessionState({ sessions: [hydrated],
+            sessionListViewDataByServerId: { 'server-a': makeScopedSessionList('server-a', [row]) }, nowMs: now });
+        expect(state.sessionsNeedingAttention.map(entry => entry.reason)).toEqual(['permission_required']);
+        expect(state.sessionsNeedingAttention[0].session).toBe(newerSource === 'list' ? row : hydrated);
     });
 
     it('keeps an actionable working session in one visible section without a premature read target', () => {

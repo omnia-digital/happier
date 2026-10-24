@@ -6,7 +6,7 @@ import { ItemGroup } from '@/components/ui/lists/ItemGroup';
 import { ItemGroupTitleWithAction } from '@/components/ui/lists/ItemGroupTitleWithAction';
 import { ItemList } from '@/components/ui/lists/ItemList';
 import { Typography } from '@/constants/Typography';
-import { useSessions, useAllMachines, useMachine, storage, useSetting, useSettingMutable, useSettings } from '@/sync/domains/state/storage';
+import { useSessions, useAllMachines, useMachine, storage, useSetting, useSettingMutable, useSettings, useLocalSetting } from '@/sync/domains/state/storage';
 import type { Machine, MachineMetadata, Session } from '@/sync/domains/state/storageTypes';
 import { ActivitySpinner } from '@/components/ui/feedback/ActivitySpinner';
 import {
@@ -55,6 +55,16 @@ import { WINDOWS_REMOTE_SESSION_LAUNCH_MODE_OPTIONS } from '@/sync/domains/sessi
 import { readDisplayMachineTargetForSession, readMachineControlTargetForSession } from '@/sync/ops/sessionMachineTarget';
 import { resolveMachineSpawnReadiness } from '@/sync/domains/machines/identity/resolveMachineSpawnReadiness';
 import { Icon } from '@/components/ui/icons/Icon';
+import {
+    MachineDisplayIconSchema,
+    MachineDisplayColorSchema,
+    readMachineDisplayColor,
+    withMachineDisplayColor,
+    readMachineDisplayIcon,
+    withMachineDisplayIcon,
+} from '@/sync/domains/machines/machineDisplayIconPreference';
+import { resolveMachineDisplayColor } from '@/components/sessions/machineDisplayColor';
+import { useApplyLocalSettings } from '@/sync/store/settingsWriters';
 import {
     MachineReplacementPickerModal,
     type MachineReplacementPickerCandidate,
@@ -167,6 +177,8 @@ export default function MachineDetailScreen() {
     const [isServerSwitching, setIsServerSwitching] = useState(false);
     const [isStoppingDaemon, setIsStoppingDaemon] = useState(false);
     const [isRenamingMachine, setIsRenamingMachine] = useState(false);
+    const [openMachineIconMenu, setOpenMachineIconMenu] = useState(false);
+    const [openMachineColorMenu, setOpenMachineColorMenu] = useState(false);
     const [isUpdatingWindowsConsoleMode, setIsUpdatingWindowsConsoleMode] = useState(false);
     const [openWindowsRemoteSessionLaunchModeMenu, setOpenWindowsRemoteSessionLaunchModeMenu] = useState(false);
     const [openTerminalHostOverrideMenu, setOpenTerminalHostOverrideMenu] = useState(false);
@@ -193,6 +205,13 @@ export default function MachineDetailScreen() {
     const settings = useSettings();
     const applySettings = useApplySettings();
     const activeServerId = getActiveServerId();
+    const machineDisplayIconByMachineV1 = useLocalSetting('machineDisplayIconByMachineV1');
+    const machineDisplayColorByMachineV1 = useLocalSetting('machineDisplayColorByMachineV1');
+    const applyLocalSettings = useApplyLocalSettings();
+    const selectedMachineDisplayIcon = readMachineDisplayIcon(machineDisplayIconByMachineV1, activeServerId, machineId);
+    const selectedMachineDisplayColor = readMachineDisplayColor(machineDisplayColorByMachineV1, activeServerId, machineId);
+    const machineGlyphColor = resolveMachineDisplayColor(theme, selectedMachineDisplayColor, theme.colors.text.secondary);
+    const headerMachineGlyphColor = resolveMachineDisplayColor(theme, selectedMachineDisplayColor, theme.colors.chrome.header.foreground);
     const [executionRunsState, setExecutionRunsState] = useState<
         | { status: 'idle' | 'loading'; runs: readonly DaemonExecutionRunEntry[] }
         | { status: 'loaded'; runs: readonly DaemonExecutionRunEntry[] }
@@ -672,7 +691,8 @@ export default function MachineDetailScreen() {
                 await machineUpdateMetadata(
                     machineId,
                     updatedMetadata,
-                    machine.metadataVersion
+                    machine.metadataVersion,
+                    { updateDisplayName: true },
                 );
             } catch (error) {
                 Modal.alert(
@@ -684,6 +704,32 @@ export default function MachineDetailScreen() {
             } finally {
                 setIsRenamingMachine(false);
             }
+        }
+    };
+
+    const handleResetMachineDisplay = async () => {
+        if (!machine || !machineId || isRenamingMachine) return;
+        setIsRenamingMachine(true);
+        try {
+            if (machine.metadata?.displayName) {
+                await machineUpdateMetadata(machineId, {
+                    ...machine.metadata,
+                    displayName: undefined,
+                }, machine.metadataVersion, { updateDisplayName: true });
+            }
+            applyLocalSettings({
+                machineDisplayIconByMachineV1: withMachineDisplayIcon(
+                    machineDisplayIconByMachineV1, activeServerId, machineId, 'desktop',
+                ),
+                machineDisplayColorByMachineV1: withMachineDisplayColor(
+                    machineDisplayColorByMachineV1, activeServerId, machineId, 'automatic',
+                ),
+            });
+        } catch (error) {
+            Modal.alert(t('common.error'), error instanceof Error ? error.message : t('machine.renameFailed'));
+            await sync.refreshMachines();
+        } finally {
+            setIsRenamingMachine(false);
         }
     };
 
@@ -846,9 +892,9 @@ export default function MachineDetailScreen() {
             <View>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <Icon
-                        name="desktop"
+                        name={selectedMachineDisplayIcon}
                         size={16}
-                        color={theme.colors.chrome.header.foreground}
+                        color={headerMachineGlyphColor}
                         style={{ marginRight: 6 }}
                     />
                     <Text style={[Typography.default('semiBold'), { fontSize: 17, color: theme.colors.chrome.header.foreground }]}>
@@ -872,7 +918,7 @@ export default function MachineDetailScreen() {
                 </View>
             </View>
         );
-    }, [machineIsOnline, machine, machineName, theme.colors.chrome.header.foreground]);
+    }, [machineIsOnline, machine, machineName, selectedMachineDisplayIcon, headerMachineGlyphColor, theme.colors.chrome.header.foreground]);
 
     const headerRight = React.useCallback(() => {
         if (!machine) return null;
@@ -1019,6 +1065,87 @@ export default function MachineDetailScreen() {
                         </View>
                         </ItemGroup>
                     </>
+                )}
+
+                {!!machineId && (
+                    <ItemGroup title={t('machine.displayAppearanceTitle')}>
+                        <Item
+                            testID="machine-display-label"
+                            title={t('machine.displayLabelTitle')}
+                            subtitle={machineName}
+                            leftElement={<Icon name="pencil" size={20} color={theme.colors.text.secondary} />}
+                            onPress={handleRenameMachine}
+                            disabled={isRenamingMachine}
+                        />
+                        <DropdownMenu
+                            open={openMachineIconMenu && !isRenamingMachine}
+                            onOpenChange={(open) => { if (!isRenamingMachine) setOpenMachineIconMenu(open); }}
+                            items={MachineDisplayIconSchema.options.map((icon) => ({
+                                id: icon,
+                                title: t(`machine.displayIcons.${icon}`),
+                                icon: <Icon name={icon} size={20} color={theme.colors.text.secondary} />,
+                            }))}
+                            selectedId={selectedMachineDisplayIcon}
+                            onSelect={(id) => {
+                                if (isRenamingMachine) return;
+                                const parsed = MachineDisplayIconSchema.safeParse(id);
+                                if (!parsed.success) return;
+                                applyLocalSettings({
+                                    machineDisplayIconByMachineV1: withMachineDisplayIcon(
+                                        machineDisplayIconByMachineV1, activeServerId, machineId, parsed.data,
+                                    ),
+                                });
+                                setOpenMachineIconMenu(false);
+                            }}
+                            itemTrigger={{
+                                title: t('machine.displayIconTitle'),
+                                subtitle: t('machine.displayLocalOnlySubtitle'),
+                                icon: <Icon name={selectedMachineDisplayIcon} size={20} color={machineGlyphColor} />,
+                                itemProps: { testID: 'machine-display-icon', disabled: isRenamingMachine },
+                            }}
+                            rowKind="item"
+                            connectToTrigger
+                            variant="default"
+                        />
+                        <DropdownMenu
+                            open={openMachineColorMenu && !isRenamingMachine}
+                            onOpenChange={(open) => { if (!isRenamingMachine) setOpenMachineColorMenu(open); }}
+                            items={MachineDisplayColorSchema.options.map((color) => ({
+                                id: color,
+                                title: t(`machine.displayColors.${color}`),
+                                icon: <Icon name={selectedMachineDisplayIcon} size={20} color={resolveMachineDisplayColor(theme, color, theme.colors.text.secondary)} />,
+                            }))}
+                            selectedId={selectedMachineDisplayColor}
+                            onSelect={(id) => {
+                                if (isRenamingMachine) return;
+                                const parsed = MachineDisplayColorSchema.safeParse(id);
+                                if (!parsed.success) return;
+                                applyLocalSettings({
+                                    machineDisplayColorByMachineV1: withMachineDisplayColor(
+                                        machineDisplayColorByMachineV1, activeServerId, machineId, parsed.data,
+                                    ),
+                                });
+                                setOpenMachineColorMenu(false);
+                            }}
+                            itemTrigger={{
+                                title: t('machine.displayColorTitle'),
+                                subtitle: t(`machine.displayColors.${selectedMachineDisplayColor}`),
+                                icon: <Icon name={selectedMachineDisplayIcon} size={20} color={machineGlyphColor} />,
+                                itemProps: { testID: 'machine-display-color', disabled: isRenamingMachine },
+                            }}
+                            rowKind="item"
+                            connectToTrigger
+                            variant="default"
+                        />
+                        <Item
+                            testID="machine-display-reset"
+                            title={t('machine.displayResetTitle')}
+                            subtitle={t('machine.displayResetSubtitle')}
+                            leftElement={<Icon name="arrow-clockwise" size={20} color={theme.colors.text.secondary} />}
+                            onPress={() => void handleResetMachineDisplay()}
+                            disabled={isRenamingMachine || (!machine.metadata?.displayName && selectedMachineDisplayIcon === 'desktop' && selectedMachineDisplayColor === 'automatic')}
+                        />
+                    </ItemGroup>
                 )}
 
                 {/* Machine-specific terminal-host override; tmux details remain available below. */}

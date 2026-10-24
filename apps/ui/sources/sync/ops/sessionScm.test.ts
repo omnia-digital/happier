@@ -19,6 +19,7 @@ vi.mock('@/sync/api/session/apiSocket', () => ({
 
 vi.mock('@/sync/runtime/orchestration/serverScopedRpc/serverScopedSessionRpc', () => ({
     sessionRpcWithServerScope: (params: unknown) => sessionRpcMock(params),
+    sessionRpcWithServerAccountScope: (params: unknown) => sessionRpcMock(params),
 }));
 
 vi.mock('@/sync/runtime/orchestration/serverScopedRpc/resolvePreferredServerIdForSessionId', () => ({
@@ -64,6 +65,15 @@ function createSessionScmState(params: Readonly<{
 }
 
 describe('sessionScm', () => {
+    it('retains the captured account scope when a snapshot uses session transport', async () => {
+        getStateMock.mockReturnValue(createSessionScmState());
+        sessionRpcMock.mockResolvedValue({ success: true });
+        const { sessionScmStatusSnapshot } = await import('./sessionScm');
+        const scope = { serverId: 'owning-home', accountId: 'owning-account' };
+        expect(await sessionScmStatusSnapshot('session-1', {}, scope)).toEqual({ success: true });
+        expect(sessionRpcMock).toHaveBeenCalledWith({ sessionId: 'session-1', scope, method: RPC_METHODS.SCM_STATUS_SNAPSHOT, payload: {} });
+    });
+
     afterEach(() => {
         sessionRpcMock.mockReset();
         machineRpcMock.mockReset();

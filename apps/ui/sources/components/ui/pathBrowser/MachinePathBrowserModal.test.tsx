@@ -75,6 +75,24 @@ const machineRipgrepMock = vi.hoisted(() => vi.fn<(machineId: string, args: read
 })));
 const modalPromptMock = vi.hoisted(() => vi.fn<(...args: any[]) => Promise<string | null>>(async () => null));
 const modalAlertMock = vi.hoisted(() => vi.fn());
+let activeViewerScope = { serverId: 'server-1', accountId: 'account-a' };
+const credentialListeners = new Set<() => void>();
+
+vi.mock('@/auth/storage/tokenStorage', () => ({
+    TokenStorage: {
+        subscribeCredentialChanges: (listener: () => void) => {
+            credentialListeners.add(listener);
+            return () => { credentialListeners.delete(listener); };
+        },
+    },
+}));
+
+vi.mock('@/sync/domains/state/storage', async () => {
+    const { createStorageModuleStub } = await import('@/dev/testkit/mocks/storage');
+    return createStorageModuleStub({
+        useActiveServerAccountScope: () => activeViewerScope,
+    });
+});
 
 vi.mock('react-native', async () => {
     const { createReactNativeWebMock } = await import('@/dev/testkit/mocks/reactNative');
@@ -198,6 +216,8 @@ vi.mock('@/sync/domains/input/machineFileBrowser', () => ({
 
 describe('MachinePathBrowserModal', () => {
     beforeEach(() => {
+        activeViewerScope = { serverId: 'server-1', accountId: 'account-a' };
+        credentialListeners.clear();
         listMachineFileBrowserRootsMock.mockClear();
         listMachineFileBrowserDirectoryEntriesMock.mockClear();
         flatListScrollToIndexMock.mockClear();
@@ -205,6 +225,55 @@ describe('MachinePathBrowserModal', () => {
         machineRipgrepMock.mockClear();
         modalPromptMock.mockClear();
         modalAlertMock.mockClear();
+    });
+
+    it('closes a captured Account browser before showing a switched viewer its old tree', async () => {
+        const onResolve = vi.fn();
+        const onClose = vi.fn();
+        const { MachinePathBrowserModal } = await import('./MachinePathBrowserModal');
+        const props = {
+            machineId: 'machine-1',
+            serverId: 'server-1',
+            browserIdentity: {
+                target: { serverId: 'server-1', accountId: 'account-a', machineId: 'machine-1' },
+                viewerScope: { serverId: 'server-1', accountId: 'account-a' },
+            },
+            onResolve,
+            onClose,
+        };
+        const screen = await renderScreen(<MachinePathBrowserModal {...props} />);
+        expect(onResolve).not.toHaveBeenCalled();
+
+        activeViewerScope = { serverId: 'server-1', accountId: 'account-b' };
+        await act(async () => screen.tree.update(<MachinePathBrowserModal {...props} />));
+        expect(onResolve).toHaveBeenCalledWith(null);
+        expect(onClose).toHaveBeenCalledTimes(1);
+        expect(screen.findByTestId(PATH_BROWSER_MODAL_TEST_ID)).toBeNull();
+        act(() => screen.tree.unmount());
+    });
+
+    it('closes a captured Account browser when its credentials change', async () => {
+        const onResolve = vi.fn();
+        const onClose = vi.fn();
+        const { MachinePathBrowserModal } = await import('./MachinePathBrowserModal');
+        const screen = await renderScreen(<MachinePathBrowserModal
+            machineId="machine-1"
+            serverId="server-1"
+            browserIdentity={{
+                target: { serverId: 'server-1', accountId: 'account-a', machineId: 'machine-1' },
+                viewerScope: { serverId: 'server-1', accountId: 'account-a' },
+            }}
+            onResolve={onResolve}
+            onClose={onClose}
+        />);
+        expect(credentialListeners.size).toBe(1);
+
+        await act(async () => { for (const listener of credentialListeners) listener(); });
+        expect(onResolve).toHaveBeenCalledWith(null);
+        expect(onClose).toHaveBeenCalledTimes(1);
+        expect(screen.findByTestId(PATH_BROWSER_MODAL_TEST_ID)).toBeNull();
+        act(() => screen.tree.unmount());
+        expect(credentialListeners.size).toBe(0);
     });
 
     it('expands the machine root and confirms the selected folder', async () => {

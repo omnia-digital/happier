@@ -24,6 +24,9 @@ const {
     alertSpy,
     promptSpy,
     machineUpdateMetadataSpy,
+    applyLocalSettingsSpy,
+    localIconMap,
+    localColorMap,
     stackOptionsState,
     routerBackSpy,
     routerMock,
@@ -41,6 +44,9 @@ const {
     alertSpy: vi.fn(),
     promptSpy: vi.fn<(..._args: any[]) => Promise<string | null>>(async () => null),
     machineUpdateMetadataSpy: vi.fn(async () => ({})),
+    applyLocalSettingsSpy: vi.fn(),
+    localIconMap: { current: {} as Record<string, string> },
+    localColorMap: { current: {} as Record<string, string> },
     stackOptionsState: { current: null as Record<string, unknown> | null },
     routerBackSpy: vi.fn(),
     routerMock: { back: vi.fn(), push: vi.fn(), replace: vi.fn() },
@@ -87,6 +93,8 @@ installMachineDetailsCommonModuleMocks({
             useSetting: () => false,
             useSettingMutable: () => [null, vi.fn()],
             useSettings: () => ({}),
+            useLocalSetting: (key: string) => key === 'machineDisplayIconByMachineV1' ? localIconMap.current
+                : key === 'machineDisplayColorByMachineV1' ? localColorMap.current : undefined,
             storage: {
                 getState: () => ({
                     settings: {},
@@ -146,7 +154,10 @@ vi.mock('@/hooks/ui/useMountedShouldContinue', () => ({
     useMountedShouldContinue: () => () => true,
 }));
 vi.mock('@/hooks/server/useMachineCapabilitiesCache', () => ({ useMachineCapabilitiesCache: () => ({ state: { status: 'idle' }, refresh: vi.fn() }) }));
-vi.mock('@/sync/domains/server/serverProfiles', () => ({ getActiveServerId: () => 'server-a' }));
+vi.mock('@/sync/domains/server/serverProfiles', async (importOriginal) => {
+    const { createServerProfilesModuleMock } = await import('@/dev/testkit/mocks/serverProfiles');
+    return createServerProfilesModuleMock({ importOriginal, overrides: { getActiveServerId: () => 'server-a' } });
+});
 vi.mock('@/sync/domains/server/activeServerSwitch', () => ({ setActiveServerAndSwitch: vi.fn(async () => true) }));
 vi.mock('@/sync/sync', () => ({ sync: { refreshMachinesThrottled: refreshMachinesThrottledSpy, refreshMachines: vi.fn(), retryNow: vi.fn() } }));
 vi.mock('@/utils/system/fireAndForget', () => ({
@@ -178,7 +189,11 @@ vi.mock('@/agents/catalog/catalog', () => ({
     isAgentId: () => true,
 }));
 vi.mock('@/components/ui/forms/dropdown/DropdownMenu', () => ({
-    DropdownMenu: () => null,
+    DropdownMenu: (props: any) => React.createElement('DropdownMenu', props),
+}));
+vi.mock('@/sync/store/settingsWriters', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@/sync/store/settingsWriters')>(),
+    useApplyLocalSettings: () => applyLocalSettingsSpy,
 }));
 vi.mock('@/sync/domains/session/spawn/windowsRemoteSessionLaunchModeOptions', () => ({
     WINDOWS_REMOTE_SESSION_LAUNCH_MODE_OPTIONS: [],
@@ -187,7 +202,7 @@ vi.mock('@/sync/ops/sessionMachineTarget', () => ({
     readMachineTargetForSession: () => null,
 }));
 
-describe('MachineDetailScreen (revoke/forget machine)', () => {
+describe('MachineDetailScreen (appearance and revoke)', () => {
     beforeEach(() => {
         const now = Date.now();
         const currentMachine = {
@@ -236,6 +251,9 @@ describe('MachineDetailScreen (revoke/forget machine)', () => {
         promptSpy.mockResolvedValue(null);
         machineUpdateMetadataSpy.mockReset();
         machineUpdateMetadataSpy.mockResolvedValue({});
+        applyLocalSettingsSpy.mockReset();
+        localIconMap.current = {};
+        localColorMap.current = {};
         stackOptionsState.current = null;
         routerBackSpy.mockReset();
     });
@@ -258,8 +276,96 @@ describe('MachineDetailScreen (revoke/forget machine)', () => {
             'machine-1',
             expect.objectContaining({ displayName: 'theo-devbox' }),
             1,
+            { updateDisplayName: true },
         );
         expect(alertSpy).not.toHaveBeenCalled();
+    });
+
+    it('saves a scoped icon choice and resets the custom label and icon', async () => {
+        localIconMap.current = { '["server-a","machine-1"]': 'laptop' };
+        const { default: MachineDetailScreen } = await import('@/app/(app)/machine/[id]');
+        const screen = await renderScreen(React.createElement(MachineDetailScreen));
+
+        const title = (stackOptionsState.current?.headerTitle as () => React.ReactElement<{ children: React.ReactNode }>)();
+        const titleRow = React.Children.toArray(title.props.children)[0] as React.ReactElement<{ children: React.ReactNode }>;
+        const titleIcon = React.Children.toArray(titleRow.props.children)[0] as React.ReactElement<{ name: string }>;
+        expect(titleIcon.props.name).toBe('laptop');
+
+        const iconPicker = screen.root.findAllByType('DropdownMenu' as never)
+            .find((node) => node.props.itemTrigger?.title === 'machine.displayIconTitle');
+        expect(iconPicker?.props.selectedId).toBe('laptop');
+        await act(async () => iconPicker?.props.onSelect('cloud'));
+        expect(applyLocalSettingsSpy).toHaveBeenCalledWith({
+            machineDisplayIconByMachineV1: { '["server-a","machine-1"]': 'cloud' },
+        });
+
+        const reset = itemSpy.mock.calls.map(([props]) => props)
+            .find((props) => props?.testID === 'machine-display-reset');
+        expect(reset).toBeTruthy();
+        await act(async () => reset.onPress());
+        expect(machineUpdateMetadataSpy).toHaveBeenCalledWith(
+            'machine-1',
+            expect.objectContaining({ displayName: undefined, host: 'host' }),
+            1,
+            { updateDisplayName: true },
+        );
+        expect(applyLocalSettingsSpy).toHaveBeenLastCalledWith({ machineDisplayIconByMachineV1: {}, machineDisplayColorByMachineV1: {} });
+    });
+
+    it('saves a scoped color and allows a color-only customization to be reset', async () => {
+        machineState.current = { ...machineState.current, metadata: { ...machineState.current.metadata, displayName: undefined } };
+        localColorMap.current = { '["server-a","machine-1"]': 'blue', '["server-b","machine-1"]': 'red' };
+        const { default: MachineDetailScreen } = await import('@/app/(app)/machine/[id]');
+        const screen = await renderScreen(React.createElement(MachineDetailScreen));
+        const picker = screen.root.findAllByType('DropdownMenu' as never)
+            .find((node) => node.props.itemTrigger?.itemProps?.testID === 'machine-display-color');
+        expect(picker?.props.selectedId).toBe('blue');
+        expect(picker?.props.items.map((item: { id: string }) => item.id)).toContain('automatic');
+        await act(async () => picker?.props.onSelect('purple'));
+        expect(applyLocalSettingsSpy).toHaveBeenCalledWith({
+            machineDisplayColorByMachineV1: { '["server-a","machine-1"]': 'purple', '["server-b","machine-1"]': 'red' },
+        });
+        const reset = itemSpy.mock.calls.map(([props]) => props).find((props) => props?.testID === 'machine-display-reset');
+        expect(reset.disabled).toBe(false);
+        await act(async () => reset.onPress());
+        expect(machineUpdateMetadataSpy).not.toHaveBeenCalled();
+        expect(applyLocalSettingsSpy).toHaveBeenLastCalledWith({
+            machineDisplayIconByMachineV1: {},
+            machineDisplayColorByMachineV1: { '["server-b","machine-1"]': 'red' },
+        });
+    });
+
+    it('blocks icon and color changes while a synced appearance reset is pending', async () => {
+        let finishReset!: (value: {}) => void;
+        machineUpdateMetadataSpy.mockImplementationOnce(() => new Promise((resolve) => { finishReset = resolve; }));
+        const { default: MachineDetailScreen } = await import('@/app/(app)/machine/[id]');
+        const screen = await renderScreen(React.createElement(MachineDetailScreen));
+        const reset = itemSpy.mock.calls.map(([props]) => props).find((props) => props?.testID === 'machine-display-reset');
+        await act(async () => reset.onPress());
+        const pickers = screen.root.findAllByType('DropdownMenu' as never)
+            .filter((node) => ['machine-display-icon', 'machine-display-color'].includes(node.props.itemTrigger?.itemProps?.testID));
+        expect(pickers).toHaveLength(2);
+        for (const picker of pickers) {
+            expect(picker.props.itemTrigger.itemProps.disabled).toBe(true);
+            await act(async () => picker.props.onSelect(picker.props.selectedId === 'desktop' ? 'cloud' : 'blue'));
+        }
+        expect(applyLocalSettingsSpy).not.toHaveBeenCalled();
+        await act(async () => finishReset({}));
+        expect(applyLocalSettingsSpy).toHaveBeenCalledTimes(1);
+        expect(applyLocalSettingsSpy).toHaveBeenLastCalledWith({ machineDisplayIconByMachineV1: {}, machineDisplayColorByMachineV1: {} });
+    });
+
+    it('keeps the icon and color choices when resetting the synced label fails', async () => {
+        localIconMap.current = { '["server-a","machine-1"]': 'laptop' };
+        localColorMap.current = { '["server-a","machine-1"]': 'blue' };
+        machineUpdateMetadataSpy.mockRejectedValueOnce(new Error('conflict'));
+        const { default: MachineDetailScreen } = await import('@/app/(app)/machine/[id]');
+        await renderScreen(React.createElement(MachineDetailScreen));
+        const reset = itemSpy.mock.calls.map(([props]) => props)
+            .find((props) => props?.testID === 'machine-display-reset');
+        await act(async () => reset.onPress());
+        expect(applyLocalSettingsSpy).not.toHaveBeenCalled();
+        expect(alertSpy).toHaveBeenCalledWith('common.error', 'conflict');
     });
 
     it('confirms and revokes the machine', async () => {

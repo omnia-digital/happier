@@ -11,7 +11,7 @@ import { printResult, wantsHelp, wantsJson } from './utils/cli/cli.mjs';
 import { ensureExpoIsolationEnv, getExpoStatePaths, resolveExpoTmpDir, wantsExpoClearCache } from './utils/expo/expo.mjs';
 import { expoExec } from './utils/expo/command.mjs';
 import { getInvokedCwd, inferComponentFromCwd } from './utils/cli/cwd_scope.mjs';
-import { applyStackTauriOverrides } from './utils/tauri/stack_overrides.mjs';
+import { buildStackTauriBundleConfig } from './utils/tauri/dev_runtime.mjs';
 import { buildIntoTempThenReplace } from './utils/fs/atomic_dir_swap.mjs';
 import { pathExists } from './utils/fs/fs.mjs';
 import { buildStackTauriExportEnv, buildStackWebExportEnv } from './utils/ui/ui_export_env.mjs';
@@ -40,17 +40,18 @@ async function main() {
   if (wantsHelp(argv, { flags })) {
     printResult({
       json,
-      data: { flags: ['--web', '--server', '--daemon', '--all', '--activate-runtime', '--force-rebuild', '--tauri', '--no-tauri', '--no-ui'], json: true },
+      data: { flags: ['--web', '--server', '--daemon', '--all', '--activate-runtime', '--force-rebuild', '--tauri', '--no-tauri', '--tauri-production', '--no-ui'], json: true },
       text: [
         '[build] usage:',
-        '  hstack build [--tauri] [--json]',
+        '  hstack build [--tauri] [--tauri-production] [--json]',
         '  hstack stack build <name> [--web|--server|--daemon|--all] [--activate-runtime] [--force-rebuild] [--json]',
-        '  node scripts/build.mjs [--web|--server|--daemon|--all] [--activate-runtime] [--tauri|--no-tauri] [--no-ui] [--json]',
+        '  node scripts/build.mjs [--web|--server|--daemon|--all] [--activate-runtime] [--tauri|--no-tauri] [--tauri-production] [--no-ui] [--json]',
         '',
         'note:',
         '  If run from inside the Happier UI checkout/worktree, the build uses that checkout.',
         '  Explicit component flags build stack-local artifacts for named stacks in v1.',
         '  Building artifacts alone does not switch the active runtime; use `hstack stack runtime <name> activate ...` or `--activate-runtime`.',
+        '  --tauri-production uses the stable Tauri config; --tauri defaults to the dev variant.',
         '  --tauri remains a legacy local UI/Tauri build flag and cannot be mixed with stack-local artifact/runtime flags in v1.',
       ].join('\n'),
     });
@@ -72,6 +73,9 @@ async function main() {
 
   const selection = parseBuildSelection({ argv });
   const wantsArtifactBuild = shouldBuildStackArtifacts({ selection, argv, env: process.env });
+  if (flags.has('--tauri-production') && (!flags.has('--tauri') || flags.has('--no-tauri') || flags.has('--no-ui'))) {
+    throw new Error('[build] --tauri-production requires a Tauri bundle build (--tauri).');
+  }
   if (wantsArtifactBuild) {
     const result = await buildStackArtifacts({ rootDir, argv, env: process.env });
     if (json) {
@@ -233,16 +237,15 @@ async function main() {
   // Build the Tauri app using a generated config that skips upstream beforeBuildCommand (which uses yarn).
   const tauriConfigPath = join(uiDir, 'src-tauri', 'tauri.conf.json');
   const tauriConfigRaw = await readFile(tauriConfigPath, 'utf-8');
-  const tauriConfig = JSON.parse(tauriConfigRaw);
-  tauriConfig.build = tauriConfig.build ?? {};
-  // Prefer the upstream relative dist dir when possible (less surprising for Tauri tooling).
-  tauriConfig.build.frontendDist = tauriDistDir === join(uiDir, 'dist') ? '../dist' : tauriDistDir;
-  tauriConfig.build.beforeBuildCommand = null;
-  tauriConfig.build.beforeDevCommand = null;
-
-  // Build a separate "local" app so it doesn't reuse previous storage (server URL, auth, etc).
-  // This avoids needing any changes in the Happy source code to override a previously saved server.
-  applyStackTauriOverrides({ tauriConfig, env: process.env });
+  const tauriDevConfigRaw = await readFile(join(uiDir, 'src-tauri', 'tauri.publicdev.conf.json'), 'utf-8');
+  // Local builds use the dev variant and retain stack-scoped install/storage identity.
+  const tauriConfig = buildStackTauriBundleConfig({
+    baseConfig: JSON.parse(tauriConfigRaw),
+    overlayConfig: JSON.parse(tauriDevConfigRaw),
+    variant: flags.has('--tauri-production') ? 'production' : 'dev',
+    frontendDist: tauriDistDir === join(uiDir, 'dist') ? '../dist' : tauriDistDir,
+    env: process.env,
+  });
 
   if (tauriDebug) {
     // Enable devtools in debug builds (useful for troubleshooting connectivity).

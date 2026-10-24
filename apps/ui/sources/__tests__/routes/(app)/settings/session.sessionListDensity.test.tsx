@@ -19,6 +19,8 @@ const setSessionListSeparateBackgroundWork = vi.fn();
 const setSessionListFolderSortMode = vi.fn();
 const setSessionListSectionMode = vi.fn();
 const setSessionListOrderingMode = vi.fn();
+let sessionListOrderingMode: 'custom' | 'created' | 'updated' = 'custom';
+let sessionListFolderSortMode: 'foldersFirst' | 'mixed' = 'foldersFirst';
 
 installSessionSettingsEntryModuleMocks({
     storageModule: async (importOriginal) => {
@@ -35,7 +37,7 @@ installSessionSettingsEntryModuleMocks({
                     if (key === 'sessionListBackgroundWorkAttentionModeV1') return ['keepWorking', setSessionListBackgroundWorkAttentionMode];
                     if (key === 'sessionListWorkingPlacementModeV1') return ['off', setSessionListWorkingPlacementMode];
                     if (key === 'sessionListSeparateBackgroundWork') return [false, setSessionListSeparateBackgroundWork];
-                    if (key === 'sessionListOrderingModeV1') return ['custom', setSessionListOrderingMode];
+                    if (key === 'sessionListOrderingModeV1') return [sessionListOrderingMode, setSessionListOrderingMode];
                     if (key === 'workspacePathDisplayModeV1') return ['name', setWorkspacePathDisplayMode];
                     if (key === 'workspaceFaviconsEnabled') return [true, setWorkspaceFaviconsEnabled];
                     if (key === 'workspaceMachineSubtitlesEnabled') return [true, setWorkspaceMachineSubtitlesEnabled];
@@ -66,7 +68,7 @@ installSessionSettingsEntryModuleMocks({
                 useLocalSettingMutable: ((key: string) => {
                     if (key === 'sessionsRightPaneDefaultOpen') return [false, vi.fn()];
                     if (key === 'uiMultiPanePanelsEnabled') return [true, vi.fn()];
-                    if (key === 'sessionListFolderSortModeV1') return ['foldersFirst', setSessionListFolderSortMode];
+                    if (key === 'sessionListFolderSortModeV1') return [sessionListFolderSortMode, setSessionListFolderSortMode];
                     return [null, vi.fn()];
                 }) as any,
             },
@@ -76,6 +78,8 @@ installSessionSettingsEntryModuleMocks({
 
 afterEach(() => {
     standardCleanup();
+    sessionListOrderingMode = 'custom';
+    sessionListFolderSortMode = 'foldersFirst';
     setSessionListDensity.mockClear();
     setWorkspacePathDisplayMode.mockClear();
     setWorkspaceFaviconsEnabled.mockClear();
@@ -284,6 +288,31 @@ describe('Session settings session list density', () => {
         });
 
         expect(setSessionListFolderSortMode).toHaveBeenCalledWith('mixed');
+    });
+
+    it('disables both folder order choices in date mode because neither selection can change the order', async () => {
+        sessionListOrderingMode = 'updated';
+        sessionListFolderSortMode = 'mixed';
+        const mod = await import('../../../../app/(app)/settings/session');
+        const screen = await renderSettingsView(React.createElement(mod.default));
+        const dropdown = screen.findAllByType('DropdownMenu' as any).find((node: any) =>
+            node.props?.itemTrigger?.itemProps?.testID === 'settings-session-sessionListFolderSortMode-trigger');
+
+        expect(dropdown?.props.selectedId).toBe('foldersFirst');
+        expect(dropdown?.props.items).toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: 'foldersFirst', disabled: true, subtitle: 'sessionsList.folderSortDisabledInDateMode' }),
+            expect.objectContaining({ id: 'mixed', disabled: true, subtitle: 'sessionsList.folderSortDisabledInDateMode' }),
+        ]));
+        await act(async () => { dropdown?.props.onSelect('foldersFirst'); });
+        expect(setSessionListFolderSortMode).not.toHaveBeenCalled();
+
+        sessionListOrderingMode = 'custom';
+        await screen.unmount();
+        const reopenedScreen = await renderSettingsView(React.createElement(mod.default));
+        const restoredDropdown = reopenedScreen.findAllByType('DropdownMenu' as any).find((node: any) =>
+            node.props?.itemTrigger?.itemProps?.testID === 'settings-session-sessionListFolderSortMode-trigger');
+        expect(restoredDropdown?.props.selectedId).toBe('mixed');
+        expect(restoredDropdown?.props.items.find((item: any) => item.id === 'mixed')?.disabled).toBe(false);
     });
 
     it('exposes the session order selector in session list settings', async () => {

@@ -20,7 +20,7 @@ import {
 } from './buildMachineSelectionBuckets';
 import { MachineSelectionRowAccessory } from './MachineSelectionRowAccessory';
 import { resolveMachinePickerPresence } from '../resolveMachinePickerPresence';
-import { Icon, type IconName } from '@/components/ui/icons/Icon';
+import { MachineDisplayGlyph } from '@/components/sessions/SessionMachineIdentity';
 
 type MachineSelectionListModel = Readonly<{
     rootStep: SelectionListStep;
@@ -73,10 +73,6 @@ function bucketTitle(bucketId: MachineSelectionBucketId): string {
         case 'all':
             return t('newSession.machinePicker.allTitle');
     }
-}
-
-function bucketIconName(bucketId: MachineSelectionBucketId): IconName {
-    return bucketId === 'recent' ? 'clock' : 'desktop';
 }
 
 export function useMachineSelectionListModel(
@@ -164,8 +160,9 @@ export function useMachineSelectionListModel(
                         testID: buildOptionTestID(params.testIdPrefix, machine),
                         label: machineLabel(machine),
                         icon: (
-                            <Icon
-                                name={bucketIconName(bucket.id)}
+                            <MachineDisplayGlyph
+                                serverId={group.serverId}
+                                machineId={machine.id}
                                 size={24}
                                 color={theme.colors.text.secondary}
                             />
@@ -231,8 +228,9 @@ export function useMachineSelectionListModel(
                         label: machineLabel(machine),
                         subtitle: machineSubtitle(machine),
                         icon: (
-                            <Icon
-                                name="desktop"
+                            <MachineDisplayGlyph
+                                serverId={group.serverId}
+                                machineId={machine.id}
                                 size={20}
                                 color={theme.colors.text.secondary}
                             />

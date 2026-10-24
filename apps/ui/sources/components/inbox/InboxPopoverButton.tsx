@@ -3,6 +3,7 @@ import { Platform, Pressable, View } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 
 import { Icon } from '@/components/ui/icons/Icon';
+import { PressableSurface } from '@/components/ui/interaction/PressableSurface';
 import { FloatingOverlay } from '@/components/ui/overlays/FloatingOverlay';
 import { Popover } from '@/components/ui/popover';
 import { Text } from '@/components/ui/text/Text';
@@ -58,12 +59,15 @@ export const InboxPopoverButton = React.memo(function InboxPopoverButton(props: 
     const close = React.useCallback(() => setOpen(false), []);
 
     return (
-        <View ref={anchorRef} collapsable={false} style={styles.anchor}>
-            <Pressable
+        <View collapsable={false} style={styles.anchor}>
+            <PressableSurface
                 testID={props.testID ?? 'sidebar-inbox-button'}
+                anchorRef={anchorRef}
                 accessibilityRole="button"
                 accessibilityLabel={t('tabs.inbox')}
+                webTooltip={t('inbox.toolbarTooltip')}
                 accessibilityState={{ expanded: open }}
+                focusRingRadius={props.buttonSize / 2}
                 hitSlop={8}
                 onPress={(event) => {
                     if (!open && Platform.OS === 'web') {
@@ -93,7 +97,7 @@ export const InboxPopoverButton = React.memo(function InboxPopoverButton(props: 
                     />
                     {props.summary.hasContent ? <View testID="sidebar-inbox-attention-dot" style={styles.attentionDot} /> : null}
                 </View>
-            </Pressable>
+            </PressableSurface>
 
             {open ? (
                 <Popover

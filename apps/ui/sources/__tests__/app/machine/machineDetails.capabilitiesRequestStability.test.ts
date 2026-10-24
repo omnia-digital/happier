@@ -60,6 +60,7 @@ installMachineDetailsCommonModuleMocks({
             useLocalSetting: (name: string) => {
                 React.useMemo(() => 0, [name]);
                 if (name === 'uiFontScale') return 1;
+                if (name === 'machineDisplayIconByMachineV1' || name === 'machineDisplayColorByMachineV1') return {};
                 return null;
             },
         });
@@ -168,9 +169,10 @@ vi.mock('@/utils/path/pathUtils', () => {
     return { resolveAbsolutePath: () => '' };
 });
 
-vi.mock('@/sync/domains/server/serverProfiles', () => ({
-    getActiveServerId: () => 'server-a',
-}));
+vi.mock('@/sync/domains/server/serverProfiles', async (importOriginal) => {
+    const { createServerProfilesModuleMock } = await import('@/dev/testkit/mocks/serverProfiles');
+    return createServerProfilesModuleMock({ importOriginal, overrides: { getActiveServerId: () => 'server-a' } });
+});
 
 vi.mock('@/sync/domains/session/spawn/windowsRemoteSessionLaunchMode', () => ({
     readMachineWindowsRemoteSessionLaunchMode: () => undefined,

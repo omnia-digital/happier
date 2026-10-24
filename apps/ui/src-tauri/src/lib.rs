@@ -35,6 +35,9 @@ mod shutdown;
 mod linux_webkit_env;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
+// The main-thread native test harness reuses these modules with its own isolated setup.
+// Embed the product Info.plist only in the product entrypoint, not in that test executable.
+#[cfg(not(test))]
 pub fn run() {
     #[cfg(target_os = "linux")]
     linux_webkit_env::apply_before_gtk_init();
@@ -136,7 +139,7 @@ pub fn run() {
                 window_chrome::register(app)?;
                 tray::register(app)?;
                 pet_overlay::register(app)?;
-                dock_icon::apply();
+                dock_icon::apply(app.handle());
                 menu_bar::register(app.handle());
             }
 

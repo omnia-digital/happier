@@ -1,3 +1,4 @@
+import type { RepositoryHeaderPresentation } from './sessionRepositoryIdentity';
 import type { MachineDisplayRenderable } from '@/sync/domains/machines/machineDisplayRenderable';
 import type { SessionListRenderableSession } from './sessionListRenderable';
 import type { SessionListAttentionPromotionReason } from './attentionPromotion/sessionListAttentionPromotionTypes';
@@ -24,9 +25,10 @@ export type SessionListViewItem =
     | {
         type: 'header';
         title: string;
-        headerKind?: 'date' | 'server' | 'active' | 'inactive' | 'sessions' | 'project' | 'pinned' | 'attention' | 'working' | 'shared' | 'folder';
+        headerKind?: 'date' | 'server' | 'active' | 'inactive' | 'sessions' | 'project' | 'pinned' | 'attention' | 'working' | 'shared' | 'folder' | 'machine';
         groupKey?: string;
         workspaceKey?: string;
+        repository?: RepositoryHeaderPresentation;
         workspace?: SessionFolderWorkspaceRefV1;
         renderWorkspaceKey?: string;
         folderId?: string;
@@ -464,9 +466,6 @@ export function applySessionFoldersToSessionListViewData(
     options: NonNullable<BuildSessionListViewDataOptions['sessionFolders']>,
 ): SessionListViewItem[] {
     if (options.enabled !== true || source.length === 0) return source as SessionListViewItem[];
-    if (source.some((item) => item.type === 'header' && item.headerKind === 'folder')) {
-        return source as SessionListViewItem[];
-    }
 
     let changed = false;
     const out: SessionListViewItem[] = [];
@@ -474,6 +473,24 @@ export function applySessionFoldersToSessionListViewData(
         const item = source[index];
         if (item.type !== 'header' || item.headerKind !== 'project') {
             out.push(item);
+            continue;
+        }
+
+        // Each Home can publish at a different projection stage. Keep an already
+        // folderized project intact without suppressing folders in other projects.
+        let projectEnd = index + 1;
+        let alreadyProjected = false;
+        while (projectEnd < source.length) {
+            const next = source[projectEnd];
+            if (next.type === 'header') {
+                if (next.headerKind !== 'folder') break;
+                alreadyProjected = true;
+            }
+            projectEnd += 1;
+        }
+        if (alreadyProjected) {
+            for (; index < projectEnd; index += 1) out.push(source[index]);
+            index -= 1;
             continue;
         }
 

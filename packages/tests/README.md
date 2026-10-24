@@ -120,6 +120,7 @@ Artifacts are written on failure by default. You can force keeping artifacts eve
 UI E2E (Playwright) notes:
 - Expo web is started via `expo start --web`; if you suspect stale Metro transforms, you can opt into cache clearing with `HAPPIER_E2E_EXPO_CLEAR=1` (default is off because `--clear` can occasionally crash Metro).
 - UI E2E artifacts live under `.project/logs/e2e/ui-playwright/...` and include screenshots + videos on failure.
+- Set `HAPPIER_E2E_UI_BROWSER_CHANNEL=chrome` to run UI E2E in an isolated system Chrome profile; the default Playwright browser remains unchanged.
 - WSREPL Lima matrix artifacts live under `apps/stack/output/wsrepl-lima-matrix/...`; the lane entrypoint, raw harness, and Lima bootstrap helper now live in `packages/tests` (`packages/tests/scripts/run-wsrepl-lima-matrix.mjs`, `packages/tests/scripts/wsrepl-lima-matrix.sh`, `packages/tests/scripts/lima-vm.sh`). The stack copies are compatibility shims only and are excluded from the published stack package.
 - Harness self-tests run via `yarn workspace @happier-dev/tests test:ui:e2e:wsrepl:lima:self`. Their environment and fake guest shell are owned by the stack testkit’s `apps/stack/scripts/testkit/core/lima_guest_harness.mjs`: fixtures explicitly supply stack/provider settings and run guest scripts without loading host login profiles. Keep fake `limactl shell` execution on that boundary; executing guest login shells directly on the host can reach the real CLI and restart a live daemon.
 

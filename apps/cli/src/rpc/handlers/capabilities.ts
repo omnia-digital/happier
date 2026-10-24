@@ -7,6 +7,7 @@ import { tmuxCapability } from '@/capabilities/registry/toolTmux';
 import { windowsTerminalCapability } from '@/capabilities/registry/toolWindowsTerminal';
 import { executionRunsCapability } from '@/capabilities/registry/toolExecutionRuns';
 import { systemTasksCapability } from '@/capabilities/registry/toolSystemTasks';
+import { createTicketReaderCapability, type TicketReaderContext } from '@/capabilities/registry/toolTicketReader';
 import { installableDepCapabilities } from '@/capabilities/registry/installableDeps';
 import { withProviderCliUpdates } from '@/capabilities/cliUpdate/providerCliUpdates';
 import { createCapabilitiesService } from '@/capabilities/service';
@@ -654,6 +655,7 @@ function augmentCliCapabilityWithProbeModels(cap: Capability, agentId: AgentCata
 
 type CliCapabilitiesOptions = Readonly<{
     hasSessionAgentTransition?: () => boolean;
+    ticketReaderContext?: TicketReaderContext;
 }>;
 
 export async function createCliCapabilitiesService(options?: CliCapabilitiesOptions): Promise<ReturnType<typeof createCapabilitiesService>> {
@@ -688,6 +690,7 @@ export async function createCliCapabilitiesService(options?: CliCapabilitiesOpti
             ...cliCapabilities,
             ...extraCapabilities,
             ...daemonCapabilities,
+            ...(options?.ticketReaderContext ? [createTicketReaderCapability(options.ticketReaderContext)] : []),
             ...installableDepCapabilities,
             tmuxCapability,
             windowsTerminalCapability,

@@ -3,6 +3,7 @@
 This folder documents how Happier works internally, with a focus on protocol, backend architecture, deployment, and the CLI tool. Published user, operator, self-hoster, and public contributor documentation lives in `apps/docs/content/docs/**`. Start here for internal technical documentation.
 
 ## Index
+- [fork-development.md](fork-development.md): Omnia fork development, platform acceptance, distribution ownership, and adoption gates.
 - protocol.md: Wire protocol (WebSocket), payload formats, sequencing, and concurrency rules.
 - api.md: HTTP endpoints and authentication flows.
 - encryption.md: Encryption boundaries, on-wire encoding, and session storage modes.

@@ -1,4 +1,6 @@
 import { storage } from '@/sync/domains/state/storage';
+import { getActiveServerAccountScope } from '@/sync/domains/scope/activeServerAccountScope';
+import { recentMachinePathsForScope } from '@/sync/domains/settings/machinePathPreferences';
 import { readVoicePrivacySettings } from '@/sync/domains/settings/readVoicePrivacySettings';
 import { readDisplayMachineIdForSession, readDisplayPathForSession } from '@/sync/ops/sessionMachineTarget';
 import { useVoiceTargetStore } from '@/voice/runtime/voiceTargetStore';
@@ -25,7 +27,7 @@ function resolveDefaultMachineId(state: any): string | null {
     if (machineId) return machineId;
   }
 
-  const recent = state?.settings?.recentMachinePaths?.[0] ?? null;
+  const recent = recentMachinePathsForScope(state?.settings?.machinePathPreferencesByTargetV1 ?? {}, getActiveServerAccountScope())[0] ?? null;
   const machineId = normalizeNonEmptyString(recent?.machineId);
   if (machineId) return resolveCanonicalMachineId(machineId, machines)?.machineId ?? machineId;
   return null;
@@ -40,9 +42,10 @@ export async function listRecentPathsForVoiceTool(params: Readonly<{ machineId?:
   const shareFilePaths = voicePrivacy.shareFilePaths;
   const sessionsById: Record<string, Session> = state?.sessions ?? {};
   const sessions = Object.values(sessionsById);
-  const recentMachinePaths = Array.isArray(state?.settings?.recentMachinePaths)
-    ? (state.settings.recentMachinePaths as any[])
-    : [];
+  const recentMachinePaths = recentMachinePathsForScope(
+    state?.settings?.machinePathPreferencesByTargetV1 ?? {},
+    getActiveServerAccountScope(),
+  );
 
   const targetMachineId = normalizeNonEmptyString(params.machineId) || resolveDefaultMachineId(state) || '';
   if (!targetMachineId) return { items: [] };

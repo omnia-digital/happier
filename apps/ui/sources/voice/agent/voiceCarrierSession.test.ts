@@ -15,6 +15,7 @@ const state: any = {
   sessions: {},
   machines: {},
   machineListByServerId: {},
+  profileScope: { serverId: 'server-a', accountId: 'account-a' },
   settings: {
     lastUsedAgent: 'claude',
     recentMachinePaths: [{ machineId: 'm1', path: '/tmp/repo' }],
@@ -67,9 +68,11 @@ vi.mock('@/sync/sync', () => ({
 }));
 
 describe('voiceConversationSession', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     const now = Date.now();
     vi.resetModules();
+    const { registerStorageStateReader } = await import('@/sync/domains/state/storageStateReaderBridge');
+    registerStorageStateReader(() => state);
     spawnSession.mockReset();
     refreshSessions.mockReset();
     patchSessionMetadataWithRetry.mockReset();
@@ -217,10 +220,14 @@ describe('voiceConversationSession', () => {
     state.machines = {};
     state.settings.voice.adapters.local_conversation.agent.machineTargetMode = 'fixed';
     state.settings.voice.adapters.local_conversation.agent.machineTargetId = 'm_fixed';
-    state.settings.recentMachinePaths = [
-      { machineId: 'm_fixed', path: '/tmp/fixed-repo' },
-      { machineId: 'm_other', path: '/tmp/other-repo' },
-    ];
+    state.settings.machinePathPreferencesByTargetV1 = {
+      [JSON.stringify(['server-a', 'account-a', 'm_fixed'])]: {
+        favorites: [], recentPaths: ['/tmp/fixed-repo'],
+      },
+      [JSON.stringify(['server-a', 'account-a', 'm_other'])]: {
+        favorites: [], recentPaths: ['/tmp/other-repo'],
+      },
+    };
 
     spawnSession.mockResolvedValue({ type: 'success', sessionId: 'sys_voice' });
     refreshSessions.mockImplementation(async () => {

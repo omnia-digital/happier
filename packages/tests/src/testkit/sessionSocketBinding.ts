@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { encodePlainMachineStoredContent, MACHINE_PLAIN_DATA_KEY_MARKER } from '@happier-dev/protocol';
 
 import { fetchJson } from './http';
 import { createSessionScopedSocketCollector, type SocketCollector } from './socketClient';
@@ -8,6 +9,7 @@ async function ensureSessionScopedAccessKey(params: Readonly<{
   token: string;
   sessionId: string;
   machineId: string;
+  plainMachine?: boolean;
 }>): Promise<void> {
   const requestInit = {
     headers: {
@@ -22,7 +24,10 @@ async function ensureSessionScopedAccessKey(params: Readonly<{
     headers: requestInit.headers,
     body: JSON.stringify({
       id: params.machineId,
-      metadata: 'e2e-machine-metadata',
+      metadata: params.plainMachine
+        ? encodePlainMachineStoredContent({ host: 'e2e-machine', platform: 'darwin' })
+        : 'e2e-machine-metadata',
+      ...(params.plainMachine ? { dataEncryptionKey: MACHINE_PLAIN_DATA_KEY_MARKER } : {}),
     }),
     timeoutMs: requestInit.timeoutMs,
   });
@@ -51,6 +56,7 @@ export async function createMachineBoundSessionScopedSocketCollector(params: Rea
   token: string;
   sessionId: string;
   machineId?: string;
+  plainMachine?: boolean;
 }>): Promise<{ machineId: string; socket: SocketCollector }> {
   const machineId = params.machineId ?? randomUUID();
   await ensureSessionScopedAccessKey({
@@ -58,6 +64,7 @@ export async function createMachineBoundSessionScopedSocketCollector(params: Rea
     token: params.token,
     sessionId: params.sessionId,
     machineId,
+    plainMachine: params.plainMachine,
   });
 
   return {

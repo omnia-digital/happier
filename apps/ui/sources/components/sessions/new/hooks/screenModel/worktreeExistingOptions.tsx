@@ -110,7 +110,9 @@ export function buildExistingWorktreeOptions(
     return worktrees
         .filter((worktree) => {
             if (worktree.isMain === true) return false;
-            if (worktree.isCurrent === true) return false;
+            // No Worktree owns the main repository path. A selected non-main
+            // checkout is still an Existing Worktree and remains selectable on
+            // reopen (notably when configuring a fork from that checkout).
             return !pathsAreSameWorktree(worktree.path, params.currentDirPath, params.machineHomeDir);
         })
         .map((worktree) => {

@@ -65,6 +65,9 @@ export const InboxContent = React.memo(function InboxContent(props: Readonly<{
 
     return (
         <View style={[styles.content, presentation === 'popover' ? styles.compactContent : null]}>
+            <Text testID="inbox-panel-description" style={styles.panelDescription}>
+                {t('inbox.panelDescription')}
+            </Text>
             <RecoveryKeyReminderBanner />
 
             {failedSessions.length > 0 || failedOperations.length > 0 ? (
@@ -79,8 +82,8 @@ export const InboxContent = React.memo(function InboxContent(props: Readonly<{
                                 sessionId={entry.sessionId}
                                 serverId={entry.serverId}
                                 title={getSessionName(entry.session)}
-                                subtitle={[t('status.error'), context?.workspaceName].filter(Boolean).join(' · ')}
-                                statusLabel={t('status.error')}
+                                subtitle={[t('inbox.sessionReason.failed'), context?.workspaceName].filter(Boolean).join(' · ')}
+                                statusLabel={t('inbox.sessionReason.failed')}
                                 pending={false}
                                 onOpen={() => openSession(entry.sessionId, entry.serverId)}
                             />
@@ -112,8 +115,8 @@ export const InboxContent = React.memo(function InboxContent(props: Readonly<{
                                 sessionId={entry.sessionId}
                                 serverId={entry.serverId}
                                 title={getSessionName(entry.session)}
-                                subtitle={[t('status.readyForReview'), context?.workspaceName].filter(Boolean).join(' · ')}
-                                statusLabel={t('status.readyForReview')}
+                                subtitle={[t('inbox.sessionReason.ready'), context?.workspaceName].filter(Boolean).join(' · ')}
+                                statusLabel={t('inbox.sessionReason.ready')}
                                 pending={target ? model.pendingReadKeys.has(target.key) : false}
                                 onOpen={() => openSession(entry.sessionId, entry.serverId)}
                                 onMarkRead={target ? () => model.markRead([target]) : undefined}
@@ -145,10 +148,13 @@ export const InboxContent = React.memo(function InboxContent(props: Readonly<{
                     {model.sessionsNeedingAttention.map((entry) => {
                         const context = model.sessionContextByKey.get(entry.key);
                         const statusLabel = entry.reason === 'permission_required'
-                            ? t('status.permissionRequired')
-                            : t('status.actionRequired');
+                            ? t('inbox.sessionReason.permissionRequired')
+                            : entry.reason === 'delivery_blocked'
+                                ? t('inbox.sessionReason.deliveryBlocked')
+                                : t('inbox.sessionReason.inputRequired');
                         if (
-                            'agentState' in entry.session
+                            entry.reason !== 'delivery_blocked'
+                            && 'agentState' in entry.session
                             && (entry.pendingPermissions.length > 0 || entry.pendingUserActions.length > 0)
                         ) {
                             return (
@@ -159,7 +165,9 @@ export const InboxContent = React.memo(function InboxContent(props: Readonly<{
                                     permissionRequests={entry.pendingPermissions}
                                     userActionRequests={entry.pendingUserActions}
                                     machineLabel={context?.machineLabel ?? null}
+                                    machineId={context?.machineId ?? null}
                                     workspaceName={context?.workspaceName ?? null}
+                                    statusLabel={statusLabel}
                                     identityDisplay={model.sessionListIdentityDisplay}
                                     onOpenSession={() => openSession(entry.sessionId, entry.serverId)}
                                 />
@@ -239,6 +247,13 @@ const styles = StyleSheet.create((theme) => ({
     },
     compactContent: {
         paddingBottom: 14,
+    },
+    panelDescription: {
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        paddingBottom: 4,
+        color: theme.colors.text.secondary,
+        fontSize: 12,
     },
     emptyContainer: {
         flexGrow: 1,

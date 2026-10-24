@@ -1,15 +1,11 @@
 import { act } from 'react-test-renderer';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { flushHookEffects } from '@/dev/testkit/hooks/flushHookEffects';
 import { renderHook } from '@/dev/testkit/hooks/renderHook';
 import type { ScmWorkingSnapshot } from '@/sync/domains/state/storageTypes';
 
 import { useNewSessionCheckoutSelectionState } from './useNewSessionCheckoutSelectionState';
-
-vi.mock('@/utils/worktree/generateWorktreeName', () => ({
-    generateWorktreeName: () => 'calm-forest',
-}));
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -54,6 +50,38 @@ function makeParams(overrides: Partial<HookParams> = {}): HookParams {
 }
 
 describe('useNewSessionCheckoutSelectionState', () => {
+    beforeEach(() => {
+        let draw = 0;
+        // Keep the real naming owner; control only its randomness boundary.
+        vi.spyOn(Math, 'random').mockImplementation(() => draw++ % 2 === 0 ? 0.3 : 0.1);
+    });
+    afterEach(() => { vi.restoreAllMocks(); });
+    it('preserves the restored name when the initial target and draft hydrate after mount', async () => {
+        const hook = await renderHook((props: HookParams) => useNewSessionCheckoutSelectionState(props), {
+            initialProps: makeParams({ targetScopeKey: null, selectedMachineId: null, selectedPath: '', repoScmSnapshot: null }),
+        });
+        const restoredDraft = { kind: 'git_worktree' as const, displayName: 'restored-forest', baseRef: 'release', branchMode: 'new' as const };
+        await hook.rerender(makeParams({ targetScopeKey: 'home:account', persistedDraft: { checkoutCreationDraft: restoredDraft } }));
+        await flushHookEffects();
+        expect(hook.getCurrent().checkoutCreationDraft).toEqual(restoredDraft);
+        await hook.unmount();
+    });
+    it('revalidates the worktree base when the Home/account changes with the same machine and path', async () => {
+        const hook = await renderHook((props: HookParams) => useNewSessionCheckoutSelectionState(props), {
+            initialProps: makeParams({ targetScopeKey: 'home-a:account-a', persistedDraft: { checkoutCreationDraft: {
+                kind: 'git_worktree', displayName: 'from-home-a', baseRef: 'private-a', branchMode: 'new',
+            } } }),
+        });
+        await act(async () => { hook.getCurrent().setCheckoutCreationDraft({
+            kind: 'git_worktree', displayName: 'from-home-a', baseRef: 'private-a', branchMode: 'new',
+        }); });
+        await hook.rerender(makeParams({ targetScopeKey: 'home-b:account-b' }));
+        await flushHookEffects();
+        expect(hook.getCurrent().checkoutCreationDraft).toEqual({
+            kind: 'git_worktree', displayName: 'calm-forest', baseRef: null, branchMode: 'new',
+        });
+        await hook.unmount();
+    });
     it('preserves an explicit current-path override after clearing a hydrated worktree draft', async () => {
         const hydratedDraft = {
             kind: 'git_worktree' as const,

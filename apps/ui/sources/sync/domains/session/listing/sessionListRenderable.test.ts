@@ -29,6 +29,21 @@ const storageState = vi.hoisted(() => ({
 }));
 const readStorageState = () => storageState as any;
 
+const ticketAssociation = {
+    v: 1 as const,
+    ticket: { v: 1 as const, provider: 'linear' as const, workspaceId: 'team', ticketId: 'uuid', key: 'ENG-123', title: 'A ticket', url: 'https://linear.app/team/issue/ENG-123/a-ticket' },
+    reader: { machineId: 'reader', mcpServerId: 'linear', directory: '/repo' },
+};
+
+it('projects ticket association and observes changes without subscribing rows to full metadata', () => {
+    const session = createSessionFixture({ metadata: { path: '/repo', host: 'host', sessionTicketV1: ticketAssociation } });
+    const previous = buildSessionListRenderableFromSession(session);
+    expect(previous.metadata?.sessionTicketV1).toEqual(ticketAssociation);
+    const next = { ...previous, metadata: { ...previous.metadata!, sessionTicketV1: { ...ticketAssociation, reader: { ...ticketAssociation.reader, directory: '/other' } } } };
+    expect(areSessionListRenderablesEqual(previous, next)).toBe(false);
+    expect(areSessionListRenderablesEqual(previous, { ...previous, metadata: { ...previous.metadata!, sessionTicketV1: structuredClone(ticketAssociation) } })).toBe(true);
+});
+
 vi.mock('@/sync/domains/state/storage', async () => {
     const { createStorageModuleStub } = await import('@/dev/testkit/mocks/storage');
     return createStorageModuleStub({

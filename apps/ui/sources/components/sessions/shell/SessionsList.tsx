@@ -1,4 +1,6 @@
+import { resolveSessionListFolderMutationTarget } from './commit/persistSessionListFolders';
 import React from 'react';
+import type { SessionListReachabilityModels } from './sessionListReachabilityModels';
 import { normalizeSessionListBackgroundWorkAttentionMode } from '@/sync/domains/session/listing/sessionListBackgroundWorkAttention';
 import {
     View,
@@ -12,7 +14,7 @@ import {
 import { SessionListVirtualizedList } from '@/components/ui/lists/flashListCompat/SessionListVirtualizedList';
 import { usePathname, useRouter } from 'expo-router';
 import { useNavigateToSession } from '@/hooks/session/useNavigateToSession';
-import { SessionListViewItem, storage, useSetting } from '@/sync/domains/state/storage';
+import { SessionListViewItem, storage, useLocalSetting, useSetting } from '@/sync/domains/state/storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useVisibleSessionListViewData } from '@/hooks/session/useVisibleSessionListViewData';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
@@ -41,6 +43,14 @@ import {
 import { sessionTagKey } from './sessionTagUtils';
 import { t } from '@/text';
 import { Modal } from '@/modal';
+import { SESSION_ACTION_ARCHIVE_ID } from '@/components/sessions/actions/sessionActionIds';
+import { isSessionArchivePending } from '@/components/sessions/sessionStopArchiveFlow';
+import {
+    findVisibleSessionRowMenuItemForCommand,
+    sessionRowMenuCommandIds,
+    type SessionRowShortcutTarget,
+} from './row/actionMenu/sessionRowMenuKeyboard';
+import type { KeyboardCommandId } from '@/keyboard/types';
 import type { DropdownMenuItem } from '@/components/ui/forms/dropdown/DropdownMenu';
 import { Item } from '@/components/ui/lists/Item';
 import { ItemGroup } from '@/components/ui/lists/ItemGroup';
@@ -157,7 +167,9 @@ import {
 } from './selection/sessionListSelectionKeys';
 import { SessionListSelectionActionBarHost } from './selection/SessionListSelectionActionBar';
 import { Icon } from '@/components/ui/icons/Icon';
-import { readMachineControlTargetForSession } from '@/sync/ops/sessionMachineTarget';
+import { randomUUID } from '@/platform/randomUUID';
+import type { RepositoryCheckout, RepositoryAssociationChoice } from '@/sync/domains/session/listing/sessionRepositoryIdentity';
+import { readSessionMachineTargetState, readMachineControlTargetForSession } from '@/sync/ops/sessionMachineTarget';
 import { resolveSessionOrganizationMutationScope } from '@/sync/domains/session/organization/mutationScope';
 import { NewSessionDraftsSection } from './NewSessionDraftsSection';
 
@@ -357,25 +369,11 @@ function buildReachableDisplaySignature(displayByKey: ReadonlyMap<string, Readon
         .join('\u0002');
 }
 
-function buildReachableDisplayRecord(displayByKey: ReadonlyMap<string, Readonly<{
-    machineLabel: string;
-    workspaceSubtitle: string;
-    workspaceSubtitleEllipsizeMode: 'head' | 'tail';
-}>>): SessionListRowPresentationSettings['reachableSessionDisplayByKey'] {
+function buildReachableDisplayRecord(
+    displayByKey: SessionListReachabilityModels['reachableSessionDisplayByKey'],
+): SessionListRowPresentationSettings['reachableSessionDisplayByKey'] {
     if (displayByKey.size === 0) return EMPTY_REACHABLE_SESSION_DISPLAY_BY_KEY;
-    const record: Record<string, {
-        machineLabel: string;
-        workspaceSubtitle: string;
-        workspaceSubtitleEllipsizeMode: 'head' | 'tail';
-    }> = {};
-    for (const [rowKey, display] of displayByKey.entries()) {
-        record[rowKey] = {
-            machineLabel: display.machineLabel,
-            workspaceSubtitle: display.workspaceSubtitle,
-            workspaceSubtitleEllipsizeMode: display.workspaceSubtitleEllipsizeMode,
-        };
-    }
-    return record;
+    return Object.fromEntries(displayByKey);
 }
 
 function normalizeRowDensity(compact: boolean, compactMinimal: boolean): SessionListRowPresentationSettings['density'] {
@@ -516,6 +514,20 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
     const data = useSessionListSnapshotWhenInactive(liveData, surfaceOwnership.dataActive);
     const surfaceDataActiveRef = React.useRef(surfaceOwnership.dataActive);
     surfaceDataActiveRef.current = surfaceOwnership.dataActive;
+    const rowShortcutTargetsRef = React.useRef(new Map<string, SessionRowShortcutTarget>());
+    const rowShortcutPresenceRef = React.useRef<{ hover: string | null; focus: string | null; menu: string | null }>({
+        hover: null, focus: null, menu: null,
+    });
+    const pendingRowShortcutRef = React.useRef(new Set<string>());
+    const archiveShortcutPendingRef = React.useRef(false);
+    const handleShortcutTargetChange = React.useCallback((key: string, target: SessionRowShortcutTarget | null) => {
+        if (target) rowShortcutTargetsRef.current.set(key, target);
+        else rowShortcutTargetsRef.current.delete(key);
+    }, []);
+    const handleShortcutPresenceChange = React.useCallback((key: string, kind: 'hover' | 'focus' | 'menu', active: boolean) => {
+        if (active) rowShortcutPresenceRef.current[kind] = key;
+        else if (rowShortcutPresenceRef.current[kind] === key) rowShortcutPresenceRef.current[kind] = null;
+    }, []);
     const sessionListPaneSourceScopeKey = useSessionListPaneSourceScopeKey();
     const currentPathname = usePathname();
     const pathname = props.pathname ?? currentPathname;
@@ -602,6 +614,12 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         sessionFolderViewMode,
         setSessionFolderViewModeV1,
         sessionListOrderingMode,
+        sessionListMachineViewMode,
+        refreshSessionRepositories,
+        getRepositoryAssociationChoices,
+        associateSessionRepository,
+        sessionRepositoriesRefreshing,
+        setSessionListMachineViewV1,
         setSessionListOrderingModeV1,
         sessionListSavedFolderSortMode,
         sessionListFolderSortMode,
@@ -641,6 +659,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
     const sessionListWorkingIndicatorStyle = useSetting('sessionListNarrowWorkingIndicatorStyle');
     const backgroundWorkAttentionMode = normalizeSessionListBackgroundWorkAttentionMode(useSetting('sessionListBackgroundWorkAttentionModeV1'));
     const sessionListAgentActivityCountEnabled = useSetting('sessionListAgentActivityCountEnabled');
+    const sessionListShowMachineIdentity = useLocalSetting('sessionListShowMachineIdentity');
+    const sessionListShowMachineLabel = useLocalSetting('sessionListShowMachineLabel');
     const sessionListIdentityDisplay = useSessionListIdentityDisplay();
     const sessionListActiveColorMode = useSetting('sessionListActiveColorModeV1');
     const sessionListSectionModeRaw = useSetting('sessionListSectionModeV1');
@@ -657,7 +677,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         () => normalizeSessionFolders(sessionFoldersV1).folders.length > 0,
         [sessionFoldersV1],
     );
-    const showStructuralDragHandles = sessionFolderViewMode === 'tree' && hasAnySessionFolderInAccount;
+    const showStructuralDragHandles = sessionListMachineViewMode !== 'machine' && sessionFolderViewMode === 'tree' && hasAnySessionFolderInAccount;
     React.useEffect(() => {
         if (selectedHeaderTags.length === 0) return;
         const known = new Set(allKnownTags);
@@ -714,6 +734,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         folderSortMode: sessionListFolderSortMode,
         sessionListOrderingModeV1: sessionListOrderingMode,
         sessionListSectionModeV1: sessionListSectionMode,
+        structuralWritesEnabled: sessionListMachineViewMode !== 'machine',
         sessionFoldersV1,
         sessionListGroupOrderV1: currentGroupOrderMap,
         sessionWorkspaceOrderV1: currentWorkspaceOrderMap,
@@ -943,6 +964,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
             showServerBadge,
             showPinnedServerBadge,
             agentActivityCountEnabled: sessionListAgentActivityCountEnabled === true,
+            showMachineIdentity: sessionListShowMachineIdentity !== false,
+            showMachineLabel: sessionListShowMachineLabel !== false,
             tagsEnabled: sessionTagsEnabled === true,
             sessionTagsByKey: sessionTagsV1 ?? EMPTY_SESSION_TAGS_BY_KEY,
             allKnownTags,
@@ -971,6 +994,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         pinnedKeyList,
         reachableSessionDisplayByKeyRecord,
         sessionListAgentActivityCountEnabled,
+        sessionListShowMachineIdentity,
+        sessionListShowMachineLabel,
         sessionListActiveColorMode,
         sessionListIdentityDisplay,
         sessionListWorkingIndicatorStyle,
@@ -1006,6 +1031,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         }
     }, []);
     const handleVirtualizedListScroll = React.useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+        rowShortcutPresenceRef.current.hover = null;
         if (surfaceDataActiveRef.current) {
             sync.markSessionListScrollActivity();
         }
@@ -1047,16 +1073,16 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         setWorkspaceLabelsV1(next);
     }, [workspaceLabelsV1, setWorkspaceLabelsV1]);
 
-    const handleCreateSessionFromProject = React.useCallback((item: Extract<SessionListViewItem, { type: 'header' }>) => {
-        const workspaceScopeHint = item.workspaceScopeHint ?? null;
+    const handleCreateSessionFromProject = React.useCallback((item: Extract<SessionListViewItem, { type: 'header' }>, checkout?: RepositoryCheckout) => {
+        const workspaceScopeHint = checkout ? { serverId: checkout.serverId, machineId: checkout.machineId, rootPath: checkout.path } : item.workspaceScopeHint ?? null;
         if (!workspaceScopeHint) {
             return;
         }
-        const seedSessionId = typeof item.seedSessionId === 'string' ? item.seedSessionId.trim() : '';
+        const seedSessionId = checkout?.seedSessionId ?? (typeof item.seedSessionId === 'string' ? item.seedSessionId.trim() : '');
         const seedSession = seedSessionId
-            ? ((storage.getState() as any)?.sessions?.[seedSessionId] as Session | undefined)
+            ? (checkout ? readSessionMachineTargetState(checkout).sessions?.[seedSessionId] : storage.getState().sessions[seedSessionId]) as Session | undefined
             : undefined;
-        const seedMachineTarget = seedSessionId
+        const seedMachineTarget = seedSessionId && !checkout
             ? readMachineControlTargetForSession(seedSessionId)
             : null;
         const directory = seedMachineTarget?.machineId === workspaceScopeHint.machineId
@@ -1094,6 +1120,19 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         } as any);
     }, [rememberLastProjectSessionSelections, router]);
 
+    const handleAssociateRepository = React.useCallback(async (checkout: RepositoryCheckout, selected: RepositoryAssociationChoice | 'new' | null) => {
+        let choice = selected;
+        if (choice === 'new') {
+            const name = await Modal.prompt(t('sessionsList.repositoryNewGroup'), undefined, {
+                placeholder: t('sessionsList.repositoryGroupName'), confirmText: t('common.create'), cancelText: t('common.cancel'),
+            });
+            if (!name?.trim()) return;
+            choice = { identity: `manual:${randomUUID()}`, label: name.trim() };
+        }
+        try { await associateSessionRepository(checkout, choice); }
+        catch { Modal.alert(t('common.error'), t('errors.unknownError')); }
+    }, [associateSessionRepository]);
+
     const handleCreateSessionFromFolder = React.useCallback((folder: { workspace?: unknown }) => {
         const workspace = folder.workspace;
         if (!workspace || typeof workspace !== 'object' || (workspace as { t?: unknown }).t !== 'workspaceScope') {
@@ -1112,10 +1151,12 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         } as any);
     }, [router]);
 
-    const handleAddFolderToProject = React.useCallback(async (item: Extract<SessionListViewItem, { type: 'header' }>) => {
+    const handleAddFolderToProject = React.useCallback(async (item: Extract<SessionListViewItem, { type: 'header' }>, checkout?: RepositoryCheckout) => {
         if (!folderActionsEnabled) return;
-        const workspace = resolveDurableWorkspaceRefForSessionListHeader(item);
+        const workspace = checkout ? { t: 'workspaceScope' as const, serverId: checkout.serverId, machineId: checkout.machineId, rootPath: checkout.path } : resolveDurableWorkspaceRefForSessionListHeader(item);
         if (!workspace) return;
+        const target = await resolveSessionListFolderMutationTarget(workspace.serverId, checkout?.accountId);
+        if (!target) return;
         const name = await Modal.prompt(
             t('sessionsList.addFolderPromptTitle'),
             undefined,
@@ -1126,19 +1167,22 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
             },
         );
         if (name === null) return;
+        const current = target.current;
         const created = createSessionFolder({
-            current: sessionFoldersV1,
+            current,
             workspace,
             renderWorkspaceKey: typeof item.workspaceKey === 'string' ? item.workspaceKey : undefined,
             parentId: null,
             name,
             now: Date.now(),
         });
-        setSessionFoldersV1(created.next);
-    }, [folderActionsEnabled, sessionFoldersV1, setSessionFoldersV1]);
+        setSessionFoldersV1(created.next, target);
+    }, [folderActionsEnabled, setSessionFoldersV1]);
 
     const handleAddSessionSubfolder = React.useCallback(async (folder: ReturnType<typeof asSessionFolderHeaderItem>) => {
         if (!folderActionsEnabled || !folder?.workspace) return;
+        const target = await resolveSessionListFolderMutationTarget(folder.workspace.serverId);
+        if (!target) return;
         const name = await Modal.prompt(
             t('sessionsList.addSubfolderPromptTitle'),
             undefined,
@@ -1150,18 +1194,20 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         );
         if (name === null) return;
         const created = createSessionFolder({
-            current: sessionFoldersV1,
+            current: target.current,
             workspace: folder.workspace,
             renderWorkspaceKey: folder.renderWorkspaceKey,
             parentId: folder.folderId,
             name,
             now: Date.now(),
         });
-        setSessionFoldersV1(created.next);
-    }, [folderActionsEnabled, sessionFoldersV1, setSessionFoldersV1]);
+        setSessionFoldersV1(created.next, target);
+    }, [folderActionsEnabled, setSessionFoldersV1]);
 
     const handleRenameSessionFolder = React.useCallback(async (folder: ReturnType<typeof asSessionFolderHeaderItem>) => {
-        if (!folderActionsEnabled || !folder) return;
+        if (!folderActionsEnabled || !folder?.workspace) return;
+        const target = await resolveSessionListFolderMutationTarget(folder.workspace.serverId);
+        if (!target) return;
         const name = await Modal.prompt(
             t('sessionsList.renameFolderPromptTitle'),
             undefined,
@@ -1174,16 +1220,18 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         );
         if (name === null) return;
         const renamed = renameSessionFolder({
-            current: sessionFoldersV1,
+            current: target.current,
             folderId: folder.folderId,
             name,
             now: Date.now(),
         });
-        setSessionFoldersV1(renamed.next);
-    }, [folderActionsEnabled, sessionFoldersV1, setSessionFoldersV1]);
+        setSessionFoldersV1(renamed.next, target);
+    }, [folderActionsEnabled, setSessionFoldersV1]);
 
     const handleDeleteSessionFolder = React.useCallback(async (folder: ReturnType<typeof asSessionFolderHeaderItem>) => {
-        if (!folderActionsEnabled || !folder) return;
+        if (!folderActionsEnabled || !folder?.workspace) return;
+        const target = await resolveSessionListFolderMutationTarget(folder.workspace.serverId);
+        if (!target) return;
         const confirmed = await Modal.confirm(
             t('sessionsList.deleteFolderPromptTitle'),
             t('sessionsList.deleteFolderPromptDescription'),
@@ -1195,17 +1243,15 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         );
         if (!confirmed) return;
         const deleted = deleteSessionFolder({
-            current: sessionFoldersV1,
+            current: target.current,
             folderId: folder.folderId,
         });
         if (deleted.deletedFolderIds.length === 0) return;
-        const resolved = await resolveSessionOrganizationMutationScope(folder.serverId);
-        if (!resolved.ok) return;
-        setSessionFoldersV1(deleted.next);
+        setSessionFoldersV1(deleted.next, target);
         if (focusedFolderId && deleted.deletedFolderIds.includes(focusedFolderId)) {
             handleClearSessionFolderFocus();
         }
-    }, [focusedFolderId, folderActionsEnabled, handleClearSessionFolderFocus, sessionFoldersV1, setSessionFoldersV1]);
+    }, [focusedFolderId, folderActionsEnabled, handleClearSessionFolderFocus, setSessionFoldersV1]);
 
     const handleToggleCollapse = React.useCallback((collapseKey: string) => {
         const current = collapsedGroupKeysV1 ?? {};
@@ -1438,6 +1484,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         sourceLabel: string,
         direction: 'up' | 'down',
     ) => {
+        if (sessionListMachineViewMode === 'machine') return;
         const result = applyKeyboardMove(sourceRowId, direction);
         if (!result) return;
         sessionListA11y.announceDropResult({
@@ -1445,7 +1492,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
             destinationLabel: resolveDropResultDestinationLabel(result),
             result,
         });
-    }, [applyKeyboardMove, resolveDropResultDestinationLabel, sessionListA11y]);
+    }, [applyKeyboardMove, resolveDropResultDestinationLabel, sessionListA11y, sessionListMachineViewMode]);
 
     const handleDragStartRef = React.useRef(handleDragStart);
     handleDragStartRef.current = handleDragStart;
@@ -1497,11 +1544,28 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         openMoveSheetForTreeRow,
         moveTreeRowToWorkspaceRoot,
         moveTreeRowByKeyboard,
+        reorderEnabled: sessionListMachineViewMode !== 'machine',
     });
     const visibleSessionNavigationEntries = React.useMemo(
-        () => buildVisibleSessionNavigationEntries(listItems),
-        [listItems],
+        () => buildVisibleSessionNavigationEntries(renderedListItems),
+        [renderedListItems],
     );
+    const numberedSessionEntries = React.useMemo(
+        () => visibleSessionNavigationEntries.slice(0, 9),
+        [visibleSessionNavigationEntries],
+    );
+    const numberedSessionEntriesSignature = React.useMemo(
+        () => numberedSessionEntries.map((entry) => `${entry.index}:${entry.sessionKey}`).join('\u0001'),
+        [numberedSessionEntries],
+    );
+    const numberByVisibleRowIndex = React.useMemo(() => new Map(
+        numberedSessionEntries.map((entry, index) => [entry.index, index + 1]),
+    ), [numberedSessionEntries]);
+    const [commandHeld, setCommandHeld] = React.useState(false);
+    const showNumberedHints = surfaceOwnership.interactive && commandHeld && Platform.OS === 'web';
+    React.useEffect(() => {
+        if (!surfaceOwnership.interactive) setCommandHeld(false);
+    }, [surfaceOwnership.interactive]);
     const selectionScopeSessionNavigationEntries = React.useMemo(
         () => buildVisibleSessionNavigationEntries(selectionScopeListItems ?? EMPTY_SESSION_LIST_VIEW_ITEMS),
         [selectionScopeListItems],
@@ -1572,6 +1636,9 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
             selection.activeServerId,
         ],
     );
+    React.useEffect(() => {
+        rowShortcutPresenceRef.current.hover = null;
+    }, [focusedFolderId, searchQuery, selectedHeaderTags, surfaceOwnership.dataActive, surfaceOwnership.interactive]);
     const sessionListSelectionStore = useSessionListSelectionController({
         scopeKey: sessionListSelectionScopeKey,
         visibleOrderedKeys: visibleSessionSelectionKeys,
@@ -1636,6 +1703,12 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         if (!target) return;
         void navigateToSession(target.sessionId, target.serverId ? { serverId: target.serverId } : undefined);
     }, [navigateToSession]);
+    const handleNumberedSessionShortcut = React.useCallback((number: number) => {
+        const target = numberedSessionEntries[number - 1] ?? null;
+        if (!target) return;
+        cursorSessionKeyRef.current = target.sessionKey;
+        navigateToSessionTarget(target);
+    }, [navigateToSessionTarget, numberedSessionEntries]);
     const handleVisibleSessionShortcut = React.useCallback((direction: 'previous' | 'next') => {
         const target = resolveVisibleSessionNavigation({
             visibleEntries: visibleSessionNavigationEntries,
@@ -1693,9 +1766,49 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         }
         sessionListSelectionStore.selectRange(targetKey);
     }, [resolveSelectionKeyboardCurrentKey, sessionListSelectionStore, visibleSessionNavigationEntries]);
+    const handleSessionRowMenuShortcut = React.useCallback((commandId: KeyboardCommandId): boolean => {
+        const presence = rowShortcutPresenceRef.current;
+        const selectedEntry = visibleSessionNavigationEntries.find((entry) => entry.sessionKey === activeSessionKey);
+        const selectedKey = selectedEntry ? `${selectedEntry.serverId ?? ''}:${selectedEntry.sessionId}` : null;
+        const keys = presence.menu
+            ? [presence.menu]
+            : commandId === 'session.hovered.archive'
+                ? [presence.hover, presence.focus]
+                : [presence.hover, presence.focus, selectedKey];
+        const key = keys.find((candidate) => candidate != null && rowShortcutTargetsRef.current.has(candidate));
+        if (!key) return false;
+        if (!renderedListItems.some((item) => item.type === 'session'
+            && `${item.serverId ?? ''}:${item.session.id}` === key)) return false;
+        const registration = rowShortcutTargetsRef.current.get(key);
+        if (!registration || registration.mutating) return false;
+        const item = findVisibleSessionRowMenuItemForCommand(registration.items, commandId);
+        if (!item) return false;
+        const pendingKey = `${key}:${commandId}`;
+        if (pendingRowShortcutRef.current.has(pendingKey)) return false;
+        if (commandId === 'session.hovered.archive' && archiveShortcutPendingRef.current) return false;
+        if (item.id === SESSION_ACTION_ARCHIVE_ID
+            && isSessionArchivePending(registration.target.sessionId, registration.target.serverId)) return false;
+        pendingRowShortcutRef.current.add(pendingKey);
+        if (commandId === 'session.hovered.archive') archiveShortcutPendingRef.current = true;
+        void registration.execute(
+            item.id,
+            item.id === SESSION_ACTION_ARCHIVE_ID ? { forceArchiveConfirmation: true } : undefined,
+        ).catch(showMoveError).finally(() => {
+            pendingRowShortcutRef.current.delete(pendingKey);
+            if (commandId === 'session.hovered.archive') archiveShortcutPendingRef.current = false;
+        });
+        return true;
+    }, [activeSessionKey, renderedListItems, showMoveError, visibleSessionNavigationEntries]);
     useKeyboardShortcutHandlers(React.useMemo(() => {
         if (!surfaceOwnership.interactive) return {};
         return {
+            ...Object.fromEntries(sessionRowMenuCommandIds
+                .filter((commandId) => commandId !== 'sessions.row.moveToFolder')
+                .map((commandId) => [commandId, () => handleSessionRowMenuShortcut(commandId)])),
+            ...Object.fromEntries(numberedSessionEntries.map((_, index) => [
+                `session.number.${index + 1}`,
+                () => handleNumberedSessionShortcut(index + 1),
+            ])),
             'session.visible.previous': () => handleVisibleSessionShortcut('previous'),
             'session.visible.next': () => handleVisibleSessionShortcut('next'),
             'session.mru.previous': () => handleMruSessionShortcut('next'),
@@ -1710,9 +1823,11 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                 }
                 : {}),
             'sessions.row.moveToFolder': () => {
+                if (handleSessionRowMenuShortcut('sessions.row.moveToFolder')) return true;
                 const rowId = resolveSessionTreeRowId(activeSessionKey);
-                if (!rowId) return;
+                if (!rowId) return false;
                 void openMoveSheetForTreeRow(rowId, rowLabelByTreeRowId.get(rowId) ?? t('sessionsList.sessionFallbackLabel'));
+                return true;
             },
             'sessions.row.moveToWorkspaceRoot': () => {
                 const rowId = resolveSessionTreeRowId(activeSessionKey);
@@ -1720,11 +1835,13 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                 moveTreeRowToWorkspaceRoot(rowId, rowLabelByTreeRowId.get(rowId) ?? t('sessionsList.sessionFallbackLabel'));
             },
             'sessions.row.moveUp': () => {
+                if (sessionListMachineViewMode === 'machine') return;
                 const rowId = resolveSessionTreeRowId(activeSessionKey);
                 if (!rowId) return;
                 moveTreeRowByKeyboard(rowId, rowLabelByTreeRowId.get(rowId) ?? t('sessionsList.sessionFallbackLabel'), 'up');
             },
             'sessions.row.moveDown': () => {
+                if (sessionListMachineViewMode === 'machine') return;
                 const rowId = resolveSessionTreeRowId(activeSessionKey);
                 if (!rowId) return;
                 moveTreeRowByKeyboard(rowId, rowLabelByTreeRowId.get(rowId) ?? t('sessionsList.sessionFallbackLabel'), 'down');
@@ -1733,6 +1850,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
     }, [
         activeSessionKey,
         handleMruSessionShortcut,
+        handleSessionRowMenuShortcut,
+        handleNumberedSessionShortcut,
         handleSessionSelectionExtend,
         handleSessionSelectionToggleFocused,
         handleVisibleSessionShortcut,
@@ -1741,9 +1860,14 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         openMoveSheetForTreeRow,
         rowLabelByTreeRowId,
         sessionListKeyboardFocused,
+        sessionListMachineViewMode,
         sessionListSelectionStore,
         surfaceOwnership.interactive,
-    ]));
+        numberedSessionEntries,
+    ]), {
+        onCommandHeldChange: surfaceOwnership.interactive ? setCommandHeld : undefined,
+        isOwnedSessionRowMenuActive: () => surfaceOwnership.interactive && rowShortcutPresenceRef.current.menu != null,
+    });
     const handleSessionListKeyDown = React.useCallback((event: any) => {
         if (!surfaceOwnership.interactive) return;
         if (Platform.OS !== 'web') return;
@@ -1836,6 +1960,10 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
     const renderHeaderControls = React.useCallback((anchorKey: string) => {
         const menu = (
             <SessionListViewMenuButton
+                machineViewMode={sessionListMachineViewMode}
+                onMachineViewModeChange={setSessionListMachineViewV1}
+                onRepositoryRefresh={refreshSessionRepositories}
+                repositoryRefreshing={sessionRepositoriesRefreshing}
                 folderViewMode={sessionFolderViewMode}
                 onFolderViewModeChange={setSessionFolderViewModeV1}
                 orderingMode={sessionListOrderingMode}
@@ -1872,9 +2000,13 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         folderActionsEnabled,
         hideInactiveSessions,
         sessionListOrderingMode,
+        sessionListMachineViewMode,
         sessionListSavedFolderSortMode,
+        refreshSessionRepositories,
+        sessionRepositoriesRefreshing,
         sessionFolderViewMode,
         setSessionListOrderingModeV1,
+        setSessionListMachineViewV1,
         setSessionListFolderSortModeV1,
         setHideInactiveSessions,
         setSessionFolderViewModeV1,
@@ -1892,6 +2024,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
             const moveActionHandlers = getRowMoveActionHandlers({ sourceRowId: treeRow, sourceLabel: folderLabel });
             return (
                 <DraggableSessionFolderHeaderFrame
+                    dragEnabled={sessionListMachineViewMode !== 'machine'}
                     folderId={folderHeader.folderId}
                     groupKey={folderHeader.groupKey ?? collapseKey}
                     treeRowId={treeRow}
@@ -1906,6 +2039,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                 >
                     {(dragHandleGesture) => (
                     <FolderGroupHeader
+                        reorderEnabled={sessionListMachineViewMode !== 'machine'}
                         item={folderHeader}
                         collapsed={Boolean(collapsedKeys[collapseKey])}
                         dragHandleGesture={dragHandleGesture}
@@ -1915,8 +2049,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                         onAddSubfolder={() => handleAddSessionSubfolder(folderHeader)}
                         onRename={() => handleRenameSessionFolder(folderHeader)}
                         onDelete={() => handleDeleteSessionFolder(folderHeader)}
-                        onMove={moveActionHandlers.onMoveToFolder}
-                        onMoveToWorkspaceRoot={moveActionHandlers.onMoveToWorkspaceRoot}
+                        onMove={sessionListMachineViewMode === 'machine' ? undefined : moveActionHandlers.onMoveToFolder}
+                        onMoveToWorkspaceRoot={sessionListMachineViewMode === 'machine' ? undefined : moveActionHandlers.onMoveToWorkspaceRoot}
                         onMoveUp={moveActionHandlers.onMoveUp}
                         onMoveDown={moveActionHandlers.onMoveDown}
                         disabled={!folderActionsEnabled}
@@ -1931,6 +2065,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
             const moveActionHandlers = getRowMoveActionHandlers({ sourceRowId: treeRow, sourceLabel: item.title });
             return (
                 <DraggableSessionFolderHeaderFrame
+                    dragEnabled={sessionListMachineViewMode !== 'machine'}
                     dragKey={treeRow}
                     groupKey={item.groupKey ?? collapseKey}
                     treeRowId={treeRow}
@@ -1945,6 +2080,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                 >
                     {(dragHandleGesture) => (
                     <ProjectGroupHeader
+                        reorderEnabled={sessionListMachineViewMode !== 'machine'}
                         item={item}
                         hasMultipleMachines={hasMultipleMachines}
                         dragHandleGesture={dragHandleGesture}
@@ -1955,8 +2091,10 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                         onMoveDown={moveActionHandlers.onMoveDown}
                         onRenameWorkspace={handleRenameWorkspace}
                         onResetWorkspaceName={handleResetWorkspaceName}
-                        onCreateSession={() => handleCreateSessionFromProject(item)}
-                        onAddFolder={() => handleAddFolderToProject(item)}
+                        onCreateSession={(checkout) => handleCreateSessionFromProject(item, checkout)}
+                        getRepositoryAssociationChoices={getRepositoryAssociationChoices}
+                        onAssociateRepository={handleAssociateRepository}
+                        onAddFolder={(checkout) => handleAddFolderToProject(item, checkout)}
                         collapsed={Boolean(collapsedKeys[collapseKey])}
                         onToggleCollapse={() => handleToggleCollapse(collapseKey)}
                         headerTestId={headerTestId}
@@ -1987,6 +2125,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                 <CollapsibleSectionHeader
                     title={title}
                     headerKind={item.headerKind}
+                    machineId={item.headerKind === 'machine' ? item.machine?.id : undefined}
+                    serverId={item.serverId}
                     collapsed={isCollapsed}
                     onPress={() => handleToggleCollapse(collapseKey)}
                     headerTestId={headerTestId}
@@ -2000,6 +2140,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         folderViewEnabled,
         dropOverlayShared,
         handleAddFolderToProject,
+        getRepositoryAssociationChoices,
+        handleAssociateRepository,
         handleAddSessionSubfolder,
         handleCreateSessionFromProject,
         handleCreateSessionFromFolder,
@@ -2016,6 +2158,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         getRowMoveActionHandlers,
         registerTreeRowBounds,
         renderHeaderControls,
+        sessionListMachineViewMode,
         resolveDropResult,
         unregisterTreeRowBounds,
         workspaceLabelsV1,
@@ -2058,6 +2201,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         headerSearchQuery: searchQuery,
         headerSelectedTagsSignature: selectedHeaderTagsSignature,
         headerSearchLoading: memorySearch.isSearchingMemory,
+        numberedSessionHintsVisible: showNumberedHints,
+        numberedSessionEntriesSignature,
         // Stable renderItem refs do not update mounted engine cells. Viewport membership
         // must reach the row boundary before its local store subscription can activate.
         rowStoreSubscriptionKeys,
@@ -2080,12 +2225,17 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         rowLabelsSignature,
         sessionListActiveColorMode: rowPresentationSettings.activeColorMode,
         sessionListAgentActivityCountEnabled: rowPresentationSettings.agentActivityCountEnabled,
+        sessionListShowMachineIdentity: rowPresentationSettings.showMachineIdentity,
+        sessionListShowMachineLabel: rowPresentationSettings.showMachineLabel,
         sessionListHideInactiveSessions: rowPresentationSettings.hideInactiveSessions,
         sessionListIdentityDisplay: rowPresentationSettings.identityDisplay,
         sessionListOrderingMode,
+        sessionListMachineViewMode,
+        sessionRepositoriesRefreshing,
         sessionListSectionMode,
         sessionListStatusColors: rowPresentationSettings.statusColors,
         sessionListSurfaceDataActive: surfaceOwnership.dataActive,
+        sessionListSurfaceInteractive: surfaceOwnership.interactive,
         sessionListWorkingIndicatorMode: rowPresentationSettings.workingIndicatorMode,
         sessionListBackgroundWorkAttentionMode: rowPresentationSettings.backgroundWorkAttentionMode,
         sessionTagsEnabled: sessionTagsEnabled === true,
@@ -2102,6 +2252,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         searchQuery,
         selectedHeaderTagsSignature,
         memorySearch.isSearchingMemory,
+        numberedSessionEntriesSignature,
+        showNumberedHints,
         rowStoreSubscriptionKeys,
         selection.activeServerId,
         allKnownTagsSignature,
@@ -2122,14 +2274,19 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         rowLabelsSignature,
         rowPresentationSettings.activeColorMode,
         rowPresentationSettings.agentActivityCountEnabled,
+        rowPresentationSettings.showMachineIdentity,
+        rowPresentationSettings.showMachineLabel,
         rowPresentationSettings.hideInactiveSessions,
         rowPresentationSettings.identityDisplay,
         rowPresentationSettings.statusColors,
         rowPresentationSettings.workingIndicatorMode,
         rowPresentationSettings.backgroundWorkAttentionMode,
         sessionListOrderingMode,
+        sessionListMachineViewMode,
+        sessionRepositoriesRefreshing,
         sessionListSectionMode,
         surfaceOwnership.dataActive,
+        surfaceOwnership.interactive,
         sessionTagsEnabled,
         sessionTagsSignature,
         showStructuralDragHandles,
@@ -2147,7 +2304,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
             groupKind: item.groupKind,
             userOrderingMode: sessionListOrderingMode,
         });
-        const dragEnabled = effectiveOrderingMode === 'custom' || showStructuralDragHandles;
+        const dragEnabled = sessionListMachineViewMode !== 'machine' && (effectiveOrderingMode === 'custom' || showStructuralDragHandles);
         const rowStoreScopeKey = resolveSessionListRowStoreScopeKey({
             sessionId: item.session.id,
             serverId: item.serverId ?? null,
@@ -2162,14 +2319,17 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                 dragEnabled={dragEnabled}
                 draggingSessionKey={draggingSessionKey}
                 folderActionsEnabled={folderActionsEnabled}
-                folderViewEnabled={folderViewEnabled}
+                reorderActionsEnabled={folderViewEnabled || sessionListMachineViewMode === 'repository'}
                 forkActionContext={forkActionContext}
                 getRowMoveActionHandlers={getRowMoveActionHandlers}
+                onShortcutTargetChange={surfaceOwnership.interactive && surfaceOwnership.dataActive ? handleShortcutTargetChange : undefined}
+                onShortcutPresenceChange={surfaceOwnership.interactive && surfaceOwnership.dataActive ? handleShortcutPresenceChange : undefined}
                 getRowNativeContextMenuOpenChangeHandler={getRowNativeContextMenuOpenChangeHandler}
                 getRowSetTagsHandler={getRowSetTagsHandler}
                 getRowTogglePinnedHandler={getRowTogglePinnedHandler}
                 groupKey={groupKey}
                 item={item}
+                shortcutHint={showNumberedHints ? numberByVisibleRowIndex.get(index) : undefined}
                 nativeContextMenuSessionKey={nativeContextMenuSessionKey}
                 onDragStart={handleA11yDragStart}
                 onDropResult={handleA11yTreeDropResult}
@@ -2190,7 +2350,9 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         forkActionContext,
         selection.activeServerId,
         surfaceOwnership.dataActive,
+        surfaceOwnership.interactive,
         nativeContextMenuSessionKey,
+        numberByVisibleRowIndex,
         prioritySessionRowKeys,
         renderedListItems,
         rowPresentationSettings,
@@ -2201,6 +2363,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         folderActionsEnabled,
         folderViewEnabled,
         getRowMoveActionHandlers,
+        handleShortcutTargetChange,
+        handleShortcutPresenceChange,
         handleA11yDragStart,
         handleA11yTreeDropResult,
         handleStableDragCancel,
@@ -2210,8 +2374,10 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         resolveStableDropResult,
         registerTreeRowBounds,
         sessionListOrderingMode,
+        sessionListMachineViewMode,
         sessionListSectionMode,
         showStructuralDragHandles,
+        showNumberedHints,
         unregisterTreeRowBounds,
     ]);
 

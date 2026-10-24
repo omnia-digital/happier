@@ -1,25 +1,13 @@
-import type { Router } from 'expo-router';
-
-import { resolveNewSessionDraftRouteIdentity } from '@/components/sessions/new/navigation/newSessionDraftRouteIdentity';
-import { buildNewSessionLaunchRouteParams } from '@/components/sessions/new/navigation/newSessionRouteParams';
-
-export type SourceControlBranchMenuMachineTarget = Readonly<{
-    machineId: string;
-    basePath: string;
-}> | null;
-
 export async function handleSourceControlBranchMenuSelect(input: Readonly<{
     itemId: string;
     closeMenu: () => void;
     checkoutPullRequestLocally: () => Promise<void>;
     createWorktreeFromCurrentBranch: () => Promise<void>;
     directoryFallback: string;
-    machineTarget: SourceControlBranchMenuMachineTarget;
     openPullRequestWorktree: () => Promise<void>;
-    openNewSessionForDirectory: (directory: string) => void;
+    openNewSessionForDirectory: (directory: string, options?: { worktree?: string }) => Promise<void>;
     pruneWorktrees: () => Promise<void>;
     removeWorktree: (worktreePath: string) => Promise<void>;
-    router: Router;
     setIncludeRemotes: (value: boolean) => void;
     setOpen: (value: boolean) => void;
     switchBranch: (branchName: string) => Promise<void>;
@@ -40,16 +28,7 @@ export async function handleSourceControlBranchMenuSelect(input: Readonly<{
     }
     if (itemId === 'worktree:create-from-another-branch') {
         input.closeMenu();
-        const draftId = resolveNewSessionDraftRouteIdentity({ routeDraftId: undefined }).draftId;
-        input.router.push({
-            pathname: '/new',
-            params: buildNewSessionLaunchRouteParams({
-                draftId,
-                machineId: input.machineTarget?.machineId,
-                directory: input.directoryFallback,
-                worktree: 'new',
-            }),
-        });
+        await input.openNewSessionForDirectory(input.directoryFallback, { worktree: 'new' });
         return;
     }
     if (itemId === 'worktree:prune') {
@@ -58,7 +37,7 @@ export async function handleSourceControlBranchMenuSelect(input: Readonly<{
     }
     if (itemId.startsWith('worktree:open:')) {
         input.closeMenu();
-        input.openNewSessionForDirectory(itemId.slice('worktree:open:'.length));
+        await input.openNewSessionForDirectory(itemId.slice('worktree:open:'.length));
         return;
     }
     if (itemId.startsWith('worktree:remove:')) {

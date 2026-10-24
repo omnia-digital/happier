@@ -5,7 +5,7 @@ import type { Session } from '@/sync/domains/state/storageTypes';
 import type { SessionMessages } from '@/sync/store/domains/messages';
 import type { SessionPending } from '@/sync/store/domains/pending';
 import type { SessionStatus } from '@/utils/sessions/sessionUtils';
-import type { SessionListSecondaryLineMode } from '@/sync/domains/session/listing/deriveSessionListActivity';
+import type { SessionListSecondaryLineMode, SessionListVisualStatus } from '@/sync/domains/session/listing/deriveSessionListActivity';
 import type { SessionAttentionStandingPolicy, SessionReminderPresentation } from '@/sync/domains/session/organization/attentionStanding';
 import type { SessionRowAttentionState, SessionRowDensity, SessionRowPresentation } from './resolveSessionRowPresentation';
 
@@ -50,6 +50,9 @@ export type SessionListRowPresentationSettings = Readonly<{
     hideInactiveSessions: boolean;
     showServerBadge: boolean;
     showPinnedServerBadge: boolean;
+    /** Device-local row display choice; the selected session header is independent. */
+    showMachineIdentity?: boolean;
+    showMachineLabel?: boolean;
     /**
      * Opt-in, OFF by default (R-8). A count on every row is a number a person did not ask for on a
      * surface they scan rather than read, so the row model always carries it and the setting decides
@@ -74,6 +77,7 @@ export type SessionListRowPresentationSettings = Readonly<{
     reachableSessionDisplayByKey: Readonly<Record<string, {
         workspaceSubtitle?: string;
         machineLabel?: string;
+        machineId?: string | null;
         workspaceSubtitleEllipsizeMode?: 'head' | 'tail';
     } | undefined>>;
     folderViewEnabled: boolean;
@@ -90,6 +94,7 @@ export type SessionListRowModel = Readonly<{
     testID: string;
     session: Session | SessionListRenderableSession;
     status: SessionStatus;
+    visualStatus: SessionListVisualStatus;
     statusSignature: string;
     nextRuntimeFreshnessAtMs: number | null;
     secondaryLineMode: SessionListSecondaryLineMode;
@@ -107,6 +112,10 @@ export type SessionListRowModel = Readonly<{
     isIdentityLoading: boolean;
     title: string;
     subtitle: string;
+    machineLabel: string | null;
+    machineId: string | null;
+    showMachineIdentity: boolean;
+    showMachineLabel: boolean;
     subtitleEllipsizeMode: 'head' | 'tail';
     groupKey: string;
     groupKind: SessionListRowSessionItem['groupKind'] | null;

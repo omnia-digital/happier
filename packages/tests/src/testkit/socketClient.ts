@@ -6,7 +6,7 @@ import { attachSocketEventCollector, SocketEventCollector, type CapturedEvent } 
 
 export type { CapturedEvent } from './socketEventCollector';
 
-type RpcRequestPayload = { method: string; params: string };
+type RpcRequestPayload<TParams = string> = { method: string; params: TParams };
 type RpcRegisterEventPayload = { method?: unknown; error?: unknown };
 type RpcResponseEnvelope = { ok?: unknown; result?: unknown; error?: unknown; errorCode?: unknown };
 
@@ -43,8 +43,8 @@ export class SocketCollector {
     return (await this.socket.timeout(timeoutMs).emitWithAck(event as any, data)) as T;
   }
 
-  onRpcRequest(handler: (data: RpcRequestPayload) => string | Promise<string>): () => void {
-    const listener = async (data: RpcRequestPayload, callback: (response: string) => void) => {
+  onRpcRequest<TParams = string, TResult = string>(handler: (data: RpcRequestPayload<TParams>) => TResult | Promise<TResult>): () => void {
+    const listener = async (data: RpcRequestPayload<TParams>, callback: (response: TResult | string) => void) => {
       try {
         const out = await handler(data);
         callback(out);

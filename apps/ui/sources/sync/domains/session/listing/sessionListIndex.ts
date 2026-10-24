@@ -1,3 +1,4 @@
+import type { RepositoryHeaderPresentation } from './sessionRepositoryIdentity';
 import type { MachineDisplayRenderable } from '@/sync/domains/machines/machineDisplayRenderable';
 import type { SessionFolderWorkspaceRefV1 } from '@/sync/domains/session/folders';
 import { getSessionStorageKind, type SessionStorageKind } from '@/sync/domains/session/sessionStorageKind';
@@ -10,9 +11,10 @@ export type SessionListIndexItem =
     | Readonly<{
         type: 'header';
         title: string;
-        headerKind?: 'date' | 'server' | 'active' | 'inactive' | 'sessions' | 'project' | 'pinned' | 'attention' | 'working' | 'shared' | 'folder';
+        headerKind?: 'date' | 'server' | 'active' | 'inactive' | 'sessions' | 'project' | 'pinned' | 'attention' | 'working' | 'shared' | 'folder' | 'machine';
         groupKey?: string;
         workspaceKey?: string;
+        repository?: RepositoryHeaderPresentation;
         seedSessionId?: string | null;
         workspaceScopeHint?: Readonly<{ serverId: string; machineId: string; rootPath: string }> | null;
         serverId?: string;
@@ -130,6 +132,7 @@ export function areSessionListIndexItemsEqual(
         && previous.headerKind === next.headerKind
         && previous.groupKey === next.groupKey
         && previous.workspaceKey === next.workspaceKey
+        && JSON.stringify(previous.repository ?? null) === JSON.stringify(next.repository ?? null)
         && (previous.seedSessionId ?? null) === (next.seedSessionId ?? null)
         && previous.serverId === next.serverId
         && previous.serverName === next.serverName
@@ -151,6 +154,7 @@ export function buildSessionListIndexItemFromViewItem(item: SessionListViewItem)
             headerKind: item.headerKind,
             groupKey: item.groupKey,
             workspaceKey: item.workspaceKey,
+            repository: item.repository,
             seedSessionId: item.seedSessionId ?? null,
             workspaceScopeHint: item.workspaceScopeHint ?? null,
             serverId: item.serverId,

@@ -42,6 +42,49 @@ describe('keyboardShortcutsSettingsModel', () => {
         expect(model.commandRows.find((row) => row.commandId === 'composer.sendPending')?.defaultLabel).toBe('Cmd+Shift+Enter');
         expect(model.commandRows.find((row) => row.commandId === 'commandPalette.open')?.defaultLabel).toBe('Cmd+K');
         expect(model.commandRows.find((row) => row.commandId === 'settings.open')?.defaultLabel).toBeNull();
+        expect(model.commandRows.find((row) => row.commandId === 'session.menu.copyInformation')).toMatchObject({
+            titleKey: 'sessionInfo.copyDebugInformation',
+            defaultLabel: 'Option+Shift+I',
+        });
+    });
+
+    it('lists all numbered session shortcuts with distinct titles and editable defaults', () => {
+        const model = buildKeyboardShortcutSettingsModel({ settings: baseSettings, platform: 'macos', surface: 'native' });
+        expect(model.commandRows.filter((row) => row.commandId.startsWith('session.number.'))).toEqual(
+            Array.from({ length: 9 }, (_, index) => ({
+                commandId: `session.number.${index + 1}`,
+                titleKey: `settingsKeyboard.commands.sessionNumber${index + 1}`,
+                bindingValue: `Mod+${index + 1}`,
+                defaultLabel: `Cmd+${index + 1}`,
+                disabled: false,
+                hasOverride: false,
+            })),
+        );
+    });
+
+    it('disables, rebinds and resets a numbered shortcut through the settings controls', () => {
+        const commandId = 'session.number.3';
+        const disabled = { ...baseSettings, ...buildKeyboardShortcutToggleDelta([], commandId, true) };
+        const rowFor = (settings: typeof baseSettings) => buildKeyboardShortcutSettingsModel({
+            settings, platform: 'macos', surface: 'native',
+        }).commandRows.find((row) => row.commandId === commandId);
+        expect(rowFor(disabled)).toMatchObject({ disabled: true, bindingValue: 'Mod+3' });
+
+        const rebound = { ...disabled, ...buildKeyboardShortcutSetDelta({
+            disabledCommandIds: disabled.keyboardShortcutDisabledCommandIdsV1,
+            overrides: disabled.keyboardShortcutOverridesV1,
+            commandId,
+            binding: 'Alt+3',
+        }) };
+        expect(rowFor(rebound)).toMatchObject({ disabled: false, bindingValue: 'Alt+3', hasOverride: true });
+
+        const reset = { ...rebound, ...buildKeyboardShortcutResetDelta({
+            disabledCommandIds: rebound.keyboardShortcutDisabledCommandIdsV1,
+            overrides: rebound.keyboardShortcutOverridesV1,
+            commandId,
+        }) };
+        expect(rowFor(reset)).toMatchObject({ disabled: false, bindingValue: 'Mod+3', hasOverride: false });
+        expect(reset.keyboardShortcutsV2Enabled).toBe(false);
     });
 
     it('shows registry defaults even when single-key shortcuts are currently inactive', () => {
@@ -55,6 +98,12 @@ describe('keyboardShortcutsSettingsModel', () => {
         });
 
         expect(model.commandRows.find((row) => row.commandId === 'shortcutsHelp.open')?.defaultLabel).toBe('?');
+        const archive = model.commandRows.find((row) => row.commandId === 'session.hovered.archive');
+        expect(archive).toMatchObject({
+            titleKey: 'sessionInfo.archiveSession',
+            defaultLabel: 'A',
+            disabled: false,
+        });
     });
 
     it('shows active web-safe defaults instead of browser-reserved native defaults', () => {

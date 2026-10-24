@@ -1,3 +1,4 @@
+import { buildOrganizationProjectionForServer, persistSessionOrganizationWarmCache } from '@/sync/store/sessionOrganizationWarmCache';
 import Constants from 'expo-constants';
 import { parsePermissionIntentAlias, resolvePermissionIntentFromSessionMetadata } from '@happier-dev/agents';
 import { apiSocket } from '@/sync/api/session/apiSocket';
@@ -92,10 +93,7 @@ import {
 } from '@/sync/domains/session/realtime/deferredSessionStateHydration';
 import { normalizeSessionListAttentionPromotionMode } from '@/sync/domains/session/listing/attentionPromotion/sessionListAttentionPromotion';
 import {
-    buildSessionOrganizationProjection,
-    buildSessionOrganizationSnapshotFromProjection,
     listSessionOrganizationRequiredHydrationSessionIds,
-    type SessionOrganizationProjection,
 } from '@/sync/domains/session/organization';
 import { fetchAndApplySessionOrganizationSnapshot } from '@/sync/ops/sessionOrganization';
 import { createSessionListOrganizationSnapshotRequest } from '@/sync/engine/sessions/sessionListOrganizationSnapshotRequest';
@@ -204,7 +202,6 @@ import {
     loadSessionOrganizationWarmCacheSnapshot,
     readPersistedSessionListWarmCacheEntries,
     resolveWarmCacheAccountScope,
-    saveSessionOrganizationWarmCacheSnapshot,
     setWarmCacheAccountScope,
 } from './domains/state/warmCachePersistence';
 import {
@@ -891,56 +888,6 @@ function canShareFetchSessionsInFlight(options?: FetchSessionsOptions): boolean 
         && options?.mode !== 'append';
 }
 
-type SessionOrganizationSyncState = Pick<
-    ReturnType<typeof storage.getState>,
-    | 'sessionOrganizationSchemaVersionByServerId'
-    | 'sessionOrganizationSnapshotVersionByServerId'
-    | 'sessionOrganizationPinsBySessionKey'
-    | 'sessionOrganizationFoldersByFolderKey'
-    | 'sessionOrganizationFolderAssignmentsBySessionKey'
-    | 'sessionOrganizationTagsByTagKey'
-    | 'sessionOrganizationTagAssignmentsBySessionKey'
-    | 'sessionOrganizationAttentionStandingsBySessionKey'
-    | 'sessionOrganizationOrderEntriesByScopeKey'
-    | 'sessionOrganizationLabelsByLabelKey'
->;
-
-function buildOrganizationProjectionForServer(
-    state: SessionOrganizationSyncState,
-    serverId: string | null,
-): SessionOrganizationProjection | null {
-    const normalizedServerId = typeof serverId === 'string' && serverId.trim().length > 0 ? serverId.trim() : null;
-    if (!normalizedServerId) return null;
-    return buildSessionOrganizationProjection({
-        schemaVersionByServerId: state.sessionOrganizationSchemaVersionByServerId,
-        snapshotVersionByServerId: state.sessionOrganizationSnapshotVersionByServerId,
-        pinsBySessionKey: state.sessionOrganizationPinsBySessionKey,
-        foldersByFolderKey: state.sessionOrganizationFoldersByFolderKey,
-        folderAssignmentsBySessionKey: state.sessionOrganizationFolderAssignmentsBySessionKey,
-        tagsByTagKey: state.sessionOrganizationTagsByTagKey,
-        tagAssignmentsBySessionKey: state.sessionOrganizationTagAssignmentsBySessionKey,
-        attentionStandingsBySessionKey: state.sessionOrganizationAttentionStandingsBySessionKey,
-        orderEntriesByScopeKey: state.sessionOrganizationOrderEntriesByScopeKey,
-        labelsByLabelKey: state.sessionOrganizationLabelsByLabelKey,
-    }, normalizedServerId);
-}
-
-/**
- * Persist the organization the list is currently painting so the next boot repaints it before
- * the refresh lands. Written from the store rather than from a response so partial refreshes
- * (`refreshSessionOrganization`) stay represented, and skipped whenever the store does not hold
- * a complete snapshot for this server yet.
- */
-function persistSessionOrganizationWarmCache(
-    serverId: string | null,
-    accountId: string | null,
-    projection: SessionOrganizationProjection | null,
-): void {
-    if (!serverId || !projection) return;
-    const snapshot = buildSessionOrganizationSnapshotFromProjection(projection);
-    if (!snapshot) return;
-    saveSessionOrganizationWarmCacheSnapshot(serverId, accountId, snapshot);
-}
 
 function shouldIncludeSessionListAttentionRows(settings: Pick<Settings, 'sessionListAttentionPromotionModeV1'>): boolean {
     return normalizeSessionListAttentionPromotionMode(settings.sessionListAttentionPromotionModeV1) !== 'off';
@@ -2356,7 +2303,17 @@ class Sync {
             // Fast-path when we already know the session exists on this server and the stored record is
             // already authoritatively hydrated (deep links can occur before the sessions snapshot bootstraps).
             const existingSession = storage.getState().sessions[normalized];
-            if (!forceRefresh && this.isSessionKnownOnActiveServer(normalized) && existingSession) {
+            const targetsActiveServer = !scopedServerId || (
+                !!activeServerIdAtHydrationStart
+                && areServerProfileIdentifiersEquivalent(scopedServerId, activeServerIdAtHydrationStart)
+            );
+            // The active-server membership set can still contain this id after a scoped fetch for
+            // another Home replaces sessions[id]. Never treat that foreign record as the active one.
+            const storedSessionMatchesActiveServer = !existingSession?.serverId || (
+                !!activeServerIdAtHydrationStart
+                && areServerProfileIdentifiersEquivalent(existingSession.serverId, activeServerIdAtHydrationStart)
+            );
+            if (!forceRefresh && targetsActiveServer && storedSessionMatchesActiveServer && this.isSessionKnownOnActiveServer(normalized) && existingSession) {
                 const encryptionMode: 'e2ee' | 'plain' = existingSession.encryptionMode === 'plain' ? 'plain' : 'e2ee';
                 const hasEncryption = encryptionMode === 'plain'
                     ? false
@@ -2407,7 +2364,7 @@ class Sync {
                         activeRequest: (path, init) => apiSocket.request(path, init),
                         getExistingSession: (sessionId) => storage.getState().sessions[sessionId] ?? null,
                         applySessions: (sessions) => {
-                            if (!isRouteHydrationScopeCurrent()) return;
+                            if (!isRouteHydrationScopeCurrent()) return false;
                             this.applySessions(sessions);
                         },
                         log,
@@ -4248,7 +4205,7 @@ class Sync {
                     activeRequest: (path, init) => apiSocket.request(path, init),
                     getExistingSession: (targetSessionId) => storage.getState().sessions[targetSessionId] ?? null,
                     applySessions: (sessions) => {
-                        if (!shouldContinue()) return;
+                        if (!shouldContinue()) return false;
                         this.applySessions(sessions);
                     },
                     log,
@@ -4301,6 +4258,37 @@ class Sync {
         });
         this.fetchMoreSessionsInFlight = promise;
         return promise;
+    }
+
+    /** Continue the ordinary decrypted session-list cursor while a search surface needs history. */
+    public fetchRemainingSessions = async (shouldContinue: () => boolean): Promise<void> => {
+        const serverId = getActiveServerSnapshot().serverId;
+        const accountId = storage.getState().profile?.id;
+        const generation = this.serverScopeGeneration;
+        const initialFetch = this.fetchSessionsInFlight;
+        if (initialFetch?.generation === generation && shouldContinue()) {
+            await initialFetch.promise;
+        }
+        while (
+            shouldContinue()
+            && this.credentials
+            && this.sessionListHasMore
+            && this.sessionListNextCursor
+            && this.serverScopeGeneration === generation
+            && getActiveServerSnapshot().serverId === serverId
+            && storage.getState().profile?.id === accountId
+        ) {
+            const cursor = this.sessionListNextCursor;
+            await this.fetchMoreSessions();
+            if (
+                shouldContinue()
+                && this.serverScopeGeneration === generation
+                && this.sessionListHasMore
+                && this.sessionListNextCursor === cursor
+            ) {
+                throw new Error('Session list pagination made no progress while searching titles');
+            }
+        }
     }
 
     private fetchArchivedSessionsPage = async (options?: FetchArchivedSessionsOptions): Promise<void> => {
@@ -7839,7 +7827,7 @@ class Sync {
                 activeRequest: (path, init) => apiSocket.request(path, init),
                 getExistingSession: (targetSessionId) => storage.getState().sessions[targetSessionId] ?? null,
                 applySessions: (sessions) => {
-                    if (!shouldContinue()) return;
+                    if (!shouldContinue()) return false;
                     this.applySessions(sessions);
                 },
                 log,

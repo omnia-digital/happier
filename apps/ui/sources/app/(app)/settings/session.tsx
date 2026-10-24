@@ -69,6 +69,8 @@ export default React.memo(function SessionSettingsScreen() {
     const [cockpitSwipeNavigationEnabled, setCockpitSwipeNavigationEnabled] = useSettingMutable('sessionCockpitSwipeNavigationEnabled');
     const [sessionListOrderingModeV1, setSessionListOrderingModeV1] = useSettingMutable('sessionListOrderingModeV1');
     const [sessionListFolderSortModeV1, setSessionListFolderSortModeV1] = useLocalSettingMutable('sessionListFolderSortModeV1');
+    const [sessionListShowMachineIdentity, setSessionListShowMachineIdentity] = useLocalSettingMutable('sessionListShowMachineIdentity');
+    const [sessionListShowMachineLabel, setSessionListShowMachineLabel] = useLocalSettingMutable('sessionListShowMachineLabel');
     const [sessionsRightPaneDefaultOpen, setSessionsRightPaneDefaultOpen] = useLocalSettingMutable('sessionsRightPaneDefaultOpen');
     const [uiMultiPanePanelsEnabled] = useLocalSettingMutable('uiMultiPanePanelsEnabled');
 
@@ -347,13 +349,16 @@ export default React.memo(function SessionSettingsScreen() {
         {
             id: 'foldersFirst',
             title: t('settingsSession.sessionList.folderSortModeFoldersFirstTitle'),
-            subtitle: t('settingsSession.sessionList.folderSortModeFoldersFirstSubtitle'),
+            subtitle: sessionListFolderSortLockedByOrdering
+                ? t('sessionsList.folderSortDisabledInDateMode')
+                : t('settingsSession.sessionList.folderSortModeFoldersFirstSubtitle'),
+            disabled: sessionListFolderSortLockedByOrdering,
         },
         {
             id: 'mixed',
             title: t('settingsSession.sessionList.folderSortModeMixedTitle'),
             subtitle: sessionListFolderSortLockedByOrdering
-                ? t('sessionsList.folderSortMixedDisabledInDateMode')
+                ? t('sessionsList.folderSortDisabledInDateMode')
                 : t('settingsSession.sessionList.folderSortModeMixedSubtitle'),
             disabled: sessionListFolderSortLockedByOrdering,
         },
@@ -693,6 +698,36 @@ export default React.memo(function SessionSettingsScreen() {
                 title={t('settingsSession.rootGroups.rowDetails.title')}
                 footer={t('settingsSession.rootGroups.rowDetails.footer')}
             >
+                <Item
+                    testID="settings-session-machineIdentity-item"
+                    title={t('settingsSession.sessionList.machineIdentityTitle')}
+                    subtitle={sessionListShowMachineIdentity !== false
+                        ? t('settingsSession.sessionList.machineIdentityEnabledSubtitle')
+                        : t('settingsSession.sessionList.machineIdentityDisabledSubtitle')}
+                    icon={<Icon name="desktop" size={29} color={theme.colors.accent.blue} />}
+                    rightElement={<Switch
+                        testID="settings-session-machineIdentity-toggle"
+                        value={sessionListShowMachineIdentity !== false}
+                        onValueChange={(next) => setSessionListShowMachineIdentity(Boolean(next))}
+                    />}
+                    showChevron={false}
+                    onPress={() => setSessionListShowMachineIdentity(sessionListShowMachineIdentity === false)}
+                />
+                <Item
+                    testID="settings-session-machineLabel-item"
+                    title={t('settingsSession.sessionList.machineLabelTitle')}
+                    subtitle={sessionListShowMachineLabel !== false
+                        ? t('settingsSession.sessionList.machineLabelEnabledSubtitle')
+                        : t('settingsSession.sessionList.machineLabelDisabledSubtitle')}
+                    icon={<Icon name="text-aa" size={29} color={theme.colors.accent.blue} />}
+                    rightElement={<Switch
+                        testID="settings-session-machineLabel-toggle"
+                        value={sessionListShowMachineLabel !== false}
+                        onValueChange={(next) => setSessionListShowMachineLabel(Boolean(next))}
+                    />}
+                    showChevron={false}
+                    onPress={() => setSessionListShowMachineLabel(sessionListShowMachineLabel === false)}
+                />
                 <Item
                     title={t('settingsSession.sessionList.tagsTitle')}
                     subtitle={sessionTagsEnabled ? t('settingsSession.sessionList.tagsEnabledSubtitle') : t('settingsSession.sessionList.tagsDisabledSubtitle')}

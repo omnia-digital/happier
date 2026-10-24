@@ -12,6 +12,35 @@ export type KeyboardCommandId =
     | 'permission.cycle'
     | 'shortcutsHelp.open'
     | 'session.new'
+    | 'session.hovered.archive'
+    | 'session.menu.select'
+    | 'session.menu.rename'
+    | 'session.menu.readState'
+    | 'session.menu.attentionStanding'
+    | 'session.menu.reminder'
+    | 'session.menu.reminderOneHour'
+    | 'session.menu.reminderThreeHours'
+    | 'session.menu.reminderTomorrow'
+    | 'session.menu.reminderNextWeek'
+    | 'session.menu.reminderCustom'
+    | 'session.menu.reminderManage'
+    | 'session.menu.reminderRemove'
+    | 'session.menu.sameSetup'
+    | 'session.menu.deleteDraft'
+    | 'session.menu.copyInformation'
+    | 'session.menu.fork'
+    | 'session.menu.stop'
+    | 'session.menu.tags'
+    | 'session.menu.pinState'
+    | 'session.number.1'
+    | 'session.number.2'
+    | 'session.number.3'
+    | 'session.number.4'
+    | 'session.number.5'
+    | 'session.number.6'
+    | 'session.number.7'
+    | 'session.number.8'
+    | 'session.number.9'
     | 'session.mru.next'
     | 'session.mru.previous'
     | 'sessions.row.moveDown'
@@ -40,6 +69,8 @@ export type KeyboardCommandId =
 export type KeyboardContext = Readonly<{
     isEditableTarget: boolean;
     isComposing: boolean;
+    isOverlayActive?: boolean;
+    isOwnedSessionRowMenuActive?: boolean;
 }>;
 
 export type NormalizedKeyboardEvent = Readonly<{
@@ -74,6 +105,8 @@ export type ParsedKeybindingRule = KeybindingRule & Readonly<{
 
 export type KeyboardCommand = Readonly<{
     id: KeyboardCommandId;
+    /** A contextual command can remain available when unrelated single-key shortcuts are disabled. */
+    allowWhenSingleKeyShortcutsDisabled?: boolean;
     defaultBinding?: KeybindingRule;
     defaultBindings?: readonly KeybindingRule[];
     settingsTitleKey?: TranslationKey;

@@ -22,6 +22,11 @@ const PENDING_EXTERNAL_CONNECT_GLOBAL_KEY = 'pending_external_connect__global';
 const AUTH_AUTO_REDIRECT_SUPPRESSED_UNTIL_KEY = 'auth_auto_redirect_suppressed_until';
 const AUTH_AUTO_REDIRECT_SUPPRESSED_UNTIL_GLOBAL_KEY = 'auth_auto_redirect_suppressed_until_global';
 const RECOVERY_KEY_REMINDER_DISMISSED_KEY = 'recovery_key_reminder_dismissed';
+const credentialChangeListeners = new Set<() => void>();
+
+function notifyCredentialChanges(): void {
+    for (const listener of credentialChangeListeners) listener();
+}
 
 function textToUtf8Bytes(value: string): Uint8Array {
     return new TextEncoder().encode(value);
@@ -702,6 +707,11 @@ function listWebScopedCredentialKeysForCleanup(): string[] {
 }
 
 export const TokenStorage = {
+    subscribeCredentialChanges(listener: () => void): () => void {
+        credentialChangeListeners.add(listener);
+        return () => { credentialChangeListeners.delete(listener); };
+    },
+
     async getAuthAutoRedirectSuppressedUntil(): Promise<number> {
         const key = await getAuthAutoRedirectSuppressedUntilKey();
         const globalKey = getAuthAutoRedirectSuppressedUntilGlobalKey();
@@ -843,6 +853,7 @@ export const TokenStorage = {
         for (const legacyKey of keys.legacy) {
             await removeCredentialByKey(legacyKey);
         }
+        notifyCredentialChanges();
         return true;
     },
 
@@ -873,6 +884,7 @@ export const TokenStorage = {
             }
         }
 
+        notifyCredentialChanges();
         return allRemoved;
     },
 
@@ -885,6 +897,7 @@ export const TokenStorage = {
         for (const legacyKey of keys.legacy) {
             await removeCredentialByKey(legacyKey);
         }
+        notifyCredentialChanges();
         return primaryRemoved;
     },
 
@@ -904,10 +917,16 @@ export const TokenStorage = {
         };
 
         const primaryRemoved = await removeIfMatches(keys.primary);
-        if (primaryRemoved) return true;
+        if (primaryRemoved) {
+            notifyCredentialChanges();
+            return true;
+        }
         for (const legacyKey of keys.legacy) {
             const legacyRemoved = await removeIfMatches(legacyKey);
-            if (legacyRemoved) return true;
+            if (legacyRemoved) {
+                notifyCredentialChanges();
+                return true;
+            }
         }
         return false;
     },

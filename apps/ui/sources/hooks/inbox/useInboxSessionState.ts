@@ -1,4 +1,7 @@
+import { getActiveServerSnapshot } from '@/sync/domains/server/serverRuntime';
+import { useActiveServerSnapshot } from '@/hooks/server/useActiveServerSnapshot';
 import * as React from 'react';
+import { createSessionListRowStoreStateSelector } from '@/sync/store/sessionListRowStateSnapshot';
 
 import {
     useSessionListViewDataByServerId,
@@ -35,6 +38,9 @@ export function buildInboxSessionSourceSignature(session: Session): string {
     return [
         session.id,
         session.serverId ?? '',
+        readNumber(session.updatedAt),
+        readNumber(session.metadataVersion),
+        readNumber(session.agentStateVersion),
         readNumber(session.archivedAt),
         session.active === true ? 1 : 0,
         readNumber(session.activeAt),
@@ -240,7 +246,7 @@ function applyInboxSessionListItemDelta(
 export function createInboxSessionSummarySelector(
     initialNowMs: number = Date.now(),
     buildSummary: InboxSessionSummaryBuilder = buildInboxSessionSummary,
-): (state: StorageState, nowMs?: number) => InboxSessionSummary {
+): (state: StorageState, nowMs?: number, activeServerId?: string) => InboxSessionSummary {
     const sessionLedger = createSessionSignatureLedger<Session>(buildInboxSessionSourceSignature);
     const messagesLedger = createSessionSignatureLedger<StorageState['sessionMessages'][string] | undefined>(
         buildInboxSessionMessagesSourceSignature,
@@ -255,11 +261,13 @@ export function createInboxSessionSummarySelector(
     let previousDeltaRevision: number | null = null;
     let previous: InboxSessionSummary | null = null;
     let previousNowMs: number | null = null;
+    let previousActiveServerId: string | null = null;
 
     const evaluateBuckets = (
         state: StorageState,
         buckets: ReadonlyMap<string, InboxSessionSourceBucket>,
         nowMs: number,
+        activeServerId: string,
         replacedIds?: ReadonlySet<string>,
     ) => {
         let minimumNeedsRebuild = false;
@@ -285,6 +293,7 @@ export function createInboxSessionSummarySelector(
                 sessions: bucket.sessions,
                 sessionListViewDataByServerId: bucket.sessionListViewDataByServerId,
                 sessionMessagesById: state.sessionMessages,
+                activeServerId,
                 nowMs,
             });
             contributionBySessionId.set(sessionId, contribution);
@@ -306,7 +315,7 @@ export function createInboxSessionSummarySelector(
         }
     };
 
-    return (state, nowMs = initialNowMs) => {
+    return (state, nowMs = initialNowMs, activeServerId = getActiveServerSnapshot().serverId) => {
         const delta = state.sessionListRenderableDelta;
         const deltaRevision = delta?.revision ?? null;
         const clockMovedBackward = previousNowMs !== null && nowMs < previousNowMs;
@@ -327,6 +336,7 @@ export function createInboxSessionSummarySelector(
         }
         if (
             previous !== null
+            && previousActiveServerId === activeServerId
             && !clockMovedBackward
             && expiredIds.size === 0
             && state.sessions === previousSessions
@@ -342,6 +352,7 @@ export function createInboxSessionSummarySelector(
         const deltaAdvanced = delta !== undefined && deltaRevision !== previousDeltaRevision;
         const usableDelta = deltaAdvanced && delta?.rebuiltSessionListViewData !== true;
         let requiresFullRebuild = previous === null
+            || previousActiveServerId !== activeServerId
             || clockMovedBackward
             || (sessionListViewDataChanged && (!deltaAdvanced || delta?.rebuiltSessionListViewData === true));
 
@@ -378,12 +389,13 @@ export function createInboxSessionSummarySelector(
         }
 
         if (requiresFullRebuild) {
-            evaluateBuckets(state, collectInboxSessionSourceBuckets(state, listItemIndex), nowMs);
+            evaluateBuckets(state, collectInboxSessionSourceBuckets(state, listItemIndex), nowMs, activeServerId);
         } else if (changedIds.size > 0) {
             evaluateBuckets(
                 state,
                 collectInboxSessionSourceBuckets(state, listItemIndex, changedIds),
                 nowMs,
+                activeServerId,
                 changedIds,
             );
         }
@@ -393,6 +405,7 @@ export function createInboxSessionSummarySelector(
         previousSessionListViewDataByServerId = state.sessionListViewDataByServerId;
         previousDeltaRevision = deltaRevision;
         previousNowMs = nowMs;
+        previousActiveServerId = activeServerId;
         const next: InboxSessionSummary = {
             hasContent: contentContributionCount > 0,
             nextFreshnessAtMs: minimumFreshnessAtMs,
@@ -410,11 +423,12 @@ export function createInboxSessionSummarySelector(
 }
 
 export function useInboxSessionSummary(): InboxSessionSummary {
+    const { serverId: activeServerId } = useActiveServerSnapshot();
     const nowMs = useSessionListRuntimeNowMs();
     const summarySelector = React.useMemo(() => createInboxSessionSummarySelector(), []);
     const selector = React.useCallback(
-        (state: StorageState) => summarySelector(state, nowMs),
-        [nowMs, summarySelector],
+        (state: StorageState) => summarySelector(state, nowMs, activeServerId),
+        [nowMs, summarySelector, activeServerId],
     );
     const summary = storage(selector);
     useSessionListRuntimeWake(summary.nextFreshnessAtMs);
@@ -432,6 +446,16 @@ export function useInboxSessionSummary(): InboxSessionSummary {
 export function useInboxSessionState(): InboxSessionState {
     const { sessions, sessionMessagesById } = storage(selectInboxSessionSources);
     const sessionListViewDataByServerId = useSessionListViewDataByServerId();
+    const { serverId: activeServerId } = useActiveServerSnapshot();
+    const selectLiveRenderables = React.useMemo(() => {
+        const scopes = Object.entries(sessionListViewDataByServerId).flatMap(([serverId, items]) =>
+            (items ?? []).flatMap(item => item.type === 'session' ? [{ serverId, sessionId: item.session.id }] : []));
+        const selectRows = createSessionListRowStoreStateSelector(scopes, activeServerId);
+        // Reuse the row owner's locality and progress-only reuse policy. The open Inbox needs
+        // current request/status changes, not a rebuild for unrelated or unchanged list rows.
+        return (state: StorageState) => selectRows({ sessionListRenderables: state.sessionListRenderables }).sessionListRenderables;
+    }, [sessionListViewDataByServerId, activeServerId]);
+    const sessionListRenderables = storage(selectLiveRenderables);
     const nowMs = useSessionListRuntimeNowMs();
 
     const nextFreshnessAtMs = React.useMemo(
@@ -439,9 +463,11 @@ export function useInboxSessionState(): InboxSessionState {
             sessions,
             sessionListViewDataByServerId,
             sessionMessagesById,
+            sessionListRenderables,
+            activeServerId,
             nowMs,
         }),
-        [nowMs, sessionListViewDataByServerId, sessionMessagesById, sessions],
+        [nowMs, sessionListViewDataByServerId, sessionMessagesById, sessions, sessionListRenderables, activeServerId],
     );
     useSessionListRuntimeWake(nextFreshnessAtMs);
 
@@ -450,8 +476,10 @@ export function useInboxSessionState(): InboxSessionState {
             sessions,
             sessionListViewDataByServerId,
             sessionMessagesById,
+            sessionListRenderables,
+            activeServerId,
             nowMs,
         }),
-        [nowMs, sessionListViewDataByServerId, sessionMessagesById, sessions],
+        [nowMs, sessionListViewDataByServerId, sessionMessagesById, sessions, sessionListRenderables, activeServerId],
     );
 }

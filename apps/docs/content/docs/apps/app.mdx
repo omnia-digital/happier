@@ -36,9 +36,57 @@ On desktop, the app is intended to be the main control panel for your Happier se
 
 This keeps Relay choice, account context, daemon state, and machine setup visible in one place instead of spreading the flow across separate CLI steps.
 
+In the current development build (unreleased), the macOS main window remembers its
+size and position across app restarts and when reopened from menu-bar mode. macOS
+adjusts the saved placement to the connected displays when restoring it.
+
 ## Multi-server workflows
 
 For detailed Relay profile, switching, and multi-daemon guidance, see [Features → Multi-server](/accounts/multi-server).
+
+## Session sidebar views
+
+<Callout type="info">
+  These list views and repository associations are available in the unreleased
+  Omnia development fork. They are not a stable-release announcement. Isolated
+  browser checks pass; native two-machine and restart acceptance is still pending.
+</Callout>
+
+Open the session list's **View options** menu and choose **Original layout**,
+**Group by machine**, or **Group by repository**. Machine grouping helps you find
+what is running on each computer. Repository grouping brings matching checkouts
+together across machines while retaining each session's real machine and path.
+
+Selecting **Group by repository** discovers repository information through the
+connected machines. Use **Refresh repositories** after remotes or checkouts
+change. Restoring the saved view does not start another scan. If a machine cannot
+be reached, existing associations remain available; retry Refresh when it reconnects.
+Repositories with matching folder names alone are kept separate.
+
+For a local checkout or remote alias that cannot be matched automatically, open
+the repository group's **… → Associate repository**, choose the checkout, then
+select an existing group or **New repository group**. Choose **Use automatic
+repository** to remove that checkout's manual choice. The view and associations
+are saved on this device.
+
+Choose **Custom order** to drag sessions into your preferred sequence, including
+between checkouts in one repository group. The order is saved through the relay's
+organization settings; switching views preserves their separate orders. Reordering
+does not move a session to another machine, folder or checkout. Repository header
+actions ask you to choose the real checkout when more than one is available.
+
+In this development fork, **Settings → Appearance** controls the sidebar's
+**Text Size** and **Item Density** as well as the rest of the app. Text size
+changes the lettering; item density changes spacing. Larger text reserves enough
+row height in compact layouts, and both choices are saved on this device.
+
+Session rows also show a status icon and a subtle tint for their current activity,
+including working, idle, finished, needs input and error. Hover or focus the row
+to read its status. Completion requires an actual reported turn outcome; an older
+Agent that only reports connectivity can remain idle after a turn. Unread state,
+the selected session and machine identity keep their separate indicators. These
+status and appearance changes have isolated browser coverage; native visual and
+restart acceptance is still pending.
 
 ## Notifications
 

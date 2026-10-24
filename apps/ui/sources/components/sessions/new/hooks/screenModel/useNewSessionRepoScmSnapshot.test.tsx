@@ -1,11 +1,14 @@
 import { act } from 'react-test-renderer';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import type { ScmWorkingSnapshot } from '@/sync/domains/state/storageTypes';
 
 import { useNewSessionRepoScmSnapshot } from './useNewSessionRepoScmSnapshot';
 import { flushHookEffects, renderHook } from '@/dev/testkit';
 
+
+const scope: ServerAccountScope = { serverId: 'server-a', accountId: 'account-a' };
 
 const readCachedSnapshotForMachinePathMock = vi.hoisted(() => vi.fn());
 const fetchSnapshotForMachinePathMock = vi.hoisted(() => vi.fn());
@@ -98,6 +101,7 @@ describe('useNewSessionRepoScmSnapshot', () => {
         fetchWorktreesEnrichmentMock.mockResolvedValue(null);
 
         const hook = await renderHook(() => useNewSessionRepoScmSnapshot({
+            scope,
             machineId: 'machine-a',
             path: '/repo',
         }));
@@ -125,6 +129,7 @@ describe('useNewSessionRepoScmSnapshot', () => {
         fetchWorktreesEnrichmentMock.mockResolvedValue(null);
 
         const hook = await renderHook(() => useNewSessionRepoScmSnapshot({
+            scope,
             machineId: 'machine-a',
             path: '/repo',
         }));
@@ -169,6 +174,7 @@ describe('useNewSessionRepoScmSnapshot', () => {
         ]);
 
         const hook = await renderHook(() => useNewSessionRepoScmSnapshot({
+            scope,
             machineId: 'machine-a',
             path: '/repo',
         }));
@@ -179,6 +185,7 @@ describe('useNewSessionRepoScmSnapshot', () => {
         await flushHookEffects();
 
         expect(fetchWorktreesEnrichmentMock).toHaveBeenCalledWith({
+            scope,
             machineId: 'machine-a',
             path: '/repo',
             worktreePaths: ['/repo', '/repo/.worktrees/feature'],
@@ -209,6 +216,7 @@ describe('useNewSessionRepoScmSnapshot', () => {
         fetchWorktreesEnrichmentMock.mockResolvedValue(null);
 
         const hook = await renderHook(() => useNewSessionRepoScmSnapshot({
+            scope,
             machineId: 'machine-a',
             path: '/repo',
         }));
@@ -247,6 +255,7 @@ describe('useNewSessionRepoScmSnapshot', () => {
         fetchWorktreesEnrichmentMock.mockResolvedValue(null);
 
         const hook = await renderHook(() => useNewSessionRepoScmSnapshot({
+            scope,
             machineId: 'machine-a',
             path: '/repo',
         }));
@@ -289,8 +298,8 @@ describe('useNewSessionRepoScmSnapshot', () => {
         fetchWorktreesEnrichmentMock.mockResolvedValue(null);
 
         const hook = await renderHook(
-            (props: { machineId: string | null; path: string }) => useNewSessionRepoScmSnapshot(props),
-            { initialProps: { machineId: 'machine-a', path: '/repo' } },
+            (props: { machineId: string | null; path: string; scope: ServerAccountScope }) => useNewSessionRepoScmSnapshot(props),
+            { initialProps: { scope, machineId: 'machine-a', path: '/repo' } },
         );
 
         await act(async () => {
@@ -300,7 +309,7 @@ describe('useNewSessionRepoScmSnapshot', () => {
         expect(hook.getCurrent()?.repo.rootPath).toBe('/repo');
 
         // Switch the bound path to a sibling worktree of the same repo.
-        await hook.rerender({ machineId: 'machine-a', path: '/repo/.dev/worktree/feature' });
+        await hook.rerender({ scope, machineId: 'machine-a', path: '/repo/.dev/worktree/feature' });
 
         const afterSwitch = hook.getCurrent();
         expect(afterSwitch).not.toBeNull();
@@ -333,8 +342,8 @@ describe('useNewSessionRepoScmSnapshot', () => {
         fetchWorktreesEnrichmentMock.mockResolvedValue(null);
 
         const hook = await renderHook(
-            (props: { machineId: string | null; path: string }) => useNewSessionRepoScmSnapshot(props),
-            { initialProps: { machineId: 'machine-a', path: '/repo' } },
+            (props: { machineId: string | null; path: string; scope: ServerAccountScope }) => useNewSessionRepoScmSnapshot(props),
+            { initialProps: { scope, machineId: 'machine-a', path: '/repo' } },
         );
         await act(async () => {
             focusEffectRunnerState.callback?.();
@@ -342,7 +351,7 @@ describe('useNewSessionRepoScmSnapshot', () => {
         await flushHookEffects();
         expect(hook.getCurrent()?.repo.rootPath).toBe('/repo');
 
-        await hook.rerender({ machineId: 'machine-a', path: '/different-repo' });
+        await hook.rerender({ scope, machineId: 'machine-a', path: '/different-repo' });
         expect(hook.getCurrent()).toBeNull();
         await hook.unmount();
     });
@@ -366,6 +375,7 @@ describe('useNewSessionRepoScmSnapshot', () => {
         fetchWorktreesEnrichmentMock.mockResolvedValue(null);
 
         const hook = await renderHook(() => useNewSessionRepoScmSnapshot({
+            scope,
             machineId: 'machine-a',
             path: '/repo',
         }));

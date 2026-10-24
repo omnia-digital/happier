@@ -15,6 +15,7 @@
  */
 
 import * as React from 'react';
+import type { MachineFileBrowserIdentity } from '@/sync/domains/input/machineFileBrowser';
 import { View, type ViewStyle } from 'react-native';
 
 import { layout } from '@/components/ui/layout/layout';
@@ -45,8 +46,12 @@ export type NewSessionPathSelectionContentProps = Readonly<{
     onChangeDraftSelectedPath?: (path: string) => void;
     recentPaths: ReadonlyArray<string>;
     favoriteDirectories: ReadonlyArray<string>;
+    unassignedFavorites?: ReadonlyArray<string>;
+    onAssignUnassignedFavorite?: (path: string) => void;
     machineId: string | null;
     serverId?: string | null;
+    targetScopeKey?: string | null;
+    browserIdentity?: MachineFileBrowserIdentity | null;
     /** Machine platform (NEVER `navigator.platform`). Defaults to 'auto'. */
     machinePlatform?: PathTargetPlatform;
     onRequestClose?: () => void;
@@ -54,8 +59,9 @@ export type NewSessionPathSelectionContentProps = Readonly<{
     /**
      * RUX-3: when provided, every path row (favorites, recents, in-folder)
      * exposes a star-toggle button that flips its membership in
-     * `favoriteDirectories`. Receives the absolute path. The orchestrator is
-     * responsible for persisting via `useSettingMutable('favoriteDirectories')`.
+     * `favoriteDirectories`. Receives the absolute path; the orchestrator
+     * persists it for the verified selected machine through the scoped
+     * machine-path preference owner.
      */
     onToggleFavoriteDirectory?: (absolutePath: string) => void;
     /**
@@ -163,10 +169,14 @@ export function NewSessionPathSelectionContent(props: NewSessionPathSelectionCon
                 initialValue={props.selectedPath}
                 initialSuggestionMode={props.initialSuggestionMode}
                 favorites={favorites}
+                unassignedFavorites={props.unassignedFavorites}
+                onAssignUnassignedFavorite={props.onAssignUnassignedFavorite}
                 recents={recents}
                 machineHomeDir={props.machineHomeDir}
                 machineId={props.machineId}
                 serverId={props.serverId ?? null}
+                targetScopeKey={props.targetScopeKey}
+                browserIdentity={props.browserIdentity}
                 machinePlatform={props.machinePlatform ?? 'auto'}
                 onCommit={props.onCommit}
                 onChangeDraftPath={props.onChangeDraftSelectedPath}

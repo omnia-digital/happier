@@ -1,6 +1,7 @@
 import type { SessionListViewItem } from '@/sync/domains/state/storage';
 
 const SECTION_HEADER_KINDS = new Set(['active', 'inactive', 'pinned']);
+const MACHINE_BOUNDARY_KINDS = new Set(['server', 'active', 'inactive', 'sessions', 'pinned', 'attention', 'working']);
 
 function readFolderId(item: Extract<SessionListViewItem, { type: 'header' }> | Extract<SessionListViewItem, { type: 'session' }>): string | null {
     const value = item.folderId;
@@ -36,6 +37,7 @@ export function filterCollapsedSessionListItems(
 
     let result: SessionListViewItem[] | undefined;
     let skipUntilNextSection = false;
+    let skipUntilNextMachine = false;
     const collapsedFolderIds = new Set<string>();
 
     const ensureResult = (index: number): SessionListViewItem[] => {
@@ -49,6 +51,10 @@ export function filterCollapsedSessionListItems(
         if (item.type === 'header') {
             const kind = item.headerKind ?? '';
             const isSection = SECTION_HEADER_KINDS.has(kind);
+
+            if (MACHINE_BOUNDARY_KINDS.has(kind)) {
+                skipUntilNextMachine = false;
+            }
 
             if (isSection) {
                 skipUntilNextSection = false;
@@ -64,6 +70,16 @@ export function filterCollapsedSessionListItems(
             }
 
             if (skipUntilNextSection) {
+                ensureResult(index);
+                continue;
+            }
+            if (kind === 'machine') {
+                skipUntilNextMachine = Boolean(item.groupKey && keys[item.groupKey]);
+                collapsedFolderIds.clear();
+                if (result !== undefined) result.push(item);
+                continue;
+            }
+            if (skipUntilNextMachine) {
                 ensureResult(index);
                 continue;
             }
@@ -86,7 +102,7 @@ export function filterCollapsedSessionListItems(
             continue;
         }
 
-        if (skipUntilNextSection) {
+        if (skipUntilNextSection || skipUntilNextMachine) {
             ensureResult(index);
             continue;
         }

@@ -106,12 +106,9 @@ export function buildCoreAgentInputControlNodes(params: Readonly<{
     const modeChip = (!params.actionBarIsCollapsed && params.sessionModeChipControl && params.shouldRenderSessionModeChip) ? createSessionModeActionChip({
         anchorRef: params.sessionModeChipAnchorRef,
         tint: params.tint,
-        showLabel: params.showChipLabels,
         label: params.sessionModeChipPresentation?.label ?? params.sessionModeChipControl.label,
-        labelTestID: `agent-input-session-mode-chip-label:${params.sessionModeChipControl.selectedId}`,
         accessibilityLabel: params.sessionModeAccessibilityLabel,
         chipStyle: params.chipStyle,
-        textStyle: params.textStyle,
         iconName: params.sessionModeChipPresentation?.iconName,
         onPress: params.onModePress,
     }) : null;

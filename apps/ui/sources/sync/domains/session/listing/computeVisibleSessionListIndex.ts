@@ -222,6 +222,7 @@ function canReturnSourceForNoop(params: Readonly<{
 }
 
 function buildPinnedSessionListIndexItems(params: Readonly<{
+    sourceBeforeGlobalPlacements: ReadonlyArray<SessionListIndexItem>;
     ordered: ReadonlyArray<SessionListIndexItem>;
     pinnedSessionKeys: ReadonlyArray<string>;
 }>): Readonly<{
@@ -232,9 +233,56 @@ function buildPinnedSessionListIndexItems(params: Readonly<{
     const pinnedSessions: Array<Extract<SessionListIndexItem, { type: 'session' }>> = [];
     const remainder: SessionListIndexItem[] = [];
 
+    // Saved folders remain visible inside a workspace that still has sessions,
+    // and a folder-only workspace remains available for organization. When the
+    // last source session in an Active workspace moves to Pinned, however, its
+    // folders must not keep an empty Active project (or section) on screen.
+    const emptiedWorkspaceHeaders = new Set<Extract<SessionListIndexItem, { type: 'header' }>>();
+    let section: 'active' | 'inactive' | 'sessions' | null = null;
+    let projectHeaders: Array<Extract<SessionListIndexItem, { type: 'header' }>> = [];
+    let projectPinnedSessions = 0;
+    let projectRemainingSessions = 0;
+    const finishProject = () => {
+        if (projectPinnedSessions > 0 && projectRemainingSessions === 0) {
+            projectHeaders.forEach((header) => emptiedWorkspaceHeaders.add(header));
+        }
+        projectHeaders = [];
+        projectPinnedSessions = 0;
+        projectRemainingSessions = 0;
+    };
+
+    if (pinnedSet.size > 0) {
+        // Global Attention/Working removes rows from `ordered`. Classify source
+        // membership before that move, then remove the same header objects
+        // from the remainder. An unpinned promoted row still owns its source
+        // workspace even when it is currently displayed in a global band.
+        params.sourceBeforeGlobalPlacements.forEach((item) => {
+            if (item.type === 'header') {
+                if (item.headerKind === 'active' || item.headerKind === 'inactive' || item.headerKind === 'sessions') {
+                    finishProject();
+                    section = item.headerKind;
+                } else if (item.headerKind === 'project') {
+                    finishProject();
+                    if (section === 'active' || section === 'sessions') projectHeaders.push(item);
+                } else if (item.headerKind === 'folder' && projectHeaders.length > 0) {
+                    projectHeaders.push(item);
+                } else if (item.headerKind !== 'folder') {
+                    finishProject();
+                    if (item.headerKind === 'server') section = null;
+                }
+                return;
+            }
+            if (projectHeaders.length === 0) return;
+            const key = normalizeSessionListKeyParts(item.serverId, item.sessionId).sessionKey;
+            if (key && pinnedSet.has(key)) projectPinnedSessions += 1;
+            else projectRemainingSessions += 1;
+        });
+        finishProject();
+    }
+
     for (const item of params.ordered) {
         if (item.type !== 'session') {
-            remainder.push(item);
+            if (!emptiedWorkspaceHeaders.has(item)) remainder.push(item);
             continue;
         }
         const key = normalizeSessionListKeyParts(item.serverId, item.sessionId).sessionKey;
@@ -486,6 +534,7 @@ function computeVisibleSessionListIndexUnmeasured(
         : globalAttentionSource;
 
     const { pinnedSessions, remainder: nonPinnedRemainder } = buildPinnedSessionListIndexItems({
+        sourceBeforeGlobalPlacements: globalAttentionSource,
         ordered: orderedWithoutGlobalWorking,
         pinnedSessionKeys,
     });

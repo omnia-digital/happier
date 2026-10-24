@@ -28,7 +28,8 @@ const modalPromptSpy = vi.hoisted(() => vi.fn(async () => null as string | null)
 const modalConfirmSpy = vi.hoisted(() => vi.fn(async () => false));
 const modalShowSpy = vi.hoisted(() => vi.fn((_config: unknown) => 'move-sheet-modal'));
 const modalHideSpy = vi.hoisted(() => vi.fn());
-const getCredentialsForServerUrlSpy = vi.hoisted(() => vi.fn(async () => ({ accessToken: 'token-a' })));
+const organizationCredentials = vi.hoisted(() => ({ token: `header.${Buffer.from(JSON.stringify({ sub: 'profile-1' })).toString('base64')}.signature` }));
+const getCredentialsForServerUrlSpy = vi.hoisted(() => vi.fn(async () => organizationCredentials));
 const serverProfileState = vi.hoisted(() => ({
     activeServerId: 'server_a',
     profileId: 'server_a',
@@ -49,6 +50,7 @@ let foldersFeatureEnabled = true;
 let sessionFolderViewModeV1: 'off' | 'tree' = 'tree';
 let sessionListFolderSortModeV1: 'foldersFirst' | 'mixed' = 'foldersFirst';
 let sessionListOrderingModeV1: 'custom' | 'created' | 'updated' = 'custom';
+let sessionListMachineViewV1: 'original' | 'machine' | 'repository' = 'original';
 let sessionFoldersV1: any = { v: 1, folders: [] };
 let sessionListFocusedFolderV1: any = null;
 let collapsedGroupKeysV1: Record<string, boolean> = {};
@@ -132,6 +134,9 @@ installSessionShellCommonModuleMocks({
             if (key === 'sessionListFolderSortModeV1') {
                 return [sessionListFolderSortModeV1, setSessionListFolderSortModeV1];
             }
+            if (key === 'sessionListMachineViewV1') {
+                return [sessionListMachineViewV1, vi.fn()];
+            }
             if (key === 'collapsedGroupKeysV1') {
                 return [collapsedGroupKeysV1, setCollapsedGroupKeysV1];
             }
@@ -186,11 +191,10 @@ vi.mock('@/hooks/session/useNavigateToSession', () => ({
     useNavigateToSession: () => vi.fn(),
 }));
 
-vi.mock('@/auth/storage/tokenStorage', () => ({
-    TokenStorage: {
-        getCredentialsForServerUrl: getCredentialsForServerUrlSpy,
-    },
-}));
+vi.mock('@/auth/storage/tokenStorage', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@/auth/storage/tokenStorage')>();
+    return { ...actual, TokenStorage: { ...actual.TokenStorage, getCredentialsForServerUrl: getCredentialsForServerUrlSpy } };
+});
 
 vi.mock('@/sync/domains/server/serverProfiles', () => ({
     resolveServerProfileScopeId: (profile: { id: string; serverIdentityId?: string | null }) => (
@@ -198,6 +202,10 @@ vi.mock('@/sync/domains/server/serverProfiles', () => ({
     ),
     areServerProfileIdentifiersEquivalent: (left: string | null | undefined, right: string | null | undefined) => left === right,
     getServerProfileById: getServerProfileByIdSpy,
+    resolveServerProfileScopeIdForIdentifier: (id: string | null | undefined) => {
+        const profile = id ? getServerProfileByIdSpy(id) : null;
+        return profile?.serverIdentityId ?? profile?.id ?? id ?? '';
+    },
     // `serverRuntime.getActiveServerSnapshot` re-exports this; the session-list
     // memory-search augmentation reads it during render.
     getActiveServerSnapshot: () => ({
@@ -368,6 +376,14 @@ function resetProjectDataWithoutFolders() {
 }
 
 async function renderSessionsList() {
+    const { storage } = await import('@/sync/domains/state/storage');
+    const { buildSessionOrganizationSnapshotFromProjection } = await import('@/sync/domains/session/organization');
+    for (const serverId of new Set<string>([serverProfileState.activeServerId, ...sessionFoldersV1.folders.map((folder: any) => folder.workspace.serverId)])) {
+        storage.getState().clearSessionOrganizationForServer(serverId);
+        const folders = { v: 1, folders: sessionFoldersV1.folders.filter((folder: any) => folder.workspace.serverId === serverId) };
+        const snapshot = buildSessionOrganizationSnapshotFromProjection(buildOrganizationProjectionFromFolders(folders));
+        if (snapshot) storage.getState().applySessionOrganizationSnapshot(serverId, snapshot);
+    }
     const { SessionsList } = await import('./SessionsList');
     return renderScreen(<SessionsList />);
 }
@@ -406,6 +422,7 @@ describe('SessionsList session folders shell', () => {
         sessionFolderViewModeV1 = 'tree';
         sessionListFolderSortModeV1 = 'foldersFirst';
         sessionListOrderingModeV1 = 'custom';
+        sessionListMachineViewV1 = 'original';
         sessionFoldersV1 = {
             v: 1,
             folders: [{
@@ -437,8 +454,12 @@ describe('SessionsList session folders shell', () => {
         modalShowSpy.mockReset();
         modalShowSpy.mockReturnValue('move-sheet-modal');
         modalHideSpy.mockReset();
-        getCredentialsForServerUrlSpy.mockClear();
+        getCredentialsForServerUrlSpy.mockReset();
+        getCredentialsForServerUrlSpy.mockResolvedValue(organizationCredentials);
         getServerProfileByIdSpy.mockClear();
+        getServerProfileByIdSpy.mockImplementation(serverId => serverId === serverProfileState.activeServerId || serverId === serverProfileState.profileId
+            ? { id: serverProfileState.profileId, serverIdentityId: serverProfileState.activeServerId, serverUrl: 'https://server-a.test' }
+            : null);
         setSessionFolderAssignmentSpy.mockClear();
         moveSessionFolderAssignmentsSpy.mockClear();
         reorderSessionOrganizationSpy.mockClear();
@@ -658,6 +679,66 @@ describe('SessionsList session folders shell', () => {
         expect(setSessionFolderViewModeV1).toHaveBeenCalledWith('off');
     });
 
+    it('renders restored Repository groups and exposes explicit discovery through the existing view menu', async () => {
+        sessionListMachineViewV1 = 'repository';
+        const screen = await renderSessionsList();
+        const dropdown = screen.findAllByType('DropdownMenu' as React.ElementType)
+            .find(node => node.props?.items?.some((item: any) => item.testID === 'session-view-repository'));
+        expect(dropdown).toBeTruthy();
+        expect(dropdown?.props.items.find((item: any) => item.testID === 'session-view-repository').rightElement).toBeTruthy();
+        expect(dropdown?.props.items.find((item: any) => item.testID === 'session-repository-refresh')).toBeTruthy();
+        expect(screen.root.findAll(node => typeof node.props.testID === 'string' && node.props.testID.startsWith('session-list-project-header:repository-v1:')).length).toBeGreaterThan(0);
+        expect(screen.findByTestId('session-folder-header-folder_a')).toBeTruthy();
+    });
+
+    it('chooses a real checkout for Repository actions and persists or resets manual association from its header menu', async () => {
+        const { storage } = await import('@/sync/domains/state/storage');
+        const { repositoryWorkspaceKey, readRepositoryAssociation } = await import('@/sync/domains/session/listing/sessionRepositoryIdentity');
+        const { resetBrowserSessionDraftPersistenceForTest } = await import('@/dev/testkit');
+        await resetBrowserSessionDraftPersistenceForTest();
+        const previous = storage.getState();
+        const scope = { serverId: 'server_a', accountId: 'profile-1' };
+        const first = { ...scope, machineId: 'machine_a', path: '/repo' };
+        const second = { ...scope, machineId: 'machine_b', path: '/other' };
+        const associations = Object.fromEntries([first, second].map(checkout => [repositoryWorkspaceKey(checkout), {
+            identity: 'example.com/team/repo', label: 'Repository', rootPath: checkout.path, worktreePaths: [],
+        }]));
+        storage.setState({ profileScope: scope, localSettings: { ...previous.localSettings, sessionRepositoryAssociationsV1: associations } });
+        try {
+            sessionListMachineViewV1 = 'repository';
+            sessionFoldersV1 = { v: 1, folders: [] };
+            resetProjectDataWithoutFolders();
+            mockVisibleSessionListViewData.push(
+                { ...mockVisibleSessionListViewData[1], workspaceScopeHint: { serverId: 'server_a', machineId: 'machine_b', rootPath: '/other' } },
+                { ...mockVisibleSessionListViewData[2], session: { ...sessionA, id: 'sess_c', metadata: { machineId: 'machine_b', path: '/other' } } },
+            );
+            const screen = await renderSessionsList();
+            const menuForRepository = () => screen.findAllByType('DropdownMenu' as React.ElementType).find(node => node.findAll(child => typeof child.props.testID === 'string' && child.props.testID.startsWith('session-workspace-menu-trigger:repository-v1:')).length > 0);
+            expect(menuForRepository()).toBeTruthy();
+            await act(async () => { menuForRepository()?.props.onOpenChange(true); });
+            const launch = menuForRepository()?.props.items.find((item: any) => item.id === 'repository-new-session');
+            expect(launch?.submenu.items).toHaveLength(2);
+            await act(async () => { await menuForRepository()?.props.onSelect('repository-new-session:1'); });
+            expect(routerPushSpy).toHaveBeenLastCalledWith({ pathname: '/new', params: expect.objectContaining({ machineId: 'machine_b', directory: '/other', spawnServerId: 'server_a' }) });
+            getCredentialsForServerUrlSpy.mockResolvedValueOnce({ token: `header.${Buffer.from(JSON.stringify({ sub: 'profile-1' })).toString('base64')}.signature`, secret: 'secret' } as any);
+            modalPromptSpy.mockResolvedValueOnce('Checkout folder');
+            await act(async () => { await menuForRepository()?.props.onSelect('repository-add-folder:1'); });
+            await vi.waitFor(() => expect(upsertSessionFolderSpy).toHaveBeenCalledWith(expect.objectContaining({
+                serverId: 'server_a', request: expect.objectContaining({ display: { t: 'plain', v: { name: 'Checkout folder', workspace: { t: 'workspaceScope', serverId: 'server_a', machineId: 'machine_b', rootPath: '/other' } } } }),
+            })));
+            modalPromptSpy.mockResolvedValueOnce('My project');
+            await act(async () => { await menuForRepository()?.props.onSelect('repository-associate:0:new'); });
+            expect(readRepositoryAssociation(storage.getState().localSettings.sessionRepositoryAssociationsV1, first)?.manual?.label).toBe('My project');
+            expect(readRepositoryAssociation(storage.getState().localSettings.sessionRepositoryAssociationsV1, second)?.manual).toBeUndefined();
+            const manualHeader = screen.root.findAll(node => node.props.headerTestId && node.props.item?.title === 'My project')[0];
+            expect(manualHeader).toBeTruthy();
+            const manualMenu = manualHeader.findAllByType('DropdownMenu' as React.ElementType)[0];
+            expect(manualMenu).toBeTruthy();
+            await act(async () => { await manualMenu?.props.onSelect('repository-associate:0:automatic'); });
+            expect(readRepositoryAssociation(storage.getState().localSettings.sessionRepositoryAssociationsV1, first)?.manual).toBeUndefined();
+        } finally { standardCleanup(); storage.setState(previous, true); }
+    });
+
     it('persists folder sort mode selections from the view menu', async () => {
         const screen = await renderSessionsList();
         const dropdown = screen.findAllByType('DropdownMenu' as React.ElementType)
@@ -706,12 +787,39 @@ describe('SessionsList session folders shell', () => {
 
         expect(mixedItem?.disabled).toBe(true);
         expect(mixedItem?.rightElement).toBeNull();
-        expect(mixedItem?.subtitle).toBe('sessionsList.folderSortMixedDisabledInDateMode');
-        expect(foldersFirstItem?.disabled).toBe(false);
+        expect(mixedItem?.subtitle).toBe('sessionsList.folderSortDisabledInDateMode');
+        expect(foldersFirstItem?.disabled).toBe(true);
+        expect(foldersFirstItem?.subtitle).toBe('sessionsList.folderSortDisabledInDateMode');
         expect(foldersFirstItem?.rightElement).toBeTruthy();
 
         dropdown?.props.onSelect('session-folder-sort-mode:mixed');
+        dropdown?.props.onSelect('session-folder-sort-mode:foldersFirst');
         expect(setSessionListFolderSortModeV1).not.toHaveBeenCalled();
+
+        sessionListOrderingModeV1 = 'custom';
+        await screen.unmount();
+        const reopenedScreen = await renderSessionsList();
+        const customDropdown = reopenedScreen.findAllByType('DropdownMenu' as React.ElementType)
+            .find((node) => node.props?.items?.some((item: any) => item.id === 'session-folder-sort-mode:mixed'));
+        const restoredMixed = customDropdown?.props.items.find((item: any) => item.id === 'session-folder-sort-mode:mixed');
+        const restoredFoldersFirst = customDropdown?.props.items.find((item: any) => item.id === 'session-folder-sort-mode:foldersFirst');
+        expect(restoredMixed?.disabled).toBe(false);
+        expect(restoredMixed?.rightElement).toBeTruthy();
+        expect(restoredFoldersFirst?.rightElement).toBeNull();
+    });
+
+    it('explains that mixed folder order is changed in Original layout when grouped by machine', async () => {
+        sessionListMachineViewV1 = 'machine';
+        sessionListFolderSortModeV1 = 'mixed';
+
+        const screen = await renderSessionsList();
+        const dropdown = screen.findAllByType('DropdownMenu' as React.ElementType)
+            .find((node) => node.props?.items?.some((item: any) => item.id === 'session-folder-sort-mode:mixed'));
+        const mixedItem = dropdown?.props.items.find((item: any) => item.id === 'session-folder-sort-mode:mixed');
+
+        expect(mixedItem?.disabled).toBe(false);
+        expect(mixedItem?.subtitle).toBe('sessionsList.folderSortMixedDescriptionMachineView');
+        expect(mixedItem?.rightElement).toBeTruthy();
     });
 
     it('passes folder indentation and resolves nested destinations on demand', async () => {
@@ -908,7 +1016,7 @@ describe('SessionsList session folders shell', () => {
         expect(getServerProfileByIdSpy).toHaveBeenCalledWith('server_a');
         expect(getCredentialsForServerUrlSpy).toHaveBeenCalledWith('https://server-a.test', { serverId: 'server_a' });
         expect(setSessionFolderAssignmentSpy).toHaveBeenCalledWith({
-            credentials: { accessToken: 'token-a' },
+            credentials: organizationCredentials,
             serverId: 'server_a',
             serverUrl: 'https://server-a.test',
             sessionId: 'sess_b',
@@ -940,7 +1048,7 @@ describe('SessionsList session folders shell', () => {
 
         expect(getCredentialsForServerUrlSpy).toHaveBeenCalledWith('https://server-a.test', { serverId: 'server_profile_a' });
         expect(setSessionFolderAssignmentSpy).toHaveBeenCalledWith({
-            credentials: { accessToken: 'token-a' },
+            credentials: organizationCredentials,
             serverId: 'server_a',
             serverUrl: 'https://server-a.test',
             sessionId: 'sess_b',
@@ -968,7 +1076,7 @@ describe('SessionsList session folders shell', () => {
 
         await vi.waitFor(() => {
             expect(reorderSessionOrganizationSpy).toHaveBeenCalledWith({
-                credentials: { accessToken: 'token-a' },
+                credentials: organizationCredentials,
                 serverId: 'server_a',
                 serverUrl: 'https://server-a.test',
                 request: {
@@ -1004,7 +1112,7 @@ describe('SessionsList session folders shell', () => {
 
         await vi.waitFor(() => {
             expect(reorderSessionOrganizationSpy).toHaveBeenCalledWith({
-                credentials: { accessToken: 'token-a' },
+                credentials: organizationCredentials,
                 serverId: 'server_a',
                 serverUrl: 'https://server-a.test',
                 request: {
@@ -1162,7 +1270,7 @@ describe('SessionsList session folders shell', () => {
 
         await vi.waitFor(() => {
             expect(upsertSessionFolderSpy).toHaveBeenCalledWith(expect.objectContaining({
-                credentials: { accessToken: 'token-a' },
+                credentials: organizationCredentials,
                 serverId: 'server_a',
                 serverUrl: 'https://server-a.test',
                 request: expect.objectContaining({
@@ -1178,6 +1286,52 @@ describe('SessionsList session folders shell', () => {
                 }),
             }));
         });
+    });
+
+    it('keeps foreign folder rename, child creation and deletion on the folder Home', async () => {
+        const foreignWorkspace = { ...workspace, serverId: 'server_b' };
+        sessionFoldersV1 = { v: 1, folders: sessionFoldersV1.folders.map((folder: any) => ({ ...folder, workspace: foreignWorkspace })) };
+        mockVisibleSessionListViewData = mockVisibleSessionListViewData.map(item => ({ ...item, serverId: 'server_b',
+            ...(item.workspace ? { workspace: foreignWorkspace } : {}),
+            ...(item.workspaceScopeHint ? { workspaceScopeHint: { ...item.workspaceScopeHint, serverId: 'server_b' } } : {}),
+        }));
+        getServerProfileByIdSpy.mockImplementation(serverId => serverId === 'server_b'
+            ? { id: 'server_b', serverIdentityId: 'server_b', serverUrl: 'https://server-b.test' }
+            : { id: 'server_a', serverIdentityId: 'server_a', serverUrl: 'https://server-a.test' });
+        const screen = await renderSessionsList();
+        const folderMenu = screen.findAllByType('DropdownMenu' as React.ElementType)
+            .find(node => node.props?.items?.some((item: any) => item.id === 'add-subfolder'));
+        modalPromptSpy.mockResolvedValueOnce('Foreign renamed');
+        await act(async () => { await folderMenu?.props.onSelect('rename'); });
+        await vi.waitFor(() => expect(upsertSessionFolderSpy).toHaveBeenCalledWith(expect.objectContaining({
+            serverId: 'server_b', serverUrl: 'https://server-b.test',
+            request: expect.objectContaining({ folderId: 'folder_a', display: { t: 'plain', v: { name: 'Foreign renamed', workspace: foreignWorkspace } } }),
+        })));
+        upsertSessionFolderSpy.mockClear();
+        modalPromptSpy.mockResolvedValueOnce('Foreign child');
+        await act(async () => { await folderMenu?.props.onSelect('add-subfolder'); });
+        await vi.waitFor(() => expect(upsertSessionFolderSpy).toHaveBeenCalledWith(expect.objectContaining({
+            serverId: 'server_b', request: expect.objectContaining({ parentFolderId: 'folder_a' }),
+        })));
+        modalConfirmSpy.mockResolvedValueOnce(true);
+        await act(async () => { await folderMenu?.props.onSelect('delete'); });
+        await vi.waitFor(() => expect(deleteSessionFolderSpy).toHaveBeenCalledWith(expect.objectContaining({ serverId: 'server_b' })));
+    });
+
+    it('rejects a folder edit when its account changes while the name prompt is open', async () => {
+        const { Modal } = await import('@/modal');
+        const alert = vi.spyOn(Modal, 'alert');
+        const screen = await renderSessionsList();
+        const folderMenu = screen.findAllByType('DropdownMenu' as React.ElementType)
+            .find(node => node.props?.items?.some((item: any) => item.id === 'add-subfolder'));
+        modalPromptSpy.mockImplementationOnce(async () => {
+            getCredentialsForServerUrlSpy.mockResolvedValue({ token: `header.${Buffer.from(JSON.stringify({ sub: 'replacement-account' })).toString('base64')}.signature` });
+            return 'Wrong account';
+        });
+        await act(async () => { await folderMenu?.props.onSelect('rename'); });
+        await vi.waitFor(() => expect(alert).toHaveBeenCalled());
+        expect(upsertSessionFolderSpy).not.toHaveBeenCalled();
+        alert.mockRestore();
     });
 
     it('creates and renames subfolders from the folder menu', async () => {
@@ -1240,7 +1394,7 @@ describe('SessionsList session folders shell', () => {
         expect(moveSessionFolderAssignmentsSpy).not.toHaveBeenCalled();
         await vi.waitFor(() => {
             expect(deleteSessionFolderSpy).toHaveBeenCalledWith({
-                credentials: { accessToken: 'token-a' },
+                credentials: organizationCredentials,
                 serverId: 'server_a',
                 serverUrl: 'https://server-a.test',
                 request: {

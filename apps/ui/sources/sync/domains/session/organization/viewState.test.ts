@@ -179,6 +179,18 @@ describe('buildSessionOrganizationListViewState', () => {
 });
 
 describe('session organization reorder request adapters', () => {
+    it('round trips repository display group and real session order through existing organization entries', () => {
+        for (const itemKeys of [['group:repository-v1:b', 'group:repository-v1:a'], ['server-a:A', 'server-a:B', 'server-a:A2']]) {
+            const scopeKey = 'repository-v1:scope';
+            const request = buildSessionOrganizationReorderRequestFromGroupOrder({ serverId: 'server-a', scopeKey, itemKeys })!;
+            expect(request.entries).toHaveLength(itemKeys.length);
+            const reloaded = buildSessionOrganizationListViewState({ serverId: 'server-a', projection: projection({
+                orderEntriesByScopeKey: { [scopeKey]: JSON.parse(JSON.stringify(request.entries.map(entry => ({ ...entry, scopeKind: request.scopeKind, scopeKey })))) },
+            }) });
+            expect(reloaded.sessionListGroupOrderV1[scopeKey]).toEqual(itemKeys);
+        }
+    });
+
     it('maps legacy pinned and group order scopes to server-backed reorder requests', () => {
         expect(buildSessionOrganizationReorderRequestFromGroupOrder({
             serverId: 'server-a',

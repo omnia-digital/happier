@@ -101,6 +101,49 @@ describe('executeSessionAction', () => {
         expect(mutate).toHaveBeenCalledWith('session_1', { serverId: 'server_1' });
     });
 
+    it('requires confirmation for a hovered Archive shortcut even when the action preference skips it', async () => {
+        const archiveSession = vi.fn(async () => ({ success: true }));
+        const target = createTarget();
+        vi.mocked(Modal.confirm).mockResolvedValue(false);
+        const cancelled = await executeSessionAction({
+            actionId: SESSION_ACTION_ARCHIVE_ID,
+            target,
+            context: { forceArchiveConfirmation: true, operations: { archiveSession } },
+        });
+        expect(cancelled).toBe(false);
+        expect(Modal.confirm).toHaveBeenCalledWith(
+            t('sessionInfo.archiveSession'),
+            t('sessionInfo.archiveSessionConfirm'),
+            expect.objectContaining({ confirmText: t('sessionInfo.archiveSession'), confirmOnEnter: true }),
+        );
+        expect(archiveSession).not.toHaveBeenCalled();
+
+        vi.mocked(Modal.confirm).mockResolvedValue(true);
+        await executeSessionAction({
+            actionId: SESSION_ACTION_ARCHIVE_ID,
+            target,
+            context: { forceArchiveConfirmation: true, operations: { archiveSession } },
+        });
+        expect(archiveSession).toHaveBeenCalledOnce();
+        expect(archiveSession).toHaveBeenCalledWith(target.sessionId, { serverId: target.serverId });
+    });
+
+    it('requires both Archive intent and Stop safeguard for an active hovered session', async () => {
+        vi.mocked(Modal.confirm).mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+        const stopArchiveFlow = vi.fn(async () => undefined);
+        const result = await executeSessionAction({
+            actionId: SESSION_ACTION_ARCHIVE_ID,
+            target: createTarget({ active: true }),
+            context: { forceArchiveConfirmation: true, operations: { stopArchiveFlow } },
+        });
+        expect(result).toBe(false);
+        expect(Modal.confirm).toHaveBeenCalledTimes(2);
+        expect(vi.mocked(Modal.confirm).mock.calls.map((call) => call[0])).toEqual([
+            t('sessionInfo.archiveSession'), t('sessionInfo.stopSession'),
+        ]);
+        expect(stopArchiveFlow).not.toHaveBeenCalled();
+    });
+
     it('retains stop confirmation when archive discovers an active session after the click', async () => {
         vi.mocked(Modal.confirm).mockResolvedValue(false);
         const stopSession = vi.fn(async () => ({ success: true }));

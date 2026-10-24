@@ -18,7 +18,9 @@ export const InboxSessionAttentionGroupCard = React.memo(function InboxSessionAt
     permissionRequests: readonly PendingPermissionRequest[];
     userActionRequests: readonly PendingPermissionRequest[];
     machineLabel: string | null;
+    machineId: string | null;
     workspaceName: string | null;
+    statusLabel: string;
     identityDisplay: SessionListIdentityDisplay;
     onOpenSession: () => void;
     showDivider?: boolean;
@@ -44,7 +46,10 @@ export const InboxSessionAttentionGroupCard = React.memo(function InboxSessionAt
             <InboxSessionAttentionHeader
                 sessionTitle={getSessionName(props.session)}
                 machineLabel={props.machineLabel}
+                machineId={props.machineId}
+                serverId={props.serverId}
                 workspaceLabel={props.workspaceName}
+                statusLabel={props.statusLabel}
                 session={props.session}
                 identityDisplay={props.identityDisplay}
                 onOpenSession={props.onOpenSession}

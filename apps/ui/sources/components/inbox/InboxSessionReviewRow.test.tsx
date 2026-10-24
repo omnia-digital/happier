@@ -33,7 +33,6 @@ vi.mock('react-native-unistyles', async () => {
 });
 
 vi.mock('@/components/ui/lists/Item', () => ({ Item: 'Item' }));
-vi.mock('@/components/ui/icons/Icon', () => ({ Icon: 'Icon' }));
 vi.mock('@/components/ui/text/Text', () => ({ Text: 'Text' }));
 vi.mock('@/components/ui/feedback/ActivitySpinner', () => ({ ActivitySpinner: 'ActivitySpinner' }));
 vi.mock('@/components/ui/buttons/IconAction', () => ({ IconAction: 'IconAction' }));

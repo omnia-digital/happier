@@ -1,3 +1,4 @@
+import { isSessionHydrationRevisionCurrent, buildSessionHydrationRenderablePatch } from '@/sync/domains/session/listing/sessionHydrationFreshness';
 import {
     V2SessionListResponseSchema,
     isSessionEncryptionModeAllowedByClientRequirement,
@@ -785,13 +786,8 @@ function isHydratedSessionCurrentForListState(
     const currentRenderable = getCurrentSessionListRenderable(session.id);
     if (!currentRenderable) return false;
 
-    if (currentRenderable.seq > session.seq) return false;
-    if (currentRenderable.updatedAt > session.updatedAt) return false;
-    if (currentRenderable.metadataVersion > session.metadataVersion) return false;
-    if (currentRenderable.agentStateVersion > session.agentStateVersion) return false;
     if ((currentRenderable.archivedAt ?? null) !== (session.archivedAt ?? null)) return false;
-
-    return true;
+    return isSessionHydrationRevisionCurrent(session, currentRenderable);
 }
 
 function buildStaleHydratedSessionRenderablePatch(
@@ -802,39 +798,8 @@ function buildStaleHydratedSessionRenderablePatch(
     if ((currentRenderable.archivedAt ?? null) !== (session.archivedAt ?? null)) return null;
 
     const hydratedRenderable = buildSessionListRenderableFromSession(session as Session);
-    const patch: Partial<Omit<SessionListRenderableSession, 'id'>> = {};
-
-    const shouldPatchMetadata =
-        hydratedRenderable.metadata != null
-        && currentRenderable.metadataVersion <= hydratedRenderable.metadataVersion
-        && (
-            currentRenderable.metadata == null
-            || currentRenderable.metadataVersion < hydratedRenderable.metadataVersion
-        );
-    if (shouldPatchMetadata) {
-        patch.metadata = hydratedRenderable.metadata;
-        patch.metadataVersion = hydratedRenderable.metadataVersion;
-    }
-
-    const shouldPatchPendingFlags =
-        currentRenderable.agentStateVersion <= hydratedRenderable.agentStateVersion
-        && (
-            currentRenderable.agentStateVersion < hydratedRenderable.agentStateVersion
-            || typeof currentRenderable.hasPendingPermissionRequests !== 'boolean'
-            || typeof currentRenderable.hasPendingUserActionRequests !== 'boolean'
-        );
-    if (shouldPatchPendingFlags) {
-        patch.agentStateVersion = hydratedRenderable.agentStateVersion;
-        patch.pendingRequestObservedAt = hydratedRenderable.pendingRequestObservedAt ?? null;
-        if (typeof hydratedRenderable.hasPendingPermissionRequests === 'boolean') {
-            patch.hasPendingPermissionRequests = hydratedRenderable.hasPendingPermissionRequests;
-        }
-        if (typeof hydratedRenderable.hasPendingUserActionRequests === 'boolean') {
-            patch.hasPendingUserActionRequests = hydratedRenderable.hasPendingUserActionRequests;
-        }
-    }
-
-    if (Object.keys(patch).length === 0) return null;
+    const patch = buildSessionHydrationRenderablePatch(hydratedRenderable, currentRenderable);
+    if (!patch) return null;
     return {
         sessionId: session.id,
         patch,

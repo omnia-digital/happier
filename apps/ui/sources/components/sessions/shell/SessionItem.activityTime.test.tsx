@@ -112,7 +112,8 @@ vi.mock('@/agents/registry/AgentIcon', () => ({
     AgentIcon: 'AgentIcon',
 }));
 
-vi.mock('@/agents/catalog/catalog', () => ({
+vi.mock('@/agents/catalog/catalog', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@/agents/catalog/catalog')>(),
     DEFAULT_AGENT_ID: 'codex',
     resolveAgentIdFromFlavor: (flavor: string | null | undefined) => flavor === 'claude' || flavor === 'grok' ? flavor : null,
     getAgentPickerIconScale: (agentId: string) => agentId === 'grok' ? 1.25 : 1,
@@ -231,6 +232,10 @@ function createSessionRowModel(overrides: Partial<SessionListRowModel> = {}): Se
         sessionId,
         serverId,
         serverName: 'Server A',
+        machineLabel: null,
+        machineId: null,
+        showMachineIdentity: true,
+        showMachineLabel: true,
         treeRowId: `session:${serverId ?? 'local'}:${sessionId}`,
         testID: `session-list-item-${sessionId}`,
         session,
@@ -244,6 +249,7 @@ function createSessionRowModel(overrides: Partial<SessionListRowModel> = {}): Se
             isPulsing: true,
         },
         statusSignature: 'thinking:model is working',
+        visualStatus: 'working',
         nextRuntimeFreshnessAtMs: null,
         secondaryLineMode: 'status',
         attention: {
@@ -322,6 +328,7 @@ function createSessionRowModelForProps(props: SessionItemForTestProps): SessionL
         serverId: props.serverId ?? 'server_a',
         serverName: props.serverName ?? 'Server A',
         status,
+        visualStatus: 'idle',
         statusSignature: `${status.state}:${status.statusText}`,
         secondaryLineMode,
         attention: {
@@ -793,7 +800,7 @@ describe('SessionItem activity time', () => {
         );
 
         const rowStyle = flattenStyle(screen.findByTestId('session-list-item-sess_compact_height')?.props.style);
-        expect(rowStyle.height).toBe(34);
+        expect(rowStyle.height).toBe(44);
         expect(rowStyle.paddingHorizontal).toBe(8);
 
         expect(screen.findByTestId('session-row-attention-indicator-sess_compact_height')).toBeNull();
@@ -819,7 +826,7 @@ describe('SessionItem activity time', () => {
         );
 
         const rowStyle = flattenStyle(screen.findByTestId('session-list-item-sess_compact_avatar_web')?.props.style);
-        expect(rowStyle.height).toBe(34);
+        expect(rowStyle.height).toBe(44);
         expect(screen.findAllByType(AvatarMock)[0].props).toMatchObject({
             id: 'avatar',
             size: 18,
@@ -853,7 +860,7 @@ describe('SessionItem activity time', () => {
         expect(findRowContentStyle(screen, 'sess_compact_avatar_phone').marginLeft).toBe(8);
     });
 
-    it('renders the selected agent logo in the same narrow identity slot', async () => {
+    it('renders the selected agent logo on the right and reclaims the leading slot in narrow rows', async () => {
         mockSessionListIdentityDisplay = 'agentLogo';
         const { SessionItem } = await importSessionItemForTest();
 
@@ -879,7 +886,8 @@ describe('SessionItem activity time', () => {
             style: { transform: [{ scale: 1.25 }] },
             testID: 'session-list-agent-logo-sess_agent_logo_narrow',
         });
-        expect(findRowContentStyle(screen, 'sess_agent_logo_narrow').marginLeft).toBe(8);
+        expect(screen.findByTestId('session-list-right-identity-sess_agent_logo_narrow')?.children).toHaveLength(1);
+        expect(findRowContentStyle(screen, 'sess_agent_logo_narrow').marginLeft).toBe(0);
     });
 
     it('passes the resolved title color to agent logos for quiet active rows', async () => {
@@ -1070,7 +1078,7 @@ describe('SessionItem activity time', () => {
         const rowStyle = flattenStyle(screen.findByTestId('session-list-item-sess_compact_web')?.props.style);
         const titleStyle = flattenStyle(findSessionTitleText(screen, 'Session')?.props.style);
 
-        expect(rowStyle.height).toBe(34);
+        expect(rowStyle.height).toBe(44);
         expect(titleStyle.fontSize).toBe(12);
         expect(titleStyle.lineHeight).toBe(16);
     });

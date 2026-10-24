@@ -11,6 +11,8 @@ let machinesState: any[] = [];
 let recentMachinePathsState: Array<{ machineId: string; path: string }> = [];
 let favoriteDirectoriesState: string[] = [];
 let setFavoriteDirectoriesSpy = vi.fn();
+let scopedPathPreferencesState: Record<string, { favorites: string[]; recentPaths: string[] }> = {};
+const applyPathSettingsSpy = vi.fn();
 
 installVoicePickerCommonModuleMocks({
     storage: async (importOriginal) => {
@@ -19,8 +21,15 @@ installVoicePickerCommonModuleMocks({
             importOriginal,
             useAllMachines: () => machinesState,
             useSessions: () => [],
+            useActiveServerAccountScope: () => ({ serverId: 'home-a', accountId: 'viewer' }),
+            storage: { getState: () => ({ settingsScope: { serverId: 'home-a', accountId: 'viewer' }, settings: {
+                machinePathPreferencesByTargetV1: scopedPathPreferencesState,
+                favoriteDirectories: favoriteDirectoriesState,
+            } }) },
             useSetting: (key: string) => {
                 if (key === 'recentMachinePaths') return recentMachinePathsState;
+                if (key === 'machinePathPreferencesByTargetV1') return scopedPathPreferencesState;
+                if (key === 'favoriteDirectories') return favoriteDirectoriesState;
                 if (key === 'useMachinePickerSearch') return false;
                 if (key === 'usePathPickerSearch') return false;
                 return null;
@@ -33,6 +42,11 @@ installVoicePickerCommonModuleMocks({
         });
     },
 });
+
+vi.mock('@/sync/domains/scope/activeServerAccountScope', () => ({
+    getActiveServerAccountScope: () => ({ serverId: 'home-a', accountId: 'viewer' }),
+}));
+vi.mock('@/sync/store/settingsWriters', () => ({ useApplySettings: () => applyPathSettingsSpy }));
 
 vi.mock('@expo/vector-icons', () => ({
   Ionicons: 'Ionicons',
@@ -75,6 +89,8 @@ describe('VoiceSessionSpawnPickerModal', () => {
     recentMachinePathsState = [];
     favoriteDirectoriesState = [];
     setFavoriteDirectoriesSpy = vi.fn();
+    scopedPathPreferencesState = {};
+    applyPathSettingsSpy.mockClear();
     machinesState = [{
       id: 'machine-1',
       active: true,
@@ -123,6 +139,10 @@ describe('VoiceSessionSpawnPickerModal', () => {
             { machineId: 'machine-1', path: '/Users/test/old-repo' },
             { machineId: 'machine-2', path: '/srv/test/new-repo' },
         ];
+        scopedPathPreferencesState = {
+            '["home-a","viewer","machine-1"]': { favorites: [], recentPaths: ['/Users/test/old-repo'] },
+            '["home-a","viewer","machine-2"]': { favorites: [], recentPaths: ['/srv/test/new-repo'] },
+        };
         const { VoiceSessionSpawnPickerModal } = await import('./VoiceSessionSpawnPickerModal');
 
         const screen = await renderScreen(
@@ -198,6 +218,9 @@ describe('VoiceSessionSpawnPickerModal', () => {
 
     it('forwards home-aware favorite toggles to PathSelectionList after choosing a machine', async () => {
         favoriteDirectoriesState = ['~/repo'];
+        scopedPathPreferencesState = {
+            '["home-a","viewer","machine-1"]': { favorites: ['~/repo'], recentPaths: [] },
+        };
         const { VoiceSessionSpawnPickerModal } = await import('./VoiceSessionSpawnPickerModal');
 
         const screen = await renderScreen(
@@ -218,9 +241,16 @@ describe('VoiceSessionSpawnPickerModal', () => {
         expect(typeof onToggleFavorite).toBe('function');
         expect((isFavorite as (path: string) => boolean)('/Users/test/repo')).toBe(true);
 
-        (onToggleFavorite as (path: string) => void)('/Users/test/repo');
+        await act(async () => {
+            (onToggleFavorite as (path: string) => void)('/Users/test/repo');
+        });
 
-        expect(setFavoriteDirectoriesSpy).toHaveBeenCalledWith([]);
+        expect(applyPathSettingsSpy).toHaveBeenCalledWith({
+            machinePathPreferencesByTargetV1: {
+                '["home-a","viewer","machine-1"]': { favorites: [], recentPaths: [] },
+            },
+        });
+        expect(setFavoriteDirectoriesSpy).not.toHaveBeenCalled();
     });
 
     it('allows create when the selected storage machine is online but exact spawn readiness is unknown', async () => {
