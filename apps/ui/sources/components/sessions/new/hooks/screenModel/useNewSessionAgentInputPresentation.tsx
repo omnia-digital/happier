@@ -23,6 +23,7 @@ import type { NewSessionTranscriptStorage } from '@/components/sessions/new/modu
 import { t } from '@/text';
 import { createNewSessionLinkedFilesActionChip } from '@/components/sessions/agentInput/definitions/createLinkedFilesActionChip';
 import type { MachineSpawnReadiness } from '@/sync/domains/machines/identity/resolveMachineSpawnReadiness';
+import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import { isMachineOnline } from '@/utils/sessions/machineUtils';
 
 type ThemeLike = Readonly<{
@@ -73,6 +74,7 @@ function useStableExtraActionChips(
 }
 
 export function useNewSessionAgentInputPresentation(params: Readonly<{
+    scmScope?: ServerAccountScope | null;
     theme: ThemeLike;
     selectedMachine: Machine | null;
     selectedMachineSpawnReadiness?: MachineSpawnReadiness | null;
@@ -200,6 +202,7 @@ export function useNewSessionAgentInputPresentation(params: Readonly<{
     }, [params.hasUserSelectedTranscriptStorageRef, params.setTranscriptStorage]);
 
     const checkoutActionChip = useNewSessionCheckoutActionChip({
+        scmScope: params.scmScope,
         repoScmSnapshot: params.repoScmSnapshot,
         checkoutChipModel: params.checkoutChipModel,
         checkoutPickerOpen: params.checkoutPickerOpen,

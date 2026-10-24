@@ -744,6 +744,7 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         shouldReconcileInitialHydratedCheckoutCreationDraftRef,
         checkoutChipModel,
     } = useNewSessionCheckoutSelectionState({
+        targetScopeKey: pathCacheScopeKey,
         persistedDraft,
         tempSessionData,
         selectedMachineId,
@@ -1922,6 +1923,7 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         connectionStatus,
         agentInputExtraActionChips,
     } = useNewSessionAgentInputPresentation({
+        scmScope: pathTargetBinding?.scope ?? null,
         theme,
         selectedMachine,
         selectedMachineSpawnReadiness,

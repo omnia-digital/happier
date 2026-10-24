@@ -29,6 +29,17 @@ vi.mock('./resolveRepoScmSessionRequest', () => ({
 }));
 
 describe('repoScmBranchService', () => {
+    it('isolates branch lists and transport by Home/account for identical machine paths', async () => {
+        const { RepoScmBranchService } = await import('./repoScmBranchService');
+        const service = new RepoScmBranchService();
+        const scopeA = { serverId: 'home-a', accountId: 'account-a' };
+        const scopeB = { serverId: 'home-b', accountId: 'account-b' };
+        storageGetStateMock.mockReturnValue({});
+        vi.mocked(machineScmBranchList).mockResolvedValueOnce({ success: true, branches: [{ name: 'only-a', type: 'local', isCurrent: true }] } as any);
+        await service.fetchBranchesForMachinePath({ machineId: 'same', path: '/repo', scope: scopeA });
+        expect(service.readCachedBranchesForMachinePath({ machineId: 'same', path: '/repo', scope: scopeB })).toEqual([]);
+        expect(machineScmBranchList).toHaveBeenCalledWith('same', { cwd: '/repo', includeRemotes: false }, scopeA);
+    });
     function createSessionBranchState(): Record<string, unknown> {
         return {
             machines: {

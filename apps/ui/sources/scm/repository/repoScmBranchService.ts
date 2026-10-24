@@ -1,4 +1,5 @@
 import type { ScmBranchListEntry } from '@happier-dev/protocol';
+import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 
 import { machineScmBranchList } from '@/sync/ops/scm/machineScm';
 import { sessionScmBranchList } from '@/sync/ops';
@@ -10,8 +11,8 @@ export class RepoScmBranchService {
     private branchRequests = new Map<string, Promise<ReadonlyArray<ScmBranchListEntry>>>();
     private branchRequestGenerations = new Map<string, number>();
 
-    private createRequestKey(repoIdentityKey: string, includeRemotes: boolean): string {
-        return JSON.stringify(['repoScmBranches', repoIdentityKey, includeRemotes]);
+    private createRequestKey(repoIdentityKey: string, includeRemotes: boolean, scope?: ServerAccountScope): string {
+        return JSON.stringify(['repoScmBranches', scope?.serverId, scope?.accountId, repoIdentityKey, includeRemotes]);
     }
 
     private readRequestGeneration(requestKey: string): number {
@@ -47,6 +48,7 @@ export class RepoScmBranchService {
     }
 
     async fetchBranchesForMachinePath(input: Readonly<{
+        scope?: ServerAccountScope;
         machineId: string;
         path: string;
         includeRemotes?: boolean;
@@ -57,12 +59,15 @@ export class RepoScmBranchService {
         }
 
         const includeRemotes = input.includeRemotes === true;
-        const requestKey = this.createRequestKey(request.repoIdentityKey, includeRemotes);
+        const requestKey = this.createRequestKey(request.repoIdentityKey, includeRemotes, input.scope);
         return await this.fetchBranchesForRepoIdentity(requestKey, async () => {
-            const response = await machineScmBranchList(request.machineId, {
+            const branchRequest = {
                 cwd: request.resolvedPath,
                 includeRemotes,
-            });
+            };
+            const response = input.scope
+                ? await machineScmBranchList(request.machineId, branchRequest, input.scope)
+                : await machineScmBranchList(request.machineId, branchRequest);
             if (!response.success) {
                 throw new Error(response.error || 'Failed to fetch source-control branches');
             }
@@ -102,6 +107,7 @@ export class RepoScmBranchService {
     }
 
     readCachedBranchesForMachinePath(input: Readonly<{
+        scope?: ServerAccountScope;
         machineId: string;
         path: string;
         includeRemotes?: boolean;
@@ -112,7 +118,7 @@ export class RepoScmBranchService {
         }
 
         return this.branchCache.get(
-            this.createRequestKey(request.repoIdentityKey, input.includeRemotes === true),
+            this.createRequestKey(request.repoIdentityKey, input.includeRemotes === true, input.scope),
         ) ?? [];
     }
 

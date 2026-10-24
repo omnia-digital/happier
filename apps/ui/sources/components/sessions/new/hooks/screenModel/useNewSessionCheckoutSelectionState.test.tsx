@@ -54,6 +54,22 @@ function makeParams(overrides: Partial<HookParams> = {}): HookParams {
 }
 
 describe('useNewSessionCheckoutSelectionState', () => {
+    it('revalidates the worktree base when the Home/account changes with the same machine and path', async () => {
+        const hook = await renderHook((props: HookParams) => useNewSessionCheckoutSelectionState(props), {
+            initialProps: makeParams({ targetScopeKey: 'home-a:account-a', persistedDraft: { checkoutCreationDraft: {
+                kind: 'git_worktree', displayName: 'from-home-a', baseRef: 'private-a', branchMode: 'new',
+            } } }),
+        });
+        await act(async () => { hook.getCurrent().setCheckoutCreationDraft({
+            kind: 'git_worktree', displayName: 'from-home-a', baseRef: 'private-a', branchMode: 'new',
+        }); });
+        await hook.rerender(makeParams({ targetScopeKey: 'home-b:account-b' }));
+        await flushHookEffects();
+        expect(hook.getCurrent().checkoutCreationDraft).toEqual({
+            kind: 'git_worktree', displayName: 'calm-forest', baseRef: null, branchMode: 'new',
+        });
+        await hook.unmount();
+    });
     it('preserves an explicit current-path override after clearing a hydrated worktree draft', async () => {
         const hydratedDraft = {
             kind: 'git_worktree' as const,

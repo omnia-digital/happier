@@ -24,6 +24,7 @@ export function useNewSessionCheckoutSelectionState(params: Readonly<{
     tempSessionData?: unknown;
     selectedMachineId: string | null;
     selectedPath: string;
+    targetScopeKey?: string | null;
     repoScmSnapshot: ScmWorkingSnapshot | null;
     defaultCheckoutMode: NewSessionCheckoutMode;
     autoOpenWorktreePickerKey?: string | null;
@@ -132,7 +133,7 @@ export function useNewSessionCheckoutSelectionState(params: Readonly<{
     ]);
 
     React.useEffect(() => {
-        const selectionKey = `${params.selectedMachineId ?? ''}\n${params.selectedPath}`;
+        const selectionKey = JSON.stringify([params.targetScopeKey ?? null, params.selectedMachineId, params.selectedPath]);
         if (previousSelectionKeyRef.current === null) {
             previousSelectionKeyRef.current = selectionKey;
             return;
@@ -147,7 +148,7 @@ export function useNewSessionCheckoutSelectionState(params: Readonly<{
         }
         shouldReconcileInitialHydratedCheckoutCreationDraftRef.current = false;
         setCheckoutCreationDraft(null);
-    }, [checkoutCreationDraft, params.selectedMachineId, params.selectedPath]);
+    }, [checkoutCreationDraft, params.targetScopeKey, params.selectedMachineId, params.selectedPath]);
 
     React.useEffect(() => {
         if (params.repoScmSnapshot === null || checkoutCreationDraft !== null) return;

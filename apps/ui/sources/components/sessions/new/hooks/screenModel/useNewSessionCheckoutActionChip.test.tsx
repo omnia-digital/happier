@@ -262,7 +262,23 @@ describe('useNewSessionCheckoutActionChip', () => {
         expect(setCheckoutPickerOpen).toHaveBeenCalledWith(false);
     });
 
-    it('drills into the create-worktree substep via the openStep on the New Worktree row', async () => {
+    it.each(['/repo', '/repo/.worktrees/release'])('selects automatic fresh creation from %s without entering existing or branch choices', async (selectedPath) => {
+        const setCheckoutCreationDraft = vi.fn();
+        const setSelectedPath = vi.fn();
+        const chip = await renderCheckoutChip({ selectedPath, setCheckoutCreationDraft, setSelectedPath });
+        const option = findCheckoutChipOptionFromChip(chip, 'worktree:quick-actions', 'create_git_worktree');
+        expect(option?.openStep).toBeUndefined();
+        expect(option?.onSelect).toBeTypeOf('function');
+        await act(async () => { option?.onSelect?.(); });
+        const action = setCheckoutCreationDraft.mock.calls.at(-1)?.[0];
+        expect(typeof action === 'function' ? action(null) : action).toEqual({
+            kind: 'git_worktree', displayName: expect.any(String), baseRef: null, branchMode: 'new',
+        });
+        // Selecting intent must not change cwd or materialize a checkout.
+        expect(setSelectedPath).not.toHaveBeenCalled();
+    });
+
+    it('keeps existing checkouts in a distinct submenu and branch customization in an explicit advanced action', async () => {
         const chip = await renderCheckoutChip({
             repoScmSnapshot: makeSnapshot([
                 { path: '/repo', branch: 'main', isCurrent: true, isMain: true },
@@ -275,12 +291,15 @@ describe('useNewSessionCheckoutActionChip', () => {
         });
 
         const createStep = expectDrillDownOption(
-            findCheckoutChipOptionFromChip(chip, 'worktree:quick-actions', 'create_git_worktree'),
+            findCheckoutChipOptionFromChip(chip, 'worktree:advanced', 'create_git_worktree_from_branch'),
         );
         expect(createStep.id).toBe('worktree-create');
         const sectionIds = createStep.sections.map((section) => section.id);
         expect(sectionIds).toContain('worktree:branches:local');
         expect(sectionIds).toContain('worktree:branches:remote');
+        const existingStep = expectDrillDownOption(findCheckoutChipOptionFromChip(chip, 'worktree:quick-actions', 'existing_git_worktree'));
+        expect(existingStep.id).toBe('worktree-existing');
+        expect(getCheckoutChipRootStepFromChip(chip)?.sections.some((section) => section.id === 'worktree:existing')).toBe(false);
     });
 
     it('themes worktree picker row icons from the effective Unistyles theme', async () => {
@@ -401,7 +420,7 @@ describe('useNewSessionCheckoutActionChip', () => {
         });
 
         const createStep = expectDrillDownOption(
-            findCheckoutChipOptionFromChip(chip, 'worktree:quick-actions', 'create_git_worktree'),
+            findCheckoutChipOptionFromChip(chip, 'worktree:advanced', 'create_git_worktree_from_branch'),
         );
         const localSection = createStep.sections.find((section) => section.id === 'worktree:branches:local');
         if (localSection?.kind !== 'dynamic') throw new Error('local branches section must be dynamic');
