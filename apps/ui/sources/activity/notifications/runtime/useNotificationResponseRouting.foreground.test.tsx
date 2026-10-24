@@ -15,7 +15,11 @@ const boundary = vi.hoisted(() => ({
     secrets: new Map<string, string>(),
     rpc: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
     navigate: vi.fn(),
+    push: vi.fn(),
     listener: null as null | ((response: unknown) => void),
+    savedResponse: null as unknown,
+    savedResponsePromise: null as Promise<unknown> | null,
+    readSaved: vi.fn(),
 }));
 
 // Native secure storage, Expo response delivery, routing and socket transport are system boundaries.
@@ -30,11 +34,14 @@ vi.mock('react-native', async () => {
 });
 vi.mock('expo-router', async () => {
     const { createExpoRouterMock } = await import('@/dev/testkit/mocks/router');
-    return createExpoRouterMock({ router: { navigate: boundary.navigate, push: vi.fn() } }).module;
+    return createExpoRouterMock({ router: { navigate: boundary.navigate, push: boundary.push } }).module;
 });
 vi.mock('expo-notifications', () => ({
     DEFAULT_ACTION_IDENTIFIER: 'expo.modules.notifications.actions.DEFAULT',
-    getLastNotificationResponseAsync: async () => null,
+    getLastNotificationResponseAsync: async () => {
+        boundary.readSaved();
+        return boundary.savedResponsePromise ?? boundary.savedResponse;
+    },
     clearLastNotificationResponseAsync: async () => {},
     addNotificationResponseReceivedListener: (listener: (response: unknown) => void) => {
         boundary.listener = listener;
@@ -68,7 +75,11 @@ describe('foreground notification permission actions', () => {
         boundary.secrets.clear();
         boundary.rpc.mockReset().mockResolvedValue({ ok: true, result: { ok: true } });
         boundary.navigate.mockClear();
+        boundary.push.mockClear();
         boundary.listener = null;
+        boundary.savedResponse = null;
+        boundary.savedResponsePromise = null;
+        boundary.readSaved.mockClear();
         const profile = upsertServerProfile({ serverUrl, name: 'Permission test' });
         setServerProfileIdentityForUrl(serverUrl, 'permission-server');
         setActiveServerId(profile.id, { scope: 'device' });
@@ -124,5 +135,80 @@ describe('foreground notification permission actions', () => {
         } finally {
             await hook.unmount();
         }
+    });
+
+    it('opens a saved valid permission response for review, then executes a fresh foreground press', async () => {
+        boundary.savedResponse = response('saved', { occurrenceId: 'occurrence-b', accountId: 'account-b' });
+        const hook = await renderHook(() => useNotificationResponseRouting({ enabled: true, refreshAuth: async () => {} }));
+        try {
+            await vi.waitFor(() => expect(boundary.navigate).toHaveBeenCalledTimes(1));
+            expect(boundary.rpc).not.toHaveBeenCalled();
+            await vi.waitFor(() => expect(boundary.listener).toEqual(expect.any(Function)));
+            await act(async () => { boundary.listener?.(boundary.savedResponse); });
+            expect(boundary.rpc).not.toHaveBeenCalled();
+
+            await act(async () => {
+                boundary.listener?.(response('fresh', { occurrenceId: 'occurrence-b', accountId: 'account-b' }));
+            });
+            await vi.waitFor(() => expect(boundary.rpc).toHaveBeenCalledTimes(1));
+            expect(boundary.navigate).toHaveBeenCalledTimes(2);
+        } finally {
+            await hook.unmount();
+        }
+    });
+
+    it('observes a saved response read failure and still accepts a fresh foreground press', async () => {
+        const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        boundary.savedResponsePromise = Promise.reject(new Error('native response read failed'));
+        const hook = await renderHook(() => useNotificationResponseRouting({ enabled: true, refreshAuth: async () => {} }));
+        try {
+            await vi.waitFor(() => expect(boundary.readSaved).toHaveBeenCalledTimes(1));
+            await vi.waitFor(() => expect(boundary.listener).toEqual(expect.any(Function)));
+            await act(async () => {
+                boundary.listener?.(response('fresh-after-read-failure', { occurrenceId: 'occurrence-b', accountId: 'account-b' }));
+            });
+            await vi.waitFor(() => expect(boundary.rpc).toHaveBeenCalledTimes(1));
+            await vi.waitFor(() => expect(boundary.navigate).toHaveBeenCalledTimes(1));
+            expect(warning).toHaveBeenCalledWith('[notifications] Saved response read failed; foreground routing remains available');
+        } finally {
+            await hook.unmount();
+        }
+    });
+
+    it('opens a saved permission response for review when its account no longer owns the Home', async () => {
+        boundary.savedResponse = response('saved-other-account', { occurrenceId: 'occurrence-a', accountId: 'account-a' });
+        const hook = await renderHook(() => useNotificationResponseRouting({ enabled: true, refreshAuth: async () => {} }));
+        try {
+            await vi.waitFor(() => expect(boundary.navigate).toHaveBeenCalledTimes(1));
+            expect(boundary.rpc).not.toHaveBeenCalled();
+        } finally {
+            await hook.unmount();
+        }
+    });
+
+    it('routes a saved permission response for an unknown Home to server settings without executing it', async () => {
+        boundary.savedResponse = response('saved-unknown-server', {
+            serverUrl: 'https://unknown-permission.example.test', occurrenceId: 'occurrence-b', accountId: 'account-b',
+        });
+        const hook = await renderHook(() => useNotificationResponseRouting({ enabled: true, refreshAuth: async () => {} }));
+        try {
+            await vi.waitFor(() => expect(boundary.push).toHaveBeenCalledWith(
+                '/settings/server?url=https%3A%2F%2Funknown-permission.example.test&source=notification',
+            ));
+            expect(boundary.rpc).not.toHaveBeenCalled();
+        } finally {
+            await hook.unmount();
+        }
+    });
+
+    it('ignores a saved response delivered after the routing hook is disposed', async () => {
+        let complete!: (value: unknown) => void;
+        boundary.savedResponsePromise = new Promise((resolve) => { complete = resolve; });
+        const hook = await renderHook(() => useNotificationResponseRouting({ enabled: true, refreshAuth: async () => {} }));
+        await vi.waitFor(() => expect(boundary.readSaved).toHaveBeenCalledTimes(1));
+        await hook.unmount();
+        await act(async () => { complete(response('late-saved', { occurrenceId: 'occurrence-b', accountId: 'account-b' })); });
+        expect(boundary.rpc).not.toHaveBeenCalled();
+        expect(boundary.navigate).not.toHaveBeenCalled();
     });
 });
