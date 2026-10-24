@@ -100,7 +100,9 @@ test.describe('OH59 actual local collector through authenticated fixture machine
     });
 
     test('shows real host readings independently of the selected session, refreshes after 180s and handles disconnect/reconnect', async ({ page }, testInfo) => {
-        test.setTimeout(420_000);
+        // Three-minute refresh plus both canonical presence-grace transitions,
+        // initial browser readiness and interactive verification share this budget.
+        test.setTimeout(600_000);
         const diagnostics = collectBrowserDiagnostics({ page });
         try {
             await page.addInitScript(({ key }) => {
@@ -114,7 +116,9 @@ test.describe('OH59 actual local collector through authenticated fixture machine
             const local = page.getByTestId(`machine-monitoring-${LOCAL}`);
             await expect(local).toContainText(/CPU \d+%/, { timeout: 120_000 });
             await expect(page.getByTestId(`machine-monitoring-${LEGACY}`)).toContainText('does not support host metrics');
-            await expect(page.getByTestId(`machine-monitoring-${OFFLINE}`)).toContainText('offline');
+            // Registration has a real presence timestamp even without a live socket.
+            // Wait through the canonical grace + shared one-minute status clock.
+            await expect(page.getByTestId(`machine-monitoring-${OFFLINE}`)).toContainText('offline', { timeout: 125_000 });
             const localGlyph = local.locator('svg').first();
             const legacyGlyph = page.getByTestId(`machine-monitoring-${LEGACY}`).locator('svg').first();
             expect(await localGlyph.evaluate((element) => getComputedStyle(element).color)).not.toBe(await legacyGlyph.evaluate((element) => getComputedStyle(element).color));

@@ -63,9 +63,10 @@ export function createMachineMetricsStore(deps: Readonly<{
         },
         refresh,
         retain: (scope: ServerAccountScope, targets: readonly MachineMetricsTarget[]) => {
+            let currentTargets = targets;
             const scopeKey = JSON.stringify([scope.serverId, scope.accountId]);
             const tick = (onlyIfDue: boolean) => {
-                for (const target of targets) {
+                for (const target of currentTargets) {
                     const current = get(scope, target.machineId);
                     if (!onlyIfDue || !target.online || current.status !== 'ready' || current.receivedAt === null || Date.now() - current.receivedAt >= MACHINE_METRICS_REFRESH_MS) {
                         void refresh(scope, target.machineId, target.online);
@@ -82,9 +83,12 @@ export function createMachineMetricsStore(deps: Readonly<{
                 pollers.set(scopeKey, poller);
             }
             poller.callbacks.add(tick);
-            return () => {
-                poller.callbacks.delete(tick);
-                if (!poller.callbacks.size) { poller.stop(); pollers.delete(scopeKey); }
+            return {
+                updateTargets: (next: readonly MachineMetricsTarget[]) => { currentTargets = next; tick(true); },
+                release: () => {
+                    poller.callbacks.delete(tick);
+                    if (!poller.callbacks.size) { poller.stop(); pollers.delete(scopeKey); }
+                },
             };
         },
     };

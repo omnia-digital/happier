@@ -4,6 +4,7 @@
 
 import { isPlainObject } from './_shared';
 import { RPC_METHODS, isRpcMethodNotFoundResult } from '@happier-dev/protocol/rpc';
+import { DEFAULT_CAPABILITIES_INVOKE_TIMEOUT_MS } from '@happier-dev/protocol/capabilities';
 import {
     parseCapabilitiesDescribeResponse,
     parseCapabilitiesDetectResponse,
@@ -101,7 +102,7 @@ export async function machineCapabilitiesInvoke(
     options?: { timeoutMs?: number; serverId?: string | null; accountId?: string | null },
 ): Promise<MachineCapabilitiesInvokeResult> {
     try {
-        const timeoutMs = typeof options?.timeoutMs === 'number' ? options.timeoutMs : 30_000;
+        const timeoutMs = typeof options?.timeoutMs === 'number' ? options.timeoutMs : DEFAULT_CAPABILITIES_INVOKE_TIMEOUT_MS;
         const result = await Promise.race([
             machineRpcWithServerScope<unknown, CapabilitiesInvokeRequest>({
                 machineId,

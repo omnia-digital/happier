@@ -13,7 +13,7 @@ describe('host metrics over the receiving machine encrypted RPC', () => {
             } as Parameters<typeof registerCapabilitiesHandlers>[1]),
         });
         const response = await call<CapabilitiesInvokeResponse, unknown>(RPC_METHODS.CAPABILITIES_INVOKE, {
-            id: 'tool.machineMetrics', method: 'snapshot', params: { machineId: 'forged' },
+            id: 'tool.machineMetrics', method: 'snapshot', params: { machineId: 'forged', timeoutMs: 30_000 },
         });
         expect(response).toMatchObject({ ok: true, result: {
             machineId: 'metrics-receiver', platform: process.platform,

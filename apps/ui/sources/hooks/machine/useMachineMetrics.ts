@@ -10,7 +10,13 @@ export function useMachineMetricsPolling(scope: ServerAccountScope, targets: rea
     const targetKey = JSON.stringify(targets);
     const targetsRef = React.useRef(targets);
     targetsRef.current = targets;
-    React.useEffect(() => store.retain(scope, targetsRef.current), [scope.serverId, scope.accountId, targetKey]);
+    const retained = React.useRef<ReturnType<typeof store.retain> | null>(null);
+    React.useEffect(() => {
+        const handle = store.retain(scope, targetsRef.current);
+        retained.current = handle;
+        return () => { handle.release(); if (retained.current === handle) retained.current = null; };
+    }, [scope.serverId, scope.accountId]);
+    React.useEffect(() => { retained.current?.updateTargets(targetsRef.current); }, [scope.serverId, scope.accountId, targetKey]);
 }
 
 export function useMachineMetrics(scope: ServerAccountScope, machineId: string) {

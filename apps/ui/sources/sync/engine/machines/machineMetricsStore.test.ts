@@ -31,12 +31,12 @@ describe('machine metrics subscription and polling owner', () => {
         expect(calls).toHaveLength(2);
         await vi.advanceTimersByTimeAsync(1);
         expect(calls).toEqual(['mac', 'windows', 'mac', 'windows']);
-        stop();
+        stop.release();
         const previous = store.get(scope, 'mac').snapshot;
         const stopOffline = store.retain(scope, [{ machineId: 'mac', online: false }]);
         expect(store.get(scope, 'mac')).toMatchObject({ status: 'offline', snapshot: previous });
         expect(store.get({ ...scope, accountId: 'other-account' }, 'mac').snapshot).toBeNull();
-        stopOffline(); stopOtherRow();
+        stopOffline.release(); stopOtherRow();
         await vi.advanceTimersByTimeAsync(180_000);
         expect(calls).toHaveLength(4);
     });
@@ -53,20 +53,20 @@ describe('machine metrics subscription and polling owner', () => {
         expect(readCount).toBe(1);
         finish({ status: 'ready', snapshot: snapshot('mac') });
         await again;
-        stop();
-        const stopOffline = store.retain(scope, [{ machineId: 'mac', online: false }]); stopOffline();
+        stop.release();
+        const stopOffline = store.retain(scope, [{ machineId: 'mac', online: false }]); stopOffline.release();
         const stopReconnected = store.retain(scope, [{ machineId: 'mac', online: true }]);
         expect(readCount).toBe(2);
         finish({ status: 'ready', snapshot: snapshot('mac') });
         await store.refresh(scope, 'mac', true);
-        stopReconnected();
+        stopReconnected.release();
     });
 
     it('does no reads while the runtime is inactive', () => {
         let count = 0;
         const store = createMachineMetricsStore({ load: async () => { count++; return { status: 'error' }; }, startInterval: () => () => undefined, isActive: () => false });
         const stop = store.retain(scope, [{ machineId: 'mac', online: true }]);
-        expect(count).toBe(0); stop();
+        expect(count).toBe(0); stop.release();
     });
 
     it('loads a missing reading on foreground resume without waiting for the first 180-second deadline', async () => {
@@ -85,6 +85,6 @@ describe('machine metrics subscription and polling owner', () => {
         expect(count).toBe(1);
         resume();
         expect(count).toBe(1);
-        stop();
+        stop.release();
     });
 });

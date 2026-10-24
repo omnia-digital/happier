@@ -13,7 +13,7 @@ describe('machine metrics encrypted transport adapter', () => {
         rpc.mockResolvedValue({ ok: true, result: reading() });
         const result = await loadMachineMetrics(scope, 'host-a');
         expect(rpc).toHaveBeenCalledWith(expect.objectContaining({ machineId: 'host-a', serverId: 'server-a', accountId: 'account-a',
-            payload: { id: 'tool.machineMetrics', method: 'snapshot' } }));
+            payload: { id: 'tool.machineMetrics', method: 'snapshot', params: { timeoutMs: 30_000 } }, timeoutMs: 30_000 }));
         expect(result).toMatchObject({ status: 'ready', snapshot: { cpu: { status: 'available', usagePercent: 0 }, gpu: { status: 'unavailable' } } });
     });
     it('rejects wrong-machine, out-of-range and malformed telemetry without using it', async () => {
