@@ -54,4 +54,4 @@ OH-4 browser-build correction `fa79cbb6e4` tracks shared runtime bytes and prese
 
 ## Parent maintenance
 
-The latest upstream fetch leaves parent dev at `413054f17c814f2b2a3ad6159d38eff2230b9c4d`. The separate v0.3 line is now `aa41260dcfcfc5ead65c2e8c41d7d2caa5205e97`; no new parent code/runtime/version was adopted. Optional local 0.3 sibling destination remains absent. OH-12 records the refresh and remains ongoing.
+The latest upstream fetch leaves parent dev at `413054f17c814f2b2a3ad6159d38eff2230b9c4d`. The separate v0.3 line is now `67f58e65e5e6055ff7f2f607c8b3c47f23680df1`. Root inspected its log/stat and Services launcher source delta since `aa41260dcf`: mostly CLI schema/fixture alignment plus launcher failure idempotency, reconnect and receipt ordering. Those v0.3 launcher/daemon owners are absent from the current checkout. No new parent code/runtime/version was adopted. Optional local 0.3 sibling destination remains absent. OH-12 records the refresh and remains ongoing.
