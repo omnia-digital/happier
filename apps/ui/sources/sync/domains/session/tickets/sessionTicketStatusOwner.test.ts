@@ -34,8 +34,10 @@ describe('one ticket demand owner before and after row visibility', () => {
         expect(row.created).toBe(false); expect(header.entry).toBe(list.entry);
         expect(row.entry.getSnapshot().snapshot?.status.name).toBe('Q/A - Dev');
         list.release(); row.release();
-        expect(owner.retain(context, link).entry).toBe(header.entry);
+        const final = owner.retain(context, link);
+        expect(final.entry).toBe(header.entry); final.release();
         header.release();
+        const renewed = owner.retain(context, link); expect(renewed.created).toBe(true); renewed.release();
         expect(read).toHaveBeenCalledOnce();
     });
     it('separates accounts and Home URLs, coalesces concurrent demands and rejects a retired publication', async () => {

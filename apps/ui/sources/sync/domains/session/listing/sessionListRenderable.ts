@@ -513,6 +513,10 @@ export function preserveSessionListRenderableStaleFields(
     };
 }
 
+function areSessionListTicketAssociationsEqual(previous: SessionTicketAssociationV1 | null | undefined, next: SessionTicketAssociationV1 | null | undefined): boolean {
+    return previous === next || JSON.stringify(previous ?? null) === JSON.stringify(next ?? null);
+}
+
 function areSessionListRenderableMetadataEqual(
     previous: SessionListRenderableMetadata | null | undefined,
     next: SessionListRenderableMetadata | null | undefined,
@@ -520,7 +524,7 @@ function areSessionListRenderableMetadataEqual(
     if (previous === next) return true;
     if (!previous || !next) return previous === next;
 
-    return (previous.sessionTicketV1 === next.sessionTicketV1 || JSON.stringify(previous.sessionTicketV1 ?? null) === JSON.stringify(next.sessionTicketV1 ?? null))
+    return areSessionListTicketAssociationsEqual(previous.sessionTicketV1, next.sessionTicketV1)
         && (previous.name ?? null) === (next.name ?? null)
         && (previous.summaryText ?? null) === (next.summaryText ?? null)
         && previous.path === next.path
@@ -761,7 +765,8 @@ function areSessionListRenderableEmbeddedRowMetadataEqual(
 ): boolean {
     if (previous === next) return true;
     if (!previous || !next) return previous === next;
-    return (previous.name ?? null) === (next.name ?? null)
+    return areSessionListTicketAssociationsEqual(previous.sessionTicketV1, next.sessionTicketV1)
+        && (previous.name ?? null) === (next.name ?? null)
         && (previous.summaryText ?? null) === (next.summaryText ?? null)
         && previous.path === next.path
         && (previous.homeDir ?? null) === (next.homeDir ?? null)

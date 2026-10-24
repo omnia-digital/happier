@@ -30,7 +30,8 @@ function ticketKey(row: Row, states: ReadonlyMap<string, SessionTicketStatus>, a
     if (!snapshot) return { identity: state.phase === 'loading' ? 'loading' : 'unavailable', title, scope: ['1'], order: 0, name: title, freshness: 0 };
     const scope = ['0', snapshot.ticket.provider, snapshot.ticket.workspaceId, snapshot.status.workflowId ?? ''];
     return { identity: JSON.stringify([scope, snapshot.status.id ?? snapshot.status.name, state.phase]), title, scope,
-        order: snapshot.status.order ?? Number.POSITIVE_INFINITY, name: snapshot.status.name,
+        // A rank without a workflow identity cannot be compared to another ticket's rank.
+        order: snapshot.status.workflowId ? snapshot.status.order ?? Number.POSITIVE_INFINITY : Number.POSITIVE_INFINITY, name: snapshot.status.name,
         freshness: state.phase === 'loading' ? 0 : state.phase === 'ready' ? 1 : 2 };
 }
 function compare(left: StatusKey, right: StatusKey): number {

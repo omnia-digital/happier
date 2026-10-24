@@ -12,8 +12,17 @@ export function createSessionListStatusInputsSelector(items: readonly SessionLis
     const selectRows = createSessionListRowStoreStateSelector(rows.map(row => ({ sessionId: row.session.id, serverId: row.serverId })), activeServerId);
     let previous: { agentStatuses: ReadonlyMap<string, SessionListVisualStatus>; ticketAssociations: ReadonlyMap<string, SessionTicketAssociationV1 | null>; nextWakeAt: number | null } | undefined;
     let signature = '';
+    let previousInputs: Parameters<typeof selectRows>[0] | undefined;
+    let previousAt: number | undefined;
     return (state: Parameters<typeof selectRows>[0]) => {
-        const overlay = selectRows(state); const at = now();
+        const at = includeAgent ? now() : 0;
+        if (previous && previousAt === at && previousInputs
+            && previousInputs.sessions === state.sessions
+            && previousInputs.sessionListRenderables === state.sessionListRenderables
+            && previousInputs.sessionMessages === state.sessionMessages
+            && previousInputs.sessionPending === state.sessionPending) return previous;
+        previousInputs = state; previousAt = at;
+        const overlay = selectRows(state);
         const agentStatuses = new Map<string, SessionListVisualStatus>();
         const ticketAssociations = new Map<string, SessionTicketAssociationV1 | null>();
         let nextWakeAt: number | null = null;

@@ -79,10 +79,11 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             const testing = await seed('OH60 Testing', 3);
             const production = await seed('OH60 Production', 4);
             const unavailable = await seed('OH60 Unavailable', 5);
-            const noTicket = await seed('OH60 No ticket');
             for (let index = 0; index < 16; index++) await seed('OH60 unlinked filler ' + index);
+            const noTicket = await seed('OH60 No ticket');
             const publish = async (sessionId: string, thinking: boolean) => {
-                const { socket } = await createMachineBoundSessionScopedSocketCollector({ baseUrl: server!.baseUrl, token: access.token, sessionId, plainMachine: true });
+                const { socket } = await createMachineBoundSessionScopedSocketCollector({ baseUrl: server!.baseUrl, token: access.token, sessionId,
+                    machineMetadataCiphertext: encryptLegacyBase64({ host: 'OH60 isolated runtime publisher', platform: 'darwin' }, secret) });
                 publishers.push(socket); socket.connect();
                 await waitFor(async () => socket.isConnected(), { timeoutMs: 20_000, context: 'connect isolated status publisher' });
                 const alive = () => socket.emit('session-alive', { sid: sessionId, time: Date.now(), thinking });
@@ -102,6 +103,10 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             const visibleIds = () => page.locator('[data-testid^="session-list-item-"]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-testid')!.slice('session-list-item-'.length)));
             const position = async (id: string) => (await visibleIds()).indexOf(id);
             await expect(page.getByTestId('session-list-ordering-menu-trigger').first()).toBeVisible({ timeout: 120_000 });
+            await expect(row(noTicket)).toBeVisible();
+            await row(noTicket).hover();
+            await page.getByRole('button', { name: 'Pin session', exact: true }).click();
+            await expect(page.getByText('Pinned', { exact: true })).toBeVisible();
             // This oldest linked row is outside the viewport before status organization demands it.
             await expect(row(idle)).toHaveCount(0);
             expect((await readFile(readLog, 'utf8')).split('\n')).not.toContain('DEV-1');
@@ -122,9 +127,20 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await row(idle).click();
             await expect(page).toHaveURL(new RegExp('/session/' + idle));
             await expect(page.getByTestId('session-ticket-header-status')).toContainText('Q/A - Dev');
+            await page.getByTestId('session-list-search-trigger').first().click();
+            await page.getByTestId('session-list-search-input').first().fill('OH60 QA');
+            await expect(row(testing)).toHaveCount(0);
+            await expect(row(idle)).toBeVisible();
+            await page.getByTestId('session-list-search-clear').first().click();
+            await expect(row(testing)).toBeVisible();
             await page.screenshot({ path: testInfo.outputPath('oh60-ticket-groups-agent-sort.png') });
             await choose('session-list-status-group-agent');
             await expect(statusHeaders.filter({ hasText: 'working...' }).first()).toBeVisible();
+            clearInterval(keepAlives[1]);
+            workingPublisher.emit('session-alive', { sid: working, time: Date.now(), thinking: false });
+            await expect(page.getByTestId('session-row-status-' + working + '-idle')).toBeVisible({ timeout: 60_000 });
+            await expect(statusHeaders.filter({ hasText: 'working...' })).toHaveCount(0);
+            await expect(page).toHaveURL(new RegExp('/session/' + idle));
             await choose('session-list-status-sort-ticket');
             await expect.poll(async () => (await position(testing)) < (await position(production))).toBe(true);
             await choose('session-list-status-group-none');
@@ -158,6 +174,7 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await choose('session-list-status-group-ticket');
             await choose('session-list-status-group-none');
             await expect(page.locator('[data-testid^="session-list-header:machine-view:"]').first()).toBeVisible();
+            await expect(row(noTicket)).toHaveCount(1);
             const ids = await visibleIds(); expect(new Set(ids).size).toBe(ids.length);
             const persisted = await fetchSessionV2(server.baseUrl, access.token, idle);
             expect(decryptLegacyBase64(persisted.metadata, secret)).toMatchObject({ unknownOldCliField: { keep: 'preserved' }, sessionTicketV1: { ticket: { key: 'DEV-1' } } });

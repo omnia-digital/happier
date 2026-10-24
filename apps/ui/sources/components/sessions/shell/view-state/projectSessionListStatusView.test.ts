@@ -27,6 +27,20 @@ function status(item: Row, name: string, order?: number, workflowId = 'workflow'
 }
 
 describe('status organization through the canonical sidebar projection', () => {
+    it('orders every canonical lifecycle using actual runtime inputs and the badge classifier', () => {
+        const states = [
+            row('cancelled', { latestTurnStatus: 'cancelled', latestTurnStatusObservedAt: now }),
+            row('finished', { latestTurnStatus: 'completed', latestTurnStatusObservedAt: now }),
+            row('idle'), row('offline', { active: false, presence: now - 1 }),
+            row('archiving', { archiving: true }), row('queued', { pendingCount: 1 }),
+            row('resuming', { resumingAt: now }), row('working', { thinking: true, thinkingAt: now }),
+            row('delivery_blocked', { pendingCount: 1, pendingBlockedCount: 1 }),
+            row('input', { hasPendingPermissionRequests: true }),
+            row('error', { latestTurnStatus: 'failed', latestTurnStatusObservedAt: now }),
+        ].map(item => ({ ...item, session: { ...item.session, createdAt: 1, meaningfulActivityAt: 1 } }));
+        const result = projectSessionListStatusView({ items: states, grouping: 'none', sorting: 'agent', ticketStatuses: new Map(), nowMs: now });
+        expect(ids(result)).toEqual(SESSION_LIST_AGENT_STATUS_ORDER);
+    });
     it('sorts Agent Status independently and keeps stable/manual ties and existing headers', () => {
         const source = [header('Repository'), row('idle-b'), row('working', { thinking: true, thinkingAt: now }), row('input', { hasPendingPermissionRequests: true }), row('idle-a')];
         const result = projectSessionListStatusView({ items: source, grouping: 'none', sorting: 'agent', ticketStatuses: new Map(), nowMs: now });
@@ -63,6 +77,27 @@ describe('status organization through the canonical sidebar projection', () => {
         const states = new Map([['home:1', status(qa, 'Q/A - Dev', 5)], ['home:2', status(prod, 'Ready for Prod', 9)], ['home:3', status(other, 'Testing', -100)], ['home:4', { phase: 'unavailable' as const, snapshot: null, error: 'unsupported' as const }]]);
         const result = projectSessionListStatusView({ items: [row('unlinked'), other, prod, unavailable, qa], grouping: 'none', sorting: 'ticket', ticketStatuses: states, nowMs: now });
         expect(ids(result)).toEqual(['1', '2', '3', '4', 'unlinked']);
+    });
+
+    it('keeps independent provider/workflow scopes deterministic when Agent groups use Ticket sorting', () => {
+        const firstWorkflow = linked('1'); const secondWorkflow = linked('2');
+        const clickup = linked('3'); const jira = linked('4');
+        const clickLink = clickup.session.metadata!.sessionTicketV1!;
+        clickup.session.metadata!.sessionTicketV1 = { ...clickLink, ticket: { ...clickLink.ticket, provider: 'clickup', url: 'https://app.clickup.com/t/task3' } };
+        const jiraLink = jira.session.metadata!.sessionTicketV1!;
+        jira.session.metadata!.sessionTicketV1 = { ...jiraLink, ticket: { ...jiraLink.ticket, provider: 'jira', url: 'https://fixture.atlassian.net/browse/DEV-4' } };
+        const states = new Map([['home:1', status(firstWorkflow, 'Testing', 100, 'a')], ['home:2', status(secondWorkflow, 'Testing', -100, 'b')], ['home:3', status(clickup, 'Ready for Prod', 50)], ['home:4', status(jira, 'Q/A - Dev', -500)]]);
+        const result = projectSessionListStatusView({ items: [secondWorkflow, jira, firstWorkflow, clickup], grouping: 'agent', sorting: 'ticket', ticketStatuses: states, nowMs: now });
+        expect(ids(result)).toEqual(['3', '4', '1', '2']);
+        expect(result.filter(item => item.type === 'header').map(item => item.title)).toEqual(['Idle']);
+    });
+
+    it('does not compare numeric ranks when the reader has no shared workflow identity', () => {
+        const first = linked('1'); const second = linked('2');
+        const a = status(first, 'A testing', 100); const z = status(second, 'Z release', -100);
+        const states = new Map([['home:1', { ...a, snapshot: { ...a.snapshot!, status: { name: 'A testing', order: 100 } } }], ['home:2', { ...z, snapshot: { ...z.snapshot!, status: { name: 'Z release', order: -100 } } }]]);
+        const result = projectSessionListStatusView({ items: [second, first], grouping: 'ticket', sorting: 'ticket', ticketStatuses: states, nowMs: now });
+        expect(ids(result)).toEqual(['1', '2']);
     });
 
     it('combines Ticket Status groups with Agent Status sorting and preserves selected identity/index on updates', () => {
