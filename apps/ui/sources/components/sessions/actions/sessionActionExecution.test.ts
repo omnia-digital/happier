@@ -406,9 +406,9 @@ describe('executeSessionAction', () => {
         expect(moveToFolder).toHaveBeenCalledWith(target, { folderId: 'folder_1' });
     });
 
-    it('does not silently ignore local action ids without an injected operation', async () => {
+    it('does not silently ignore local actions without an owning operation', async () => {
         await expect(executeSessionAction({
-            actionId: SESSION_ACTION_PIN_ID,
+            actionId: SESSION_ACTION_EDIT_TAGS_ID,
             target: createTarget(),
         })).rejects.toBeInstanceOf(HappyError);
     });
