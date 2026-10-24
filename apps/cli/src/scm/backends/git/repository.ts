@@ -23,7 +23,7 @@ import { parseGitRemoteVerbose } from './remoteListParser';
 
 // These controls apply only to cleanup evidence, never to ordinary SCM operations.
 export const gitCleanupReadArgs = ['--no-pager', '--no-replace-objects', '--no-lazy-fetch', '--no-optional-locks',
-    '-c', 'core.fsmonitor=false', '-c', 'core.commitGraph=false'] as const;
+    '-c', 'core.fsmonitor=false', '-c', 'core.commitGraph=false', '-c', 'diff.autoRefreshIndex=false'] as const;
 
 export function hasUnsafeGitCleanupEnvironment(): boolean {
     const controlled = new Set(['GIT_PAGER', 'GIT_TERMINAL_PROMPT', 'GIT_OPTIONAL_LOCKS', 'GIT_NO_REPLACE_OBJECTS', 'GIT_NO_LAZY_FETCH']);
@@ -161,14 +161,22 @@ export async function detectGitRepo(input: { cwd: string }): Promise<ScmRepoDete
 export async function getGitSnapshot(input: {
     context: ScmBackendContext;
     request?: Pick<ScmStatusSnapshotRequest, 'includeWorktreeStatus'>;
+    /** Internal observation mode for cleanup's exact provider lookup; ordinary SCM refresh stays unchanged. */
+    readOnly?: boolean;
 }): Promise<ScmStatusSnapshotResponse> {
     const { context, request } = input;
     const repoRoot = context.detection.rootPath ?? context.cwd;
+    if (input.readOnly && (hasUnsafeGitCleanupEnvironment() || request?.includeWorktreeStatus === true)) {
+        return { success: false, errorCode: SCM_OPERATION_ERROR_CODES.INVALID_REQUEST,
+            error: 'Read-only Git evidence requires an unmodified Git environment and no worktree enrichment.' };
+    }
+    const readArgs = input.readOnly ? gitCleanupReadArgs : [];
+    const diffArgs = input.readOnly ? ['--no-ext-diff', '--no-textconv'] : [];
 
     const statusResult = await runScmCommand({
         bin: 'git',
         cwd: context.cwd,
-        args: ['status', '--porcelain=v2', '-z', '--branch', '--show-stash', '--untracked-files=all'],
+        args: [...readArgs, 'status', '--porcelain=v2', '-z', '--branch', '--show-stash', '--untracked-files=all'],
         timeoutMs: 10_000,
     });
     if (!statusResult.success) {
@@ -182,13 +190,13 @@ export async function getGitSnapshot(input: {
     const includedResult = await runScmCommand({
         bin: 'git',
         cwd: context.cwd,
-        args: ['diff', '--cached', '--numstat', '-z'],
+        args: [...readArgs, 'diff', ...diffArgs, '--cached', '--numstat', '-z'],
         timeoutMs: 10_000,
     });
     const pendingResult = await runScmCommand({
         bin: 'git',
         cwd: context.cwd,
-        args: ['diff', '--numstat', '-z'],
+        args: [...readArgs, 'diff', ...diffArgs, '--numstat', '-z'],
         timeoutMs: 10_000,
     });
     const worktreesResult = await runScmCommand({
@@ -198,19 +206,19 @@ export async function getGitSnapshot(input: {
         // characters. Without it, `parseGitWorktreeListPorcelain` would see a
         // truncated path and the security intersection in `getGitWorktreesEnrichment`
         // could admit an unrelated sibling whose absolute path matches the truncation.
-        args: ['worktree', 'list', '--porcelain', '-z'],
+        args: [...readArgs, 'worktree', 'list', '--porcelain', '-z'],
         timeoutMs: 10_000,
     });
     const remotesResult = await runScmCommand({
         bin: 'git',
         cwd: repoRoot,
-        args: ['remote', '-v'],
+        args: [...readArgs, 'remote', '-v'],
         timeoutMs: 10_000,
     });
     const remoteHeadRefsResult = await runScmCommand({
         bin: 'git',
         cwd: repoRoot,
-        args: ['for-each-ref', '--format=%(refname:short)%09%(symref:short)', 'refs/remotes/*/HEAD'],
+        args: [...readArgs, 'for-each-ref', '--format=%(refname:short)%09%(symref:short)', 'refs/remotes/*/HEAD'],
         timeoutMs: 10_000,
     });
     const checkoutIdentity = await inspectGitCheckoutIdentity({ cwd: context.cwd });
