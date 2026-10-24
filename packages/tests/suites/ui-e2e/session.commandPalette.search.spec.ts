@@ -147,6 +147,10 @@ test.describe('OH-56 Command+K session title search', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
     await waitForInitialAppUi({ page, timeoutMs: 120_000 });
+    await expect.poll(async () => {
+      const settings = await readUiE2eScopedAccountSettings({ page });
+      return settings.commandPaletteEnabled === true && settings.keyboardShortcutsV2Enabled === true;
+    }, { timeout: 30_000 }).toBe(true);
     await page.keyboard.press('Alt+k');
     const input = page.getByPlaceholder('Type a command or search...');
     await expect(input).toBeFocused();
