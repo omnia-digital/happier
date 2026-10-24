@@ -31,11 +31,13 @@ vi.mock('node:child_process', async (importOriginal) => {
 
 // Sanitized IOAccelerator shape. Unrelated CFData deliberately makes whole-plist
 // JSON conversion impossible; the real plutil extraction must preserve both GPUs.
+// Its size also exercises cancellation with stdin still buffered, like the observed
+// 102 KB registry response on the development Mac, rather than a tiny pipe write.
 const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0"><array>
 <dict><key>IORegistryEntryID</key><integer>4294969373</integer>
 <key>IORegistryEntryName</key><string>AGXAcceleratorG17X</string><key>model</key><string>Apple M5 Pro</string>
-<key>UnrelatedDriverData</key><data>AQID</data><key>PerformanceStatistics</key><dict>
+<key>UnrelatedDriverData</key><data>${'AQID'.repeat(30_000)}</data><key>PerformanceStatistics</key><dict>
 <key>Device Utilization %</key><integer>0</integer><key>Renderer Utilization %</key><integer>90</integer>
 </dict></dict>
 <dict><key>IORegistryEntryID</key><integer>9007199254740993</integer>
@@ -97,5 +99,17 @@ describe.skipIf(process.platform !== 'darwin')('Mac GPU OS query boundary', () =
         boundary.replacements.set('/usr/sbin/ioreg', await createExecutableShim({ baseDir: temp, dirPrefix: 'failed-', fileName: 'ioreg',
             contents: '#!/bin/sh\nexit 1\n' }));
         expect((await collectHostMetrics('fixture-host')).gpu).toEqual({ status: 'unavailable', reason: 'collection-failed' });
+    });
+
+    it('terminates a query that closes its input early and reports the failed write', async () => {
+        boundary.replacements.set('/usr/bin/plutil', await createExecutableShim({ baseDir: temp, dirPrefix: 'closed-input-', fileName: 'plutil',
+            contents: '#!/bin/sh\nexec 0<&-\nexec /bin/sleep 60\n' }));
+        const controller = new AbortController(); controllers.push(controller);
+        expect((await collectHostMetrics('fixture-host', controller.signal)).gpu).toEqual({ status: 'unavailable', reason: 'collection-failed' });
+        const child = boundary.calls.find((call) => call.file === '/usr/bin/plutil')!.child;
+        await expect.poll(() => {
+            try { process.kill(child.pid!, 0); return false; } catch { return true; }
+        }).toBe(true);
+        expect(controller.signal.aborted).toBe(false);
     });
 });

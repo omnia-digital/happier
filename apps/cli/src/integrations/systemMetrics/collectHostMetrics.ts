@@ -5,6 +5,7 @@ import { readdir, readFile, realpath, stat, statfs } from 'node:fs/promises';
 import * as path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { performance } from 'node:perf_hooks';
+import { finished } from 'node:stream/promises';
 import { MachineMetricsSnapshotSchema, type MachineMetricsSnapshot } from '@happier-dev/protocol/capabilities';
 
 const execFileAsync = promisify(execFile);
@@ -136,8 +137,16 @@ async function collectDarwinGpu(signal?: AbortSignal): Promise<MachineMetricsSna
     const plutil = async (args: string[]): Promise<string> => {
         signal?.throwIfAborted();
         const result = execFileAsync('/usr/bin/plutil', [...args, '-'], { encoding: 'utf8', ...(signal ? { signal } : {}) });
-        result.child.stdin?.end(plist);
-        return (await result).stdout.trim();
+        const input = result.child.stdin!;
+        // A deadline can close the pipe before the registry buffer is written.
+        // Own that stream error as part of the query, and stop a child whose input failed.
+        const written = finished(input, { readable: false, cleanup: true }).catch((error) => {
+            result.child.kill();
+            throw error;
+        });
+        input.end(plist);
+        const [{ stdout }] = await Promise.all([result, written]);
+        return stdout.trim();
     };
     // Validate once so an absent indexed entry is distinguishable from a malformed
     // document. Keep the registry data in memory; never log or persist its private fields.
