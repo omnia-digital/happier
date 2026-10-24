@@ -496,6 +496,10 @@ test.describe('ui e2e: session list ordering mode', () => {
     const selectedSessionId = await createPlainSession({ ...sessionParams, title: `selected ${run.runId}` });
     const clickedSessionId = await createPlainSession({ ...sessionParams, title: `clicked ${run.runId}` });
     const mutatingSessionRequests: string[] = [];
+    const flashListWarnings: string[] = [];
+    page.on('console', (message) => {
+      if (message.type() === 'warning' || message.type() === 'error') flashListWarnings.push(message.text());
+    });
     page.on('request', (request) => {
       const url = new URL(request.url());
       if (/\/v[12]\/sessions(?:\/|$)/.test(url.pathname) && request.method() !== 'GET') {
@@ -566,6 +570,7 @@ test.describe('ui e2e: session list ordering mode', () => {
     } catch (error) {
       console.error('OH50 row lifecycle diagnostic', JSON.stringify(await page.evaluate(() =>
         (window as typeof window & { __oh50RowEvents?: unknown[] }).__oh50RowEvents ?? [])));
+      console.error('OH54 browser warnings', JSON.stringify(flashListWarnings));
       throw error;
     }
     await expect(page.getByTestId(`session-list-machine-identity-${selectedSessionId}-tooltip`)).toBeVisible();
