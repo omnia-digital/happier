@@ -1,8 +1,19 @@
 import { describe, expect, it } from 'vitest';
 
-import type { SessionListRenderableSession } from '@/sync/domains/session/listing/sessionListRenderable';
+import {
+    areSessionListRenderablesEqual,
+    buildSessionListRenderableFromSession,
+    type SessionListRenderableSession,
+} from '@/sync/domains/session/listing/sessionListRenderable';
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
+import type { Session } from '@/sync/domains/state/storageTypes';
 import { SESSION_RUNTIME_STATUS_STALE_SIGNAL_MS } from '@/sync/domains/session/attention/deriveSessionRuntimePresentationState';
+import { createSessionFixture } from '@/dev/testkit';
+import {
+    buildSessionListRenderableFromCacheEntry,
+    buildSessionListCacheEntryFromRenderable,
+} from '@/sync/domains/state/warmCacheAdapters';
+import { SessionListCacheEntryV1Schema } from '@/sync/domains/state/warmCachePersistence';
 import {
     buildCachedSessionListRowModel,
     createSessionListRowModelsCache,
@@ -29,6 +40,127 @@ describe('resolveSessionListRowModelAdjacency', () => {
         const second = resolveSessionListRowModelAdjacency([{ ...session }], 0);
 
         expect(second).toBe(first);
+    });
+});
+
+describe('buildCachedSessionListRowModel goal projection', () => {
+    it('restores an inactive completed goal from the serialized warm cache into the sidebar row', () => {
+        const completedGoal = {
+            v: 1,
+            backendId: 'codex',
+            updatedAt: NOW_MS,
+            primaryItemId: 'goal:codex',
+            items: [{
+                id: 'goal:codex',
+                kind: 'goal',
+                origin: 'vendor',
+                status: 'complete',
+                title: 'Completed before reload',
+                updatedAt: NOW_MS,
+            }],
+        };
+        const persistedSession = createSessionFixture({
+            id: 'completed-goal-after-reload',
+            active: false,
+            metadata: {
+                path: '/repo/completed-goal',
+                host: 'workstation.local',
+                sessionWorkStateV1: completedGoal,
+            } as Session['metadata'],
+        });
+        const serialized = JSON.stringify(buildSessionListCacheEntryFromRenderable(
+            buildSessionListRenderableFromSession(persistedSession),
+        ));
+        const reloadedEntry = SessionListCacheEntryV1Schema.parse(JSON.parse(serialized));
+        const reloadedRenderable = buildSessionListRenderableFromCacheEntry(reloadedEntry);
+        const cache = createSessionListRowModelsCache();
+        const row = buildCachedSessionListRowModel({
+            item: createSessionItem(reloadedRenderable),
+            snapshot: { ...EMPTY_ROW_STATE, renderable: reloadedRenderable },
+            adjacency: { isFirst: true, isLast: true, isSingle: true },
+            settings: createSettings(),
+            cache,
+        });
+
+        expect(reloadedRenderable.active).toBe(false);
+        expect(row.goalIndicator).toMatchObject({ status: 'complete', title: 'Completed before reload' });
+
+        const updatedSession = createSessionFixture({
+            ...persistedSession,
+            metadata: {
+                ...persistedSession.metadata,
+                path: '/repo/completed-goal',
+                host: 'workstation.local',
+                sessionWorkStateV1: {
+                    ...completedGoal,
+                    updatedAt: NOW_MS + 1,
+                    items: [{ ...completedGoal.items[0], status: 'active', updatedAt: NOW_MS + 1 }],
+                },
+            },
+        });
+        const updatedEntry = buildSessionListCacheEntryFromRenderable(
+            buildSessionListRenderableFromSession(updatedSession),
+            reloadedEntry,
+        );
+        const updatedRenderable = buildSessionListRenderableFromCacheEntry(updatedEntry);
+
+        expect(updatedEntry).not.toBe(reloadedEntry);
+        expect(updatedRenderable.metadata?.sessionWorkStateV1).toMatchObject({
+            items: [{ status: 'active', title: 'Completed before reload' }],
+        });
+    });
+
+    it('follows persisted goal updates through the renderable cache, ignores task-only updates, and clears on canonical removal', () => {
+        const metadataWithGoal = (status: string, includeTask = false) => ({
+            path: '/repo/cache-goal',
+            host: 'workstation.local',
+            machineId: 'machine-1',
+            sessionWorkStateV1: {
+                v: 1,
+                backendId: 'codex',
+                updatedAt: NOW_MS,
+                primaryItemId: 'goal:codex',
+                items: [
+                    { id: 'goal:codex', kind: 'goal', origin: 'vendor', status, title: 'Finish the feature', updatedAt: NOW_MS },
+                    ...(includeTask ? [{ id: 'task:1', kind: 'task', origin: 'vendor', status: 'active', title: 'Unrelated task', updatedAt: NOW_MS }] : []),
+                ],
+            },
+        });
+        const sessionRenderable = (status?: string, includeTask = false) => buildSessionListRenderableFromSession(
+            createSessionFixture({
+                id: 'cache-goal',
+                createdAt: NOW_MS - 300_000,
+                updatedAt: NOW_MS,
+                metadata: (status ? metadataWithGoal(status, includeTask) : {
+                    path: '/repo/cache-goal', host: 'workstation.local', machineId: 'machine-1',
+                }) as Session['metadata'],
+            }),
+        );
+        const active = sessionRenderable('active');
+        const item = createSessionItem(active);
+        const cache = createSessionListRowModelsCache();
+        const adjacency = { isFirst: true, isLast: true, isSingle: true };
+        const settings = createSettings();
+        const build = (renderable: SessionListRenderableSession) => buildCachedSessionListRowModel({
+            item,
+            snapshot: { ...EMPTY_ROW_STATE, renderable },
+            adjacency,
+            settings,
+            cache,
+        });
+
+        const activeModel = build(active);
+        expect(activeModel.goalIndicator).toMatchObject({ status: 'active', title: 'Finish the feature' });
+
+        const taskOnlyUpdate = sessionRenderable('active', true);
+        expect(areSessionListRenderablesEqual(active, taskOnlyUpdate)).toBe(true);
+        const retainedAfterTaskUpdate = areSessionListRenderablesEqual(active, taskOnlyUpdate) ? active : taskOnlyUpdate;
+        expect(build(retainedAfterTaskUpdate)).toBe(activeModel);
+
+        const completeModel = build(sessionRenderable('complete'));
+        expect(completeModel.goalIndicator).toMatchObject({ status: 'complete', title: 'Finish the feature' });
+        const clearedModel = build(sessionRenderable());
+        expect(clearedModel.goalIndicator).toBeNull();
     });
 });
 

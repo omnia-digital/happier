@@ -1093,7 +1093,7 @@ describe('settings', () => {
             expect((parsed as any).transcriptTurnToolCallsGroupStrategy).toBe('consecutive_tools');
             expect((parsed as any).transcriptToolCallsCollapsedPreviewCount).toBe(3);
             expect((parsed as any).transcriptToolCallsGroupShowBackground).toBe(true);
-            expect((parsed as any).transcriptMessageTimestampDisplayMode).toBe('hover_web_hidden_mobile');
+            expect((parsed as any).transcriptMessageTimestampDisplayMode).toBe('always');
             expect((parsed as any).transcriptMessageTimestampsEnabled).toBeUndefined();
             expect((parsed as any).transcriptTurnGroupToolCalls).toBeUndefined();
             expect((parsed as any).transcriptTurnToolCallsCollapsedPreviewCount).toBeUndefined();

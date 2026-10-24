@@ -37,6 +37,8 @@ import { SessionRowStatusBadge, resolveSessionRowStatusLabel, resolveSessionRowS
 import type { SessionListVisualStatus } from '@/sync/domains/session/listing/deriveSessionListActivity';
 import type { SessionRowAttentionState, SessionRowPresentation } from './row/resolveSessionRowPresentation';
 import type { SessionListRowModel } from './row/sessionListRowModelTypes';
+import type { SessionWorkStateItem } from '@/components/sessions/workState/sessionWorkStateTypes';
+import { SessionRowGoalIndicator } from './row/SessionRowGoalIndicator';
 import {
     normalizeSessionListActiveColorMode,
     resolveSessionRowTitleColorRole,
@@ -54,7 +56,11 @@ import {
     resolveSessionListRowHeight,
     shouldUseReadableNativePhoneMinimalSessionRow,
 } from './sessionListRowDensity';
-import { planSessionTagDisplay } from './sessionTagPlacement';
+import {
+    estimateSessionTagDisplayWidth,
+    planSessionTagDisplay,
+    SESSION_ROW_TRAILING_META_WIDTH,
+} from './sessionTagPlacement';
 import { useIsTablet } from '@/utils/platform/responsive';
 import type { SessionStatus } from '@/utils/sessions/sessionUtils';
 import { useSessionRowActionMenu } from './row/actionMenu/useSessionRowActionMenu';
@@ -137,10 +143,14 @@ type SessionItemActivityTimeMode = 'meaningful' | 'updatedAt';
 type SessionItemActiveColorMode = 'activityAndAttention' | 'attentionOnly' | 'allActive';
 type SessionItemWorkingIndicatorMode = 'spinner' | 'pulse';
 
+const SESSION_ROW_ACTION_BUTTON_SIZE = 24;
+const SESSION_ROW_ACTION_BUTTON_GAP = 2;
+
 type SessionItemBaseProps = Readonly<{
     embedded?: boolean;
     embeddedIsLast?: boolean;
     session: Session | SessionListRenderableSession;
+    goalIndicator?: SessionWorkStateItem | null;
     selectionKey?: string | null;
     shortcutHint?: number;
     subtitleOverride?: string | null;
@@ -207,6 +217,7 @@ type SessionItemRenderProps = Omit<SessionItemBaseProps, 'activityTimeMode' | 's
     reminder: SessionListRowModel['reminder'];
     /** Live agent work in this session, already named. `null` unless the person opted in (R-8). */
     agentActivityLabel: string | null;
+    goalIndicator?: SessionWorkStateItem | null;
     isSessionIdentityLoading: boolean;
     activityTimeLabel: string;
     rowAttentionState: SessionRowAttentionState;
@@ -565,11 +576,11 @@ const stylesheet = StyleSheet.create((theme) => ({
     rowActionsRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 2,
+        gap: SESSION_ROW_ACTION_BUTTON_GAP,
     },
     rowActionButton: {
-        width: 24,
-        height: 24,
+        width: SESSION_ROW_ACTION_BUTTON_SIZE,
+        height: SESSION_ROW_ACTION_BUTTON_SIZE,
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: 999,
@@ -781,6 +792,7 @@ const SessionItemContent = React.memo(
         draft,
         reminder,
         agentActivityLabel,
+        goalIndicator,
         isSessionIdentityLoading,
         activityTimeLabel,
         rowAttentionState,
@@ -1053,7 +1065,6 @@ const SessionItemContent = React.memo(
                 },
             });
         }, [onTogglePinned, pinned, sessionActionTarget]);
-        const showTagAction = supportsTag && showRowActions;
         const activeTags = tags ?? [];
         const knownTags = allKnownTags ?? [];
         const showReorderHandle = Boolean(reorderHandleGesture);
@@ -1255,6 +1266,20 @@ const SessionItemContent = React.memo(
             archiving: sessionStatus.state === 'archiving',
         });
 
+        const rowActionAvailability = {
+            sameSetup: canStartSameSetup,
+            reorder: showReorderHandle && Boolean(reorderHandleGesture),
+            tag: supportsTag,
+            pin: supportsPin,
+            moreMenu: moreMenuItems.length > 0,
+            archive: canArchiveSession,
+        };
+        const rowActionCount = isWeb ? Object.values(rowActionAvailability).filter(Boolean).length : 0;
+        const rowActionRailWidth = rowActionCount > 0
+            ? rowActionCount * SESSION_ROW_ACTION_BUTTON_SIZE + (rowActionCount - 1) * SESSION_ROW_ACTION_BUTTON_GAP
+            : 0;
+        const showTagAction = rowActionAvailability.tag && showRowActions;
+
         const hoverArchiveKey = `${sessionActionTarget.serverId ?? ''}:${sessionActionTarget.sessionId}`;
         const handleShortcutExecute = React.useCallback(async (
             itemId: string,
@@ -1417,14 +1442,19 @@ const SessionItemContent = React.memo(
                 tags: sourceTagChips,
                 rowWidth,
                 hasTrailingMeta,
-                hasRowActions: showRowActions,
+                hasRowActions: false,
+                reservedActionRailWidth: rowActionRailWidth,
                 hasLeadingIdentity: shouldRenderLeadingIdentity || shouldRenderSelectionCheckbox,
             })
-        ), [hasTrailingMeta, rowDensity, rowWidth, shouldRenderSelectionCheckbox, shouldRenderLeadingIdentity, showRowActions, sourceTagChips]);
+        ), [hasTrailingMeta, rowActionRailWidth, rowDensity, rowWidth, shouldRenderSelectionCheckbox, shouldRenderLeadingIdentity, sourceTagChips]);
         const tagChips = tagDisplayPlan.chips;
         const showTagChips = tagChips.length > 0;
-        const showInlineTagChips = showTagChips && tagDisplayPlan.placement === 'inline';
+        const showInlineTagChips = showTagChips && !showRowActions && tagDisplayPlan.placement === 'inline';
         const showBelowTagChips = showTagChips && tagDisplayPlan.placement === 'below';
+        const reservedTagAndMetaWidth = (tagDisplayPlan.placement === 'inline'
+            ? estimateSessionTagDisplayWidth(tagChips)
+            : 0) + (hasTrailingMeta ? SESSION_ROW_TRAILING_META_WIDTH : 0);
+        const stableRightAreaWidth = Math.max(rowActionRailWidth, reservedTagAndMetaWidth);
         const enableLongPressContextMenu =
             isNativeMobile
             && nativeInlineDragEnabled !== true
@@ -1640,6 +1670,14 @@ const SessionItemContent = React.memo(
                                 {sessionNameResolved}
                             </Text>
                         )}
+                        {goalIndicator ? (
+                            <SessionRowGoalIndicator
+                                goal={goalIndicator}
+                                sessionId={resolvedSession.id}
+                                compact={compact === true}
+                                minimal={isMinimal}
+                            />
+                        ) : null}
                         {(shouldRenderTrailingAgentLogo && !shouldRenderSelectionCheckbox) || (showMachineIdentity && machineLabel) ? (
                             <View testID={`session-list-right-identity-${resolvedSession.id}`} style={styles.rightIdentity}>
                                 {shouldRenderTrailingAgentLogo && !shouldRenderSelectionCheckbox ? (
@@ -1801,7 +1839,7 @@ const SessionItemContent = React.memo(
                 </View>
                 <View
                     testID="session-item-right-area"
-                    style={styles.rightArea}
+                    style={[styles.rightArea, stableRightAreaWidth > 0 ? { minWidth: stableRightAreaWidth } : null]}
                     onPointerEnter={isWeb ? handleActionsHoverIn : undefined}
                     onPointerLeave={isWeb ? handleActionsHoverOut : undefined}
                 >
@@ -1812,7 +1850,7 @@ const SessionItemContent = React.memo(
                     />
                     {showRowActions ? (
                         <View style={styles.rowActionsRow}>
-                            {canStartSameSetup ? (
+                            {rowActionAvailability.sameSetup ? (
                                 <PressableSurface
                                     testID="session-item-same-setup-action"
                                     style={styles.rowActionButton}
@@ -1830,7 +1868,7 @@ const SessionItemContent = React.memo(
                                     <Icon name="plus" size={14} color={rowActionIconColor} />
                                 </PressableSurface>
                             ) : null}
-                            {showReorderHandle && reorderHandleGesture ? (
+                            {rowActionAvailability.reorder && reorderHandleGesture ? (
                                 <GestureDetector gesture={reorderHandleGesture}>
                                     <View
                                         testID="session-item-reorder-handle"
@@ -1912,7 +1950,7 @@ const SessionItemContent = React.memo(
                                     </Pressable>
                                 )
                             ) : null}
-                            {supportsPin ? (
+                            {rowActionAvailability.pin ? (
                                 <Pressable
                                     style={styles.rowActionButton}
                                     onPress={(e) => {
@@ -1930,7 +1968,7 @@ const SessionItemContent = React.memo(
                                     )}
                                 </Pressable>
                             ) : null}
-                            {moreMenuItems.length > 0 ? (
+                            {rowActionAvailability.moreMenu ? (
                                 <DropdownMenu
                                     open={moreMenuOpen}
                                     onOpenChange={(next) => {
@@ -1963,7 +2001,7 @@ const SessionItemContent = React.memo(
                                     )}
                                 />
                             ) : null}
-                            {canArchiveSession ? (
+                            {rowActionAvailability.archive ? (
                                 <PressableSurface
                                     testID="session-item-archive-action"
                                     style={styles.rowActionButton}
@@ -2178,6 +2216,7 @@ function SessionItemFromRowModel(props: SessionItemProps & { rowModel: SessionLi
             draft={rowModel.draft}
             reminder={rowModel.reminder}
             agentActivityLabel={rowModel.agentActivityLabel}
+            goalIndicator={rowModel.goalIndicator}
             isSessionIdentityLoading={rowModel.isIdentityLoading}
             activityTimeLabel={rowModel.activity.label}
             rowAttentionState={rowModel.attention.rowState}

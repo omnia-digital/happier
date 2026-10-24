@@ -46,6 +46,12 @@ export type SessionWorkStateStatusBadgePresentation = Readonly<{
     emphasis: 'quiet' | 'prominent';
 }>;
 
+export function resolveSidebarGoalTone(item: SessionWorkStateItem): 'active' | 'complete' | 'neutral' {
+    if (item.status === 'complete') return 'complete';
+    if (item.status === 'active' && item.statusReason === undefined) return 'active';
+    return 'neutral';
+}
+
 function readString(value: unknown): string | null {
     return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 }
@@ -81,13 +87,14 @@ function readItem(value: unknown): ReadItemResult {
     const origin = readString(raw.origin);
     const status = readString(raw.status);
     if (!kind || !origin || !status) return { type: 'invalid' };
-    if (!VALID_KINDS.has(kind) || !VALID_ORIGINS.has(origin) || !VALID_STATUSES.has(status)) {
+    if (!VALID_KINDS.has(kind) || !VALID_ORIGINS.has(origin)) {
         return { type: 'ignored' };
     }
     const id = readString(raw.id);
     const title = readString(raw.title);
     const updatedAt = readNonNegativeNumber(raw.updatedAt);
     if (!id || !title || updatedAt === null) return { type: 'invalid' };
+    const normalizedStatus = VALID_STATUSES.has(status) ? status : 'unknown';
     const statusReason = readStatusReason(raw.statusReason);
     const goalCapabilities = readGoalCapabilities(raw.goalCapabilities);
 
@@ -97,7 +104,7 @@ function readItem(value: unknown): ReadItemResult {
             id,
             kind: kind as SessionWorkStateKind,
             origin: origin as SessionWorkStateOrigin,
-            status: status as SessionWorkStateStatus,
+            status: normalizedStatus as SessionWorkStateStatus,
             title,
             updatedAt,
             ...(statusReason ? { statusReason } : {}),
@@ -164,7 +171,9 @@ function readLegacyGoalSnapshot(metadata: Record<string, unknown>): SessionWorkS
     const title = readString(raw.objective) ?? readString(raw.title);
     if (!title) return null;
     const rawStatus = readString(raw.status);
-    const status: SessionWorkStateStatus = rawStatus && VALID_STATUSES.has(rawStatus) ? rawStatus as SessionWorkStateStatus : 'active';
+    const status: SessionWorkStateStatus = rawStatus === null
+        ? (Object.prototype.hasOwnProperty.call(raw, 'status') ? 'unknown' : 'active')
+        : VALID_STATUSES.has(rawStatus) ? rawStatus as SessionWorkStateStatus : 'unknown';
     const updatedAt = readNumber(raw.updatedAt) ?? Date.now();
     const backendId = readString(metadata.flavor) ?? 'codex';
     const statusReason = readStatusReason(raw.statusReason);

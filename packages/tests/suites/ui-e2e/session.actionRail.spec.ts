@@ -17,6 +17,9 @@ import { waitForInitialAppUi } from '../../src/testkit/uiE2e/waitForInitialAppUi
 import { ensureAccountReadyForConnect } from '../../src/testkit/uiE2e/ensureAccountReadyForConnect';
 import { authenticateAndStartDaemon } from '../../src/testkit/uiE2e/authenticateAndStartDaemon';
 import { appendBrowserDiagnostics, collectBrowserDiagnostics } from '../../src/testkit/uiE2e/browserDiagnostics';
+import { createSessionWithCiphertexts, fetchSessionV2 } from '../../src/testkit/sessions';
+import { encryptLegacyBase64 } from '../../src/testkit/messageCrypto';
+import { parseAckFrame, buildAckFrame } from '../../src/testkit/uiE2e/desktopSetup/relayMachineRpcTap';
 
 const run = createRunDirs({ runLabel: 'ui-e2e' });
 
@@ -30,6 +33,32 @@ function rightPaneLocator(page: Page) {
   return page
     .getByTestId('multi-pane-right-docked')
     .or(page.getByTestId('multi-pane-right-overlay'));
+}
+
+type SessionMessageTimestampRecord = Readonly<{
+  id: string;
+  messageRole: 'user' | 'agent' | null;
+  createdAt: number;
+}>;
+
+function readSessionMessageTimestampRecords(value: unknown): SessionMessageTimestampRecord[] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid session messages response');
+  const messages = (value as Record<string, unknown>).messages;
+  if (!Array.isArray(messages)) throw new Error('missing session messages');
+  return messages.flatMap((message) => {
+    if (!message || typeof message !== 'object' || Array.isArray(message)) return [];
+    const record = message as Record<string, unknown>;
+    if (typeof record.id !== 'string' || typeof record.createdAt !== 'number' || !Number.isFinite(record.createdAt)) return [];
+    const messageRole = record.messageRole === 'user' || record.messageRole === 'agent' ? record.messageRole : null;
+    return [{ id: record.id, messageRole, createdAt: record.createdAt }];
+  });
+}
+
+async function formatStoredMessageTimestamp(page: Page, createdAt: number): Promise<string> {
+  return page.evaluate((timestamp) => new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(timestamp)), createdAt);
 }
 
 test.describe('ui e2e: session action rail', () => {
@@ -66,6 +95,7 @@ test.describe('ui e2e: session action rail', () => {
       env: {
         ...process.env,
         EXPO_PUBLIC_DEBUG: '1',
+        EXPO_PUBLIC_HAPPIER_SOCKET_FORCE_WEBSOCKET: '1',
         EXPO_PUBLIC_HAPPY_SERVER_URL: server.baseUrl,
         EXPO_PUBLIC_HAPPY_STORAGE_SCOPE: `e2e-${run.runId}`,
         // On cold caches, the initial Metro web bundle can take >2 minutes; avoid aborting the request
@@ -82,6 +112,83 @@ test.describe('ui e2e: session action rail', () => {
     await daemon?.stop().catch(() => {});
     await ui?.stop().catch(() => {});
     await server?.stop().catch(() => {});
+  });
+
+  test('resolves a legacy message ACK through authenticated stored history before and after reload', async ({ page }, testInfo) => {
+    test.setTimeout(180_000);
+    if (!server || !uiBaseUrl) throw new Error('missing server/ui fixtures');
+    const diagnostics = collectBrowserDiagnostics({ page });
+    const omittedTimes: Array<{ id: string; localId: string; createdAt: number }> = [];
+    // server-v0.2.17 (a2c45c86804b24e60ac0b76146a3ef36dfcaa15b) omits
+    // ACK.createdAt but serves the same authenticated by-local-id route. Emulate only
+    // that wire difference; persistence, auth, HTTP lookup, Sync and rendering stay real.
+    await page.routeWebSocket((url) => url.pathname === '/v1/updates/', (route) => {
+      const upstream = route.connectToServer();
+      upstream.onMessage((packet) => {
+        const parsed = typeof packet === 'string' ? parseAckFrame(packet) : null;
+        const ack = parsed?.ack as Record<string, unknown> | null | undefined;
+        if (parsed && ack?.ok === true && typeof ack.id === 'string'
+          && typeof ack.localId === 'string' && typeof ack.seq === 'number' && typeof ack.createdAt === 'number') {
+          omittedTimes.push({ id: ack.id, localId: ack.localId, createdAt: ack.createdAt });
+          const { createdAt: _storedTime, ...legacyAck } = ack;
+          route.send(buildAckFrame(parsed.ackId, legacyAck));
+          return;
+        }
+        route.send(packet);
+      });
+    });
+    try {
+      await gotoDomContentLoadedWithRetries(page, uiBaseUrl);
+      await waitForInitialAppUi({ page, browserDiagnostics: diagnostics });
+      await ensureAccountReadyForConnect({ page, timeoutMs: 120_000 });
+      // Read only this isolated browser fixture's generated credentials.
+      const access = await page.evaluate(() => {
+        const keys = Object.keys(localStorage).filter((key) => key.startsWith('auth_credentials__srv_'));
+        if (keys.length !== 1) throw new Error('Expected one isolated fixture account');
+        const credentials = JSON.parse(localStorage.getItem(keys[0]!) ?? '{}');
+        if (typeof credentials.token !== 'string' || typeof credentials.secret !== 'string') throw new Error('Missing fixture credentials');
+        return { token: credentials.token as string, secret: credentials.secret as string };
+      });
+      const secret = Uint8Array.from(Buffer.from(access.secret, 'base64url'));
+      const { sessionId } = await createSessionWithCiphertexts({
+        baseUrl: server.baseUrl,
+        token: access.token,
+        metadataCiphertextBase64: encryptLegacyBase64({ path: suiteDir, host: 'Timestamp fixture', version: '0.2.16', flavor: 'claude' }, secret),
+      });
+      // Explicit immediate-send in agent_queue mode takes the socket path for an
+      // inactive session; ordinary Send intentionally queues it instead.
+      expect((await fetchSessionV2(server.baseUrl, access.token, sessionId)).active).toBe(false);
+      await mutateUiE2eScopedAccountSettings({ page, settingsPatch: {
+        sessionMessageSendMode: 'agent_queue',
+        keyboardShortcutsV2Enabled: true,
+        keyboardShortcutOverridesV1: { 'composer.sendImmediate': [{ binding: 'Alt+Enter' }] },
+      } });
+      await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/session/${sessionId}`);
+      const prompt = `legacy ACK timestamp ${run.runId}`;
+      await page.getByTestId('session-composer-input').fill(prompt);
+      const lookupResponse = page.waitForResponse((response) => new URL(response.url()).pathname.startsWith(`/v2/sessions/${sessionId}/messages/by-local-id/`));
+      await expect(page.getByTestId('session-composer-send')).toBeEnabled();
+      await page.getByTestId('session-composer-input').press('Alt+Enter');
+      const response = await lookupResponse;
+      expect(response.status()).toBe(200);
+      expect(omittedTimes).toHaveLength(1);
+      const stored = (await response.json()).message;
+      expect(stored).toMatchObject(omittedTimes[0]!);
+      const expectedTime = await formatStoredMessageTimestamp(page, stored.createdAt);
+      const message = page.locator('[data-testid^="transcript-message-"]').filter({ hasText: prompt });
+      await expect(message).toHaveCount(1);
+      await expect(message.locator('[data-testid^="transcript-message-timestamp-text:"]')).toHaveText(expectedTime);
+      await page.reload({ waitUntil: 'domcontentloaded' });
+      await expect(message).toHaveCount(1);
+      await expect(message.locator('[data-testid^="transcript-message-timestamp-text:"]')).toHaveText(expectedTime);
+      await testInfo.attach('legacy-ack-stored-timestamp', {
+        body: JSON.stringify({ wireEmulation: 'server-v0.2.17 ACK without createdAt', message: omittedTimes[0], expectedTime, lookupStatus: response.status() }),
+        contentType: 'application/json',
+      });
+      await page.screenshot({ path: testInfo.outputPath('legacy-ack-timestamp-after-reload.png') });
+    } catch (error) {
+      throw appendBrowserDiagnostics(error, diagnostics());
+    }
   });
 
   test('opens independent panes and preserves access across responsive layouts', async ({ page }, testInfo) => {
@@ -132,7 +239,7 @@ test.describe('ui e2e: session action rail', () => {
       const sessionUrl = `${uiBaseUrl}/session/${sessionId}`;
 
       await mutateUiE2eScopedAccountSettings({ page, experiments: true, featureToggles: { 'terminal.embeddedPty': true } });
-      await mutateUiE2eLocalSettings({ page, settingsPatch: { themePreference: 'light', embeddedTerminalDockLocation: 'bottom', uiContentWidthMode: 'compact' } });
+      await mutateUiE2eLocalSettings({ page, settingsPatch: { themePreference: 'light', embeddedTerminalDockLocation: 'bottom', uiContentWidthMode: 'compact', uiFontScale: 1.5 } });
       await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
       const rail = page.getByTestId('session-action-rail');
       const review = page.getByTestId('session-action-rail:review');
@@ -157,12 +264,94 @@ test.describe('ui e2e: session action rail', () => {
       await expect(rightPaneLocator(page)).toHaveCount(0);
       await expect(detailsPaneLocator(page)).toHaveCount(0);
       const composer = page.getByTestId('session-composer-input');
-      await composer.fill(`action rail alignment ${run.runId}`);
+      const prompt = `action rail alignment ${run.runId}`;
+      await composer.fill(prompt);
       const send = page.getByTestId('session-composer-send');
       await expect(send).toBeEnabled({ timeout: 60_000 });
       await send.click();
       await expect(page.getByText('FAKE_CLAUDE_OK_1').first()).toBeVisible({ timeout: 180_000 });
       await expect(page.locator('[data-testid^="transcript-message-"]').first()).toBeVisible({ timeout: 60_000 });
+
+      await test.step('stored message timestamps stay visible and accessible in compact large text', async () => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        const userMessage = page.locator('[data-testid^="transcript-message-"]').filter({ hasText: prompt }).first();
+        const assistantMessage = page.locator('[data-testid^="transcript-message-"]').filter({ hasText: 'FAKE_CLAUDE_OK_1' }).first();
+        await expect(userMessage).toBeVisible();
+        await expect(assistantMessage).toBeVisible();
+
+        const userTestId = await userMessage.getAttribute('data-testid');
+        const assistantTestId = await assistantMessage.getAttribute('data-testid');
+        if (!userTestId || !assistantTestId) throw new Error('missing transcript message test id');
+        const userMessageId = userTestId.replace(/^transcript-message-/, '');
+        const assistantMessageId = assistantTestId.replace(/^transcript-message-/, '');
+        const userTimestamp = page.getByTestId(`transcript-message-timestamp:${userMessageId}`);
+        const assistantTimestamp = page.getByTestId(`transcript-message-timestamp:${assistantMessageId}`);
+        const userActionSlot = page.getByTestId(`transcript-message-actions:${userMessageId}`);
+
+        await expect(userTimestamp).toBeVisible();
+        await expect(assistantTimestamp).toBeVisible();
+        await expect(userActionSlot).toHaveCSS('opacity', '0');
+        const userTimestampText = await page.getByTestId(`transcript-message-timestamp-text:${userMessageId}`).innerText();
+        const assistantTimestampText = await page.getByTestId(`transcript-message-timestamp-text:${assistantMessageId}`).innerText();
+        expect(userTimestampText).not.toBe('');
+        expect(assistantTimestampText).not.toBe('');
+        await expect(userTimestamp).toHaveAttribute('aria-label', userTimestampText);
+
+        await userTimestamp.hover();
+        const userTimestampTooltip = page.getByRole('tooltip').filter({ hasText: userTimestampText });
+        await expect(userTimestampTooltip).toBeVisible();
+        await page.mouse.move(0, 0);
+        await page.keyboard.press('Tab');
+        await userTimestamp.focus();
+        await expect(userTimestampTooltip).toBeVisible();
+
+        const userTimestampBox = await userTimestamp.boundingBox();
+        const assistantTimestampBox = await assistantTimestamp.boundingBox();
+        expect(userTimestampBox?.width).toBeGreaterThan(0);
+        expect(userTimestampBox?.height).toBeGreaterThan(0);
+        expect(assistantTimestampBox?.width).toBeGreaterThan(0);
+        expect(assistantTimestampBox?.height).toBeGreaterThan(0);
+        await testInfo.attach('stored-message-timestamps', {
+          body: JSON.stringify({ userTimestampText, assistantTimestampText, transcriptRowId: userMessageId, viewport: { width: 390, height: 844 }, uiFontScale: 1.5 }),
+          contentType: 'application/json',
+        });
+
+        await userTimestamp.blur();
+        await page.mouse.move(0, 0);
+        await page.screenshot({ path: testInfo.outputPath('message-timestamps-compact-large-text.png') });
+        const storedMessagesResponse = page.waitForResponse((response) => {
+          const url = new URL(response.url());
+          return response.request().method() === 'GET'
+            && url.pathname === `/v1/sessions/${sessionId}/messages`
+            && response.ok();
+        });
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await waitForInitialAppUi({ page, browserDiagnostics });
+        const storedMessages = readSessionMessageTimestampRecords(await (await storedMessagesResponse).json());
+        // Transcript row ids are reducer-local; the server response has the
+        // durable ids. This fixture sends one user message and receives one
+        // assistant message, so each role identifies the exact stored row.
+        const storedUserMessages = storedMessages.filter((message) => message.messageRole === 'user');
+        const storedAssistantMessages = storedMessages.filter((message) => message.messageRole === 'agent');
+        if (storedUserMessages.length !== 1 || storedAssistantMessages.length !== 1) {
+          throw new Error(`expected one stored user and assistant message, got ${storedUserMessages.length} and ${storedAssistantMessages.length}`);
+        }
+        const [storedUserMessage] = storedUserMessages;
+        const [storedAssistantMessage] = storedAssistantMessages;
+        expect(userTimestampText).toBe(await formatStoredMessageTimestamp(page, storedUserMessage.createdAt));
+        expect(assistantTimestampText).toBe(await formatStoredMessageTimestamp(page, storedAssistantMessage.createdAt));
+        await expect(page.getByText(prompt, { exact: true })).toBeVisible({ timeout: 60_000 });
+        await expect(page.getByText('FAKE_CLAUDE_OK_1', { exact: true })).toBeVisible({ timeout: 60_000 });
+        const reloadedUserTestId = await page.locator('[data-testid^="transcript-message-"]').filter({ hasText: prompt }).first().getAttribute('data-testid');
+        const reloadedAssistantTestId = await page.locator('[data-testid^="transcript-message-"]').filter({ hasText: 'FAKE_CLAUDE_OK_1' }).first().getAttribute('data-testid');
+        if (!reloadedUserTestId || !reloadedAssistantTestId) throw new Error('missing reloaded transcript message test id');
+        const reloadedUserMessageId = reloadedUserTestId.replace(/^transcript-message-/, '');
+        const reloadedAssistantMessageId = reloadedAssistantTestId.replace(/^transcript-message-/, '');
+        await expect(page.getByTestId(`transcript-message-timestamp-text:${reloadedUserMessageId}`)).toHaveText(userTimestampText);
+        await expect(page.getByTestId(`transcript-message-timestamp-text:${reloadedAssistantMessageId}`)).toHaveText(assistantTimestampText);
+        await page.setViewportSize({ width: 1920, height: 900 });
+      });
+
       const measureHeaderAlignment = async () => page.evaluate(() => {
         const avatar = document.querySelector('[data-testid="session-header-avatar"]')!;
         const info = document.querySelector('[data-testid="session-header-info-button"]')!;

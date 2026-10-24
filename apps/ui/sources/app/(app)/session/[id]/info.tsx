@@ -421,7 +421,7 @@ function SessionInfoActivityGroup({
 }>) {
     const { theme } = useUnistyles();
     const session = useSession(sessionId);
-    if (!session) return null;
+    if (!session || (session.archivedAt != null && !showRawDiagnostics)) return null;
 
     return (
         <ItemGroup title={t('sessionInfo.activity')}>
