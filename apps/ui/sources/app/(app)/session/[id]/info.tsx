@@ -102,9 +102,8 @@ import {
 import { buildSessionOrganizationListViewState } from '@/sync/domains/session/organization/viewState';
 import { Icon } from '@/components/ui/icons/Icon';
 import {
-    buildSessionDebugInformation,
+    buildSessionDebugInformationForSession,
     isSessionDebugInformationEnabled,
-    resolveProviderSessionIdForDebug,
 } from '@/components/sessions/debug/sessionDebugInformation';
 import { resolveSessionOrganizationMutationScope } from '@/sync/domains/session/organization/mutationScope';
 
@@ -574,17 +573,7 @@ function SessionInfoContent({ session, sessionServerId, sourceMachineIdForHandof
         return getAgentVendorResumeId(session.metadata, agentId);
     }, [agentId, session.metadata]);
     const providerDisplayName = React.useMemo(() => t(core.displayNameKey), [core.displayNameKey]);
-    const providerSessionIdForDebug = React.useMemo(() => {
-        return resolveProviderSessionIdForDebug({
-            metadata: session.metadata,
-            vendorResumeIdField: core.resume.vendorResumeIdField,
-        });
-    }, [core.resume.vendorResumeIdField, session.metadata]);
-    const sessionDebugInformation = React.useMemo(() => buildSessionDebugInformation({
-        session,
-        providerDisplayName,
-        providerSessionId: providerSessionIdForDebug,
-    }), [providerDisplayName, providerSessionIdForDebug, session]);
+    const sessionDebugInformation = React.useMemo(() => buildSessionDebugInformationForSession(session), [session]);
     const providerSessionArtifactPath = sessionDebugInformation.providerSessionArtifactPath;
 
     const profileLabel = React.useMemo(() => {
