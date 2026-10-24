@@ -88,6 +88,7 @@ test('waitForExpoMetroRunning rejects a foreign Metro-shaped listener', async ()
     intervalMs: 10,
     env: { TEST_READY_ENV: 'yes' },
   }, {
+    platform: 'linux',
     looksLikeExpoMetroImpl: async ({ env }) => {
       assert.equal(env.TEST_READY_ENV, 'yes');
       return true;
@@ -112,6 +113,7 @@ test('waitForExpoMetroRunning accepts a listener in the spawned process group', 
     ownerPid: 100,
     env: { TEST_READY_ENV: 'yes' },
   }, {
+    platform: 'linux',
     looksLikeExpoMetroImpl: async ({ env }) => env.TEST_READY_ENV === 'yes',
     listListenPidsWithStatusImpl: async () => ({ status: 'ok', pids: [101] }),
     getProcessGroupIdImpl: async () => 500,
@@ -196,6 +198,7 @@ test('waitForExpoMetroRunning rejects mixed owned and foreign listeners without 
     timeoutMs: 1,
     intervalMs: 1,
   }, {
+    platform: 'linux',
     looksLikeExpoMetroImpl: async () => true,
     listListenPidsWithStatusImpl: async () => ({ status: 'ok', pids: [200, 100] }),
     getProcessGroupIdImpl: async (pid) => pid,
