@@ -469,6 +469,8 @@ export const MessageAckResponseSchema = z.union([
     id: z.string(),
     seq: z.number().int().min(0),
     localId: z.string().nullable(),
+    /** Persisted creation time; absent on supported older servers. */
+    createdAt: TimestampMsSchema.optional(),
     /**
      * Whether the server actually created a new transcript row.
      *

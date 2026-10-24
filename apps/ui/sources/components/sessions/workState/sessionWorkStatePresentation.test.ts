@@ -109,6 +109,29 @@ describe('sessionWorkStatePresentation', () => {
         expect(formatSessionWorkStateBadgeLabel(primary, translate)).toBe('session.workState.badge.goal:Migrate plugin support');
     });
 
+    it('keeps a future canonical goal status visible as unknown rather than dropping the goal', () => {
+        const snapshot = readSessionWorkStateFromMetadata({
+            sessionWorkStateV1: {
+                v: 1,
+                backendId: 'codex',
+                updatedAt: 10,
+                primaryItemId: 'goal:codex',
+                items: [{
+                    id: 'goal:codex',
+                    kind: 'goal',
+                    origin: 'vendor',
+                    status: 'provider_stopped',
+                    title: 'Preserve future status',
+                    updatedAt: 10,
+                }],
+            },
+        });
+        const goal = resolvePrimarySessionWorkStateItem(snapshot);
+
+        expect(goal).toMatchObject({ status: 'unknown', title: 'Preserve future status' });
+        expect(resolveSidebarGoalTone(goal!)).toBe('neutral');
+    });
+
     it('renders no badge label for a cancelled (cleared) goal so a cleared goal is not shown as current', () => {
         // A cleared/cancelled goal means "no active goal" (mirrors happy's resolveVisibleAgentGoalStatus,
         // which only shows active goals). Without this it fell through to the active "Goal: <title>"

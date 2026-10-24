@@ -1125,7 +1125,11 @@ describe("sessionUpdateHandler", () => {
         expect(buildNewMessageUpdate).toHaveBeenCalledWith(expect.anything(), "s-1", 10, expect.any(String));
         expect(buildUpdateSessionUpdate).not.toHaveBeenCalled();
         expect(emitUpdate).toHaveBeenCalledTimes(1);
-        expect(callback).toHaveBeenCalledWith(expect.objectContaining({ ok: true, didWrite: true }));
+        expect(callback).toHaveBeenCalledWith(expect.objectContaining({
+            ok: true,
+            didWrite: true,
+            createdAt: createdAt.getTime(),
+        }));
     });
 
     it("does not forward caller-supplied attention overrides from the public socket event", async () => {

@@ -2769,7 +2769,7 @@ class Sync {
             // retires the matching pending projection in the SAME store update, so the transcript
             // never publishes a frame with neither row; a standalone removal here would be a
             // second writer for the same retirement.
-            const committed = normalizeRawMessage(ack.id, localId, createdAt, content, { seq: ack.seq });
+            const committed = normalizeRawMessage(ack.id, localId, ack.createdAt ?? createdAt, content, { seq: ack.seq });
             if (committed) {
                 this.applyMessages(sessionId, [committed]);
             } else {
@@ -3014,7 +3014,7 @@ class Sync {
 
             if (ack?.success && ack.data.ok === true) {
                 // `applyMessages` retires the matching pending projection in the same store update.
-                const committed = normalizeRawMessage(ack.data.id, params.localId, pending.createdAt, rawRecord, { seq: ack.data.seq });
+                const committed = normalizeRawMessage(ack.data.id, params.localId, ack.data.createdAt ?? pending.createdAt, rawRecord, { seq: ack.data.seq });
                 if (committed) {
                     this.applyMessages(params.sessionId, [committed]);
                 } else {
