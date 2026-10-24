@@ -406,6 +406,27 @@ inventory/discovery tests pass46/2files; fixture typecheck passes. The actual
 browser run remains pending; private authentication logs/URL fragments are not
 printed, uploaded or committed.
 
+The actual system-Chrome source-pairing run now passes1/1 (37s test body,
+109s total; `.project/logs/tests/oh4-auth-terminal-chrome.log`). The unchanged
+user-flow assertions approve terminal login, await CLI exit0, observe the source
+daemon online and create/select-session entry, then detect the explicit fake
+Codex and its Missing credentials state without terminal auth controls.
+The configured integration bootstrap remains disabled.
+
+Root independently opens only the isolated SQLite database read-only and counts
+one Account and one Machine. It verifies the CLI launch's src symlink resolves
+to current repository source, settings select loopback, no Codex credential file
+exists in the fixture home, and no retained daemon state files remain. It does
+not print CLI auth stdout or query credential columns. This does not establish
+all-host process absence or native/real-provider execution. Package fixture
+typecheck and Playwright inventory pass; service inventory/discovery46/2 passes.
+
+The bounded recipe is accepted, not the whole OH-4 issue. Persistent dev-stack
+and real vendor/native/restart acceptance, release-owned Stack archive cases,
+Windows/Linux and the unavailable0.3destination remain separate. No production
+behavior, default CLI/profile, hosted account, daily service or native window
+was changed by this fixture correction or its run.
+
 Independent OH-10 revalidation finds the required `yarn ghops` read-only command
 blocked by its unavailable bot credential. The connected commit-workflow tool
 filters to PR events, so it cannot prove push CI status. A smaller successful

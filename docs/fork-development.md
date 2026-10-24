@@ -81,6 +81,14 @@ OH-6 now owns the hosted UI-only acceptance gate. OH-14 through OH-19 follow tha
 
 ## Session workflow improvements
 
+OH-4's isolated source CLI pairing recipe now passes in system Chrome: normal
+web terminal approval, CLI login exit 0, source daemon online, then fake Codex
+detection with Missing credentials. The run uses a fresh loopback relay/account
+and a disposable CLI home with explicit service-home isolation. Read-only
+artifact checks confirm one account and one machine and a live source symlink.
+This is a pairing proof, not real vendor execution or persistent native-stack
+acceptance; those gates remain open.
+
 The feature branch contains development previews. A running window requires a coherent source reload before testing newly pushed changes; source checks do not prove its loaded bundle or native acceptance.
 
 OH-66 now organizes Appearance into Global, Left Sidebar and Task View. Global retains app-wide text size and density; Left Sidebar opens the existing session layout settings; Task View contains conversation code-block wrapping. Independent area-size overrides await a product decision. The isolated Chrome journey passes with reload, sidebar geometry, actual navigation and correctly scaled section headings at130% in a dark1000px view. Final adjacent list/Appearance/Inbox687 and text/forms/editor436 tests pass, with UI typecheck. The shared web Text/TextInput delegates font scaling to the existing CSS owner once; native and direct-DOM scaling paths stay intact. Native acceptance and the unavailable0.3destination remain open. This preview is pushed, not merged or released.
