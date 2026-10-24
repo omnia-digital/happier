@@ -868,6 +868,7 @@ export function useCreateNewSession(params: Readonly<{
 
                 const checkoutResult = await materializeNewSessionCheckout({
                     machineId: current.selectedMachineId,
+                    launchNonce: launchAttempt.spawnNonce,
                     selectedPath: effectiveSelectedPath,
                     checkoutCreationDraft: current.checkoutCreationDraft,
                     scope: recentTarget ? { serverId: recentTarget.serverId, accountId: recentTarget.accountId } : undefined,

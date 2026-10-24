@@ -115,6 +115,7 @@ describe('repoScmWorktreeService', () => {
             path: '/repo/packages/app',
             displayName: 'feature/auth',
             branchMode: 'existing',
+            launchNonce: 'launch-attempt-1',
         });
 
         expect(machineScmWorktreeCreateMock).toHaveBeenCalledWith(
@@ -123,6 +124,7 @@ describe('repoScmWorktreeService', () => {
                 cwd: '/repo/packages/app',
                 displayName: 'feature/auth',
                 branchMode: 'existing',
+                launchNonce: 'launch-attempt-1',
             },
             scope,
         );
