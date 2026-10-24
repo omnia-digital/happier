@@ -86,21 +86,21 @@ test.describe('OH-56 Command+K session title search', () => {
     machineHeartbeat = setInterval(() => machineSocket?.emit('machine-alive', { machineId: 'oh56-mac', time: Date.now() }), 20_000);
     machineSocket.onRpcRequest(async ({ method }) => {
       if (method === `oh56-mac:${RPC_METHODS.DAEMON_MEMORY_STATUS}`) {
-        return { ok: true, result: {
+        return {
           v: 1, enabled: true, indexMode: 'hints', hintsIndexReady: true,
           deepIndexReady: false, activeIndexReady: true, activeIndexSearchable: true,
           embeddingsEnabled: false, embeddingsMode: 'disabled', embeddingsPresetId: null,
           embeddingsProviderKind: null, embeddingsModelId: null, embeddingsRuntimeState: 'ready',
           embeddingsUsingFallback: false, tier1DbPath: '/fixture/index', deepDbPath: null,
           tier1DbBytes: 100, deepDbBytes: null,
-        } };
+        };
       }
       if (method === `oh56-mac:${RPC_METHODS.DAEMON_MEMORY_SEARCH}`) {
-        return { ok: true, result: { v: 1, ok: true, hits: [{
+        return { v: 1, ok: true, hits: [{
           sessionId: contentSessionId, seqFrom: 7, seqTo: 8,
           createdAtFromMs: 1, createdAtToMs: 2,
           summary: 'Quasar-only finding in the session messages', score: 0.8,
-        }] } };
+        }] };
       }
       throw new Error(`Unexpected fixture machine RPC: ${method}`);
     });
