@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { renderScreen } from '@/dev/testkit';
+import { createExpoVectorIconsMock, renderScreen } from '@/dev/testkit';
 import type { InboxContentModel } from './useInboxContentModel';
 
 vi.mock('react-native', async () => {
@@ -13,6 +13,7 @@ vi.mock('react-native-unistyles', async () => {
     const { createUnistylesMock } = await import('@/dev/testkit/mocks/unistyles');
     return createUnistylesMock();
 });
+vi.mock('@expo/vector-icons', async () => createExpoVectorIconsMock());
 
 vi.mock('@/components/account/RecoveryKeyReminderBanner', () => ({ RecoveryKeyReminderBanner: 'RecoveryKeyReminderBanner' }));
 vi.mock('@/components/inbox/cards/ApprovalInboxCard', () => ({ ApprovalInboxCard: 'ApprovalInboxCard' }));
@@ -28,7 +29,6 @@ vi.mock('@/components/sessions/shell/SessionListIdentity', () => ({
     useSessionListIdentityDisplay: () => 'agentLogo',
 }));
 vi.mock('@/components/ui/feedback/ActivitySpinner', () => ({ ActivitySpinner: 'ActivitySpinner' }));
-vi.mock('@/components/ui/icons/Icon', () => ({ Icon: 'Icon' }));
 vi.mock('@/components/ui/lists/Item', () => ({ Item: 'Item' }));
 vi.mock('@/components/ui/text/Text', () => ({ Text: 'Text' }));
 vi.mock('@/components/ui/cards/UserCard', () => ({ UserCard: 'UserCard' }));
