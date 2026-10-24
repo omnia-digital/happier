@@ -14,7 +14,7 @@ function idleSession() {
     return { ...buildSessionListRenderableFromSession(createSessionFixture({
         metadata: { path: '/repo', host: 'host', sessionPullRequestsV1: { v: 1, links: [first, second] } },
     })), active: false, owner: 'account-a', presence: 1, pendingCount: 0, pendingBlockedCount: 0,
-        thinking: false, runtimeActivityState: 'idle' as const,
+        thinking: false, runtimeActivityState: 'idle' as const, runtimeActivityActiveCount: 0,
         hasPendingPermissionRequests: false, hasPendingUserActionRequests: false,
     };
 }
@@ -34,8 +34,10 @@ describe('session autoarchive eligibility', () => {
             { active: true }, { presence: 'online' as const }, { pendingCount: 1 },
             { pendingCount: undefined }, { pendingBlockedCount: 1 }, { thinking: true },
             { runtimeActivityState: 'active' as const }, { runtimeActivityState: 'unknown' as const },
-            { runtimeActivityState: null }, { hasPendingPermissionRequests: true },
-            { hasPendingUserActionRequests: true }, { archivedAt: 42 },
+            { runtimeActivityState: null }, { runtimeActivityActiveCount: undefined },
+            { runtimeActivityActiveCount: 1 }, { latestTurnStatus: 'in_progress' as const },
+            { hasPendingPermissionRequests: true }, { hasPendingPermissionRequests: undefined },
+            { hasPendingUserActionRequests: true }, { hasPendingUserActionRequests: undefined }, { archivedAt: 42 },
         ];
         for (const variant of variants) {
             expect(assessSessionAutoArchiveCandidate({ session: { ...session, ...variant }, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(false);

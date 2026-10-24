@@ -8300,7 +8300,7 @@ export const es: TranslationStructure = {
 settingsSession: {
     archiveAutomation: {
         title: 'Archivo automático',
-        footer: 'Estas opciones se sincronizan con esta cuenta Home. La comprobación automática funciona mientras Happier está abierto. La limpieza local requiere compatibilidad del equipo; las ramas remotas permanecen. Desarchivar no restaura los recursos locales eliminados.',
+        footer: 'Estas opciones se sincronizan con esta cuenta Home. Mientras Happier está abierto, la comprobación automática se realiza aproximadamente cada 5 minutos. La limpieza local requiere compatibilidad del equipo; las ramas remotas permanecen. Desarchivar no restaura los recursos locales eliminados.',
         autoArchiveTitle: 'Archivar al fusionarse las PR vinculadas',
         autoArchiveSubtitle: 'Archiva sesiones inactivas solo cuando se verifica que todas las PR vinculadas están fusionadas.',
         cleanupTitle: 'Limpiar recursos locales tras archivar',

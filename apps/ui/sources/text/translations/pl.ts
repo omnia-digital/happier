@@ -8312,7 +8312,7 @@ export const pl: TranslationStructure = {
 settingsSession: {
     archiveAutomation: {
         title: 'Automatyczna archiwizacja',
-        footer: 'Te ustawienia synchronizują się z tym kontem Home. Automatyczne sprawdzanie działa, gdy Happier jest otwarty. Lokalne czyszczenie wymaga obsługi na hoście; zdalne gałęzie pozostają. Przywrócenie z archiwum nie odzyska usuniętych zasobów lokalnych.',
+        footer: 'Te ustawienia synchronizują się z tym kontem Home. Gdy Happier jest otwarty, automatyczne sprawdzanie odbywa się mniej więcej co 5 minut. Lokalne czyszczenie wymaga obsługi na hoście; zdalne gałęzie pozostają. Przywrócenie z archiwum nie odzyska usuniętych zasobów lokalnych.',
         autoArchiveTitle: 'Archiwizuj po scaleniu powiązanych PR',
         autoArchiveSubtitle: 'Archiwizuje nieaktywne sesje tylko wtedy, gdy wszystkie powiązane PR są świeżo potwierdzone jako scalone.',
         cleanupTitle: 'Czyść lokalne zasoby po archiwizacji',

@@ -55,6 +55,7 @@ import { readMachineControlTargetForSession } from './sessionMachineTarget';
 import { stopSessionUsingCanonicalStrategy } from './sessionStopStrategy';
 import type { Metadata } from '../domains/state/storageTypes';
 import { getSyncSingleton } from '@/sync/runtime/getSyncSingleton';
+import { areServerAccountScopesEqual } from '@/sync/domains/scope/serverAccountScope';
 import { supportsSessionForkRequestId } from '@/utils/system/versionUtils';
 import { throwIfSessionArchiveAborted, withSessionArchiveDeadline, type SessionArchiveRequestOptions } from './sessionArchiveLifecycle';
 import { AsyncTimeoutError } from '@/utils/timing/time';
@@ -829,8 +830,14 @@ type AutoArchiveReason = Readonly<{
     shouldContinue: () => boolean;
 }>;
 
+function isAutoArchiveReasonScopeCurrent(serverId: string, accountId: string): boolean {
+    const state = storage.getState();
+    return areServerAccountScopesEqual(state.profileScope, { serverId, accountId })
+        && areServerProfileIdentifiersEquivalent(serverId, getActiveServerSnapshot().serverId);
+}
+
 /** The single confirmed-archive seam used by manual, bulk and automatic callers. */
-async function afterSessionArchiveConfirmed(input: Readonly<{
+export async function afterSessionArchiveConfirmed(input: Readonly<{
     sessionId: string;
     serverId: string;
     archivedAt: number | null;
@@ -838,7 +845,7 @@ async function afterSessionArchiveConfirmed(input: Readonly<{
 }>): Promise<Pick<SessionArchiveResponse, 'historyRecorded' | 'code' | 'message'>> {
     if (!input.autoArchiveReason) return {};
     const reason = input.autoArchiveReason;
-    if (!input.archivedAt || !reason.shouldContinue()) {
+    if (!input.archivedAt || !reason.shouldContinue() || !isAutoArchiveReasonScopeCurrent(input.serverId, reason.accountId)) {
         return { historyRecorded: false, code: 'archive_reason_not_recorded', message: 'Archived, but the automatic archive reason could not be saved.' };
     }
     try {
@@ -847,8 +854,11 @@ async function afterSessionArchiveConfirmed(input: Readonly<{
             archivedAt: input.archivedAt!,
             links: [...reason.links],
         }), { serverId: input.serverId, accountId: reason.accountId, shouldContinue: reason.shouldContinue });
+        const currentSession = storage.getState().sessions[input.sessionId];
         const recorded = reason.shouldContinue()
-            && readSessionAutoArchiveHistory(storage.getState().sessions[input.sessionId]?.metadata)
+            && isAutoArchiveReasonScopeCurrent(input.serverId, reason.accountId)
+            && !!currentSession && (!currentSession.serverId || areServerProfileIdentifiersEquivalent(currentSession.serverId, input.serverId))
+            && readSessionAutoArchiveHistory(currentSession.metadata)
                 .some((event) => event.archivedAt === input.archivedAt);
         return recorded ? { historyRecorded: true } : {
             historyRecorded: false, code: 'archive_reason_not_recorded', message: 'Archived, but the automatic archive reason could not be saved.',

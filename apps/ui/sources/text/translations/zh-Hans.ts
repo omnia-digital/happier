@@ -8062,7 +8062,7 @@ export const zhHans: TranslationStructure = {
 settingsSession: {
     archiveAutomation: {
         title: '自动归档',
-        footer: '这些选项会与当前 Home 帐户同步。Happier 打开时才会自动检查。本地清理需要主机支持；远程分支会保留。取消归档无法恢复已删除的本地资源。',
+        footer: '这些选项会与当前 Home 帐户同步。Happier 打开时约每 5 分钟自动检查一次。本地清理需要主机支持；远程分支会保留。取消归档无法恢复已删除的本地资源。',
         autoArchiveTitle: '关联 PR 合并后归档',
         autoArchiveSubtitle: '仅在最新验证确认所有关联 PR 均已合并时归档非活动会话。',
         cleanupTitle: '归档后清理本地资源',
