@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -58,7 +58,7 @@ async function createHomebrewKeg(prefix: string, version: string): Promise<strin
 
 describe('the runtime a background service records for a Homebrew CLI', () => {
   it.skipIf(process.platform === 'win32')('is the keg-independent opt path, which still resolves after brew upgrade', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'happier-service-runtime-brew-'));
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'happier-service-runtime-brew-')));
     tempDirs.push(root);
     const prefix = join(root, 'homebrew');
     const happierHomeDir = join(root, 'home');
