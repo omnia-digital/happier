@@ -12,6 +12,7 @@ const boundary = vi.hoisted(() => ({
     serverId: '',
     reorder: vi.fn(),
     snapshot: vi.fn(),
+    scmSnapshot: vi.fn(),
 }));
 installSessionShellCommonModuleMocks({
     text: async () => (await import('@/dev/testkit/mocks/text')).createTextModuleMock({ translate: key => key }),
@@ -29,13 +30,14 @@ vi.mock('@/hooks/server/useFeatureDecision', () => ({ useFeatureDecision: () => 
 vi.mock('@/components/account/RecoveryKeyReminderBanner', () => ({ RecoveryKeyReminderBanner: 'RecoveryKeyReminderBanner' }));
 vi.mock('@/components/ui/lists/flashListCompat/SessionListVirtualizedList', async () => {
     const { createCapturingFlashListMock } = await import('@/dev/testkit/mocks/flashList');
-    return { SessionListVirtualizedList: createCapturingFlashListMock({ renderItems: true }).module.FlashList };
+    return { SessionListVirtualizedList: createCapturingFlashListMock({ renderItems: true, memoizeItems: true }).module.FlashList };
 });
 vi.mock('react-native-reanimated', async () => (await import('@/dev/testkit/mocks/reanimated')).createReanimatedModuleMock());
 vi.mock('react-native-gesture-handler', async () => (await import('@/dev/testkit/mocks/gestureHandler')).createGestureHandlerMock());
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (fn: (...args: unknown[]) => unknown, ...args: unknown[]) => fn(...args) }));
 vi.mock('react-native-safe-area-context', () => ({ SafeAreaInsetsContext: React.createContext({ top: 0, bottom: 0, left: 0, right: 0 }), useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 vi.mock('@/components/ui/forms/dropdown/DropdownMenu', () => ({ DropdownMenu: (props: Record<string, unknown>) => React.createElement('DropdownMenu', props) }));
+vi.mock('@/sync/ops/scm/machineScm', () => ({ machineScmStatusSnapshot: boundary.scmSnapshot, machineScmWorktreesEnrichment: vi.fn() }));
 vi.mock('@/sync/api/session/sessionOrganizationApi', async (importOriginal) => ({
     ...await importOriginal<typeof import('@/sync/api/session/sessionOrganizationApi')>(),
     reorderSessionOrganization: boundary.reorder,
@@ -99,6 +101,32 @@ function visibleIds(screen: Awaited<ReturnType<typeof renderScreen>>) {
 }
 
 describe('Repository session order through the mounted shell and canonical organization writer', () => {
+    it('updates the mounted header while repository discovery starts and settles without changing its rows', async () => {
+        const { SessionsList } = await import('./SessionsList');
+        const { SessionListViewMenuButton } = await import('./sessionListViewMenu');
+        let finish!: () => void;
+        const pending = new Promise<void>(resolve => { finish = resolve; });
+        boundary.scmSnapshot.mockImplementation(async (_machineId, request) => {
+            await pending;
+            return { success: true, snapshot: {
+                projectKey: request.cwd, fetchedAt: 1,
+                repo: { isRepo: true, rootPath: request.cwd, remotes: [{ name: 'origin', fetchUrl: 'https://example.com/team/repo.git' }] },
+                branch: { head: 'main', upstream: null, ahead: 0, behind: 0, detached: false },
+                entries: [], hasConflicts: false, stashCount: 0,
+                totals: { includedFiles: 0, pendingFiles: 0, untrackedFiles: 0, includedAdded: 0, includedRemoved: 0, pendingAdded: 0, pendingRemoved: 0 },
+            } };
+        });
+        const screen = await renderScreen(<SessionsList />);
+        const menu = () => screen.root.findByType(SessionListViewMenuButton);
+        expect(menu().props.repositoryRefreshing).toBe(false);
+        let refresh!: Promise<void>;
+        await act(async () => { refresh = menu().props.onRepositoryRefresh(); });
+        expect(menu().props.repositoryRefreshing).toBe(true);
+        await act(async () => { finish(); await refresh; });
+        expect(menu().props.repositoryRefreshing).toBe(false);
+        expect(visibleIds(screen)).toEqual(['a', 'a2', 'b']);
+    });
+
     it.each(['accessibility move action', 'pointer gesture'] as const)('interleaves two checkouts with %s and retains order through activity, view roundtrip, and organization hydration', async (interaction) => {
         const { SessionsList } = await import('./SessionsList');
         const { storage } = await import('@/sync/domains/state/storage');

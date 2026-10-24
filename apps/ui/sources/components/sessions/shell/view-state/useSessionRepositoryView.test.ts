@@ -117,6 +117,21 @@ describe('Repository view intent lifecycle', () => {
         await vi.waitFor(() => expect(storage.getState().localSettings.sessionRepositoryAssociationsV1[repositoryWorkspaceKey(workspace)]?.identity).toBe('example.com/team/repo'));
     });
 
+    it('settles cached unresolved discovery after switching views without another RPC', async () => {
+        const unresolvedSnapshot = { ...snapshot, repo: { ...snapshot.repo, remotes: [{ name: 'origin', fetchUrl: 'git@local-alias:team/repo.git' }] } };
+        vi.mocked(machineScmStatusSnapshot).mockResolvedValue({ success: true, snapshot: unresolvedSnapshot } as any);
+        const hook = await renderHook(useView);
+        await act(async () => { await hook.getCurrent().refresh(); });
+        expect(hook.getCurrent().refreshing).toBe(false);
+        expect(machineScmStatusSnapshot).toHaveBeenCalledTimes(1);
+        await act(async () => { hook.getCurrent().selectMode('original'); });
+        await act(async () => { hook.getCurrent().selectMode('machine'); });
+        await act(async () => { hook.getCurrent().selectMode('repository'); });
+        await vi.waitFor(() => expect(hook.getCurrent().refreshing).toBe(false));
+        expect(machineScmStatusSnapshot).toHaveBeenCalledTimes(1);
+        expect(onFailure).not.toHaveBeenCalled();
+    });
+
     it('reacts to canonical organization hydration and preserves the order across view changes', async () => {
         const first = items[0];
         if (first.type !== 'session') throw new Error('Expected session');
