@@ -11,7 +11,7 @@ import { printResult, wantsHelp, wantsJson } from './utils/cli/cli.mjs';
 import { ensureExpoIsolationEnv, getExpoStatePaths, resolveExpoTmpDir, wantsExpoClearCache } from './utils/expo/expo.mjs';
 import { expoExec } from './utils/expo/command.mjs';
 import { getInvokedCwd, inferComponentFromCwd } from './utils/cli/cwd_scope.mjs';
-import { applyStackTauriOverrides } from './utils/tauri/stack_overrides.mjs';
+import { buildStackTauriBundleConfig } from './utils/tauri/dev_runtime.mjs';
 import { buildIntoTempThenReplace } from './utils/fs/atomic_dir_swap.mjs';
 import { pathExists } from './utils/fs/fs.mjs';
 import { buildStackTauriExportEnv, buildStackWebExportEnv } from './utils/ui/ui_export_env.mjs';
@@ -233,16 +233,14 @@ async function main() {
   // Build the Tauri app using a generated config that skips upstream beforeBuildCommand (which uses yarn).
   const tauriConfigPath = join(uiDir, 'src-tauri', 'tauri.conf.json');
   const tauriConfigRaw = await readFile(tauriConfigPath, 'utf-8');
-  const tauriConfig = JSON.parse(tauriConfigRaw);
-  tauriConfig.build = tauriConfig.build ?? {};
-  // Prefer the upstream relative dist dir when possible (less surprising for Tauri tooling).
-  tauriConfig.build.frontendDist = tauriDistDir === join(uiDir, 'dist') ? '../dist' : tauriDistDir;
-  tauriConfig.build.beforeBuildCommand = null;
-  tauriConfig.build.beforeDevCommand = null;
-
-  // Build a separate "local" app so it doesn't reuse previous storage (server URL, auth, etc).
-  // This avoids needing any changes in the Happy source code to override a previously saved server.
-  applyStackTauriOverrides({ tauriConfig, env: process.env });
+  const tauriDevConfigRaw = await readFile(join(uiDir, 'src-tauri', 'tauri.publicdev.conf.json'), 'utf-8');
+  // Local builds use the dev variant and retain stack-scoped install/storage identity.
+  const tauriConfig = buildStackTauriBundleConfig({
+    baseConfig: JSON.parse(tauriConfigRaw),
+    overlayConfig: JSON.parse(tauriDevConfigRaw),
+    frontendDist: tauriDistDir === join(uiDir, 'dist') ? '../dist' : tauriDistDir,
+    env: process.env,
+  });
 
   if (tauriDebug) {
     // Enable devtools in debug builds (useful for troubleshooting connectivity).

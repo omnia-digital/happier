@@ -9,7 +9,6 @@ import { printResult, wantsHelp, wantsJson } from './utils/cli/cli.mjs';
 import { ensureWorkspacePackagesBuiltForComponent, pmExecBin } from './utils/proc/pm.mjs';
 import { spawnProc } from './utils/proc/proc.mjs';
 import { getStackRuntimeStatePath, readStackRuntimeStateFile } from './utils/stack/runtime_state.mjs';
-import { sanitizeDnsLabel } from './utils/net/dns.mjs';
 import { buildStackTauriDevConfig, resolveStackTauriDevUrl } from './utils/tauri/dev_runtime.mjs';
 import { waitForExpoMetroRunning } from './utils/expo/expo.mjs';
 import {
@@ -18,22 +17,6 @@ import {
   buildTauriRuntimeEnv,
 } from './utils/dev/tauri_dev.mjs';
 import { parseEnvToObject } from './utils/env/dotenv.mjs';
-
-function buildDefaultStackTauriEnv(env, stackName) {
-  const nextEnv = { ...env };
-  const normalizedStack = sanitizeDnsLabel(String(stackName ?? '').trim());
-  if (!normalizedStack) {
-    return nextEnv;
-  }
-
-  if (!String(nextEnv.HAPPIER_STACK_TAURI_IDENTIFIER ?? '').trim()) {
-    nextEnv.HAPPIER_STACK_TAURI_IDENTIFIER = `com.happier.stack.${normalizedStack}`;
-  }
-  if (!String(nextEnv.HAPPIER_STACK_TAURI_PRODUCT_NAME ?? '').trim()) {
-    nextEnv.HAPPIER_STACK_TAURI_PRODUCT_NAME = `Happier (${normalizedStack})`;
-  }
-  return nextEnv;
-}
 
 async function readJsonFile(path) {
   return JSON.parse(await readFile(path, 'utf-8'));
@@ -153,7 +136,7 @@ async function main() {
   }
 
   const rootDir = getRootDir(import.meta.url);
-  const envWithStackDefaults = buildDefaultStackTauriEnv(process.env, process.env.HAPPIER_STACK_STACK);
+  const envWithStackDefaults = process.env;
   const uiDir = resolveTauriUiDirForDev({ rootDir, env: envWithStackDefaults });
   const uiLayout = assertTauriUiDirForDev(uiDir);
   const repoRootDir = dirname(dirname(uiDir));

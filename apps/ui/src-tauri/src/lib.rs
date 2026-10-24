@@ -139,7 +139,7 @@ pub fn run() {
                 window_chrome::register(app)?;
                 tray::register(app)?;
                 pet_overlay::register(app)?;
-                dock_icon::apply();
+                dock_icon::apply(app.handle());
                 menu_bar::register(app.handle());
             }
 

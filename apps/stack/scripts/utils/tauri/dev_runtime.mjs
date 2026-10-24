@@ -43,12 +43,31 @@ export function buildStackTauriDevConfig({ baseConfig, overlayConfig, devUrl, en
     beforeBuildCommand: '',
   };
   const hasExplicitStackOverride =
-    String(env?.HAPPIER_STACK_TAURI_IDENTIFIER ?? '').trim() !== ''
+    String(env?.HAPPIER_STACK_STACK ?? '').trim() !== ''
+    || String(env?.HAPPIER_STACK_TAURI_IDENTIFIER ?? '').trim() !== ''
     || String(env?.HAPPIER_STACK_TAURI_PRODUCT_NAME ?? '').trim() !== ''
     || String(env?.HAPPIER_STACK_TAURI_CREATE_UPDATER_ARTIFACTS ?? '').trim() !== ''
     || String(env?.TAURI_SIGNING_PRIVATE_KEY ?? '').trim() !== '';
   if (hasExplicitStackOverride) {
-    applyStackTauriOverrides({ tauriConfig: merged, env });
+    applyStackTauriOverrides({
+      tauriConfig: merged,
+      env: {
+        ...env,
+        HAPPIER_STACK_TAURI_PRODUCT_NAME:
+          String(env?.HAPPIER_STACK_TAURI_PRODUCT_NAME ?? '').trim() || merged.productName,
+      },
+    });
   }
   return applyHtml5FileDragDropWindowPolicy(merged);
+}
+
+export function buildStackTauriBundleConfig({ baseConfig, overlayConfig, frontendDist, env = process.env } = {}) {
+  const merged = mergeTauriConfig(baseConfig ?? {}, overlayConfig ?? {});
+  merged.build = {
+    ...(merged.build ?? {}),
+    frontendDist,
+    beforeBuildCommand: null,
+    beforeDevCommand: null,
+  };
+  return applyStackTauriOverrides({ tauriConfig: merged, env });
 }

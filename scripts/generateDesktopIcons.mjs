@@ -14,6 +14,9 @@
  *     (gradient bag, white smile), 32×32 px full bleed, so edges stay pixel-aligned at 16 and 24 px.
  *   apps/ui/src-tauri/icons/tray/tray-dark.png — Windows/Linux dark trays: the template glyph in
  *     white (smile knocked out), 32×32 px full bleed. The dark bag vanishes on a dark tray.
+ *   apps/ui/src-tauri/icons/dev/** — the blue development variant of the same mark, with an amber
+ *     D badge. The layered Icon Composer file, raster fallbacks, ICO, ICNS, and running Dock image
+ *     all come from the same vector paths. `iconutil` regenerates ICNS on macOS.
  *
  * Each PNG is rasterized directly at its final size (librsvg via the repo's `sharp`), no
  * resampling. `apps/ui/src-tauri/src/tray.rs` embeds them with `tauri::include_image!`.
@@ -21,14 +24,40 @@
  * Regenerate with:  node scripts/generateDesktopIcons.mjs
  */
 
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
+import { execFileSync } from 'node:child_process';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const iconsDir = path.join(repoRoot, 'apps', 'ui', 'src-tauri', 'icons');
 const assetsDir = path.join(iconsDir, 'AppIcon.icon', 'Assets');
+const devDir = path.join(iconsDir, 'dev');
+
+// The dev mark keeps the same silhouette and smile. A blue bag and small amber D remain
+// recognizable at Dock size while making a running test build visually distinct.
+const devGradient = '<linearGradient id="g" x1="0%" y1="100%" x2="100%" y2="0%"><stop offset="0%" stop-color="#1261A8"/><stop offset="100%" stop-color="#51D0ED"/></linearGradient>';
+const devBadge = '<circle cx="72" cy="72" r="17" fill="#F5A623" stroke="#173B62" stroke-width="2"/><path fill="#173B62" d="M65 60h7c9 0 14 5 14 12s-5 12-14 12h-7zm7 5h-1v14h1c6 0 8-3 8-7s-2-7-8-7z"/>';
+
+function makeIco(pngs) {
+  const header = Buffer.alloc(6 + pngs.length * 16);
+  header.writeUInt16LE(1, 2);
+  header.writeUInt16LE(pngs.length, 4);
+  let offset = header.length;
+  pngs.forEach(({ size, png }, index) => {
+    const entry = 6 + index * 16;
+    header[entry] = size === 256 ? 0 : size;
+    header[entry + 1] = size === 256 ? 0 : size;
+    header.writeUInt16LE(1, entry + 4);
+    header.writeUInt16LE(32, entry + 6);
+    header.writeUInt32LE(png.length, entry + 8);
+    header.writeUInt32LE(offset, entry + 12);
+    offset += png.length;
+  });
+  return Buffer.concat([header, ...pngs.map(({ png }) => png)]);
+}
 
 // Both source paths are drawn in a 90-unit square (scaled ×11.377778 into a 1024 viewBox).
 const MARK_UNITS = 90;
@@ -94,6 +123,15 @@ async function main() {
     body: `<g filter="url(#shadow)"><path fill="url(#g)" d="${bag}"/><path fill="#FFFFFF" d="${smile}"/></g>`,
   });
 
+  const devBody = `<path fill="url(#g)" d="${bag}"/><path fill="#FFFFFF" d="${smile}"/>${devBadge}`;
+  const devIcon = frame({ canvasPx: 1024, glyphPx: 1024, defs: devGradient, body: devBody });
+  const devDock = frame({
+    canvasPx: DOCK_CELL_PX,
+    glyphPx: DOCK_TILE_PX,
+    defs: `${devGradient}${shadow}`,
+    body: `<g filter="url(#shadow)">${devBody}</g>`,
+  });
+
   const sharp = createRequire(path.join(repoRoot, 'package.json'))('sharp');
   for (const [file, svg] of [
     ['dock/dock-icon.png', dock],
@@ -107,6 +145,48 @@ async function main() {
     await sharp(Buffer.from(svg)).ensureAlpha().png({ compressionLevel: 9 }).toFile(out);
     console.log(`wrote ${path.relative(repoRoot, out)}`);
   }
+
+  const devAssets = path.join(devDir, 'AppIcon.icon', 'Assets');
+  await mkdir(devAssets, { recursive: true });
+  await writeFile(path.join(devAssets, 'HappierBag.svg'), bagSvg.replace(gradientDef(bagSvg, 'HappierBag.svg'), devGradient));
+  await writeFile(path.join(devAssets, 'HappierSmile.svg'), smileSvg);
+  await writeFile(path.join(devAssets, 'DevBadge.svg'), `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><g transform="scale(11.377778)">${devBadge}</g></svg>\n`);
+  const iconDocument = JSON.parse(await readFile(path.join(iconsDir, 'AppIcon.icon', 'icon.json'), 'utf8'));
+  iconDocument.groups.push({ layers: [{ 'glass': false, 'image-name': 'DevBadge.svg', 'name': 'Dev badge', position: { scale: 1, 'translation-in-points': [0, 0] } }] });
+  await writeFile(path.join(devDir, 'AppIcon.icon', 'icon.json'), `${JSON.stringify(iconDocument, null, 2)}\n`);
+
+  const devRasters = new Map();
+  for (const size of [16, 32, 48, 128, 256, 512, 1024]) {
+    devRasters.set(size, await sharp(Buffer.from(devIcon)).resize(size, size).ensureAlpha().png({ compressionLevel: 9 }).toBuffer());
+  }
+  for (const [file, size] of [['32x32.png', 32], ['128x128.png', 128], ['128x128@2x.png', 256]]) {
+    await writeFile(path.join(devDir, file), devRasters.get(size));
+  }
+  await writeFile(path.join(devDir, 'icon.ico'), makeIco([16, 32, 48, 256].map((size) => ({ size, png: devRasters.get(size) }))));
+  await mkdir(path.join(devDir, 'dock'), { recursive: true });
+  await sharp(Buffer.from(devDock)).ensureAlpha().png({ compressionLevel: 9 }).toFile(path.join(devDir, 'dock', 'dock-icon.png'));
+
+  if (process.platform === 'darwin') {
+    const temporaryDir = await mkdtemp(path.join(os.tmpdir(), 'happier-dev-icon-'));
+    const iconset = path.join(temporaryDir, 'Dev.iconset');
+    try {
+      await mkdir(iconset);
+      for (const [name, size] of [
+        ['icon_16x16.png', 16], ['icon_16x16@2x.png', 32],
+        ['icon_32x32.png', 32], ['icon_32x32@2x.png', 64],
+        ['icon_128x128.png', 128], ['icon_128x128@2x.png', 256],
+        ['icon_256x256.png', 256], ['icon_256x256@2x.png', 512],
+        ['icon_512x512.png', 512], ['icon_512x512@2x.png', 1024],
+      ]) {
+        const png = devRasters.get(size) ?? await sharp(Buffer.from(devIcon)).resize(size, size).ensureAlpha().png({ compressionLevel: 9 }).toBuffer();
+        await writeFile(path.join(iconset, name), png);
+      }
+      execFileSync('iconutil', ['-c', 'icns', '-o', path.join(devDir, 'icon.icns'), iconset]);
+    } finally {
+      await rm(temporaryDir, { recursive: true, force: true });
+    }
+  }
+  console.log(`wrote ${path.relative(repoRoot, devDir)} icon variants`);
 }
 
 await main();
