@@ -54,6 +54,8 @@ type GithubCliAuthDetector = typeof detectGithubCliAuth;
 type GitlabCliAuthDetector = typeof detectGitlabCliAuth;
 
 type GitPullRequestOperationDeps = Readonly<{
+    /** Cleanup evidence must not refresh indexes or acquire missing Git objects through its snapshot read. */
+    readOnlyGit?: boolean;
     readSnapshot?: (context: ScmBackendContext) => Promise<ScmWorkingSnapshot | null>;
     prStatusCache?: PrStatusCache;
     githubRestAdapter?: ScmHostingProviderAdapter;
@@ -68,13 +70,13 @@ type RestPullRequestFailure = Readonly<{
     errorCode: typeof SCM_OPERATION_ERROR_CODES.COMMAND_FAILED;
 }>;
 
-async function readDefaultSnapshot(context: ScmBackendContext): Promise<ScmWorkingSnapshot | null> {
-    const response = await getGitSnapshot({ context });
+async function readDefaultSnapshot(context: ScmBackendContext, readOnlyGit = false): Promise<ScmWorkingSnapshot | null> {
+    const response = await getGitSnapshot({ context, readOnly: readOnlyGit });
     return response.success && response.snapshot ? response.snapshot : null;
 }
 
 export function createGitPullRequestBackend(deps: GitPullRequestOperationDeps = {}) {
-    const readSnapshot = deps.readSnapshot ?? readDefaultSnapshot;
+    const readSnapshot = deps.readSnapshot ?? ((context: ScmBackendContext) => readDefaultSnapshot(context, deps.readOnlyGit));
     const prStatusCache = deps.prStatusCache ?? defaultPrStatusCache;
     const githubRestAdapter = deps.githubRestAdapter ?? githubRestScmHostingProviderAdapter;
     const githubCliAdapter = deps.githubCliAdapter ?? githubCliScmHostingProviderAdapter;
