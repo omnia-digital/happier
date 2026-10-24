@@ -570,6 +570,11 @@ test.describe('ui e2e: session list ordering mode', () => {
     const pinnedSessionId = await createPlainSession({ ...sessionParams, title: pinnedTitle });
     const ordinarySessionId = await createPlainSession({ ...sessionParams, title: ordinaryTitle });
     await setSessionOrganizationPin({ baseUrl: server.baseUrl, token, sessionId: pinnedSessionId, pinned: true });
+    await patchPlainAccountSettingsV2({
+      baseUrl: server.baseUrl,
+      token,
+      settingsPatch: { sessionListDensity: 'detailed' },
+    });
 
     await page.setViewportSize({ width: 1440, height: 900 });
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 300_000);
@@ -598,6 +603,8 @@ test.describe('ui e2e: session list ordering mode', () => {
     await expect(ordinaryRow).toContainText(ordinaryTitle);
     await expect(indicator(pinnedSessionId)).toHaveCount(0);
     await expect(indicator(ordinarySessionId)).toHaveCount(0);
+    const ordinaryDetailedBounds = await ordinaryRow.boundingBox();
+    if (!ordinaryDetailedBounds) throw new Error('ordinary row has no detailed-density bounds');
 
     // Use the real row click so route selection is established by the existing navigation owner.
     await pinnedRow.click();
@@ -639,7 +646,7 @@ test.describe('ui e2e: session list ordering mode', () => {
     await expectOnlyCurrentRow(ordinarySessionId, pinnedSessionId);
     const narrowOrdinaryBounds = await ordinaryRow.boundingBox();
     expect(narrowOrdinaryBounds).not.toBeNull();
-    expect(narrowOrdinaryBounds!.height).toBeLessThan(ordinaryAfterInteraction.height);
+    expect(narrowOrdinaryBounds!.height).toBeLessThan(ordinaryDetailedBounds.height);
     await captureSidebarState('oh63-dark-narrow-ordinary-selected.png');
 
     const pinnedBeforeDarkInteraction = await pinnedRow.boundingBox();
