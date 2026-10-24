@@ -71,6 +71,9 @@ installSessionShellCommonModuleMocks({
         });
         return {
             ...base,
+            useLocalSetting: ((key: string) => Object.prototype.hasOwnProperty.call(localPresentationSettings.current, key)
+                ? localPresentationSettings.current[key]
+                : base.useLocalSetting(key)) as typeof base.useLocalSetting,
             useMachineDisplayIcon: ((serverId?: string | null, machineId?: string | null) =>
                 machineIconPreference.current[JSON.stringify([serverId, machineId])] ?? 'desktop') as typeof base.useMachineDisplayIcon,
         };
@@ -129,6 +132,7 @@ vi.mock('./sessionPinIcons', () => ({
 
 const SESSION_ID = 'sess_machine';
 const machineIconPreference = vi.hoisted(() => ({ current: {} as Record<string, 'laptop' | 'cloud'> }));
+const localPresentationSettings = vi.hoisted(() => ({ current: {} as Record<string, unknown> }));
 
 function SelectionModeControls() {
     const actions = useSessionListSelectionActions();
@@ -139,7 +143,10 @@ function SelectionModeControls() {
 }
 
 describe('SessionItem machine identity', () => {
-    afterEach(standardCleanup);
+    afterEach(() => {
+        localPresentationSettings.current = {};
+        standardCleanup();
+    });
 
     const session = {
         id: SESSION_ID, seq: 1, createdAt: 1, updatedAt: 1, active: true, activeAt: 1,
@@ -164,6 +171,25 @@ describe('SessionItem machine identity', () => {
             identityDisplay: options.identityDisplay ?? 'agentLogo',
         })} />);
     }
+
+    it('uses app item density for row spacing and grows row geometry for larger text', async () => {
+        const rowHeight = async (density: 'comfortable' | 'cozy' | 'compact', fontScale: number) => {
+            localPresentationSettings.current = { uiItemDensity: density, uiFontScale: fontScale };
+            const screen = await renderMachineRow(false, false, { density: 'compact' });
+            const style = screen.findByTestId(`session-list-item-${SESSION_ID}`)?.props.style;
+            const flattened = Array.isArray(style) ? style.flat(Infinity) : [style];
+            const height = flattened.find((entry: any) => typeof entry?.height === 'number')?.height;
+            await screen.unmount();
+            return height;
+        };
+
+        const comfortableHeight = await rowHeight('comfortable', 1);
+        const compactHeight = await rowHeight('compact', 1);
+        const largerTextHeight = await rowHeight('compact', 1.3);
+
+        expect(comfortableHeight).toBeGreaterThan(compactHeight);
+        expect(largerTextHeight).toBeGreaterThan(compactHeight);
+    });
 
     it('places one agent logo immediately before the machine glyph in the right identity group', async () => {
         const screen = await renderMachineRow(true);
