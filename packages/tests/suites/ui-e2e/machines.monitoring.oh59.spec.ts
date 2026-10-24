@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import { encodePlainMachineStoredContent, MACHINE_PLAIN_DATA_KEY_MARKER } from '@happier-dev/protocol';
 import { RPC_METHODS } from '@happier-dev/protocol/rpc';
+import type { MachineMetricsSnapshot } from '@happier-dev/protocol/capabilities';
 import { collectHostMetrics } from '../../../../apps/cli/src/integrations/systemMetrics/collectHostMetrics';
 import { createRunDirs } from '../../src/testkit/runDir';
 import { createTestAuthMtls } from '../../src/testkit/auth';
@@ -34,7 +35,7 @@ test.describe('OH59 actual local collector through authenticated fixture machine
     let heartbeat: ReturnType<typeof setInterval> | null = null;
     let selectedSessionId = '';
     let canonicalServerId = '';
-    const samples: Array<{ machineId: string; cpu: unknown; memory: unknown; storage: unknown; gpu: unknown; load: unknown; collectionMs: number; processCpuMs: number; eventLoopActiveMs: number }> = [];
+    const samples: Array<{ machineId: string; cpu: unknown; memory: unknown; storage: unknown; gpu: MachineMetricsSnapshot['gpu']; load: unknown; collectionMs: number; processCpuMs: number; eventLoopActiveMs: number }> = [];
     let localRequests = 0;
 
     test.beforeAll(async () => {
@@ -131,7 +132,11 @@ test.describe('OH59 actual local collector through authenticated fixture machine
             await page.getByTestId(`machine-monitoring-${LOCAL}-details`).click();
             await expect(local).toContainText('Storage capacity used, not I/O');
             await expect(local).toContainText('Volume:');
-            if (process.platform === 'darwin') await expect(local).toContainText('No supported unprivileged GPU utilization interface');
+            if (samples[0].gpu.status === 'available') {
+                for (const device of samples[0].gpu.devices) await expect(local).toContainText(device.id);
+            } else if (samples[0].gpu.reason === 'no-supported-gpu') {
+                await expect(local).toContainText('No supported unprivileged GPU utilization interface');
+            }
             await page.setViewportSize({ width: 1000, height: 900 });
             const overflow = await local.evaluate((element) => ({ width: element.clientWidth, scrollWidth: element.scrollWidth }));
             expect(overflow.width).toBeGreaterThan(0);
@@ -167,6 +172,34 @@ test.describe('OH59 actual local collector through authenticated fixture machine
             await expect(page).toHaveURL(new RegExp(`/session/${selectedSessionId}`));
             await writeFile(join(suiteDir, 'machine-monitoring-measurements.json'), JSON.stringify({ actualHostCount: 1, transport: 'authenticated plain test machine socket; source collector; encrypted registry tested separately', samples }, null, 2));
             await testInfo.attach('machine-monitoring-measurements', { path: join(suiteDir, 'machine-monitoring-measurements.json'), contentType: 'application/json' });
+        } catch (error) { throw appendBrowserDiagnostics(error, diagnostics()); }
+    });
+
+    test('renders actual supported GPU identity and utilization in Chrome', async ({ page }, testInfo) => {
+        const diagnostics = collectBrowserDiagnostics({ page });
+        try {
+            await page.setViewportSize({ width: 1000, height: 900 });
+            await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 300_000);
+            await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+            const local = page.getByTestId(`machine-monitoring-${LOCAL}`);
+            await expect(local).toContainText(/CPU \d+%/, { timeout: 120_000 });
+            const gpu = samples.at(-1)!.gpu;
+            test.skip(gpu.status !== 'available' || !gpu.devices.some((device) => device.utilization.status === 'available'),
+                'This host driver does not expose a supported GPU utilization reading');
+            if (gpu.status !== 'available') return;
+            await page.getByTestId(`machine-monitoring-${LOCAL}-details`).click();
+            for (const device of gpu.devices) {
+                await expect(local).toContainText(device.name);
+                await expect(local).toContainText(device.id);
+                if (device.utilization.status === 'available') {
+                    await expect(local).toContainText(`${device.name} · ${device.id} · ${Math.round(device.utilization.usagePercent)}%`);
+                }
+            }
+            await page.screenshot({ path: join(suiteDir, 'machine-monitoring-actual-gpu.png') });
+            const measurementPath = join(suiteDir, 'machine-monitoring-actual-gpu.json');
+            await writeFile(measurementPath, JSON.stringify({ platform: process.platform,
+                transport: 'authenticated plain fixture machine RPC with actual host collector', gpu }, null, 2));
+            await testInfo.attach('actual-gpu-reading', { path: measurementPath, contentType: 'application/json' });
         } catch (error) { throw appendBrowserDiagnostics(error, diagnostics()); }
     });
 });
