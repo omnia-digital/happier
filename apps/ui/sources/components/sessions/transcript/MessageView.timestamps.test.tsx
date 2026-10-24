@@ -142,8 +142,8 @@ describe('MessageView timestamps', () => {
             />,
         );
 
-        expect(userScreen.findByTestId('transcript-message-timestamp:m1')?.props.children).toBe('May 19, 2026, 4:30 PM');
-        expect(assistantScreen.findByTestId('transcript-message-timestamp:a1')?.props.children).toBe('May 19, 2026, 4:30 PM');
+        expect(userScreen.findByTestId('transcript-message-timestamp-text:m1')?.props.children).toBe('May 19, 2026, 4:30 PM');
+        expect(assistantScreen.findByTestId('transcript-message-timestamp-text:a1')?.props.children).toBe('May 19, 2026, 4:30 PM');
     });
 
     it('keeps explicit hover-mode timestamps alongside visible web actions', async () => {
@@ -167,8 +167,8 @@ describe('MessageView timestamps', () => {
             />,
         );
 
-        expect(userScreen.findByTestId('transcript-message-timestamp:u1')?.props.children).toBe('May 19, 2026, 4:30 PM');
-        expect(agentScreen.findByTestId('transcript-message-timestamp:a1')?.props.children).toBe('May 19, 2026, 4:30 PM');
+        expect(userScreen.findByTestId('transcript-message-timestamp-text:u1')?.props.children).toBe('May 19, 2026, 4:30 PM');
+        expect(agentScreen.findByTestId('transcript-message-timestamp-text:a1')?.props.children).toBe('May 19, 2026, 4:30 PM');
         expect(Intl.DateTimeFormat).toHaveBeenCalledWith(undefined, {
             dateStyle: 'medium',
             timeStyle: 'short',
@@ -189,7 +189,7 @@ describe('MessageView timestamps', () => {
             />,
         );
 
-        const timestamp = screen.findByTestId('transcript-message-timestamp:always-u1');
+        const timestamp = screen.findByTestId('transcript-message-timestamp-text:always-u1');
         const row = screen.findByTestId('transcript-message-actions-row:always-u1');
         const actionContainer = screen.findByTestId('transcript-message-actions:always-u1');
 
@@ -284,7 +284,7 @@ describe('MessageView timestamps', () => {
             />,
         );
 
-        expect(screen.findByTestId('transcript-message-timestamp:u1')?.props.children).toBe('May 19, 2026, 4:30 PM');
+        expect(screen.findByTestId('transcript-message-timestamp-text:u1')?.props.children).toBe('May 19, 2026, 4:30 PM');
         expect(sessionWideStorageHookCalls).toBe(0);
     });
 });
