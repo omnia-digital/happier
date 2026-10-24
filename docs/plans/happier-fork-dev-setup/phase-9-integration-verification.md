@@ -88,6 +88,33 @@ OH-70 known-state source/cache is validated through `6a02d6bafd` plus independen
 
 OH-69 source through `0f666c760f` uses the existing authenticated by-local-id route when an ACK lacks stored creation time; API transport/schema and Sync state ownership stay separate. Lookup failure retains accepted pending content without a guessed committed timestamp, and delayed lookup cannot wake a session after account replacement. Independent Astra checks pass owner/API58, scoped auth13 and malformed/recovery3. No further production defect confirmed. The old-ACK browser test remains WIP/failing through `29203696e0`:r1 normal send queued, r2 shortcut settings targeted the wrong storage owner, r3 reached pending/resume instead of socket commit. None proves ACK transport. Stop retries per router BLOCKED; next action is a source-proven reachable UI fixture. Earlier Chrome-r8 proves visibility/history, not socket ACK compatibility. No actual hosted, native or0.3 completion is implied.
 
+October24 read-only diagnosis now identifies why the current fixture cannot select
+its claimed transport. The test creates CLI-version0.2.16 metadata on a fresh
+session from a server that supplies numeric pendingVersion. `submitMode.ts` maps
+that to supported Pending (minimum CLI0.1.0). Although forceImmediate produces an
+agent_queue decision, the final `submitSessionUserMessage.ts` owner explicitly
+enqueues that mode whenever Pending is supported. Its existing test, “persists
+force-immediate input as send_now instead of bypassing Pending,” specifies the
+same outcome. Thus the fixture comment that immediate-send on an inactive
+session takes socket commit is false for these inputs; changing shortcut timing
+cannot establish the expected message ACK or by-local-id lookup.
+
+The exact immutable server-v0.2.17 source at
+`a2c45c86804b24e60ac0b76146a3ef36dfcaa15b` also includes pendingVersion in
+registerSessionCreateOrLoadRoute, registerSessionListingRoutes and v2SessionListRows.
+Stripping that field merely to force direct submission would not emulate this
+producer's contract. Both submit-port adapters still delegate to the same final
+domain owner; no competing routing decision or production correction is needed
+to explain this fixture failure.
+
+No new test or browser run was performed, and no prior failure was relabeled
+green. Routing classification retains BLOCKED/Astra-high and the cumulative
+2Luna/2Sol/3Astra failed browser attempts. A valid next step needs evidence of a
+supported UI/reader state that actually calls the socket-commit owner, or an
+approved amendment to the compatibility proof. The existing WIP fixture remains
+unchanged and failing. Current-server timestamp/history evidence does not prove
+that missing direction; native/hosted acceptance and0.3 remain open.
+
 OH-52 follow-through `c28df42b40` passes route/actions/PR68, UI/E2E types and composed Chrome-r9, with no empty archived Activity heading and both merged identities/reason retained. Read-only ancestry checkpoint `2a119f4899` passes25 disposable cases and CLI types; no executor exists and every cleanup resource remains skipped. Current macOS libproc permission gaps remain an explicit blocker. Canonical app/transcript guidance now labels the new goal/timestamp behavior development-only and keeps acceptance limits next to it.
 
 ## Whole-repository baseline and Windows development follow-through
