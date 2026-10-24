@@ -7,7 +7,11 @@ import { getActiveServerId } from '@/sync/domains/server/serverProfiles';
 import { MachineMonitoringSection } from './MachineMonitoringSection';
 
 const rpc = vi.hoisted(() => vi.fn());
-vi.mock('@/sync/runtime/orchestration/serverScopedRpc/serverScopedMachineRpc', () => ({ machineRpcWithServerScope: rpc }));
+// The transport is stubbed for rendering; real metrics parsing/store/UI remain in scope.
+vi.mock('@/sync/runtime/orchestration/serverScopedRpc/serverScopedMachineRpc', async (importOriginal) => {
+    const { createServerScopedMachineRpcModuleMock } = await import('@/dev/testkit/mocks/serverScopedRpc');
+    return createServerScopedMachineRpcModuleMock({ importOriginal, overrides: { machineRpcWithServerScope: rpc } });
+});
 vi.mock('react-native-unistyles', async () => {
     const { createUnistylesMock } = await import('@/dev/testkit/mocks/unistyles');
     return createUnistylesMock();
@@ -15,6 +19,31 @@ vi.mock('react-native-unistyles', async () => {
 afterEach(() => { standardCleanup(); vi.useRealTimers(); rpc.mockReset(); });
 
 describe('machine monitoring real store and rendered leaf', () => {
+    it('renders each available GPU percentage and expands its actual device identity, including measured zero', async () => {
+        const previous = storage.getState();
+        const serverId = getActiveServerId();
+        const machine = createMachineFixture({ id: 'render-multi-gpu-host', activeAt: Date.now() });
+        storage.setState({ isDataReady: true, profileScope: { serverId, accountId: 'render-multi-gpu-account' },
+            machines: { [machine.id]: machine }, machineListByServerId: { [serverId]: [machine] } });
+        const absent = { status: 'unavailable', reason: 'no-supported-gpu' };
+        rpc.mockResolvedValue({ ok: true, result: {
+            version: 1, machineId: machine.id, platform: 'darwin', sampledAt: Date.now(), collectionMs: 1000,
+            cpu: absent, memory: absent, storage: absent, load: absent,
+            gpu: { status: 'available', devices: [
+                { id: 'ioreg:4294969373', name: 'Apple M5 Pro', utilization: { status: 'available', usagePercent: 0 } },
+                { id: 'ioreg:9007199254740993', name: 'Second GPU', utilization: { status: 'available', usagePercent: 47 } },
+            ] },
+        } });
+        let screen: Awaited<ReturnType<typeof renderScreen>> | undefined;
+        try {
+            screen = await renderScreen(<MachineMonitoringSection />);
+            expect(screen.findByTestId(`machine-monitoring-${machine.id}-details`)!.props.accessibilityLabel).toContain('GPU 0%/47%');
+            await screen.pressByTestIdAsync(`machine-monitoring-${machine.id}-details`);
+            expect(screen.getTextContent()).toContain('Apple M5 Pro · ioreg:4294969373 · 0%');
+            expect(screen.getTextContent()).toContain('Second GPU · ioreg:9007199254740993 · 47%');
+        } finally { await screen?.unmount(); storage.setState(previous, true); }
+    });
+
     it('renders correct per-host attribution and unavailable values, retains readings and isolates telemetry from session storage', async () => {
         const previous = storage.getState();
         const serverId = getActiveServerId();
