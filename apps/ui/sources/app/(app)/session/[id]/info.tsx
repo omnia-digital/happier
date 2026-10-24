@@ -425,12 +425,13 @@ function SessionInfoActivityGroup({
 
     return (
         <ItemGroup title={t('sessionInfo.activity')}>
-            <Item
+            {session.archivedAt == null && <Item
+                testID="session-info-activity-status"
                 title={t('sessionInfo.sessionStatus')}
                 detail={sessionStatus.statusText}
                 icon={<Icon name="pulse" size={29} color={sessionStatus.statusColor} />}
                 showChevron={false}
-            />
+            />}
             {showRawDiagnostics ? (
                 <>
                     <Item

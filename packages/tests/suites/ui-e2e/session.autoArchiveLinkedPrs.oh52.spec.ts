@@ -166,6 +166,7 @@ exit 1
                     if (sessionId === merged) {
                         await gotoDomContentLoadedWithRetries(page, `${baseUrl}/session/${sessionId}/info`, 120_000);
                         await expect(page.getByTestId('session-info-header-status')).toHaveText('online', { timeout: 120_000 });
+                        await expect(page.getByTestId('session-info-activity-status')).toContainText('online');
                         await page.screenshot({ path: testInfo.outputPath('oh52-live-idle-status.png') });
                     }
                     // Match the real CLI clean-close path. A bare disconnect intentionally loses
@@ -234,14 +235,17 @@ exit 1
             await expect(page.getByTestId('session-pr-autoarchive-history')).toContainText('owner/one #7');
             await expect(page.getByTestId('session-pr-autoarchive-history')).toContainText('owner/two #7');
             await expect.soft(page.getByTestId('session-info-header-status')).toHaveCount(0);
+            await expect.soft(page.getByTestId('session-info-activity-status')).toHaveCount(0);
             await page.screenshot({ path: testInfo.outputPath('oh52-confirmed-autoarchive-history.png') });
             await page.reload();
             await expect(page.getByTestId('session-pr-autoarchive-history')).toBeVisible({ timeout: 120_000 });
             await expect.soft(page.getByTestId('session-info-header-status')).toHaveCount(0);
+            await expect.soft(page.getByTestId('session-info-activity-status')).toHaveCount(0);
             await gotoDomContentLoadedWithRetries(page, `${baseUrl}/session/${unknownWork}/info`, 120_000);
             await expect(page.getByTestId('session-pr-autoarchive-skipped')).toBeVisible({ timeout: 120_000 });
             await expect(page.getByTestId('session-pr-autoarchive-skipped')).toContainText('Older hosts may not report these signals');
             await expect(page.getByTestId('session-info-header-status')).toBeVisible();
+            await expect(page.getByTestId('session-info-activity-status')).toContainText('last seen');
             const explanation = page.getByTestId('session-pr-autoarchive-skipped').getByText('Older hosts may not report these signals', { exact: false });
             await explanation.scrollIntoViewIfNeeded();
             expect.soft(await explanation.evaluate((element) => ({
