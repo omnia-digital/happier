@@ -14,3 +14,7 @@ Implement the reviewed phase18 ancestry-only increment through existing phase16 
 Source anchors: `operations/cleanupPreflight.ts`, `repository.ts`, `readHostWorktreeCleanupPreflight.ts`, and their existing tests. No additional provider polling, cache, RPC or session inventory. Source3b preflight remains accepted through `e31e0359aa`; phase18 report is accepted as discovery only through `7ad9ff8d46`, including root's fresh independent nine-outcome Git probe at `happier-oh52-root-integration-probe-42vvv7km`.
 
 Actual Astra/high owns this increment; retain cumulative OH-52 2failedSol/0Astra. Root owns Linear/tasks/phase9. UI/browser and existing evidence remain other workers' scope. No real checkout/provider/account/native/service mutation; disposable Git fixtures only.
+
+## Execution evidence
+
+First RED: three existing merge/squash/rebase cases failed on missing ancestry evidence. Expanded RED: 18 of 24 disposable cases failed on missing evidence and effective-remote/ref/config drift. Initial implementation passes 23 of 24; the byte-preservation case exposed an actual nested `getGitSnapshot` index refresh through exact PR lookup. Root accepted a scoped canonical read-only snapshot correction; it is in progress. No cleanup executor or deletion-ready resource decision exists.
