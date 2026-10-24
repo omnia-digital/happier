@@ -3,12 +3,14 @@ import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 import { createTestAuthMtls } from '../../src/testkit/auth';
+import { upsertPlainAccountSettingsV2 } from '../../src/testkit/accountSettings';
 import { registerMachineIdentity } from '../../src/testkit/machineIdentity';
 import { startServerLight, type StartedServer } from '../../src/testkit/process/serverLight';
 import { resolveUiWebBeforeAllTimeoutMs, startUiWeb, type StartedUiWeb } from '../../src/testkit/process/uiWeb';
 import { createRunDirs } from '../../src/testkit/runDir';
 import { startForwardedHeaderProxy } from '../../src/testkit/uiE2e/forwardedHeaderProxy';
 import { gotoDomContentLoadedWithRetries, normalizeLoopbackBaseUrl } from '../../src/testkit/uiE2e/pageNavigation';
+import { readUiE2eScopedAccountSettings } from '../../src/testkit/uiE2e/scopedAccountSettingsStorage';
 import { createPlainSession } from '../../src/testkit/uiE2e/sessionFoldersDrag';
 import { waitForInitialAppUi } from '../../src/testkit/uiE2e/waitForInitialAppUi';
 import { encodePlainMachineStoredContent, MACHINE_PLAIN_DATA_KEY_MARKER } from '@happier-dev/protocol';
@@ -25,6 +27,7 @@ test.describe('OH-56 Command+K session title search', () => {
   let stopProxy: (() => Promise<void>) | null = null;
   let uiBaseUrl = '';
   let targetSessionId = '';
+  let newerSessionId = '';
 
   test.beforeAll(async () => {
     test.setTimeout(resolveUiWebBeforeAllTimeoutMs(process.env));
@@ -62,6 +65,11 @@ test.describe('OH-56 Command+K session title search', () => {
     });
     stopProxy = proxy.stop;
     const { token } = await createTestAuthMtls(server.baseUrl, identity);
+    await upsertPlainAccountSettingsV2({
+      baseUrl: server.baseUrl,
+      token,
+      settings: { commandPaletteEnabled: true, keyboardShortcutsV2Enabled: true },
+    });
     await registerMachineIdentity({
       baseUrl: server.baseUrl, token, machineId: 'oh56-mac',
       metadata: encodePlainMachineStoredContent({ host: 'oh56-mac', displayName: 'OH56 Mac', platform: 'darwin', homeDir: '/work' }),
@@ -75,7 +83,7 @@ test.describe('OH-56 Command+K session title search', () => {
         baseUrl: server.baseUrl, token, title: `Fresh fixture ${index}`, machineId: 'oh56-mac', rootPath: `/work/fresh-${index}`, tagPrefix: 'oh56-fresh',
       });
     }
-    await createPlainSession({
+    newerSessionId = await createPlainSession({
       baseUrl: server.baseUrl, token, title: 'Nebula archive research', machineId: 'oh56-mac', rootPath: '/work/newer', tagPrefix: 'oh56-similar',
     });
     ui = await startUiWeb({
@@ -103,19 +111,48 @@ test.describe('OH-56 Command+K session title search', () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
     await waitForInitialAppUi({ page, timeoutMs: 120_000 });
-    await page.keyboard.press('Meta+k');
-    const input = page.getByPlaceholder('Search commands...');
+    await expect.poll(async () => {
+      const settings = await readUiE2eScopedAccountSettings({ page });
+      return settings.commandPaletteEnabled === true && settings.keyboardShortcutsV2Enabled === true;
+    }, { timeout: 30_000 }).toBe(true);
+    // The keyboard registry binds this command to Alt+K on web to avoid the browser's Mod+K shortcut.
+    const shortcut = 'Alt+k';
+    await page.keyboard.press(shortcut);
+    const input = page.getByPlaceholder('Type a command or search...');
     await expect(input).toBeFocused();
     await input.fill('nEbUlA');
     await expect(page.getByTestId('command-palette:search-scope')).toBeVisible();
     await expect(page.getByText('/work/older', { exact: false })).toBeVisible({ timeout: 120_000 });
     await expect(page.getByText('/work/newer', { exact: false })).toBeVisible();
+    await input.fill('no-matching-session-or-command');
+    await expect(page.getByText('No commands found')).toBeVisible();
+    await input.fill('Settings');
+    await expect(page.getByText('Settings', { exact: true })).toBeVisible();
+    await input.fill('nEbUlA');
+    await expect(page.getByText('/work/older', { exact: false })).toBeVisible();
     await input.press('ArrowDown');
     await input.press('Enter');
     await expect(page).toHaveURL(new RegExp(`/session/${targetSessionId}(?:[/?#]|$)`), { timeout: 120_000 });
-    await page.keyboard.press('Meta+k');
-    await expect(page.getByPlaceholder('Search commands...')).toBeFocused();
+    await page.keyboard.press(shortcut);
+    await expect(page.getByPlaceholder('Type a command or search...')).toBeFocused();
     await page.keyboard.press('Escape');
-    await expect(page.getByPlaceholder('Search commands...')).toHaveCount(0);
+    await expect(page.getByPlaceholder('Type a command or search...')).toHaveCount(0);
+
+    await page.getByTestId(`session-list-item-${newerSessionId}`).click({ button: 'right' });
+    await page.getByRole('button', { name: /Rename Session/ }).click();
+    const renameInput = page.getByPlaceholder('Enter session name...');
+    await expect(renameInput).toBeVisible();
+    await renameInput.fill('Nebula renamed in browser');
+    await page.getByText('Save', { exact: true }).click();
+    await expect(page.getByTestId(`session-list-item-${newerSessionId}`)).toContainText('Nebula renamed in browser');
+
+    await page.keyboard.press(shortcut);
+    const renamedQuery = page.getByPlaceholder('Type a command or search...');
+    await expect(renamedQuery).toBeFocused();
+    await renamedQuery.fill('renamed in browser');
+    await expect(page.getByRole('button', { name: /Nebula renamed in browser/ })).toBeVisible();
+    await renamedQuery.fill('archive research');
+    await expect(page.getByText('/work/newer', { exact: false })).toHaveCount(0);
+    await expect(page.getByText('/work/older', { exact: false })).toBeVisible();
   });
 });

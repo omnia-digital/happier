@@ -6,34 +6,40 @@ import { renderScreen, standardCleanup } from '@/dev/testkit';
 import { installModalComponentCommonModuleMocks } from '@/modal/components/modalComponentTestHelpers';
 import { SelectableRow } from '@/components/ui/lists/SelectableRow';
 
-const source = vi.hoisted(() => ({
-    rows: [] as Array<{
+type SearchRow = {
         type: 'session';
         serverId: string;
         serverName: string;
         session: { id: string; updatedAt: number; archivedAt: number | null; metadata: { name: string; path: string; host: string } };
-    }>,
+};
+
+const source = vi.hoisted(() => ({
+    rows: [] as SearchRow[],
+    enabled: false,
+    byServerId: {} as Record<string, SearchRow[] | null>,
 }));
 const fetchRemainingSessions = vi.hoisted(() => vi.fn(async (_shouldContinue: () => boolean) => {}));
+const fetchRemainingSelectedServerSessions = vi.hoisted(() => vi.fn(async (_ids: readonly string[], _shouldContinue: () => boolean) => {}));
 
 installModalComponentCommonModuleMocks();
 
 vi.mock('@/sync/sync', () => ({ sync: { fetchRemainingSessions } }));
+vi.mock('@/sync/runtime/orchestration/concurrentSessionCache', () => ({ fetchRemainingSelectedServerSessions }));
 
 vi.mock('@/sync/store/hooks', async () => {
     const actual = await vi.importActual<typeof import('@/sync/store/hooks')>('@/sync/store/hooks');
     return {
         ...actual,
         useSessionListViewData: () => source.rows,
-        useSessionListViewDataByServerId: () => ({}),
+        useSessionListViewDataByServerId: () => source.byServerId,
     };
 });
 
 vi.mock('@/hooks/server/useEffectiveServerSelection', () => ({
     useResolvedActiveServerSelection: () => ({
-        enabled: false,
+        enabled: source.enabled,
         activeServerId: 'server-a',
-        allowedServerIds: ['server-a'],
+        allowedServerIds: source.enabled ? ['server-a', 'server-b'] : ['server-a'],
     }),
 }));
 
@@ -55,7 +61,10 @@ describe('CommandPalette session search', () => {
     afterEach(() => {
         standardCleanup();
         source.rows = [];
+        source.enabled = false;
+        source.byServerId = {};
         fetchRemainingSessions.mockClear();
+        fetchRemainingSelectedServerSessions.mockClear();
     });
 
     it('keeps actions and opens an outside-recent title match with Enter, then dismisses with Escape', async () => {
@@ -126,5 +135,25 @@ describe('CommandPalette session search', () => {
         expect(screen.findAllByType(SelectableRow).map((row) => row.props.title)).toEqual(['Incident Retrospective']);
         await act(async () => { input.props.onChangeText('nothing-matches'); });
         expect(screen.findAllByType(SelectableRow)).toHaveLength(0);
+    });
+
+    it('requests older titles from a selected foreign Home through its scoped cache owner', async () => {
+        source.enabled = true;
+        source.rows = [makeRow('active', 'Active Work', 20)];
+        source.byServerId = { 'server-b': [makeRow('remote', 'Foreign Research', 10, 'server-b')] };
+        const navigateToSession = vi.fn();
+        const { CommandPalette } = await import('./CommandPalette');
+        const screen = await renderScreen(<CommandPalette commands={[]} navigateToSession={navigateToSession} onClose={vi.fn()} />);
+        const input = screen.findByType('TextInput');
+        expect(fetchRemainingSelectedServerSessions).not.toHaveBeenCalled();
+
+        await act(async () => { input.props.onChangeText('foreign'); });
+        expect(fetchRemainingSelectedServerSessions).toHaveBeenCalledWith(['server-b'], expect.any(Function));
+        expect(screen.findAllByType(SelectableRow).map((row) => row.props.title)).toEqual(['Foreign Research']);
+        await act(async () => { input.props.onKeyPress({ nativeEvent: { key: 'Enter' } }); });
+        expect(navigateToSession).toHaveBeenCalledWith('remote', { serverId: 'server-b' });
+        const stillSearching = fetchRemainingSelectedServerSessions.mock.calls[0]?.[1];
+        await act(async () => { input.props.onChangeText(''); });
+        expect(stillSearching?.()).toBe(false);
     });
 });

@@ -307,8 +307,8 @@ In the current development source, you can also type part of a session title to
 find a session beyond the recent suggestions. Results show its path, machine and
 server so similarly named sessions are easier to tell apart. Use the arrow keys
 and Enter to open a result, or Escape to close the palette. Title search covers
-unarchived sessions on your selected servers and loads older titles while you
-search. Conversation text search is available
+unarchived sessions on your available selected servers and loads older titles
+when those servers support paging. Conversation text search is available
 through Search Memory when that feature is enabled on a machine.
 
 ${formatBindings(commands.get('commandPalette.open')?.bindings)}

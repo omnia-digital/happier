@@ -275,6 +275,7 @@ async function refreshServerSnapshot(entry: ManagedConcurrentServer, titleSearch
     });
 
     let page = await fetchPage(null);
+    if (!isCurrent() || (titleSearchShouldContinue && !titleSearchShouldContinue())) return;
 
     await fetchAndApplyMachines({
         credentials: entry.credentials,
@@ -293,7 +294,7 @@ async function refreshServerSnapshot(entry: ManagedConcurrentServer, titleSearch
     }
 
     // Guard against late async writes: a refresh can finish after this server is removed.
-    if (managedServers.get(entry.id) !== entry) {
+    if (!isCurrent() || (titleSearchShouldContinue && !titleSearchShouldContinue())) {
         return;
     }
 

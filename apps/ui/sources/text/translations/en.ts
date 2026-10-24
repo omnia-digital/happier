@@ -5778,7 +5778,7 @@ export const en = {
     commandPalette: {
         placeholder: 'Type a command or search...',
         noCommandsFound: 'No commands found',
-        searchScope: 'Searches unarchived sessions on selected servers. Older titles load while you search.',
+        searchScope: 'Searches unarchived sessions on available selected servers. Older titles load where server paging is available.',
         searchUnavailable: 'Could not load older sessions. Results may be incomplete. Try searching again.',
         shortcutsHelpTitle: 'Keyboard shortcuts',
         shortcutsHelpBody: ({ shortcuts }: { shortcuts: string }) => `Active shortcuts:\n${shortcuts}`,

@@ -6107,7 +6107,7 @@ export const es: TranslationStructure = {
   commandPalette: {
     placeholder: "Escriba un comando o busque...",
     noCommandsFound: "No se encontraron comandos",
-    searchScope: 'Busca sesiones no archivadas de los servidores seleccionados y carga las más antiguas mientras buscas.',
+    searchScope: 'Busca sesiones no archivadas en los servidores seleccionados disponibles. Carga títulos antiguos si el servidor admite paginación.',
     searchUnavailable: 'No se pudieron cargar sesiones anteriores. Los resultados pueden estar incompletos. Vuelve a buscar.',
         shortcutsHelpTitle: 'Atajos de teclado',
         shortcutsHelpBody: ({ shortcuts }: { shortcuts: string }) => `Atajos activos:\n${shortcuts}`,
