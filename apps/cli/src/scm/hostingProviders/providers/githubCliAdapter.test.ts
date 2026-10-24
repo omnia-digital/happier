@@ -68,7 +68,7 @@ describe('githubCliAdapter', () => {
                 '--state',
                 'open',
                 '--json',
-                'number,title,url,state,baseRefName,headRefName,mergedAt',
+                'number,title,url,state,baseRefName,headRefName,mergedAt,isDraft,headRefOid,headRepository',
                 '--base',
                 'main',
                 '--head',
