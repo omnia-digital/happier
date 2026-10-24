@@ -4499,6 +4499,14 @@ export const es: TranslationStructure = {
   },
 
   settingsAppearance: {
+    sections: {
+      global: 'General',
+      leftSidebar: 'Barra lateral izquierda',
+      taskView: 'Vista de tareas',
+      sidebarSettings: 'Diseño de la barra lateral',
+      sidebarSettingsDescription: 'Diseño de tarjetas, identidad de la máquina y organización de sesiones',
+      sidebarGlobalDefaults: 'El tamaño del texto y la densidad de los elementos usan la configuración global.',
+    },
     tabBarAppearance: {
       title: 'Barra de pestañas',
       footer: 'Personaliza la barra de pestañas inferior.',

@@ -4451,6 +4451,14 @@ export const ru: TranslationStructure = {
   },
 
   settingsAppearance: {
+    sections: {
+      global: 'Общие',
+      leftSidebar: 'Левая боковая панель',
+      taskView: 'Вид задач',
+      sidebarSettings: 'Макет боковой панели',
+      sidebarSettingsDescription: 'Макет карточек, идентификация компьютера и организация сессий',
+      sidebarGlobalDefaults: 'Размер текста и плотность элементов используют общие настройки.',
+    },
     tabBarAppearance: {
       title: 'Панель вкладок',
       footer: 'Настройте нижнюю панель вкладок.',

@@ -4389,6 +4389,14 @@ export const zhHans: TranslationStructure = {
   },
 
   settingsAppearance: {
+    sections: {
+      global: '通用',
+      leftSidebar: '左侧边栏',
+      taskView: '任务视图',
+      sidebarSettings: '侧边栏布局',
+      sidebarSettingsDescription: '卡片布局、机器身份和会话整理',
+      sidebarGlobalDefaults: '文本大小和条目密度使用全局设置。',
+    },
     tabBarAppearance: {
       title: '标签栏',
       footer: '自定义底部标签栏。',

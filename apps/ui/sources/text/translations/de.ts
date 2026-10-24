@@ -4210,6 +4210,14 @@ export const de: TranslationStructure = {
     },
 
     settingsAppearance: {
+      sections: {
+        global: 'Allgemein',
+        leftSidebar: 'Linke Seitenleiste',
+        taskView: 'Aufgabenansicht',
+        sidebarSettings: 'Seitenleistenlayout',
+        sidebarSettingsDescription: 'Kartenlayout, Maschinenidentität und Sitzungsorganisation',
+        sidebarGlobalDefaults: 'Textgröße und Elementdichte verwenden die allgemeinen Einstellungen.',
+      },
       tabBarAppearance: {
         title: 'Tab-Leiste',
         footer: 'Die untere Tab-Leiste anpassen.',

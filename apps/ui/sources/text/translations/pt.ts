@@ -4624,6 +4624,14 @@ export const pt: TranslationStructure = {
   },
 
   settingsAppearance: {
+    sections: {
+      global: 'Geral',
+      leftSidebar: 'Barra lateral esquerda',
+      taskView: 'Vista de tarefas',
+      sidebarSettings: 'Layout da barra lateral',
+      sidebarSettingsDescription: 'Layout dos cartões, identidade da máquina e organização das sessões',
+      sidebarGlobalDefaults: 'O tamanho do texto e a densidade dos itens usam as definições globais.',
+    },
     tabBarAppearance: {
       title: 'Barra de abas',
       footer: 'Personalize a barra de abas inferior.',

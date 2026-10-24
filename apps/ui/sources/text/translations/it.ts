@@ -4846,6 +4846,14 @@ export const it: TranslationStructure = {
   },
 
   settingsAppearance: {
+    sections: {
+      global: 'Generale',
+      leftSidebar: 'Barra laterale sinistra',
+      taskView: 'Vista attività',
+      sidebarSettings: 'Layout della barra laterale',
+      sidebarSettingsDescription: 'Layout delle schede, identità della macchina e organizzazione delle sessioni',
+      sidebarGlobalDefaults: 'Le dimensioni del testo e la densità degli elementi usano le impostazioni globali.',
+    },
     tabBarAppearance: {
       title: 'Barra schede',
       footer: 'Personalizza la barra delle schede in basso.',

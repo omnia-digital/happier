@@ -4793,6 +4793,14 @@ localTailscale: {
   },
 
   settingsAppearance: {
+    sections: {
+      global: '全般',
+      leftSidebar: '左サイドバー',
+      taskView: 'タスクビュー',
+      sidebarSettings: 'サイドバーのレイアウト',
+      sidebarSettingsDescription: 'カードレイアウト、マシンの識別情報、セッションの整理',
+      sidebarGlobalDefaults: 'テキストサイズと項目の密度にはグローバル設定が使われます。',
+    },
     tabBarAppearance: {
       title: 'タブバー',
       footer: '下部のタブバーをカスタマイズします。',

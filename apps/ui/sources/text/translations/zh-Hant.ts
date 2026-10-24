@@ -4160,6 +4160,14 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
     },
 
     settingsAppearance: {
+      sections: {
+        global: '一般',
+        leftSidebar: '左側邊欄',
+        taskView: '任務檢視',
+        sidebarSettings: '側邊欄配置',
+        sidebarSettingsDescription: '卡片配置、機器識別資訊與工作階段整理',
+        sidebarGlobalDefaults: '文字大小和項目密度使用全域設定。',
+      },
       tabBarAppearance: {
         title: '標籤列',
         footer: '自訂底部標籤列。',

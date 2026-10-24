@@ -4210,6 +4210,14 @@ export const fr: TranslationStructure = {
     },
 
     settingsAppearance: {
+      sections: {
+        global: 'Général',
+        leftSidebar: 'Barre latérale gauche',
+        taskView: 'Vue des tâches',
+        sidebarSettings: 'Disposition de la barre latérale',
+        sidebarSettingsDescription: 'Disposition des cartes, identité de la machine et organisation des sessions',
+        sidebarGlobalDefaults: 'La taille du texte et la densité des éléments utilisent les réglages généraux.',
+      },
       tabBarAppearance: {
         title: 'Barre d’onglets',
         footer: 'Personnalise la barre d’onglets du bas.',

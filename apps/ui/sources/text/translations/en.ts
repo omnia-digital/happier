@@ -4230,6 +4230,14 @@ export const en = {
     },
 
     settingsAppearance: {
+      sections: {
+        global: 'Global',
+        leftSidebar: 'Left Sidebar',
+        taskView: 'Task View',
+        sidebarSettings: 'Sidebar layout',
+        sidebarSettingsDescription: 'Card layout, machine identity, and session organization',
+        sidebarGlobalDefaults: 'Text size and item density use the Global settings.',
+      },
       tabBarAppearance: {
         title: 'Tab bar',
         footer: 'Customize the bottom tab bar.',

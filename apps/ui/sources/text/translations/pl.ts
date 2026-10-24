@@ -4534,6 +4534,14 @@ export const pl: TranslationStructure = {
   },
 
   settingsAppearance: {
+    sections: {
+      global: 'Ogólne',
+      leftSidebar: 'Lewy pasek boczny',
+      taskView: 'Widok zadań',
+      sidebarSettings: 'Układ paska bocznego',
+      sidebarSettingsDescription: 'Układ kart, tożsamość maszyny i organizacja sesji',
+      sidebarGlobalDefaults: 'Rozmiar tekstu i gęstość elementów korzystają z ustawień ogólnych.',
+    },
     tabBarAppearance: {
       title: 'Pasek kart',
       footer: 'Dostosuj dolny pasek kart.',

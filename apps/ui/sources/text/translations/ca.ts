@@ -4299,6 +4299,14 @@ export const ca: TranslationStructure = {
     },
 
     settingsAppearance: {
+      sections: {
+        global: 'General',
+        leftSidebar: 'Barra lateral esquerra',
+        taskView: 'Vista de tasques',
+        sidebarSettings: 'Disseny de la barra lateral',
+        sidebarSettingsDescription: 'Disposició de targetes, identitat de màquina i organització de sessions',
+        sidebarGlobalDefaults: 'La mida del text i la densitat dels elements utilitzen la configuració global.',
+      },
       tabBarAppearance: {
         title: 'Barra de pestanyes',
         footer: 'Personalitza la barra de pestanyes inferior.',
