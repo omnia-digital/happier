@@ -1932,6 +1932,7 @@ const SessionItemContent = React.memo(
                                     matchTriggerWidth={false}
                                     showCategoryTitles={false}
                                     popoverPortalWebTarget="body"
+                                    popoverBoundaryRef={null}
                                     trigger={({ toggle }) => (
                                         <Pressable
                                             testID="session-item-more-menu"

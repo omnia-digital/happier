@@ -144,10 +144,31 @@ export function observeWebUnistylesFontMetricSources(
 ): () => void {
     if (typeof MutationObserver !== 'function') return () => {};
     const observers: MutationObserver[] = [];
+    const styleTextObservers = new Map<HTMLStyleElement, MutationObserver>();
+
+    const observeStyleTextSources = () => {
+        const sources = new Set(Array.from(document.head.querySelectorAll('style'))
+            .filter(isFontMetricStyleSourceNode));
+        for (const [source, observer] of styleTextObservers) {
+            if (sources.has(source)) continue;
+            observer.disconnect();
+            styleTextObservers.delete(source);
+        }
+        for (const source of sources) {
+            if (styleTextObservers.has(source)) continue;
+            // Unistyles replaces innerText on its existing style element when lazy
+            // components register classes. Observe only stylesheet text, never app DOM.
+            const observer = new MutationObserver(onChange);
+            observer.observe(source, { childList: true, characterData: true, subtree: true });
+            styleTextObservers.set(source, observer);
+        }
+    };
 
     if (document.head) {
+        observeStyleTextSources();
         const headObserver = new MutationObserver((mutations) => {
             if (!mutations.some(mutationHasFontMetricStyleSource)) return;
+            observeStyleTextSources();
             onChange();
         });
         headObserver.observe(document.head, { childList: true });
@@ -179,6 +200,10 @@ export function observeWebUnistylesFontMetricSources(
         for (const observer of observers) {
             observer.disconnect();
         }
+        for (const observer of styleTextObservers.values()) {
+            observer.disconnect();
+        }
+        styleTextObservers.clear();
     };
 }
 

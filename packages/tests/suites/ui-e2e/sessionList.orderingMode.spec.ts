@@ -760,6 +760,14 @@ test.describe('ui e2e: session list ordering mode', () => {
       await expect.poll(() => item.getByText(labelText, { exact: true }).evaluate(element =>
         element.scrollWidth <= element.clientWidth && element.scrollHeight <= element.clientHeight,
       ), { message: 'Full menu labels remain readable at 200% text size' }).toBe(true);
+      await expect.poll(() => item.getByText(labelText, { exact: true }).evaluate(element => {
+        const style = getComputedStyle(element);
+        const context = document.createElement('canvas').getContext('2d');
+        if (!context) throw new Error('Text measurement is unavailable');
+        context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+        const longestWord = Math.max(...(element.textContent ?? '').trim().split(/\s+/).map(word => context.measureText(word).width));
+        return element.clientWidth >= longestWord;
+      }), { message: 'Menu labels must retain enough width for whole words at 200% text size' }).toBe(true);
       const bounds = await item.boundingBox();
       expect(bounds).not.toBeNull();
       expect(bounds!.x).toBeGreaterThanOrEqual(0);
