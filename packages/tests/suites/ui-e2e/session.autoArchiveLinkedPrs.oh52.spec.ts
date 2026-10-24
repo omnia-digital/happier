@@ -8,7 +8,9 @@ import { delimiter, join, resolve } from 'node:path';
 import {
     sealEncryptedDataKeyEnvelopeV1,
     SESSION_RUNTIME_ACTIVITY_SNAPSHOT_EVENT,
+    SESSION_RUNTIME_ACTIVITY_CLOSE_EVENT,
     SessionRuntimeActivitySnapshotAckSchema,
+    SessionRuntimeActivityCloseAckSchema,
     parseSessionRuntimeActivityProjectionFields,
 } from '@happier-dev/protocol';
 import { createRunDirs } from '../../src/testkit/runDir';
@@ -157,11 +159,14 @@ exit 1
                         sessionId, mutationId: randomUUID(), snapshot: { state: 'idle', activeCount: 0 },
                     }));
                     expect(['applied', 'unchanged']).toContain(ack.status);
+                    expect(parseSessionRuntimeActivityProjectionFields(await readServerRow(sessionId))).toMatchObject({
+                        kind: 'valid', projection: { state: 'idle', activeCount: 0 },
+                    });
+                    // Match the real CLI clean-close path. A bare disconnect intentionally loses
+                    // idle evidence and cannot stand in for an acknowledged completed session.
+                    const closed = SessionRuntimeActivityCloseAckSchema.parse(await socket.emitWithAck(SESSION_RUNTIME_ACTIVITY_CLOSE_EVENT, { sessionId }));
+                    expect(closed.status).toBe('closed');
                 } finally { socket.close(); }
-                // Only this disposable SQLite fixture is marked ended; the acknowledged runtime
-                // projection remains the server's real snapshot and the browser reads it via HTTP.
-                const dbPath = join(server!.dataDir, 'happier-server-light.sqlite');
-                execFileSync('sqlite3', [dbPath, `UPDATE Session SET active = 0, thinking = 0 WHERE id = '${sessionId}';`]);
                 const ended = await fetchSessionV2(server!.baseUrl, access.token, sessionId);
                 expect(ended).toMatchObject({ active: false, pendingCount: 0, pendingBlockedCount: 0 });
                 expect(parseSessionRuntimeActivityProjectionFields(await readServerRow(sessionId))).toMatchObject({
