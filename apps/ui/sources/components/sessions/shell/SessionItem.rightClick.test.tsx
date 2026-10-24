@@ -127,6 +127,13 @@ describe('SessionItem right-click menu (web)', () => {
 
         const otherRow = screen.findByTestId('session-list-item-sess_other_conversation');
         if (!otherRow) throw new Error('other session row not found');
+        const otherRowContainer = otherRow.parent;
+        if (!otherRowContainer) throw new Error('other session row container not found');
+        await act(async () => otherRowContainer.props.onPointerEnter({ pointerType: 'mouse' }));
+        expect(screen.findByTestId('session-item-current-indicator-sess_current_conversation')).toBe(currentIndicator);
+        expect(screen.findByTestId('session-item-current-indicator-sess_other_conversation')).toBeNull();
+        await act(async () => otherRowContainer.props.onFocus({ target: {} }));
+        expect(screen.findByTestId('session-item-current-indicator-sess_other_conversation')).toBeNull();
         await act(async () => otherRow.props.onContextMenu({ preventDefault: vi.fn(), stopPropagation: vi.fn() }));
 
         expect(screen.findByTestId('session-item-current-indicator-sess_current_conversation')).toBe(currentIndicator);
@@ -158,6 +165,28 @@ describe('SessionItem right-click menu (web)', () => {
 
         expect(screen.findByTestId('session-list-selection-checkbox-sess_multi_selected')?.props.accessibilityState).toMatchObject({ checked: true });
         expect(screen.findByTestId('session-item-current-indicator-sess_multi_selected')).toBeNull();
+    });
+
+    it('keeps the current-session marker, title, and action area through compact and minimal density changes', async () => {
+        const session = createSessionFixture({
+            id: 'sess_selected_density',
+            active: true,
+            metadata: { name: 'Review the sidebar' } as any,
+        });
+        const screen = await renderScreen(
+            <SessionItem session={session} serverId="server_density" selected compact variant="default" />,
+        );
+        const expectSelectedRowContent = () => {
+            expect(screen.findByTestId('session-item-current-indicator-sess_selected_density')).toBeTruthy();
+            expect(screen.findAllByType('Text').some((node) => node.props.children === 'Session')).toBe(true);
+            expect(screen.findByTestId('session-item-right-area')).toBeTruthy();
+        };
+        expectSelectedRowContent();
+
+        await screen.update(
+            <SessionItem session={session} serverId="server_density" selected compact compactMinimal variant="default" />,
+        );
+        expectSelectedRowContent();
     });
 
     it('opens the existing row menu without navigating and keeps its action target', async () => {

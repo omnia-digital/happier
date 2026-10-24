@@ -294,6 +294,15 @@ const stylesheet = StyleSheet.create((theme) => ({
         backgroundColor: theme.colors.surface.selected,
         borderColor: theme.dark ? theme.colors.surface.selected : theme.colors.surface.base,
     },
+    sessionCurrentIndicator: {
+        position: 'absolute',
+        left: 0,
+        top: 3,
+        bottom: 3,
+        width: 3,
+        borderRadius: 999,
+        backgroundColor: theme.colors.accent.blue,
+    },
     sessionTitleSelected: {
         color: theme.colors.text.primary,
         ...Typography.default('semiBold'),
@@ -1505,6 +1514,13 @@ const SessionItemContent = React.memo(
                 onPressOut={enableLongPressContextMenu ? clearContextMenuPressInTimer : undefined}
                 onLongPress={enableLongPressContextMenu ? openContextMenuFromLongPress : undefined}
             >
+                {selected ? (
+                    <View
+                        testID={`session-item-current-indicator-${resolvedSession.id}`}
+                        pointerEvents="none"
+                        style={styles.sessionCurrentIndicator}
+                    />
+                ) : null}
                 {shouldRenderLeadingIdentity || shouldRenderSelectionCheckbox ? (
                     <View
                         style={[
