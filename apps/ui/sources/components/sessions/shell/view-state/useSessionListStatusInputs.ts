@@ -22,10 +22,11 @@ export function useSessionListStatusInputs(items: readonly SessionListViewItem[]
     const selector = React.useMemo(() => createSessionListStatusInputsSelector(enabled ? items ?? EMPTY_ITEMS : EMPTY_ITEMS, activeServerId, () => nowRef.current, includeAgent), [items, activeServerId, enabled, includeAgent]);
     const getSnapshot = React.useCallback(() => selector(storage.getState()), [selector, runtimeNowMs]);
     const inputs = React.useSyncExternalStore(enabled ? storage.subscribe : subscribeInactive, getSnapshot, getSnapshot);
-    const metadataDemandKey = JSON.stringify([activeScope, enabled && includeTicket && demandActive ? (items ?? []).flatMap(item => {
+    const metadataCandidates = enabled && includeTicket && demandActive ? (items ?? []).flatMap(item => {
         if (item.type !== 'session') return [];
         return [{ key: sessionListStatusRowKey(item), sessionId: item.session.id, serverId: item.serverId }];
-    }) : []]);
+    }) : [];
+    const metadataDemandKey = JSON.stringify([activeScope, [...new Map(metadataCandidates.map(candidate => [candidate.key, candidate])).values()].sort((left, right) => left.key.localeCompare(right.key))]);
     const [metadataProjection, setMetadataProjection] = React.useState<{ key: string; states: ReadonlyMap<string, SessionTicketStatus> }>({ key: '', states: EMPTY_METADATA_STATES });
     React.useEffect(() => {
         let current = true;
@@ -36,8 +37,9 @@ export function useSessionListStatusInputs(items: readonly SessionListViewItem[]
         if (candidates.length === 0) return;
         void sync.ensureSessionListMetadata(candidates, () => current && isRuntimeActive() && isHostVisible() && readHostWindowFocus() !== false).then(results => {
             if (!current) return;
+            const observed = selector(storage.getState());
             // Request outcomes only; metadata stays in the canonical scoped session/renderable store.
-            setMetadataProjection({ key: metadataDemandKey, states: new Map(results.flatMap((result, index) => result?.kind === 'available' ? [] : [[candidates[index].key, { phase: 'unavailable' as const, snapshot: null, error: null }] as const])) });
+            setMetadataProjection({ key: metadataDemandKey, states: new Map(results.flatMap((result, index) => result?.kind === 'available' && observed.ticketAssociations.get(candidates[index].key) !== undefined ? [] : [[candidates[index].key, { phase: 'unavailable' as const, snapshot: null, error: null }] as const])) });
         });
         return () => { current = false; };
     }, [metadataDemandKey]);

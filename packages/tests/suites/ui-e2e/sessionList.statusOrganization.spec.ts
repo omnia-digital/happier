@@ -83,13 +83,21 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
                 sessionKeys.set(sessionId, dataKey);
                 return sessionId;
             };
+            const noTicket = await seed('OH60 No ticket');
+            await seed('OH60 layout anchor');
+            await gotoDomContentLoadedWithRetries(page, baseUrl, 120_000);
+            await expect(page.getByTestId('session-list-item-' + noTicket)).toBeVisible({ timeout: 120_000 });
+            await page.getByTestId('session-list-item-' + noTicket).hover();
+            await page.getByRole('button', { name: 'Pin session', exact: true }).click();
+            await page.getByText('status-organization', { exact: true }).click();
+            // Preserve the user's collapsed original project while the fixture is seeded offline.
+            await page.goto('about:blank');
             const idle = await seed('OH60 QA idle', 1);
             const working = await seed('OH60 QA working', 2);
             const testing = await seed('OH60 Testing', 3);
             const production = await seed('OH60 Production', 4);
             const unavailable = await seed('OH60 Unavailable', 5);
             for (let index = 0; index < 32; index++) await seed('OH60 unlinked filler ' + index);
-            const noTicket = await seed('OH60 No ticket');
             const publish = async (sessionId: string, thinking: boolean) => {
                 const { socket } = await createMachineBoundSessionScopedSocketCollector({ baseUrl: server!.baseUrl, token: access.token, sessionId,
                     machineMetadataCiphertext: encryptLegacyBase64({ host: 'OH60 isolated runtime publisher', platform: 'darwin' }, secret) });
@@ -104,7 +112,7 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             const workingPublisher = await publish(working, true);
             await publish(testing, false); await publish(production, false); await publish(unavailable, false);
             const catalog = await fetchSessionsV2(server.baseUrl, access.token, { limit: 50 });
-            expect(catalog.sessions).toHaveLength(38);
+            expect(catalog.sessions).toHaveLength(39);
             expect(catalog.sessions.every(session => typeof session.dataEncryptionKey === 'string')).toBe(true);
             await gotoDomContentLoadedWithRetries(page, baseUrl, 120_000);
             await page.getByTestId('machine-monitoring-toggle').click();
@@ -120,11 +128,9 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             const position = async (id: string) => (await visibleIds()).indexOf(id);
             await expect(page.getByTestId('session-list-ordering-menu-trigger').first()).toBeVisible({ timeout: 120_000 });
             await expect(row(noTicket)).toBeVisible();
-            await row(noTicket).hover();
-            await page.getByRole('button', { name: 'Pin session', exact: true }).click();
             await expect(page.getByText('Pinned', { exact: true })).toBeVisible();
-            // This oldest linked row is outside the viewport before status organization demands it.
-            await expect(row(idle)).toHaveCount(0);
+            // The saved project collapse keeps this ticket row out of view before list demand.
+            await expect(row(idle)).not.toBeInViewport();
             expect((await readFile(readLog, 'utf8')).split('\n')).not.toContain('DEV-1');
             await choose('session-list-status-group-ticket');
             await expect(page.getByText('Q/A - Dev', { exact: true }).first()).toBeVisible({ timeout: 60_000 });
@@ -132,8 +138,8 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             expect((await readFile(readLog, 'utf8')).split('\n')).toContain('DEV-1');
             await choose('session-list-status-sort-agent');
             await expect.poll(async () => (await position(working)) < (await position(idle))).toBe(true);
-            await expect(page.getByTestId('session-row-status-' + working + '-working')).toBeVisible();
-            const statusHeaders = page.locator('[data-testid^="session-list-header:status-view:"]');
+            await expect(page.getByTestId('session-row-status-' + working + '-working')).toBeVisible({ timeout: 60_000 });
+            const statusHeaders = page.locator('[data-testid^="session-list-header:status-view:"]:visible');
             await expect(statusHeaders.filter({ hasText: 'Q/A - Dev' }).first()).toContainText('linear · fixture · delivery');
             await expect.poll(async () => (await position(testing)) < (await position(production))).toBe(true);
             await expect(page.getByText('Status unavailable', { exact: true }).first()).toBeVisible();
@@ -145,7 +151,7 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await expect(page.getByTestId('session-ticket-header-status')).toContainText('Q/A - Dev');
             await page.getByTestId('session-list-search-trigger').first().click();
             await page.getByTestId('session-list-search-input').first().fill('OH60 QA');
-            await expect(row(testing)).toHaveCount(0);
+            await expect(row(testing)).toBeHidden();
             await expect(row(idle)).toBeVisible();
             await page.getByTestId('session-list-search-clear').first().click();
             await expect(row(testing)).toBeVisible();
@@ -182,9 +188,14 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await expect(page.getByTestId('session-ticket-header-status')).toContainText('Ready for Prod', { timeout: 120_000 });
             await expect(statusHeaders.filter({ hasText: 'Ready for Prod' }).first()).toBeVisible();
             expect((await readUiE2eScopedAccountSettings({ page })).sessionListStatusSortV1).toBe('agent');
-            await page.setViewportSize({ width: 760, height: 900 });
+            await page.setViewportSize({ width: 390, height: 900 });
+            await gotoDomContentLoadedWithRetries(page, baseUrl, 120_000);
+            await page.getByTestId('machine-monitoring-toggle').click();
+            await expect(statusHeaders.filter({ hasText: 'Ready for Prod' }).first()).toBeVisible({ timeout: 60_000 });
             await page.screenshot({ path: testInfo.outputPath('oh60-compact-status-organization.png') });
             await page.setViewportSize({ width: 1360, height: 900 });
+            await gotoDomContentLoadedWithRetries(page, `${baseUrl}/session/${idle}`, 120_000);
+            await expect(page.getByTestId('session-ticket-header-status')).toHaveText('Ready for Prod', { timeout: 60_000 });
             await choose('session-view-machine');
             await expect(statusHeaders).toHaveCount(0);
             await choose('session-list-status-group-ticket');

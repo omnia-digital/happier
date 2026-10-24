@@ -2269,8 +2269,12 @@ class Sync {
             shouldContinue: () => boolean,
         ): Promise<Array<EnsureSessionVisibleForRouteResult | null>> => {
             const generation = this.serverScopeGeneration;
+            const activeServerId = getActiveServerSnapshot().serverId;
             return Promise.all(candidates.map(candidate => this.sessionListMetadataHydrationLimiter.run(async () => {
                 if (!shouldContinue() || generation !== this.serverScopeGeneration) return null;
+                // Foreign Home lists are already fully hydrated by concurrentSessionCache. Its
+                // scoped list publication must never enter the active session/route store here.
+                if (candidate.serverId && !areServerProfileIdentifiersEquivalent(candidate.serverId, activeServerId)) return null;
                 return this.ensureSessionVisibleForMessageRoute(candidate.sessionId, { serverId: candidate.serverId ?? undefined, refreshMessages: false });
             })));
         };
