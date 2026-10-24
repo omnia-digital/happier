@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { TokenStorage } from '@/auth/storage/tokenStorage';
 
 import { resetReactNativeMmkvStub } from '@/dev/testkit/mocks/mmkv';
 import { prepareWarmCacheEncryptionKey } from '@/sync/domains/state/warmCacheEncryptionKey';
@@ -112,7 +113,9 @@ function activeServerId(): string {
 }
 
 function installCredentials(): void {
-    (sync as any).credentials = { token: 'hdr.eyJzdWIiOiJ0ZXN0In0.sig', secret: 'secret' };
+    const credentials = { token: `hdr.${Buffer.from(JSON.stringify({ sub: ACCOUNT_ID })).toString('base64')}.sig`, secret: 'secret' };
+    (sync as any).credentials = credentials;
+    vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue(credentials);
     (sync as any).serverID = ACCOUNT_ID;
     (sync as any).encryption = {
         decryptEncryptionKey: async () => null,
@@ -135,6 +138,7 @@ describe('session organization warm cache', () => {
         fetchChangesMock.mockClear();
         fetchCurrentChangesCursorMock.mockClear();
     });
+    afterEach(() => vi.restoreAllMocks());
 
     it('repaints the last-known organization before the first session list fetch', () => {
         upsertAndActivateServer({ serverUrl: 'http://localhost:53288', scope: 'tab' });

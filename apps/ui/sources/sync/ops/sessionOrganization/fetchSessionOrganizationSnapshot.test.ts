@@ -65,7 +65,7 @@ describe('fetchAndApplySessionOrganizationSnapshot', () => {
             },
         }));
 
-        await fetchAndApplySessionOrganizationSnapshot({
+        const applied = await fetchAndApplySessionOrganizationSnapshot({
             credentials,
             serverId: SERVER_ID,
             request: {
@@ -76,6 +76,7 @@ describe('fetchAndApplySessionOrganizationSnapshot', () => {
             },
         });
 
+        expect(applied).toBe(true);
         const state = getStorage().getState();
         expect(state.sessionOrganizationPinsBySessionKey[`${SERVER_ID}:s1`]?.sortKey).toBe('rank-a');
         expect(state.sessionFolderAssignmentsBySessionKey).toMatchObject({
@@ -222,7 +223,7 @@ describe('fetchAndApplySessionOrganizationSnapshot', () => {
         }));
         let checks = 0;
 
-        await fetchAndApplySessionOrganizationSnapshot({
+        const applied = await fetchAndApplySessionOrganizationSnapshot({
             credentials,
             serverId: SERVER_ID,
             request: {
@@ -234,6 +235,7 @@ describe('fetchAndApplySessionOrganizationSnapshot', () => {
             },
         });
 
+        expect(applied).toBe(false);
         expect(checks).toBeGreaterThanOrEqual(2);
         expect(getStorage().getState().sessionOrganizationFoldersByFolderKey[`${SERVER_ID}:folder-stale`]).toBeUndefined();
     });

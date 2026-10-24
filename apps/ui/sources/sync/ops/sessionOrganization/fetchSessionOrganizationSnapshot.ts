@@ -13,7 +13,7 @@ export async function fetchAndApplySessionOrganizationSnapshot(params: Readonly<
     request?: Partial<SessionOrganizationSnapshotRequest>;
     shouldContinue?: () => boolean;
     canApplySnapshot?: () => Promise<boolean>;
-}>): Promise<void> {
+}>): Promise<boolean> {
     const publish = createSessionOrganizationMutationPublisher(params);
     const requestedServerId = params.serverId.trim();
     const resolveCurrentServerId = () => (
@@ -32,14 +32,15 @@ export async function fetchAndApplySessionOrganizationSnapshot(params: Readonly<
             serverUrl: params.serverUrl,
             request: params.request,
         });
-        if (params.shouldContinue && !params.shouldContinue()) return;
+        if (params.shouldContinue && !params.shouldContinue()) return false;
         const snapshot = await openSessionOrganizationSnapshotDisplayEnvelopes({
             credentials: params.credentials,
             snapshot: response.snapshot,
         });
-        if (params.shouldContinue && !params.shouldContinue()) return;
-        if (params.canApplySnapshot && !await params.canApplySnapshot()) return;
-        if (params.shouldContinue && !params.shouldContinue()) return;
+        if (params.shouldContinue && !params.shouldContinue()) return false;
+        if (params.canApplySnapshot && !await params.canApplySnapshot()) return false;
+        if (params.shouldContinue && !params.shouldContinue()) return false;
+        let applied = false;
         await publish(() => {
             if (params.shouldContinue && !params.shouldContinue()) return;
             currentServerId = resolveCurrentServerId();
@@ -49,7 +50,9 @@ export async function fetchAndApplySessionOrganizationSnapshot(params: Readonly<
                 getStorage().getState().setSessionOrganizationError(currentServerId, null);
             }
             getStorage().getState().applySessionOrganizationSnapshot(currentServerId, snapshot, params.request);
+            applied = true;
         });
+        return applied;
     } catch (error) {
         currentServerId = resolveCurrentServerId();
         await publish(() => getStorage().getState().setSessionOrganizationError(
