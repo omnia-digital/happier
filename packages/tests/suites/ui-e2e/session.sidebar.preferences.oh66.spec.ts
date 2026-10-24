@@ -201,6 +201,10 @@ test.describe('ui e2e: OH66 sidebar text size and item density preferences', () 
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/settings/appearance?happier_hmr=0`, 180_000);
     await waitForInitialAppUi({ page, timeoutMs: 120_000 });
     await openTextSetting(page, 'Item Density', 'compact');
+    await expect.poll(async () => page.evaluate(() => {
+      const raw = window.localStorage.getItem('mmkv.default\\local-settings');
+      return raw ? (JSON.parse(raw) as Record<string, unknown>).uiItemDensity : null;
+    })).toBe('compact');
     const settingBeforeHomeNavigation = await page.evaluate(() => {
       const raw = window.localStorage.getItem('mmkv.default\\local-settings');
       return raw ? JSON.parse(raw) as Record<string, unknown> : {};
