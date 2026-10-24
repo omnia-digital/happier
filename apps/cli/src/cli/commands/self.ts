@@ -30,7 +30,6 @@ import {
   normalizePublicReleaseRingId,
   type PublicReleaseRingId,
 } from '@happier-dev/release-runtime/releaseRings';
-import { FIRST_PARTY_RELEASE_REPOSITORY } from '@happier-dev/release-runtime/minisign';
 import { handleSelfMigrateCommand } from './self/handleSelfMigrateCommand';
 import { maybeRunVersionGatedRuntimeMigration } from './self/maybeRunVersionGatedRuntimeMigration';
 import { maybeRunDoctorRepair } from './self/maybeRunDoctorRepair';
@@ -64,7 +63,7 @@ function usage(): string {
     `${chalk.bold('Environment:')}`,
     `  HAPPIER_CLI_UPDATE_CHECK=0                 Disable update notice + background check`,
     `  HAPPIER_CLI_UPDATE_PACKAGE_NAME=@scope/pkg Override the npm package name checked/installed`,
-    `  HAPPIER_GITHUB_REPO=owner/repo              Override GitHub repo for binary updates`,
+    `  HAPPIER_GITHUB_REPO=happier-dev/happier    Override GitHub repo for binary updates`,
     `  HAPPIER_GITHUB_TOKEN=...                   GitHub token for release API (optional)`,
     '',
   ].join('\n');
@@ -153,7 +152,7 @@ export function detectInstallSource(path: string): 'npm' | 'binary' {
 
 function resolveBinaryUpdateRepo(env: NodeJS.ProcessEnv): string {
   const raw = String(env.HAPPIER_GITHUB_REPO ?? '').trim();
-  return raw || FIRST_PARTY_RELEASE_REPOSITORY;
+  return raw || 'happier-dev/happier';
 }
 
 function resolveBinaryUpdateToken(env: NodeJS.ProcessEnv): string {
@@ -175,12 +174,10 @@ function runtimeDir(channel: SelfChannel): string {
 }
 
 function resolveUpdatePackageName(): string {
-  const packageName = resolveNpmPackageNameOverride({
+  return resolveNpmPackageNameOverride({
     envValue: process.env.HAPPIER_CLI_UPDATE_PACKAGE_NAME,
-    fallback: '',
+    fallback: String(packageJson.name ?? '').trim(),
   });
-  if (!packageName) throw new Error('Fork npm update source is unconfigured: set HAPPIER_CLI_UPDATE_PACKAGE_NAME to the published fork package.');
-  return packageName;
 }
 
 async function runSelfUpdateStep<T>(
@@ -288,7 +285,7 @@ async function cmdUpdate(argv: string[], rawArgv: readonly string[] = process.ar
   const origin = resolveRunningCliPackageManagerOrigin({
     invokedPath: process.argv[1] ?? '',
     execPath: process.execPath,
-    npmPackageName: String(packageJson.name ?? '').trim(),
+    npmPackageName: resolveUpdatePackageName(),
   });
   if (origin?.kind === 'brew') {
     console.log(chalk.yellow('Detected a Homebrew install; Homebrew updates it.'));

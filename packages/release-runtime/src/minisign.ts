@@ -6,36 +6,6 @@ export const DEFAULT_MINISIGN_PUBLIC_KEY = `untrusted comment: minisign public k
 RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t
 `;
 
-export const FIRST_PARTY_RELEASE_REPOSITORY = 'omnia-digital/happier';
-
-/** Identity is the Ed25519 verifier material, independent of minisign comments or key-id text. */
-export function getMinisignPublicKeyIdentity(pubkeyFile: string): string {
-  const parsed = parseMinisignPublicKeyFile(pubkeyFile);
-  if (!parsed.signatureAlgorithm.equals(Buffer.from('Ed'))) {
-    throw new Error('[minisign] incompatible public key signature algorithm');
-  }
-  return parsed.rawPublicKey.toString('hex');
-}
-
-/** A fork release must never inherit upstream signature trust implicitly. */
-export function resolveFirstPartyReleasePublicKey(params: Readonly<{
-  githubRepo: string;
-  configuredPublicKey?: string | null;
-}>): string {
-  const githubRepo = String(params.githubRepo ?? '').trim();
-  const repoIdentity = githubRepo.toLowerCase();
-  const configured = String(params.configuredPublicKey ?? '').trim();
-  if (configured) {
-    const configuredIdentity = getMinisignPublicKeyIdentity(configured);
-    if (repoIdentity === FIRST_PARTY_RELEASE_REPOSITORY && configuredIdentity === getMinisignPublicKeyIdentity(DEFAULT_MINISIGN_PUBLIC_KEY)) {
-      throw new Error('[fork release] upstream minisign public key cannot verify Omnia fork releases');
-    }
-    return configured;
-  }
-  if (repoIdentity === 'happier-dev/happier') return DEFAULT_MINISIGN_PUBLIC_KEY;
-  throw new Error(`[fork release] minisign public key is required for ${githubRepo || '<missing repository>'}`);
-}
-
 function decodeBase64Line(line: string, expectedBytes?: number): Buffer {
   const bytes = Buffer.from(String(line ?? '').trim(), 'base64');
   if (expectedBytes != null && bytes.length !== expectedBytes) {

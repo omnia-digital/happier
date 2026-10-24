@@ -203,6 +203,23 @@ declare `happier://`; launch this bundle by its full path. After the first launc
 the observed default handler remained `/Applications/Happier.app`. Verify the
 intended handler before relying on external login/deep links in the fork app.
 
+## Latest development integration
+
+The follow-up desktop integration includes committed product work through
+`e658d2b024`: indexed palette content search, ticket linking/status, machine
+monitoring, independent status grouping/sorting, and session PR links. The
+source is assembled in a temporary worktree owned by `happier-dev` and reaches
+`dev` through its pull request. Uncommitted work in the old checkout is not part
+of this build.
+
+OH-5 commits `85bef2bda8` and `f4c093c9cd` remain deferred. Their unfinished
+signing/feed admission changes reject the unsigned preparation used by the
+existing nightly promotion workflow. This integration reverses those two
+commits while preserving their original branch and the product features.
+When OH-5 is complete, explicitly reintroduce the reviewed changes; ancestry
+alone will not reapply reverted commits. The current nightly continues to
+promote source after CI and unsigned native builds, with app updates disabled.
+
 ## Nightly promotion
 
 `.github/workflows/omnia-production.yml` runs at **02:17 America/Los_Angeles**,

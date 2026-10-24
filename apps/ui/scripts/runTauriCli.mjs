@@ -2,19 +2,12 @@
 
 import { createRequire } from 'node:module';
 import { createTauriActoolEnvironment } from './tauriActoolEnvironment.mjs';
-import { assertForkDesktopReleaseOwnership } from '../../../scripts/pipeline/tauri/channel-config.mjs';
 
 const require = createRequire(import.meta.url);
 // The official JS wrapper also exports logError, omitted from its declaration file.
 /** @type {typeof import('@tauri-apps/cli') & { logError(message: string): void }} */
 const cli = require('@tauri-apps/cli');
 const args = process.argv.slice(2);
-if (args[0] === 'build') {
-  const configIndex = args.indexOf('--config');
-  const config = configIndex >= 0 ? String(args[configIndex + 1] ?? '') : '';
-  const environment = config.includes('publicdev') ? 'publicdev' : config.includes('preview') ? 'preview' : 'production';
-  assertForkDesktopReleaseOwnership({ environment });
-}
 const actool = args.includes('--no-bundle') ? null : createTauriActoolEnvironment();
 const previousPath = process.env.PATH;
 try {

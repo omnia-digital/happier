@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { mkdir, rm, stat } from 'node:fs/promises';
+import { mkdir, readFile, rm, stat } from 'node:fs/promises';
 import { homedir, platform, arch, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
@@ -10,8 +10,9 @@ import { resolveRunnerCacheRoot, resolveServerRunnerTarget } from '../src/target
 import { parseRunnerInvocation } from '../src/runnerConfig.mjs';
 import { downloadVerifiedReleaseAssetBundle } from '@happier-dev/release-runtime/verifiedDownload';
 import { fetchGitHubReleaseByTag } from '@happier-dev/release-runtime/github';
-import { FIRST_PARTY_RELEASE_REPOSITORY, resolveFirstPartyReleasePublicKey } from '@happier-dev/release-runtime/minisign';
 
+const OWNER = 'happier-dev';
+const REPO = 'happier';
 
 function fail(msg) {
   process.stderr.write(`[happier-server] ${msg}\n`);
@@ -44,11 +45,7 @@ async function main() {
   const { serverTag: tag, uiWebTag, withUiWeb, positionals } = parsed;
 
   const target = resolveTarget();
-  const githubRepo = String(process.env.HAPPIER_GITHUB_REPO ?? '').trim() || FIRST_PARTY_RELEASE_REPOSITORY;
-  const pubkeyFile = resolveFirstPartyReleasePublicKey({
-    githubRepo,
-    configuredPublicKey: process.env.HAPPIER_MINISIGN_PUBKEY,
-  });
+  const githubRepo = `${OWNER}/${REPO}`;
 
   const release = await fetchGitHubReleaseByTag({
     githubRepo,
@@ -57,6 +54,9 @@ async function main() {
     githubToken: String(process.env.GITHUB_TOKEN ?? process.env.GH_TOKEN ?? ''),
   });
   const assets = resolveServerReleaseAssets({ release, os: target.os, arch: target.arch });
+
+  const pubkeyPath = new URL('../assets/happier-release.pub', import.meta.url);
+  const pubkeyFile = await readFile(pubkeyPath, 'utf-8');
 
   const tmp = join(tmpdir(), `happier-server-${process.pid}-${Date.now()}`);
   await mkdir(tmp, { recursive: true });
