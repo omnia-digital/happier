@@ -540,7 +540,7 @@ function spawnHappyCliBoundary(argv: string[], _opts?: unknown) {
   spawnHappyCliCapture.children.push(child);
   return child;
 }
-const spawnHappyCLI = vi.fn(spawnHappyCliBoundary);
+const spawnHappyCLI = vi.hoisted(() => vi.fn<typeof spawnHappyCliBoundary>());
 const resolveHappyCliSubprocessRuntimeDecision = vi.hoisted(() =>
   vi.fn<() => HappyCliSubprocessRuntimeDecision | null>(() => null),
 );
@@ -1108,6 +1108,7 @@ describe('startDaemon spawn resume wiring (integration)', () => {
   }
 
   beforeEach(async () => {
+    spawnHappyCLI.mockImplementation(spawnHappyCliBoundary);
     deliverShutdownWatchdog = undefined;
     firedShutdownTimerWork = [];
     const { getDaemonShutdownWatchdogTimeoutMs } = await import('./shutdownPolicy');

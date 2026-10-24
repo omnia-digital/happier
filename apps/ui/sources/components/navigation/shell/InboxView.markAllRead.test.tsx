@@ -228,7 +228,6 @@ vi.mock('react-native-gesture-handler', () => ({
 vi.mock('@expo/vector-icons', () => ({ Ionicons: 'Ionicons', Octicons: 'Octicons' }));
 vi.mock('@/track', () => ({ trackFriendsProfileView: vi.fn() }));
 vi.mock('@/components/ui/text/Text', () => ({ Text: 'Text' }));
-vi.mock('@/components/ui/icons/Icon', () => ({ Icon: 'Icon' }));
 vi.mock('@/components/sessions/shell/SessionListIdentity', () => ({
     SessionListIdentity: 'SessionListIdentity',
     useSessionListIdentityDisplay: () => 'none',
@@ -324,7 +323,7 @@ describe('InboxView mark as read', () => {
         expect(ancestor?.props.testID).toBe('inbox.section.ready');
 
         const [readyRow] = nodesByTestId(tree, 'inbox.review_session.server-a.session-a');
-        expect(readyRow!.props.subtitle).toContain('status.readyForReview');
+        expect(readyRow!.props.subtitle).toContain('inbox.sessionReason.ready');
         expect(readyRow!.props.detail).toBeUndefined();
     });
 

@@ -28,7 +28,6 @@ vi.mock('@/components/sessions/shell/SessionListIdentity', () => ({
     useSessionListIdentityDisplay: () => 'agentLogo',
 }));
 vi.mock('@/components/ui/feedback/ActivitySpinner', () => ({ ActivitySpinner: 'ActivitySpinner' }));
-vi.mock('@/components/ui/icons/Icon', () => ({ Icon: 'Icon' }));
 vi.mock('@/components/ui/lists/Item', () => ({ Item: 'Item' }));
 vi.mock('@/components/ui/text/Text', () => ({ Text: 'Text' }));
 vi.mock('@/components/ui/cards/UserCard', () => ({ UserCard: 'UserCard' }));
