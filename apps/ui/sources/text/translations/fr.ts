@@ -417,6 +417,29 @@ function plural({ count, singular, plural }: { count: number; singular: string; 
  * - New translation keys must be added to ALL language files
  */
 export const fr: TranslationStructure = {
+    machineMonitoring: {
+        title: "Machines",
+        empty: "Aucune machine connectée.",
+        cadence: "Actualisation toutes les 3 min lorsque visible.",
+        olderCli: "La CLI de cette machine ne prend pas en charge ces mesures.",
+        readFailed: "Impossible de lire les mesures. Une nouvelle tentative suivra.",
+        loading: "Lecture des mesures…",
+        stale: "Mesure précédente · périmée",
+        unavailable: "Indisponible",
+        permissionDenied: "Permission refusée sur la machine.",
+        unsupportedPlatform: "Indisponible sur cette plateforme.",
+        noGpuInterface: "Aucune interface compatible d’utilisation du GPU sans privilèges.",
+        invalidData: "La machine a renvoyé une mesure non valide.",
+        cpuDefinition: "CPU · tous les cœurs, intervalle :",
+        memoryDefinition: "MEM · mémoire physique non libre, caches compris :",
+        gpuDefinition: "GPU · par appareil ; Windows indique le moteur le plus occupé.",
+        storageDefinition: "Capacité de stockage utilisée, pas les E/S :",
+        loadDefinition: "LA · moyennes sur 1 / 5 / 15 minutes :",
+        storage: "Stockage utilisé",
+        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: 'LA 1/5/15m',
+        volume: ({ volume, path }: { volume: string; path: string }) => "Volume: " + volume + " · Système de fichiers: " + path,
+        sampledAt: ({ time }: { time: string }) => "Mesuré: " + time,
+    },
     sessionTickets: {
         link: 'Link ticket',
         change: 'Change ticket',

@@ -584,6 +584,29 @@ const settingsSessionHandoffTranslationExtensions = {
 } as const;
 
 export const ja: TranslationStructure = {
+    machineMonitoring: {
+        title: "マシン",
+        empty: "接続されたマシンはありません。",
+        cadence: "表示中は3分ごとに更新します。",
+        olderCli: "このマシンのCLIはホストの指標に対応していません。",
+        readFailed: "ホストの指標を取得できませんでした。再試行します。",
+        loading: "ホストの指標を取得中…",
+        stale: "前回の測定値 · 古い情報",
+        unavailable: "利用不可",
+        permissionDenied: "ホストでアクセスが拒否されました。",
+        unsupportedPlatform: "このプラットフォームでは利用できません。",
+        noGpuInterface: "権限昇格なしで利用できる対応GPU使用率インターフェースがありません。",
+        invalidData: "ホストから無効な測定値が返されました。",
+        cpuDefinition: "CPU · 全コアの測定期間:",
+        memoryDefinition: "MEM · キャッシュを含む使用中の物理メモリ:",
+        gpuDefinition: "GPU · デバイスごと。Windowsは最も使用率の高いエンジンを表示します。",
+        storageDefinition: "ストレージの使用容量（I/Oではありません）:",
+        loadDefinition: "LA · 1 / 5 / 15分の平均:",
+        storage: "ストレージ使用",
+        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: 'LA 1/5/15m',
+        volume: ({ volume, path }: { volume: string; path: string }) => "ボリューム: " + volume + " · ファイルシステム: " + path,
+        sampledAt: ({ time }: { time: string }) => "測定日時: " + time,
+    },
     sessionTickets: {
         link: 'Link ticket',
         change: 'Change ticket',

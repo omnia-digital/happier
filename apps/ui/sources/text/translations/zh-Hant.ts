@@ -621,6 +621,29 @@ function plural({ count, singular, plural }: { count: number; singular: string; 
 }
 
 const zhHantOverrides: DeepPartial<TranslationStructure> = {
+    machineMonitoring: {
+        title: "機器",
+        empty: "沒有已連線的機器。",
+        cadence: "顯示時每3分鐘重新整理。",
+        olderCli: "此機器的CLI不支援主機指標。",
+        readFailed: "無法讀取主機指標，將重試。",
+        loading: "正在讀取主機指標…",
+        stale: "上次讀數 · 已過期",
+        unavailable: "無法使用",
+        permissionDenied: "主機拒絕了存取權限。",
+        unsupportedPlatform: "此平台無法使用。",
+        noGpuInterface: "沒有受支援且無需提升權限的GPU使用率介面。",
+        invalidData: "主機傳回了無效讀數。",
+        cpuDefinition: "CPU · 所有核心，取樣時長：",
+        memoryDefinition: "MEM · 包含快取的已用實體記憶體：",
+        gpuDefinition: "GPU · 按裝置顯示；Windows回報最繁忙的引擎。",
+        storageDefinition: "儲存已用容量，不是I/O：",
+        loadDefinition: "LA · 1 / 5 / 15分鐘平均負載：",
+        storage: "儲存已用",
+        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: 'LA 1/5/15m',
+        volume: ({ volume, path }: { volume: string; path: string }) => "卷宗: " + volume + " · 檔案系統: " + path,
+        sampledAt: ({ time }: { time: string }) => "取樣時間: " + time,
+    },
     sessionTickets: {
         link: 'Link ticket',
         change: 'Change ticket',

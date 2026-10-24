@@ -599,6 +599,29 @@ function plural({
  * Must match the exact structure of the English translations
  */
 export const it: TranslationStructure = {
+    machineMonitoring: {
+        title: "Macchine",
+        empty: "Nessuna macchina connessa.",
+        cadence: "Si aggiorna ogni 3 min quando visibile.",
+        olderCli: "La CLI di questa macchina non supporta le metriche del sistema.",
+        readFailed: "Impossibile leggere le metriche. Verrà riprovato.",
+        loading: "Lettura delle metriche…",
+        stale: "Lettura precedente · obsoleta",
+        unavailable: "Non disponibile",
+        permissionDenied: "Permesso negato sul sistema.",
+        unsupportedPlatform: "Non disponibile su questa piattaforma.",
+        noGpuInterface: "Nessuna interfaccia GPU compatibile senza privilegi elevati.",
+        invalidData: "Il sistema ha restituito una lettura non valida.",
+        cpuDefinition: "CPU · tutti i core, intervallo:",
+        memoryDefinition: "MEM · memoria fisica occupata, cache incluse:",
+        gpuDefinition: "GPU · per dispositivo; Windows mostra il motore più occupato.",
+        storageDefinition: "Capacità di archiviazione usata, non I/O:",
+        loadDefinition: "LA · medie di 1 / 5 / 15 minuti:",
+        storage: "Spazio usato",
+        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: 'LA 1/5/15m',
+        volume: ({ volume, path }: { volume: string; path: string }) => "Volume: " + volume + " · File system: " + path,
+        sampledAt: ({ time }: { time: string }) => "Rilevato: " + time,
+    },
     sessionTickets: {
         link: 'Link ticket',
         change: 'Change ticket',

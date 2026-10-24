@@ -591,6 +591,29 @@ function plural({ count, singular, plural }: { count: number; singular: string; 
  * Must match the exact structure of the English translations
  */
 export const ca: TranslationStructure = {
+    machineMonitoring: {
+        title: "Màquines",
+        empty: "No hi ha màquines connectades.",
+        cadence: "S’actualitza cada 3 min mentre és visible.",
+        olderCli: "La CLI d’aquesta màquina no admet mètriques del sistema.",
+        readFailed: "No s’han pogut llegir les mètriques. Es tornarà a provar.",
+        loading: "Llegint mètriques…",
+        stale: "Lectura anterior · desactualitzada",
+        unavailable: "No disponible",
+        permissionDenied: "Permís denegat al sistema.",
+        unsupportedPlatform: "No disponible en aquesta plataforma.",
+        noGpuInterface: "No hi ha cap interfície d’ús de GPU compatible sense privilegis.",
+        invalidData: "El sistema ha retornat una lectura no vàlida.",
+        cpuDefinition: "CPU · tots els nuclis, interval:",
+        memoryDefinition: "MEM · memòria física ocupada, incloses les memòries cau:",
+        gpuDefinition: "GPU · per dispositiu; Windows mostra el motor més ocupat.",
+        storageDefinition: "Capacitat d’emmagatzematge usada, no E/S:",
+        loadDefinition: "LA · mitjanes d’1 / 5 / 15 minuts:",
+        storage: "Espai usat",
+        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: 'LA 1/5/15m',
+        volume: ({ volume, path }: { volume: string; path: string }) => "Volum: " + volume + " · Sistema de fitxers: " + path,
+        sampledAt: ({ time }: { time: string }) => "Mostrejat: " + time,
+    },
     sessionTickets: {
         link: 'Link ticket',
         change: 'Change ticket',

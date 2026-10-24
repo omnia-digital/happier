@@ -20,6 +20,7 @@ import { useDesktopSidebarHistoryNavigationAvailability } from './desktopChrome/
 import { useSidebarHeaderActions } from './desktopChrome/useSidebarHeaderActions';
 import { useChromeSafeAreaInsets } from '@/components/ui/layout/useChromeSafeAreaInsets';
 import type { InboxSummary } from '@/hooks/inbox/useInboxSummary';
+import { MachineMonitoringSection } from '@/components/machines/MachineMonitoringSection';
 
 export type SidebarViewProps = Readonly<{
     sidebarWidthPx?: number | null;
@@ -115,6 +116,7 @@ export const SidebarView = React.memo((props: SidebarViewProps) => {
                 />
                 {voiceEnabled ? <VoiceSurface variant="sidebar" /> : null}
                 <MainView variant="sidebar" />
+                <MachineMonitoringSection />
             </PopoverScope>
         </View>
     );

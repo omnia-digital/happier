@@ -415,6 +415,29 @@ function plural({ count, singular, plural }: { count: number; singular: string; 
  * - New translation keys must be added to ALL language files
  */
 export const en = {
+    machineMonitoring: {
+        title: "Machines",
+        empty: "No machines connected.",
+        cadence: "Refreshes every 3 min while visible.",
+        olderCli: "This machine CLI does not support host metrics.",
+        readFailed: "Could not read host metrics. Will retry.",
+        loading: "Reading host metrics…",
+        stale: "Previous reading · stale",
+        unavailable: "Unavailable",
+        permissionDenied: "Host permission denied.",
+        unsupportedPlatform: "Not available on this platform.",
+        noGpuInterface: "No supported unprivileged GPU utilization interface.",
+        invalidData: "Host returned an invalid reading.",
+        cpuDefinition: "CPU · all cores, observation window:",
+        memoryDefinition: "MEM · physical nonfree memory, including caches:",
+        gpuDefinition: "GPU · per device; Windows reports its busiest engine.",
+        storageDefinition: "Storage capacity used, not I/O:",
+        loadDefinition: "LA · 1 / 5 / 15 minute averages:",
+        storage: "Storage used",
+        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: 'LA 1/5/15m',
+        volume: ({ volume, path }: { volume: string; path: string }) => "Volume: " + volume + " · Filesystem: " + path,
+        sampledAt: ({ time }: { time: string }) => "Sampled: " + time,
+    },
     sessionTickets: {
         link: 'Link ticket',
         change: 'Change ticket',

@@ -599,6 +599,29 @@ function plural({
 }
 
 export const zhHans: TranslationStructure = {
+    machineMonitoring: {
+        title: "机器",
+        empty: "没有已连接的机器。",
+        cadence: "显示时每3分钟刷新。",
+        olderCli: "此机器的CLI不支持主机指标。",
+        readFailed: "无法读取主机指标，将重试。",
+        loading: "正在读取主机指标…",
+        stale: "上次读数 · 已过期",
+        unavailable: "不可用",
+        permissionDenied: "主机拒绝了访问权限。",
+        unsupportedPlatform: "此平台不可用。",
+        noGpuInterface: "没有受支持且无需提升权限的GPU使用率接口。",
+        invalidData: "主机返回了无效读数。",
+        cpuDefinition: "CPU · 所有核心，采样时长：",
+        memoryDefinition: "MEM · 包含缓存的已用物理内存：",
+        gpuDefinition: "GPU · 按设备显示；Windows报告最繁忙的引擎。",
+        storageDefinition: "存储已用容量，不是I/O：",
+        loadDefinition: "LA · 1 / 5 / 15分钟平均负载：",
+        storage: "存储已用",
+        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: 'LA 1/5/15m',
+        volume: ({ volume, path }: { volume: string; path: string }) => "卷: " + volume + " · 文件系统: " + path,
+        sampledAt: ({ time }: { time: string }) => "采样时间: " + time,
+    },
     sessionTickets: {
         link: 'Link ticket',
         change: 'Change ticket',

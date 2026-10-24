@@ -616,6 +616,29 @@ function plural({
  * Must match the exact structure of the English translations
  */
 export const ru: TranslationStructure = {
+    machineMonitoring: {
+        title: "Машины",
+        empty: "Нет подключённых машин.",
+        cadence: "Обновление каждые 3 мин, пока раздел виден.",
+        olderCli: "CLI этой машины не поддерживает метрики хоста.",
+        readFailed: "Не удалось прочитать метрики. Попытка повторится.",
+        loading: "Чтение метрик…",
+        stale: "Предыдущее измерение · устарело",
+        unavailable: "Недоступно",
+        permissionDenied: "Хост отказал в доступе.",
+        unsupportedPlatform: "Недоступно на этой платформе.",
+        noGpuInterface: "Нет поддерживаемого интерфейса загрузки GPU без повышенных прав.",
+        invalidData: "Хост вернул некорректное измерение.",
+        cpuDefinition: "CPU · все ядра, интервал:",
+        memoryDefinition: "MEM · занятая физическая память, включая кэши:",
+        gpuDefinition: "GPU · по устройствам; Windows показывает самый загруженный движок.",
+        storageDefinition: "Занятая ёмкость хранилища, не ввод-вывод:",
+        loadDefinition: "LA · среднее за 1 / 5 / 15 минут:",
+        storage: "Место занято",
+        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: 'LA 1/5/15m',
+        volume: ({ volume, path }: { volume: string; path: string }) => "Том: " + volume + " · Файловая система: " + path,
+        sampledAt: ({ time }: { time: string }) => "Измерено: " + time,
+    },
     sessionTickets: {
         link: 'Link ticket',
         change: 'Change ticket',

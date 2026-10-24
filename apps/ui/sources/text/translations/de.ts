@@ -417,6 +417,29 @@ function plural({ count, singular, plural }: { count: number; singular: string; 
  * - New translation keys must be added to ALL language files
  */
 export const de: TranslationStructure = {
+    machineMonitoring: {
+        title: "Maschinen",
+        empty: "Keine Maschinen verbunden.",
+        cadence: "Bei Sichtbarkeit alle 3 Min. aktualisiert.",
+        olderCli: "Diese Maschinen-CLI unterstützt keine Host-Messwerte.",
+        readFailed: "Host-Messwerte konnten nicht gelesen werden. Neuer Versuch folgt.",
+        loading: "Host-Messwerte werden gelesen…",
+        stale: "Vorheriger Messwert · veraltet",
+        unavailable: "Nicht verfügbar",
+        permissionDenied: "Zugriff auf dem Host verweigert.",
+        unsupportedPlatform: "Auf dieser Plattform nicht verfügbar.",
+        noGpuInterface: "Keine unterstützte GPU-Auslastungsschnittstelle ohne erhöhte Rechte.",
+        invalidData: "Der Host lieferte einen ungültigen Messwert.",
+        cpuDefinition: "CPU · alle Kerne, Messfenster:",
+        memoryDefinition: "MEM · belegter physischer Speicher, einschließlich Caches:",
+        gpuDefinition: "GPU · je Gerät; Windows meldet die am stärksten ausgelastete Engine.",
+        storageDefinition: "Genutzte Speicherkapazität, keine E/A:",
+        loadDefinition: "LA · Mittelwerte über 1 / 5 / 15 Minuten:",
+        storage: "Speicher belegt",
+        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: 'LA 1/5/15m',
+        volume: ({ volume, path }: { volume: string; path: string }) => "Volume: " + volume + " · Dateisystem: " + path,
+        sampledAt: ({ time }: { time: string }) => "Gemessen: " + time,
+    },
     sessionTickets: {
         link: 'Link ticket',
         change: 'Change ticket',

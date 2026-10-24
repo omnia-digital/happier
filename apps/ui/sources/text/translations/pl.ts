@@ -612,6 +612,29 @@ function plural({
  * Must match the exact structure of the English translations
  */
 export const pl: TranslationStructure = {
+    machineMonitoring: {
+        title: "Maszyny",
+        empty: "Brak połączonych maszyn.",
+        cadence: "Odświeżanie co 3 min, gdy widoczne.",
+        olderCli: "CLI tej maszyny nie obsługuje pomiarów hosta.",
+        readFailed: "Nie można odczytać pomiarów. Próba zostanie ponowiona.",
+        loading: "Odczytywanie pomiarów…",
+        stale: "Poprzedni pomiar · nieaktualny",
+        unavailable: "Niedostępne",
+        permissionDenied: "Host odmówił dostępu.",
+        unsupportedPlatform: "Niedostępne na tej platformie.",
+        noGpuInterface: "Brak obsługiwanego interfejsu użycia GPU bez podwyższonych uprawnień.",
+        invalidData: "Host zwrócił nieprawidłowy pomiar.",
+        cpuDefinition: "CPU · wszystkie rdzenie, okno pomiaru:",
+        memoryDefinition: "MEM · zajęta pamięć fizyczna, w tym pamięć podręczna:",
+        gpuDefinition: "GPU · na urządzenie; Windows podaje najbardziej obciążony silnik.",
+        storageDefinition: "Zajęta pojemność dysku, nie operacje we/wy:",
+        loadDefinition: "LA · średnie z 1 / 5 / 15 minut:",
+        storage: "Zajęte miejsce",
+        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: 'LA 1/5/15m',
+        volume: ({ volume, path }: { volume: string; path: string }) => "Wolumin: " + volume + " · System plików: " + path,
+        sampledAt: ({ time }: { time: string }) => "Zmierzono: " + time,
+    },
     sessionTickets: {
         link: 'Link ticket',
         change: 'Change ticket',

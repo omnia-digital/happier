@@ -650,6 +650,29 @@ function plural({
  * Must match the exact structure of the English translations
  */
 export const pt: TranslationStructure = {
+    machineMonitoring: {
+        title: "Máquinas",
+        empty: "Nenhuma máquina conectada.",
+        cadence: "Atualiza a cada 3 min enquanto visível.",
+        olderCli: "A CLI desta máquina não oferece métricas do sistema.",
+        readFailed: "Não foi possível ler as métricas. Uma nova tentativa será feita.",
+        loading: "Lendo métricas…",
+        stale: "Leitura anterior · desatualizada",
+        unavailable: "Indisponível",
+        permissionDenied: "Permissão negada no sistema.",
+        unsupportedPlatform: "Indisponível nesta plataforma.",
+        noGpuInterface: "Nenhuma interface de uso da GPU compatível sem privilégios elevados.",
+        invalidData: "O sistema retornou uma leitura inválida.",
+        cpuDefinition: "CPU · todos os núcleos, intervalo:",
+        memoryDefinition: "MEM · memória física ocupada, incluindo caches:",
+        gpuDefinition: "GPU · por dispositivo; Windows mostra o motor mais ocupado.",
+        storageDefinition: "Capacidade de armazenamento usada, não E/S:",
+        loadDefinition: "LA · médias de 1 / 5 / 15 minutos:",
+        storage: "Espaço usado",
+        cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: 'LA 1/5/15m',
+        volume: ({ volume, path }: { volume: string; path: string }) => "Volume: " + volume + " · Sistema de arquivos: " + path,
+        sampledAt: ({ time }: { time: string }) => "Medido: " + time,
+    },
     sessionTickets: {
         link: 'Link ticket',
         change: 'Change ticket',
