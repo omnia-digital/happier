@@ -700,7 +700,7 @@ describe('buildWorktreeSelectionListSteps', () => {
         });
 
         const existing = findStaticSection(rootStep, 'worktree:existing');
-        if (existing?.kind !== 'static') throw new Error('existing must be static');
+        if (!existing) throw new Error('existing must be static');
         const row = existing.options.find((o) => o.id === 'checkout:/repo/.worktrees/feature');
         expect(row).toBeDefined();
         const accessory = row!.rightAccessory as React.ReactElement;
@@ -1389,7 +1389,7 @@ describe('buildWorktreeSelectionListSteps', () => {
         });
 
         const existing = findStaticSection(rootStep, 'worktree:existing');
-        if (existing?.kind !== 'static') throw new Error('existing must be static');
+        if (!existing) throw new Error('existing must be static');
         const row = existing.options.find((o) => o.id === 'checkout:/repo/.worktrees/feature');
         const accessory = row?.rightAccessory as React.ReactElement;
         const fragmentChildren = React.Children.toArray((accessory.props as { children: React.ReactNode }).children);
@@ -1437,7 +1437,7 @@ describe('buildWorktreeSelectionListSteps', () => {
         });
 
         const existing = findStaticSection(rootStep, 'worktree:existing');
-        if (existing?.kind !== 'static') throw new Error('existing must be static');
+        if (!existing) throw new Error('existing must be static');
         const row = existing.options.find((o) => o.id === 'checkout:/repo/.worktrees/feature');
         const accessory = row?.rightAccessory as React.ReactElement;
         const fragmentChildren = React.Children.toArray((accessory.props as { children: React.ReactNode }).children);
@@ -1509,7 +1509,7 @@ describe('buildWorktreeSelectionListSteps', () => {
         });
 
         const existing = findStaticSection(rootStep, 'worktree:existing');
-        if (existing?.kind !== 'static') throw new Error('existing must be static');
+        if (!existing) throw new Error('existing must be static');
         const row = existing.options.find((o) => o.id === 'checkout:/repo/.worktrees/feature');
         const accessory = row!.rightAccessory as React.ReactElement;
         const fragmentChildren = React.Children.toArray((accessory.props as { children: React.ReactNode }).children);

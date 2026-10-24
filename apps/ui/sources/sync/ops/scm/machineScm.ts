@@ -310,8 +310,9 @@ export async function machineScmRemoteRemove(
 export async function machineScmBranchList(
     machineId: string,
     request: ScmBranchListRequest,
+    scope?: ServerAccountScope,
 ): Promise<ScmBranchListResponse> {
-    return await callMachineScm<ScmBranchListResponse, ScmBranchListRequest>(machineId, RPC_METHODS.SCM_BRANCH_LIST, request);
+    return await callMachineScm<ScmBranchListResponse, ScmBranchListRequest>(machineId, RPC_METHODS.SCM_BRANCH_LIST, request, scope);
 }
 
 export async function machineScmBranchMerge(

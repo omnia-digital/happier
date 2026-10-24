@@ -1,56 +1,8 @@
-/**
- * Phase 5.7 — Worktree picker UI e2e smoke (agent-input-selection-list-popover-unification).
- *
- * SCOPE (smoke-only): this spec verifies the browser-level wiring that the
- * migrated worktree picker continues to mount the SelectionList popover from
- * the agent-input checkout chip and exposes the quick-actions root step. The
- * actual assertions in the test body (see :138-146) are:
- *
- *   - A real pointer click on the new-session checkout chip
- *     (`new-session-checkout-chip`) keeps `/new` mounted, preserves the
- *     composer draft, and renders the shared
- *     `agent-input-selection-list-popover` shell.
- *   - The root step `worktree-root` exposes the quick-actions options
- *     `current_path` and `create_git_worktree` via the option testID scheme
- *     `selection-list:worktree-root:option:<id>`.
- *
- * FR4-17.3 normalization 2026-05-12: this header previously also claimed
- * coverage for the create step drill-down, existing-worktree status/age
- * accessory testIDs (`worktree-row-age:<path>`, `worktree-row-status:<path>`),
- * and branch reuse pills (`worktree-branch-reuse:<branch>`). The test body
- * does NOT assert any of those today — adding the missing Playwright
- * assertions requires provisioning a real multi-worktree git repo with SCM
- * enrichment in the test stack, which is deferred to the deep-journey e2e
- * tracked as RV-6 child task T1 (plan §Phase 5.7) and T2 (plan §Phase 7.4).
- *
- * The status pill variant resolution, age text formatting, reuse vs create
- * routing, search filtering, back navigation, and drill-down semantics are
- * exercised by deterministic vitest suites (these own the contract; this
- * spec only proves the browser-level mount + root step renders):
- *
- *   - `apps/ui/sources/components/sessions/new/hooks/screenModel/buildWorktreeSelectionListSteps.test.tsx`
- *     (status pill variant, reuse vs create routing, branch row construction).
- *   - `apps/ui/sources/components/ui/selectionList/__tests__/SelectionList.test.tsx`
- *     (back navigation, search filtering, dynamic section state).
- *   - `apps/ui/sources/components/ui/selectionList/__tests__/SelectionList.dynamicSectionState.test.tsx`
- *     (loading/error/empty states for dynamic branch sections).
- *
- * The vitest path is preferred for those domain transformations because (1)
- * the unit tests can drive the snapshot deterministically without
- * provisioning a real remote git repo with multiple worktrees, (2) Playwright
- * keyboard simulation against a real `repoScmBranchService` RPC is slow and
- * adds little additional signal over the unit tests, (3) the browser-level
- * keyboard handling (Tab focus management, reduced-motion, ghost width
- * measurement) is owned by `SelectionListInputController` and tested there.
- *
- * Anything that requires a real session draft + machine + popover anchor
- * (the popover wiring, the chip → popover → SelectionList composition, the
- * testID contract surface) is what this e2e spec is for.
- */
+/** New/existing worktree intent, draft continuity and real launch cwd through the canonical composer. */
 
 import { test, expect, type Page } from '@playwright/test';
 import { execFile } from 'node:child_process';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -60,6 +12,9 @@ import { startUiWeb, type StartedUiWeb } from '../../src/testkit/process/uiWeb';
 import { type StartedDaemon } from '../../src/testkit/daemon/daemon';
 import { authenticateAndStartDaemon } from '../../src/testkit/uiE2e/authenticateAndStartDaemon';
 import { gotoDomContentLoadedWithRetries, normalizeLoopbackBaseUrl } from '../../src/testkit/uiE2e/pageNavigation';
+import { fakeClaudeFixturePath } from '../../src/testkit/fakeClaude';
+import { selectNewSessionAgent } from '../../src/testkit/uiE2e/selectNewSessionAgent';
+import { collectBrowserDiagnostics, appendBrowserDiagnostics } from '../../src/testkit/uiE2e/browserDiagnostics';
 import { enableEnhancedSessionWizard } from '../../src/testkit/uiE2e/enableEnhancedSessionWizard';
 
 const run = createRunDirs({ runLabel: 'ui-e2e' });
@@ -68,6 +23,9 @@ const execFileAsync = promisify(execFile);
 async function createGitRepository(path: string): Promise<void> {
     await mkdir(path, { recursive: true });
     await execFileAsync('git', ['init', '--initial-branch=main'], { cwd: path });
+    await writeFile(join(path, 'fixture.txt'), 'OH-65 worktree fixture\n');
+    await execFileAsync('git', ['add', 'fixture.txt'], { cwd: path });
+    await execFileAsync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '-m', 'fixture'], { cwd: path });
 }
 
 async function selectGitWorkingDirectory(params: Readonly<{
@@ -95,6 +53,7 @@ test.describe('ui e2e: /new worktree picker (Phase 5 SelectionList migration)', 
 
     const suiteDir = run.testDir('new-session-worktree-picker-suite');
     const cliHomeDir = resolve(join(suiteDir, 'cli-home'));
+    const fakeClaudeLogPath = resolve(join(suiteDir, 'fake-claude.jsonl'));
     const worktreeRepoDir = resolve(join(suiteDir, 'worktree-picker-repo'));
 
     let server: StartedServer | null = null;
@@ -131,11 +90,13 @@ test.describe('ui e2e: /new worktree picker (Phase 5 SelectionList migration)', 
         try { await server?.stop?.(); } catch { /* best-effort */ }
     });
 
-    test('the worktree popover renders the migrated SelectionList surface with the quick-actions root step', async ({ page }) => {
+    test('selects fresh worktree intent, preserves it on reopen/reload, then launches in that checkout', async ({ page }, testInfo) => {
+        const diagnostics = collectBrowserDiagnostics({ page });
+        try {
         if (!server || !ui || !uiBaseUrl) {
             throw new Error('test infra failed to start');
         }
-        test.setTimeout(180_000);
+        test.setTimeout(300_000);
 
         await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 240_000);
         daemon = await authenticateAndStartDaemon({
@@ -146,6 +107,7 @@ test.describe('ui e2e: /new worktree picker (Phase 5 SelectionList migration)', 
             uiBaseUrl,
             terminalConnectUrlTimeoutMs: 180_000,
             daemonStartupTimeoutMs: 180_000,
+            extraEnv: { HAPPIER_CLAUDE_PATH: fakeClaudeFixturePath(), HAPPIER_E2E_FAKE_CLAUDE_LOG: fakeClaudeLogPath },
         });
 
         await enableEnhancedSessionWizard({ page, baseUrl: uiBaseUrl, timeoutMs: 180_000 });
@@ -173,10 +135,53 @@ test.describe('ui e2e: /new worktree picker (Phase 5 SelectionList migration)', 
         await expect(page.getByTestId('selection-list:worktree-root:option:current_path')).toBeVisible();
         await expect(page.getByTestId('selection-list:worktree-root:option:create_git_worktree')).toBeVisible();
 
+        const list = async () => (await execFileAsync('git', ['worktree', 'list', '--porcelain'], { cwd: worktreeRepoDir })).stdout;
+        const initialWorktrees = await list();
+        const openPicker = async () => {
+            await page.getByTestId('new-session-checkout-chip').click();
+            await expect(page.getByTestId('selection-list:worktree-root:option:create_git_worktree')).toBeVisible();
+        };
+        const choose = async (id: string) => {
+            await page.getByTestId(`selection-list:worktree-root:option:${id}`).click();
+            await expect(page.getByTestId('agent-input-selection-list-popover')).toBeHidden();
+        };
+        // Empty existing list is a separate route; New never enters it.
+        await page.getByTestId('selection-list:worktree-root:option:existing_git_worktree').click();
+        await expect(page.getByTestId('selection-list:worktree-existing:header:input')).toBeVisible();
         await page.keyboard.press('Escape');
-        await expect(page.getByTestId('agent-input-selection-list-popover')).toBeHidden({ timeout: 30_000 });
-        expect(new URL(page.url()).pathname).toBe('/new');
-        await expect(page.getByTestId('new-session-composer-input')).toBeVisible();
-        await expect(page.getByTestId('new-session-composer-input')).toHaveValue(draftText);
+        await choose('current_path');
+        await openPicker();
+        await choose('create_git_worktree');
+        await openPicker();
+        const pending = page.getByTestId('selection-list:worktree-root:option:pending_git_worktree');
+        await expect(pending).toBeVisible();
+        const pendingName = (await pending.innerText()).split('\n')[0];
+        await page.screenshot({ path: testInfo.outputPath('oh65-new-intent.png') });
+        expect(await list()).toBe(initialWorktrees);
+        await page.keyboard.press('Escape');
+        // A restored draft must keep the same creation intent/name.
+        await page.reload();
+        await expect(page.getByTestId('new-session-checkout-chip')).toBeVisible();
+        await openPicker();
+        await expect(pending).toContainText(pendingName);
+        await choose('current_path');
+        await openPicker();
+        await choose('create_git_worktree');
+        expect(await list()).toBe(initialWorktrees);
+        await selectNewSessionAgent({ page, agentId: 'claude' });
+        await page.getByTestId('new-session-composer-input').fill(draftText);
+        await expect(page.getByTestId('new-session-composer-send')).toBeEnabled();
+        await page.getByTestId('new-session-composer-send').click();
+        await page.waitForURL((url) => url.pathname.startsWith('/session/'), { timeout: 180_000 });
+        await expect.poll(async () => (await list()).split('worktree ').length - 1, { timeout: 60_000 }).toBe(2);
+        const worktreePaths = (await list()).split('\n').filter((line) => line.startsWith('worktree ')).map((line) => line.slice(9));
+        const newPath = worktreePaths.find((path) => path !== worktreeRepoDir)!;
+        await expect.poll(async () => {
+            const events = (await readFile(fakeClaudeLogPath, 'utf8').catch(() => '')).split('\n').filter(Boolean).map((line) => JSON.parse(line));
+            return events.some((event) => event.type === 'invocation' && event.cwd === newPath && !event.argv.includes('--version'));
+        }, { timeout: 120_000 }).toBe(true);
+        await writeFile(testInfo.outputPath('oh65-worktree-proof.txt'), await list());
+        await page.screenshot({ path: testInfo.outputPath('oh65-launched-worktree.png') });
+        } catch (error) { throw appendBrowserDiagnostics(error, diagnostics()); }
     });
 });

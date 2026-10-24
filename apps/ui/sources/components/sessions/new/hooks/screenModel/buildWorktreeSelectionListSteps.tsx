@@ -35,8 +35,9 @@ export const PENDING_GIT_WORKTREE_OPTION_ID = 'pending_git_worktree';
  *
  * Builds the `SelectionListStep` tree consumed by the worktree popover. The
  * root step exposes:
- *   - QUICK_ACTIONS: "Use current directory" + "Create new worktree from…" (drill-down).
- *   - EXISTING_WORKTREES: one row per repo worktree (excluding the main / current-dir entry).
+ *   - QUICK_ACTIONS: No Worktree, automatic fresh New Worktree, and a separate
+ *     Existing Worktree submenu (excluding the main/current-dir entry).
+ *   - ADVANCED: explicit branch/name customization, including intentional reuse.
  *
  * Drill-down step (`worktree-create`):
  *   - LOCAL_BRANCHES + REMOTE_BRANCHES, populated via `repoScmBranchService` as a
