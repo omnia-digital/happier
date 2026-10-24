@@ -4,21 +4,29 @@ import { raceSocketIoAckTimeout } from '@/sync/runtime/socketIoAckTimeout';
 
 import { createEphemeralServerSocketClient } from './createEphemeralServerSocketClient';
 import { resolvePreferredServerIdForSessionId } from './resolvePreferredServerIdForSessionId';
-import { resolveServerScopedSessionContext } from './resolveServerScopedSessionContext';
+import { resolveServerScopedSessionContext, runWithCurrentServerScopedSessionContext } from './resolveServerScopedSessionContext';
 
 export async function emitSessionMetadataUpdateWithServerScope(params: Readonly<{
     sessionId: string;
     expectedVersion: number;
     metadata: string;
     serverId?: string | null;
+    accountId?: string | null;
+    shouldContinue?: () => boolean;
     timeoutMs?: number;
 }>): Promise<UpdateMetadataAck> {
+    const assertCurrent = () => { if (params.shouldContinue?.() === false) throw new Error('cancelled'); };
+    assertCurrent();
+    const accountId = params.accountId?.trim() || null;
     const context = await resolveServerScopedSessionContext({
         serverId: typeof params.serverId === 'string' && params.serverId.trim().length > 0
             ? params.serverId.trim()
             : resolvePreferredServerIdForSessionId(params.sessionId),
         timeoutMs: params.timeoutMs,
+        ...(accountId ? { preferScoped: true } : {}),
     });
+    assertCurrent();
+    if (accountId && (context.scope !== 'scoped' || context.targetAccountId !== accountId)) throw new Error('cancelled');
     const payload = {
         sid: params.sessionId,
         expectedVersion: params.expectedVersion,
@@ -35,10 +43,18 @@ export async function emitSessionMetadataUpdateWithServerScope(params: Readonly<
         timeoutMs: context.timeoutMs,
     });
     try {
-        return await raceSocketIoAckTimeout(
+        const emit = () => raceSocketIoAckTimeout(
             socket.timeout(context.timeoutMs).emitWithAck('update-metadata', payload) as Promise<UpdateMetadataAck>,
             context.timeoutMs,
         );
+        assertCurrent();
+        if (accountId) {
+            let pending: Promise<UpdateMetadataAck> | null = null;
+            const issued = await runWithCurrentServerScopedSessionContext(context, () => { assertCurrent(); pending = emit(); });
+            if (!issued || !pending) throw new Error('cancelled');
+            return await pending;
+        }
+        return await emit();
     } finally {
         socket.disconnect();
     }

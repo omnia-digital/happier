@@ -55,7 +55,7 @@ export function SessionTicketLinkEditor({ sessionId, scope, association, initial
         await sync.patchSessionMetadataWithRetry(sessionId, (metadata) => {
             if (!isCurrent() || JSON.stringify(readSessionTicketAssociation(metadata)) !== JSON.stringify(association)) throw new Error('cancelled');
             return withSessionTicketAssociation(metadata, next);
-        }, { serverId: scope.serverId });
+        }, { serverId: scope.serverId, accountId: scope.accountId, shouldContinue: isCurrent });
         if (isCurrent()) onClose();
     });
     const button = (label: string, testID: string, action: () => void, disabled = false) => <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={label} disabled={disabled || pending || !scopeCurrent} onPress={action} style={[styles.button, disabled || pending || !scopeCurrent ? styles.disabled : null]}><Text style={styles.buttonText}>{label}</Text></Pressable>;

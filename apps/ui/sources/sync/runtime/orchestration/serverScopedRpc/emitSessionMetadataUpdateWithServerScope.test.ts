@@ -20,7 +20,8 @@ vi.mock('./resolvePreferredServerIdForSessionId', () => ({
     resolvePreferredServerIdForSessionId: (sessionId: string) => resolvePreferredServerIdForSessionIdSpy(sessionId),
 }));
 
-vi.mock('./resolveServerScopedSessionContext', () => ({
+vi.mock('./resolveServerScopedSessionContext', async (importOriginal) => ({
+    ...await importOriginal<typeof import('./resolveServerScopedSessionContext')>(),
     resolveServerScopedSessionContext: (params: unknown) => resolveContextSpy(params),
 }));
 
@@ -29,6 +30,32 @@ vi.mock('./createEphemeralServerSocketClient', () => ({
 }));
 
 describe('emitSessionMetadataUpdateWithServerScope', () => {
+    it('does not emit when the caller lifetime retires while resolving the socket context', async () => {
+        let current = true;
+        resolveContextSpy.mockImplementationOnce(async () => { current = false; return { scope: 'active', timeoutMs: 4000 }; });
+        const { emitSessionMetadataUpdateWithServerScope } = await import('./emitSessionMetadataUpdateWithServerScope');
+        await expect(emitSessionMetadataUpdateWithServerScope({ sessionId: 's1', expectedVersion: 1, metadata: 'ciphertext', shouldContinue: () => current } as any)).rejects.toThrow('cancelled');
+        expect(emitWithAckSpy).not.toHaveBeenCalled();
+    });
+    it('does not emit after scoped socket connection retires the caller lifetime', async () => {
+        let current = true;
+        resolveContextSpy.mockResolvedValueOnce({ scope: 'scoped', timeoutMs: 4000, targetServerId: 'other', targetServerUrl: 'https://other.test', token: 'token' });
+        const emitWithAck = vi.fn(async () => ({ result: 'success' }));
+        const disconnect = vi.fn();
+        createSocketSpy.mockImplementationOnce(async () => { current = false; return { timeout: () => ({ emitWithAck }), disconnect }; });
+        const { emitSessionMetadataUpdateWithServerScope } = await import('./emitSessionMetadataUpdateWithServerScope');
+        await expect(emitSessionMetadataUpdateWithServerScope({ sessionId: 's1', expectedVersion: 1, metadata: 'ciphertext', shouldContinue: () => current } as any)).rejects.toThrow('cancelled');
+        expect(emitWithAck).not.toHaveBeenCalled();
+        expect(disconnect).toHaveBeenCalledOnce();
+    });
+    it('refuses metadata emission when resolved credentials belong to a different captured account', async () => {
+        emitWithAckSpy.mockResolvedValueOnce({ result: 'success' });
+        resolveContextSpy.mockResolvedValueOnce({ scope: 'scoped', timeoutMs: 4000, targetServerId: 'home', targetServerUrl: 'https://home.test', targetAccountId: 'other', token: 'token' });
+        createSocketSpy.mockResolvedValueOnce({ timeout: () => ({ emitWithAck: emitWithAckSpy }), disconnect: vi.fn() });
+        const { emitSessionMetadataUpdateWithServerScope } = await import('./emitSessionMetadataUpdateWithServerScope');
+        await expect(emitSessionMetadataUpdateWithServerScope({ sessionId: 's1', expectedVersion: 1, metadata: 'ciphertext', accountId: 'captured' } as any)).rejects.toThrow('cancelled');
+        expect(emitWithAckSpy).not.toHaveBeenCalled();
+    });
     afterEach(() => {
         emitWithAckSpy.mockReset();
         getActiveServerSnapshotSpy.mockReset();

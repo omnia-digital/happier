@@ -10,7 +10,7 @@ import { type StartedDaemon } from '../../src/testkit/daemon/daemon';
 import { authenticateAndStartDaemon } from '../../src/testkit/uiE2e/authenticateAndStartDaemon';
 import { gotoDomContentLoadedWithRetries, normalizeLoopbackBaseUrl } from '../../src/testkit/uiE2e/pageNavigation';
 import { upsertEncryptedAccountSettingsV2 } from '../../src/testkit/accountSettings';
-import { createSessionWithCiphertexts, fetchSessionV2 } from '../../src/testkit/sessions';
+import { createSessionWithCiphertexts, fetchSessionV2, patchSessionMetadataWithRetry } from '../../src/testkit/sessions';
 import { encryptLegacyBase64, decryptLegacyBase64 } from '../../src/testkit/messageCrypto';
 import { repoRootDir } from '../../src/testkit/paths';
 import { readUiE2eScopedAccountSettings } from '../../src/testkit/uiE2e/scopedAccountSettingsStorage';
@@ -73,6 +73,10 @@ test.describe('session ticket link/read/status via isolated opt-in reader', () =
             await page.getByTestId('session-ticket-save').click();
             await expect(page.getByTestId('session-ticket-header-status')).toContainText('Q/A - Dev', { timeout: 60_000 });
             await expect(page.getByTestId(`session-ticket-row-status:${sessionId}`)).toContainText('Q/A - Dev');
+            await page.getByTestId(`session-list-item-${sessionId}`).hover();
+            await page.getByRole('button', { name: 'Pin session', exact: true }).click();
+            await expect(page.getByText('Pinned', { exact: true })).toBeVisible();
+            await expect(page.getByTestId(`session-ticket-row-status:${sessionId}`)).toContainText('Q/A - Dev');
             await writeFile(statePath, JSON.stringify({ status: 'Ready for Prod / Stakeholder sign-off' }));
             await page.getByTestId('session-ticket-refresh').click();
             await expect(page.getByTestId('session-ticket-header-status')).toContainText('Ready for Prod / Stakeholder sign-off', { timeout: 60_000 });
@@ -94,12 +98,25 @@ test.describe('session ticket link/read/status via isolated opt-in reader', () =
             await expect(page.getByTestId('session-ticket-resolved')).toContainText('DEV-2', { timeout: 60_000 });
             await page.getByTestId('session-ticket-save').click();
             await expect(page.getByTestId('session-ticket-open')).toContainText('DEV-2');
+            await expect(page.getByTestId('session-ticket-header-status')).toContainText('Ready for Prod / Stakeholder sign-off', { timeout: 60_000 });
             await writeFile(statePath, JSON.stringify({ error: '401 invalid credential' }));
             await page.getByTestId('session-ticket-refresh').click();
             await expect(page.getByTestId('session-ticket-header-status')).toContainText('Stale', { timeout: 60_000 });
             await page.setViewportSize({ width: 390, height: 844 });
             await expect(page.getByTestId('session-ticket-open')).toHaveAttribute('aria-label', /DEV-2.*Fixture ticket/);
             await page.screenshot({ path: testInfo.outputPath('oh58-compact-stale.png') });
+            await page.getByTestId('session-ticket-change').click();
+            // A second real metadata writer changes the association while the editor is open.
+            // The stale remove must fail its compare-and-set instead of deleting the newer link.
+            const beforeConcurrentChange = await fetchSessionV2(server.baseUrl, access.token, sessionId);
+            const beforeMetadata = decryptLegacyBase64(beforeConcurrentChange.metadata, secret) as Record<string, any>;
+            const concurrentMetadata = { ...beforeMetadata, sessionTicketV1: { ...beforeMetadata.sessionTicketV1, ticket: { ...beforeMetadata.sessionTicketV1.ticket, key: 'DEV-3', ticketId: 'fixture-DEV-3', url: 'https://linear.app/fixture/issue/DEV-3' } } };
+            await patchSessionMetadataWithRetry({ baseUrl: server.baseUrl, token: access.token, sessionId, ciphertext: encryptLegacyBase64(concurrentMetadata, secret), expectedVersion: beforeConcurrentChange.metadataVersion });
+            await expect(page.getByTestId('session-ticket-open')).toContainText('DEV-3', { timeout: 60_000 });
+            await page.getByTestId('session-ticket-remove').click();
+            await expect(page.getByRole('alert')).toContainText('cancelled', { timeout: 60_000 });
+            await expect(page.getByTestId('session-ticket-open')).toContainText('DEV-3');
+            await page.getByTestId('session-ticket-cancel').click();
             await page.getByTestId('session-ticket-change').click();
             await page.getByTestId('session-ticket-remove').click();
             await expect(page.getByTestId('session-ticket-link')).toBeVisible();
