@@ -437,8 +437,7 @@ export function OptionPickerOverlay(props: OptionPickerOverlayProps) {
                                         .map((option) => {
                                             const isSelected = selectedTileValue === option.value;
                                             const isFavorite = props.favoriteOptions?.values.has(option.value) === true;
-                                            const canToggleFavorite = (isSelected || isFavorite)
-                                                && Boolean(props.favoriteOptions)
+                                            const canToggleFavorite = Boolean(props.favoriteOptions)
                                                 && (props.favoriteOptions?.isFavoritable?.(option) ?? true);
                                             return (
                                                 <View

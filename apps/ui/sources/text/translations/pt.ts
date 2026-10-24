@@ -11437,6 +11437,7 @@ settingsSession: {
     actions: {
       viewEnvironmentVariables: "Variáveis de ambiente",
       addToFavorites: "Adicionar aos favoritos",
+      favoriteModelsEmptyGuidance: "Escolha uma aba de agente e marque um modelo com estrela para adicioná-lo aqui",
       removeFromFavorites: "Remover dos favoritos",
       editProfile: "Editar perfil",
       duplicateProfile: "Duplicar perfil",

@@ -1,6 +1,6 @@
 ---
 title: Model and engine selection
-description: Choose a backend engine, pick a model, use live model lists, and save favorite model choices for new sessions.
+description: Choose a backend engine, pick a model, use live model lists, and save favorite model choices across providers.
 ---
 
 Happier uses **engine** in the app UI for the backend choice that will run a session.
@@ -24,7 +24,10 @@ The left side of the picker shows engine choices. The right side shows the selec
 - refresh status when Happier is probing the selected machine
 - model-specific controls, when the provider exposes them
 
-Running sessions can also show a model/config picker in the input settings for the current session. Favorites are part of the **new session** engine picker.
+Running sessions can also show a model/config picker in the input settings for the current session.
+In development builds with in-session model favorites, **Favorites** is the first tab in that picker,
+so saved choices from several Agents can be selected from one list. It uses the same saved favorites
+as the **new session** picker.
 
 Inside a running session, that same picker can also change the Agent itself — see [Continue with another Agent](/sessions/continue-with-another-agent).
 
@@ -114,8 +117,11 @@ To favorite a model:
 
 1. Open the new-session engine picker.
 2. Choose an engine.
-3. Select a concrete model.
-4. Use the star button on the selected model card.
+3. Find a concrete model.
+4. Use the star button on its model card. In development builds, you can star a model without selecting it first.
+
+In-session model favorites can also be added from an Agent's tab in the existing-session picker.
+When the Favorites tab is empty, choose an Agent and star a model to add it.
 
 The filled star means the model is already a favorite. The outline star means it can be added.
 
@@ -134,6 +140,13 @@ Selecting a favorite:
 - keeps other launch settings, such as profile, permissions, modes, and config options, governed by the normal new-session controls
 
 Favorites are account settings. They are saved per backend identity and model id, so the same model id can be a separate favorite under two different engines or Custom ACP backends.
+
+In an existing session, choosing a favorite for the running Agent uses the normal model-change
+behavior. Choosing one for another Agent prepares that Agent and model for your next message;
+it does not send a message by itself. Cross-Agent choices still require the existing session's
+[Agent-switching support](/sessions/continue-with-another-agent). Returning to a favorite for the
+running Agent cancels the prepared switch. Thinking and other model controls remain part of the
+current choice rather than becoming a saved favorite preset.
 
 ## Removing favorites
 

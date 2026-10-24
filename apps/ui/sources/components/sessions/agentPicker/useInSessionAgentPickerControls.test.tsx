@@ -8,6 +8,7 @@ import type { ResolvedBackendCatalogEntry } from '@/agents/backendCatalog/getRes
 import { existingSessionDraftSemanticValues } from '@/sync/domains/input/drafts/existingSessionDraftSemanticValues';
 import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import { t } from '@/text';
+import type { FavoriteModelSelectionV1 } from '@/sync/domains/models/favoriteModelSelections';
 
 import { APPLIED_RUNTIME_MARKER_ICON } from '@/components/sessions/agentInput/appliedRuntimeMarker';
 
@@ -121,6 +122,8 @@ type HookProps = Readonly<{
     machine?: SessionAgentContinuationMachineTarget;
     featureDecision?: SessionAgentContinuationFeatureDecision;
     sessionActive?: boolean | null;
+    favoriteModelSelections?: readonly FavoriteModelSelectionV1[];
+    setFavoriteModelSelections?: (favorites: FavoriteModelSelectionV1[]) => void;
 }>;
 
 async function renderControls(props: HookProps = {}) {
@@ -135,6 +138,8 @@ async function renderControls(props: HookProps = {}) {
         source: hookProps.source ?? supportedSource,
         machine: hookProps.machine ?? onlineMachine,
         detail: detailContext,
+        favoriteModelSelections: hookProps.favoriteModelSelections,
+        setFavoriteModelSelections: hookProps.setFavoriteModelSelections,
     }), { initialProps: props });
 }
 
@@ -184,6 +189,78 @@ describe('useInSessionAgentPickerControls', () => {
         expect(optionsOf(hook.getCurrent())[0]?.subtitle).toBeUndefined();
         expect(optionsOf(hook.getCurrent())[0]?.accessibilityLabel)
             .toBe(t('session.agentContinuation.currentAgentAccessibilityLabel', { agent: 'Claude Code' }));
+    });
+
+    it('offers Favorites first without arming on browse, and dispatches by exact backend before returning to current', async () => {
+        const configured = (id: string) => entry('customAcp', {
+            target: { kind: 'configuredAcpBackend', backendId: id },
+            targetKey: `acpBackend:${id}`,
+            family: 'configuredAcpBackend',
+            builtInAgentId: null,
+            title: id,
+        });
+        const current = configured('current');
+        const foreign = configured('foreign');
+        const favorites: FavoriteModelSelectionV1[] = [{
+            backendTargetKey: foreign.targetKey,
+            providerAgentId: 'customAcp',
+            builtInAgentId: null,
+            configuredBackendId: 'foreign',
+            modelId: 'gpt-5.4',
+            modelLabel: 'GPT 5.4',
+        }];
+        const currentModelSelection = vi.fn();
+        const hook = await renderControls({
+            currentAgentId: 'customAcp',
+            entries: [current, foreign],
+            source: { ...supportedSource, currentBackendTargetKey: current.targetKey },
+            favoriteModelSelections: favorites,
+            setFavoriteModelSelections: vi.fn(),
+        });
+        await openPicker(hook);
+
+        const options = hook.getCurrent().composeAgentPickerOptions([CURRENT_AGENT_ROW], {
+            modelId: 'claude-opus',
+            onSelectModel: currentModelSelection,
+        });
+        expect(options[0]?.id).toBe('favorite-models');
+        expect(hook.getCurrent().armedContinuation).toBeNull();
+
+        const favoriteDetail = options[0]?.renderDetailContent?.() as React.ReactElement<{
+            onSelectFavoriteModel: (entry: ResolvedBackendCatalogEntry, modelId: string, overrides?: Readonly<Record<string, string>>, context?: { preflight: { availableModels: never[]; supportsFreeform: boolean }; preflightUpdatedAt: number }) => void;
+        }>;
+        await act(async () => {
+            favoriteDetail.props.onSelectFavoriteModel(foreign, 'gpt-5.4');
+        });
+        expect(hook.getCurrent().armedContinuation).toMatchObject({
+            sourceBackendTarget: { kind: 'configuredAcpBackend', backendId: 'current' },
+            selection: { agentId: 'customAcp', backendTarget: { kind: 'configuredAcpBackend', backendId: 'foreign' }, modelId: 'gpt-5.4' },
+        });
+
+        let resolvePendingInspection: (() => void) | null = null;
+        machineRpcWithServerScope.mockImplementation((params: { payload: { selections?: readonly unknown[] } }) => (
+            new Promise((resolve) => {
+                resolvePendingInspection = () => resolve({
+                    v: 1,
+                    inspections: (params.payload.selections ?? []).map(() => AVAILABLE),
+                });
+            })
+        ));
+        await act(async () => {
+            favoriteDetail.props.onSelectFavoriteModel(foreign, 'gpt-5.5');
+            await Promise.resolve();
+        });
+        const modelOptionsContext = { preflight: { availableModels: [], supportsFreeform: true }, preflightUpdatedAt: 123 };
+        await act(async () => {
+            favoriteDetail.props.onSelectFavoriteModel(current, 'claude-sonnet', {}, modelOptionsContext);
+        });
+        await act(async () => {
+            resolvePendingInspection?.();
+            await Promise.resolve();
+        });
+        await act(async () => { await Promise.resolve(); });
+        expect(currentModelSelection).toHaveBeenCalledWith('claude-sonnet', modelOptionsContext);
+        expect(hook.getCurrent().armedContinuation).toBeNull();
     });
 
     it('leaves the composer untouched when this Session has no other Agent to offer', async () => {

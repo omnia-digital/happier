@@ -1451,6 +1451,7 @@ export const it: TranslationStructure = {
     actions: {
       viewEnvironmentVariables: "Variabili ambiente",
       addToFavorites: "Aggiungi ai preferiti",
+      favoriteModelsEmptyGuidance: "Scegli una scheda Agent e aggiungi un modello ai preferiti per vederlo qui",
       removeFromFavorites: "Rimuovi dai preferiti",
       editProfile: "Modifica profilo",
       duplicateProfile: "Duplica profilo",

@@ -229,6 +229,7 @@ import { createSyncBackedSubmitPort } from '@/sync/domains/session/input/syncBac
 import { isSessionLocallyAttached } from '@/sync/domains/session/control/sessionLocalControl';
 import { resolveSessionWorkspacePresentation } from '@/sync/domains/session/listing/sessionWorkspacePresentation';
 import { isModelSelectableForSession, type SessionModelOptionsContext } from '@/sync/domains/models/modelOptions';
+import { favoriteModelSelectionMatchesBackend, toggleFavoriteModelSelection, type FavoriteModelSelectionV1 } from '@/sync/domains/models/favoriteModelSelections';
 import { getInactiveSessionUiState } from '@/components/sessions/model/inactiveSessionUi';
 import { useSessionMachineReachability } from '@/components/sessions/model/useSessionMachineReachability';
 import { useCLIDetection } from '@/hooks/auth/useCLIDetection';
@@ -3936,6 +3937,33 @@ function SessionViewLoaded({
         sessionActionDefaultBackend?.backendTarget
         ?? { kind: 'builtInAgent', agentId: liveComposerState.agentId },
     ), [liveComposerState.agentId, sessionActionDefaultBackend?.backendTarget]);
+    const [favoriteModelSelections, setFavoriteModelSelections] = useSettingMutable('favoriteModelSelectionsV1');
+    const currentFavoriteBackend = React.useMemo(() => {
+        const entry = sessionAgentCatalogEntries.find((candidate) => candidate.targetKey === sessionAgentCurrentTargetKey);
+        return entry ? {
+            backendTargetKey: entry.targetKey,
+            providerAgentId: entry.providerAgentId,
+            builtInAgentId: entry.builtInAgentId,
+            configuredBackendId: entry.target.kind === 'configuredAcpBackend' ? entry.target.backendId : null,
+        } : null;
+    }, [sessionAgentCatalogEntries, sessionAgentCurrentTargetKey]);
+    const currentFavoriteModelValues = React.useMemo(() => new Set(
+        currentFavoriteBackend
+            ? favoriteModelSelections.filter((favorite) => favoriteModelSelectionMatchesBackend(favorite, currentFavoriteBackend)).map((favorite) => favorite.modelId)
+            : [],
+    ), [currentFavoriteBackend, favoriteModelSelections]);
+    const toggleCurrentFavoriteModel = React.useCallback((model: Readonly<{ modelId: string; modelLabel: string }>) => {
+        if (!currentFavoriteBackend) return;
+        const currentEntry = sessionAgentCatalogEntries.find((entry) => entry.targetKey === currentFavoriteBackend.backendTargetKey);
+        setFavoriteModelSelections(toggleFavoriteModelSelection({
+            favorites: favoriteModelSelections,
+            backend: currentFavoriteBackend,
+            modelId: model.modelId,
+            modelLabel: model.modelLabel,
+            backendLabel: currentEntry?.title,
+            addedAtMs: Date.now(),
+        }));
+    }, [currentFavoriteBackend, favoriteModelSelections, sessionAgentCatalogEntries, setFavoriteModelSelections]);
     // Each successful connect stamps a new value, which is exactly the lifetime a
     // continuation inspection may be trusted for.
     const socketConnectionGeneration = useSocketStatus().lastConnectedAt;
@@ -4030,6 +4058,9 @@ function SessionViewLoaded({
         currentAgentSessionActive: session.active,
         entries: sessionAgentCatalogEntries,
         favoriteBackendTargetKeys: settings.favoriteBackendTargetKeysV1,
+        favoriteModelSelections,
+        setFavoriteModelSelections,
+        currentSessionMetadata: session.metadata ?? null,
         featureDecision: agentSwitchingDecision,
         source: agentContinuationSource,
         machine: agentContinuationMachine,
@@ -6449,6 +6480,8 @@ function SessionViewLoaded({
                 agentType={liveComposerState.agentId}
                 armedContinuationTarget={armedContinuationTarget}
                 composeAgentPickerOptions={inSessionAgentPicker.composeAgentPickerOptions}
+                favoriteModelValues={currentFavoriteModelValues}
+                onToggleFavoriteModel={toggleCurrentFavoriteModel}
                 onAgentPickerIntent={inSessionAgentPicker.onAgentPickerIntent}
                 onAgentPickerVisibilityChange={inSessionAgentPicker.onAgentPickerVisibilityChange}
                 agentPickerSelectedOptionId={inSessionAgentPicker.agentPickerSelectedOptionId}

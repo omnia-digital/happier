@@ -48,7 +48,7 @@ export function AgentInputChipPickerPanel(
   const fallbackFocusedOptionId = selectedOptionId ?? props.options[0]?.id ?? null;
   const [focusState, setFocusState] = React.useState<AgentInputChipPickerFocusState>(() => ({
     selectedOptionId,
-    focusedOptionId: fallbackFocusedOptionId,
+    focusedOptionId: props.options.find((option) => option.initialFocus)?.id ?? fallbackFocusedOptionId,
   }));
   let focusedOptionId = focusState.focusedOptionId;
 

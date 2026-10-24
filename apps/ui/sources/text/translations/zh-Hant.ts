@@ -9246,6 +9246,9 @@ settingsSession: {
             confirm: '刪除',
             cancel: '取消',
         },
+        actions: {
+            favoriteModelsEmptyGuidance: '選擇 Agent 分頁並為模型加星，即可將其新增至此處',
+        },
         aiBackend: {
             copilotSubtitleExperimental: 'GitHub Copilot CLI（實驗）',
             cursorSubtitleExperimental: 'Cursor Agent CLI（實驗）',

@@ -1433,6 +1433,7 @@ export const ja: TranslationStructure = {
     actions: {
       viewEnvironmentVariables: "環境変数",
       addToFavorites: "お気に入りに追加",
+      favoriteModelsEmptyGuidance: "Agent タブを選び、モデルに星を付けるとここに表示されます",
       removeFromFavorites: "お気に入りから削除",
       editProfile: "プロファイルを編集",
       duplicateProfile: "プロファイルを複製",
