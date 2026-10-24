@@ -163,6 +163,29 @@ configured successor are still required; no full-suite green or stable-release v
 
 ### Earlier selective adoption evidence
 
+Integration follows the unit/type gate. Canonical UI integration exits0: web160, Legend-native22,
+Fabric23pass/2skip,205pass total. This is host execution, not device acceptance. Server first full
+integration143files pass/1fail,1056pass/2fail/1skip. Both failures are exact ACK fixtures missing the
+current producer's stored createdAt; `06a8c5db33` updates only those expected objects. Focused5,
+adjacent41 and server types pass; full server recheck73907 is pending. No message production change
+or legacy-ACK browser recovery is implied.
+
+Independent safety inspection finds CLI's dotenv integration config overrides inherited HOME/server.
+Root privately verifies dedicated `/tmp/happier-dev-test`, loopback3005 and no credentials/settings.
+The canonical task-local auth-bootstrap0 guard returns before auth POST/profile read; live daemon
+account cases skip but disposable daemon/fake-provider process cases still run. Real opt-ins and
+OpenCode state override remain unset. First CLI integration has four compiler/probe failures from
+bare Bun1.2.17 despite HAPPIER_BUN_PATH; prepending private1.4.2 resolves all4 with no source edit.
+Two fixture files remain under correction. Do not infer provider/account acceptance from this lane.
+
+Stack discovery identifies37regular/4real files. Two regular binary smoke files build release archives
+if not supplied; `dist/release-assets` and prepared archives are absent. AGENTS.md249 forbids QA
+producing a separate release representation, so those cases are [blocked] on release automation,
+not silently skipped as green. Four OS-service real cases remain default-off. The remaining35
+source cases may consume the existing collector/sanitizer/process owners after shared build outputs
+are idle; there is no new runner, package, archive, lease or release representation. Full root
+integration remains unverified. The native non-hotkey idle-window question is still pending.
+
 Final current-source root unit gate is GREEN: source85707119e5, `yarn test` through hstack-exec,
 both independent website inputs and private pinned Bun1.4.2, inherited default TMPDIR. Root session
 95727 finishes exit0 in5869.40s. Durable log `.project/logs/tests/oh4-root-unit-final-current.log`
