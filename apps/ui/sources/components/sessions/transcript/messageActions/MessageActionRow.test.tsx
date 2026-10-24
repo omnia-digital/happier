@@ -59,7 +59,14 @@ describe('MessageActionRow', () => {
         );
 
         expect(screen.findByTestId('transcript-message-actions-row:m1')).toBeTruthy();
-        expect(screen.findByTestId('transcript-message-timestamp:m1')?.props.children).toBe('May 19, 2026, 4:30 PM');
+        const timestamp = screen.findByTestId('transcript-message-timestamp:m1');
+        expect(timestamp?.props.children).toBe('May 19, 2026, 4:30 PM');
+        expect(timestamp?.props).toEqual(expect.objectContaining({
+            accessibilityRole: 'text',
+            accessibilityLabel: 'May 19, 2026, 4:30 PM',
+            title: 'May 19, 2026, 4:30 PM',
+            tabIndex: 0,
+        }));
         expect(readOpacity(screen.findByTestId('transcript-message-actions:m1')?.props.style)).toBe(1);
         expect(screen.findByTestId('child-action')).toBeTruthy();
     });

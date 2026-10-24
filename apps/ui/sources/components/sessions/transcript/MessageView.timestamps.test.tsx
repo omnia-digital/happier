@@ -12,7 +12,7 @@ import type {
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
-let timestampDisplayMode = 'hover_web_hidden_mobile';
+let timestampDisplayMode = 'always';
 let copyButtonsVisible = false;
 let sessionWideStorageHookCalls = 0;
 
@@ -109,7 +109,7 @@ vi.mock('@expo/vector-icons', () => ({
 
 describe('MessageView timestamps', () => {
     beforeEach(() => {
-        timestampDisplayMode = 'hover_web_hidden_mobile';
+        timestampDisplayMode = 'always';
         copyButtonsVisible = false;
         sessionWideStorageHookCalls = 0;
         vi.spyOn(Date.prototype, 'toLocaleString').mockReturnValue('legacy locale string');
@@ -123,22 +123,31 @@ describe('MessageView timestamps', () => {
         standardCleanup();
     });
 
-    it('does not render message timestamps by default before web hover actions are visible', async () => {
+    it('renders stored user and assistant timestamps by default before web hover actions are visible', async () => {
         vi.resetModules();
         const { MessageView } = await import('./MessageView');
 
-        const screen = await renderScreen(
+        const userScreen = await renderScreen(
             <MessageView
                 sessionId="s1"
                 metadata={null}
                 message={{ kind: 'user-text', id: 'm1', localId: 'local-1', createdAt: 1, text: 'hello' }}
             />,
         );
+        const assistantScreen = await renderScreen(
+            <MessageView
+                sessionId="s1"
+                metadata={null}
+                message={{ kind: 'agent-text', id: 'a1', localId: 'local-a1', createdAt: 2, text: 'reply' }}
+            />,
+        );
 
-        expect(screen.findAllByTestId('transcript-message-timestamp:m1')).toHaveLength(0);
+        expect(userScreen.findByTestId('transcript-message-timestamp:m1')?.props.children).toBe('May 19, 2026, 4:30 PM');
+        expect(assistantScreen.findByTestId('transcript-message-timestamp:a1')?.props.children).toBe('May 19, 2026, 4:30 PM');
     });
 
-    it('renders message timestamps with web hover actions in the default mode', async () => {
+    it('keeps explicit hover-mode timestamps alongside visible web actions', async () => {
+        timestampDisplayMode = 'hover_web_hidden_mobile';
         copyButtonsVisible = true;
         vi.resetModules();
         const { MessageView } = await import('./MessageView');
