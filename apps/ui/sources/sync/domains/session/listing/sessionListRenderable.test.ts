@@ -44,6 +44,17 @@ it('projects ticket association and observes changes without subscribing rows to
     expect(areSessionListRenderablesEqual(previous, { ...previous, metadata: { ...previous.metadata!, sessionTicketV1: structuredClone(ticketAssociation) } })).toBe(true);
 });
 
+it('replaces a catalog projection when a linked PR is corrected or removed', () => {
+    const first = { providerKind: 'github' as const, providerBaseUrl: 'https://github.com', repository: 'owner/one', number: 7, url: 'https://github.com/owner/one/pull/7' };
+    const second = { ...first, repository: 'owner/two', url: 'https://github.com/owner/two/pull/7' };
+    const before = buildSessionListRenderableFromSession(createSessionFixture({ metadata: { path: '/repo', host: 'host', sessionPullRequestsV1: { v: 1, links: [first] } } }));
+    const corrected = buildSessionListRenderableFromSession(createSessionFixture({ metadata: { path: '/repo', host: 'host', sessionPullRequestsV1: { v: 1, links: [second] } } }));
+    const removed = buildSessionListRenderableFromSession(createSessionFixture({ metadata: { path: '/repo', host: 'host', sessionPullRequestsV1: { v: 1, links: [] } } }));
+    expect(areSessionListRenderablesEqual(before, corrected)).toBe(false);
+    expect(areSessionListRenderablesEqual(corrected, removed)).toBe(false);
+    expect(areSessionListRenderablesEqual(before, { ...before, metadata: structuredClone(before.metadata) })).toBe(true);
+});
+
 vi.mock('@/sync/domains/state/storage', async () => {
     const { createStorageModuleStub } = await import('@/dev/testkit/mocks/storage');
     return createStorageModuleStub({
