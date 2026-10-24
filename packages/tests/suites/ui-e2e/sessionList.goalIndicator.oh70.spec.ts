@@ -12,6 +12,7 @@ import { gotoDomContentLoadedWithRetries, normalizeLoopbackBaseUrl } from '../..
 import { startForwardedHeaderProxy } from '../../src/testkit/uiE2e/forwardedHeaderProxy';
 import { waitForInitialAppUi } from '../../src/testkit/uiE2e/waitForInitialAppUi';
 import { mutateUiE2eLocalSettings } from '../../src/testkit/uiE2e/localSettingsStorage';
+import { appendBrowserDiagnostics, collectBrowserDiagnostics } from '../../src/testkit/uiE2e/browserDiagnostics';
 
 const run = createRunDirs({ runLabel: 'ui-e2e-oh70-goal-indicator' });
 const machineId = `oh70-machine-${run.runId.slice(-8)}`;
@@ -157,10 +158,7 @@ test.describe('ui e2e: OH-70 sidebar goal indicators', () => {
     test('shows truthful lifecycle labels and fits indicators in compact light and large-text dark sidebar rows', async ({ page }) => {
         test.setTimeout(300_000);
         if (!server || !ui || !sessionIds || !token) throw new Error('missing isolated goal indicator fixtures');
-        const browserWarnings: string[] = [];
-        page.on('console', (message) => {
-            if (message.type() === 'warning' || message.type() === 'error') browserWarnings.push(message.text());
-        });
+        const browserDiagnostics = collectBrowserDiagnostics({ page });
         const goalSessionIds = sessionIds;
         await page.setViewportSize({ width: 1440, height: 900 });
         const baseUrl = normalizeLoopbackBaseUrl(ui.baseUrl);
@@ -168,6 +166,35 @@ test.describe('ui e2e: OH-70 sidebar goal indicators', () => {
         await waitForInitialAppUi({ page, timeoutMs: 180_000 });
 
         const indicator = (status: GoalState) => page.getByTestId(`session-list-goal-indicator:${goalSessionIds[status]}`);
+        const checkMachineHover = async () => {
+            const sessionId = goalSessionIds.active;
+            const machine = page.getByTestId(`session-list-machine-identity-${sessionId}`);
+            await machine.evaluate((element) => {
+                element.addEventListener('pointerenter', () => element.setAttribute('data-test-pointer-entered', 'yes'), { once: true });
+            });
+            const boxBeforeHover = await machine.boundingBox();
+            await machine.hover();
+            await expect.poll(() => machine.getAttribute('data-test-pointer-entered')).toBe('yes');
+            const hoverGeometry = boxBeforeHover ? await page.evaluate(({ x, y, selector }) => {
+                const hit = document.elementFromPoint(x, y);
+                const identity = hit?.closest(selector);
+                return {
+                    pointerStillOverMachine: identity !== null,
+                    identityBox: document.querySelector<HTMLElement>(selector)?.getBoundingClientRect().toJSON(),
+                    hitTestId: hit?.closest<HTMLElement>('[data-testid]')?.dataset.testid ?? null,
+                };
+            }, {
+                x: boxBeforeHover.x + boxBeforeHover.width / 2,
+                y: boxBeforeHover.y + boxBeforeHover.height / 2,
+                selector: `[data-testid="session-list-machine-identity-${sessionId}"]`,
+            }) : null;
+            expect(hoverGeometry?.pointerStillOverMachine, JSON.stringify({ boxBeforeHover, hoverGeometry })).toBe(true);
+            const tooltip = page.getByTestId(`session-list-machine-identity-${sessionId}-tooltip`);
+            await expect(tooltip).toBeVisible();
+            await expect(tooltip).toContainText(machineId);
+            await page.mouse.move(0, 0);
+            await expect(tooltip).toBeHidden();
+        };
         const checkRows = async () => {
             for (const [status, expected] of [
                 ['active', 'Active'],
@@ -184,20 +211,46 @@ test.describe('ui e2e: OH-70 sidebar goal indicators', () => {
                     element.addEventListener('pointerenter', () => element.setAttribute('data-test-pointer-entered', 'yes'), { once: true });
                     element.addEventListener('mouseenter', () => element.setAttribute('data-test-mouse-entered', 'yes'), { once: true });
                 });
+                const boxBeforeHover = await goal.boundingBox();
                 await goal.hover();
                 await expect.poll(() => goal.getAttribute('data-test-pointer-entered')).toBe('yes');
+                const hoverGeometry = boxBeforeHover ? await page.evaluate(({ x, y, selector }) => {
+                    const hit = document.elementFromPoint(x, y);
+                    const indicator = hit?.closest(selector);
+                    return {
+                        pointerStillOverIndicator: indicator !== null,
+                        indicatorBox: document.querySelector<HTMLElement>(selector)?.getBoundingClientRect().toJSON(),
+                        hitTestId: hit?.closest<HTMLElement>('[data-testid]')?.dataset.testid ?? null,
+                    };
+                }, {
+                    x: boxBeforeHover.x + boxBeforeHover.width / 2,
+                    y: boxBeforeHover.y + boxBeforeHover.height / 2,
+                    selector: `[data-testid="session-list-goal-indicator:${goalSessionIds[status]}"]`,
+                }) : null;
+                expect(hoverGeometry?.pointerStillOverIndicator).toBe(true);
                 const tooltip = page.getByTestId(`session-list-goal-indicator:${goalSessionIds[status]}-tooltip`);
                 await expect(tooltip, JSON.stringify({
+                    boxBeforeHover,
+                    hoverGeometry,
                     pointerEvents: await goal.evaluate((element) => ({
                         pointer: element.getAttribute('data-test-pointer-entered'),
                         mouse: element.getAttribute('data-test-mouse-entered'),
                         html: element.outerHTML,
                         cssPointerEvents: getComputedStyle(element).pointerEvents,
                     })),
-                    browserWarnings,
                 })).toBeVisible();
-                await expect(tooltip).toContainText(`Goal ${status}`);
-                await expect(tooltip).toContainText(expected);
+                await expect(tooltip, JSON.stringify({ hoverGeometry, rowId: goalSessionIds[status] })).toContainText(`Goal ${status}`);
+                await expect(tooltip, JSON.stringify({ hoverGeometry, rowId: goalSessionIds[status] })).toContainText(expected);
+                const rowBox = await row.boundingBox();
+                if (!rowBox) throw new Error(`goal session row ${goalSessionIds[status]} has no layout box`);
+                await page.mouse.move(rowBox.x + rowBox.width - 12, rowBox.y + rowBox.height / 2);
+                await expect(tooltip).toBeHidden();
+                await expect(row.getByTestId('session-item-more-menu')).toBeVisible();
+                await goal.focus();
+                await page.keyboard.press('Tab');
+                await page.keyboard.press('Shift+Tab');
+                expect(await goal.evaluate((element) => document.activeElement === element)).toBe(true);
+                await expect(tooltip).toBeVisible();
                 const layout = await page.evaluate((id) => {
                     const rowNode = document.querySelector<HTMLElement>(`[data-testid="session-list-item-${id}"]`);
                     const goalNode = document.querySelector<HTMLElement>(`[data-testid="session-list-goal-indicator:${id}"]`);
@@ -222,16 +275,38 @@ test.describe('ui e2e: OH-70 sidebar goal indicators', () => {
             ));
             expect(new Set(colors).size).toBe(3);
         };
+        const checkRowsWithDiagnostics = async () => {
+            try {
+                await checkRows();
+            } catch (error) {
+                throw appendBrowserDiagnostics(error, browserDiagnostics());
+            }
+        };
+        const dismissRowTooltips = async () => {
+            await page.mouse.move(0, 0);
+            await page.evaluate(() => {
+                const activeElement = document.activeElement;
+                if (activeElement instanceof HTMLElement && activeElement !== document.body) activeElement.blur();
+            });
+            for (const status of ['active', 'complete', 'paused'] as const) {
+                await expect(page.getByTestId(`session-list-goal-indicator:${goalSessionIds[status]}-tooltip`)).toBeHidden();
+            }
+            await expect(page.getByTestId(`session-list-machine-identity-${goalSessionIds.active}-tooltip`)).toBeHidden();
+        };
 
         await mutateUiE2eLocalSettings({ page, settingsPatch: { themePreference: 'light', uiItemDensity: 'compact', uiFontScale: 1 } });
         await page.reload();
         await waitForInitialAppUi({ page, timeoutMs: 120_000 });
-        await checkRows();
+        await checkMachineHover();
+        await checkRowsWithDiagnostics();
+        await dismissRowTooltips();
+        await page.screenshot({ path: `${suiteDir}/oh70-goal-indicators-light-compact.png` });
 
         await mutateUiE2eLocalSettings({ page, settingsPatch: { themePreference: 'dark', uiItemDensity: 'compact', uiFontScale: 1.3 } });
         await page.reload();
         await waitForInitialAppUi({ page, timeoutMs: 120_000 });
-        await checkRows();
+        await checkRowsWithDiagnostics();
+        await dismissRowTooltips();
         await page.screenshot({ path: `${suiteDir}/oh70-goal-indicators-dark-large-text.png` });
     });
 });
