@@ -49,7 +49,7 @@ describe('foreground session autoarchive observer', () => {
             storage.getState().applySessions([{ ...current, metadata: update(current.metadata), metadataVersion: current.metadataVersion + 1 }]);
         });
         const session = createSessionFixture({
-            id: 'session-a', serverId, owner: 'account-a', active: false, archivedAt: null, presence: 1,
+            id: 'session-a', serverId, authenticatedOwnerAccountId: 'account-a', active: false, archivedAt: null, presence: 1,
             pendingCount: 0, pendingBlockedCount: 0, thinking: false, runtimeActivityState: 'idle', runtimeActivityActiveCount: 0,
             metadata: { path: '/fixture', host: 'fixture-host', agentActivityCounts: { live: 0 }, sessionPullRequestsV1: { v: 1, links } },
         });

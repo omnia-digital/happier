@@ -151,7 +151,7 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
         expect(peak).toBeLessThanOrEqual(owner.syncTuning.sessionListHydrationConcurrencyLimit);
     });
 
-    it.each(['warm', 'cold'] as const)('lets a %s encrypted catalog row reach the observer through the real metadata-only Sync loader', async (cacheKind) => {
+    it.each(['warm', 'cold', 'hydrated'] as const)('lets a %s encrypted catalog row reach the observer through the real metadata-only Sync loader', async (cacheKind) => {
         const { createSessionFixture } = await import('@/dev/testkit');
         const { Encryption } = await import('./encryption/encryption');
         const { fetchAndApplySessions } = await import('./engine/sessions/sessionSnapshot');
@@ -175,9 +175,11 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
             agentState: await sessionEncryption.encryptAgentState({}), agentStateVersion: 1,
             dataEncryptionKey: encodeBase64(await encryption.encryptEncryptionKey(dataKey), 'base64'), share: null,
             pendingCount: 0, pendingBlockedCount: 0, pendingPermissionRequestCount: 0, pendingUserActionRequestCount: 0,
-            latestTurnStatus: 'idle' as const, runtimeActivityState: 'idle' as const, runtimeActivityActiveCount: 0,
+            latestTurnStatus: 'completed' as const, runtimeActivityState: 'idle' as const, runtimeActivityActiveCount: 0,
             runtimeActivityObservedAt: 2, runtimeActivityRevision: 1, thinking: false,
         };
+        const { V2SessionRecordSchema } = await import('@happier-dev/protocol');
+        expect(V2SessionRecordSchema.safeParse(row).success).toBe(true);
         const { sync } = await import('./sync');
         const owner = sync as unknown as { credentials: unknown; encryption: Awaited<ReturnType<typeof Encryption.create>>; sessionDataKeys: Map<string, Uint8Array>;
             ensureSessionListMetadata: (candidates: readonly { sessionId: string; serverId: string; forceRefresh: boolean }[], current: () => boolean) => Promise<Array<{ kind: string } | null>> };
@@ -192,7 +194,9 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
         )) : undefined;
         await fetchAndApplySessions({ serverId: activeServer.id, credentials: owner.credentials as any, encryption,
             sessionDataKeys: owner.sessionDataKeys, cachedSessionListEntries: cached ? { [id]: cached } : {},
-            sessionListEagerHydrationCount: 0, sessionListBackgroundHydrationMaxRows: 0,
+            sessionListEagerHydrationCount: cacheKind === 'hydrated' ? 1 : 0, sessionListBackgroundHydrationMaxRows: 0,
+            requiredHydrationSessionIds: cacheKind === 'hydrated' ? [id] : [],
+            awaitSessionListHydration: cacheKind === 'hydrated',
             request: async () => new Response(JSON.stringify({ sessions: [row], hasNext: false, nextCursor: null }), { status: 200 }),
             getExistingSession: (sessionId) => storage.getState().sessions[sessionId] ?? null,
             getCurrentSessionListRenderable: (sessionId) => storage.getState().sessionListRenderables[sessionId] ?? null,
@@ -201,10 +205,20 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
             applySessions: (sessions) => storage.getState().applySessions(sessions),
             repairInvalidReadStateV1: async () => {}, log: { log: () => {} },
         });
-        expect(storage.getState().sessions[id]).toBeUndefined();
-        expect(storage.getState().sessionListRenderables[id]?.accessLevel).toBe('admin');
-        expect(storage.getState().sessionListRenderables[id]?.metadata?.agentActivityCounts).toBeUndefined();
-        expect(storage.getState().sessionListRenderables[id]?.metadata?.sessionPullRequestsV1?.links).toEqual(cacheKind === 'warm' ? [link] : undefined);
+        const { createSessionActionTarget } = await import('@/components/sessions/actions/sessionActionContext');
+        const { listVisibleSessionActionIds } = await import('@/components/sessions/actions/sessionActionAvailability');
+        const snapshotTarget = createSessionActionTarget({ session: storage.getState().sessionListRenderables[id]! });
+        expect(snapshotTarget.isOwnedByCurrentUser).toBe(true);
+        expect(listVisibleSessionActionIds({ target: snapshotTarget, surface: 'sessionInfo' })).toContain('ui.session.delete');
+        expect(storage.getState().sessionListRenderables[id]?.accessLevel).toBeUndefined();
+        if (cacheKind !== 'hydrated') {
+            expect(storage.getState().sessions[id]).toBeUndefined();
+            expect(storage.getState().sessionListRenderables[id]?.metadata?.agentActivityCounts).toBeUndefined();
+        } else {
+            expect(storage.getState().sessions[id]?.metadata?.sessionPullRequestsV1?.links).toEqual([link]);
+            expect(storage.getState().sessions[id]?.authenticatedOwnerAccountId).toBeUndefined();
+        }
+        expect(storage.getState().sessionListRenderables[id]?.metadata?.sessionPullRequestsV1?.links).toEqual(cacheKind !== 'cold' ? [link] : undefined);
         const { assessSessionAutoArchiveHydrationCandidate } = await import('./domains/session/archive/sessionAutoArchiveEligibility');
         expect(assessSessionAutoArchiveHydrationCandidate({ session: storage.getState().sessionListRenderables[id]!, enabled: true,
             archivePending: false, accountId: 'account-a' })).toEqual({ eligible: true, reason: 'ready' });
@@ -226,7 +240,10 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
             expect(requestMock.mock.calls.map(([path]) => path)).toEqual([`/v2/sessions/${id}`]);
             const { readSessionPullRequestLinks } = await import('@happier-dev/protocol');
             expect(readSessionPullRequestLinks(storage.getState().sessions[id]?.metadata)).toEqual([link]);
-            expect(storage.getState().sessions[id]?.accessLevel).toBe('admin');
+            const hydratedTarget = createSessionActionTarget({ session: storage.getState().sessions[id]! });
+            expect(hydratedTarget.isOwnedByCurrentUser).toBe(true);
+            expect(listVisibleSessionActionIds({ target: hydratedTarget, surface: 'sessionInfo' })).toContain('ui.session.delete');
+            expect(storage.getState().sessions[id]?.accessLevel).toBeUndefined();
             await new Promise((resolve) => setTimeout(resolve, 20));
             expect(providerGet).toHaveBeenCalledTimes(1);
         } finally {

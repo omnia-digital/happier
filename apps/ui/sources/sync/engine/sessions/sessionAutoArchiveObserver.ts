@@ -66,6 +66,7 @@ export function createSessionAutoArchiveObserver(input: Readonly<{
             }).eligible
             && assessSessionAutoArchiveCandidate({
                 session: buildSessionListRenderableFromSession(full), enabled: true, archivePending: allowOwnPending ? false : pending, accountId: scope.accountId,
+                authenticatedOwnerAccountId: full.authenticatedOwnerAccountId,
             }).eligible
             && linksStillMatch(readSessionPullRequestLinks(full.metadata), links);
     };
@@ -92,8 +93,11 @@ export function createSessionAutoArchiveObserver(input: Readonly<{
                 import('@/sync/ops/sessions'),
             ]);
             const current = storage.getState();
-            const forceRefresh = !!current.sessions[sessionId]?.metadata
-                && current.sessions[sessionId]!.metadataVersion < (current.sessionListRenderables[sessionId]?.metadataVersion ?? 0);
+            const full = current.sessions[sessionId];
+            const forceRefresh = !!full?.metadata && (
+                full.metadataVersion < (current.sessionListRenderables[sessionId]?.metadataVersion ?? 0)
+                || (full.accessLevel !== 'admin' && full.authenticatedOwnerAccountId !== scope.accountId)
+            );
             if (!await input.ensureMetadata(sessionId, scope.serverId, shouldContinue, forceRefresh)) return;
             // Metadata hydration may replace the catalog object. It is still this cadence's candidate;
             // only a later independent change or the next scheduled check should read its PRs again.

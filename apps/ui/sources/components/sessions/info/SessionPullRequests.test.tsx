@@ -133,6 +133,20 @@ describe('SessionPullRequests', () => {
         expect(screen.findByTestId('session-pr-remove-github-github.com-owner/one-7')).toBeNull();
     });
 
+    it('does not show an unsupported-session warning for an authenticated idle owner', async () => {
+        readMock.mockResolvedValue(null);
+        const session = createSessionFixture({ id: 's1', authenticatedOwnerAccountId: 'account-a', active: false, presence: 1,
+            pendingCount: 0, pendingBlockedCount: 0, thinking: false, runtimeActivityState: 'idle', runtimeActivityActiveCount: 0,
+            metadata: { path: '/fixture', host: 'fixture-host', agentActivityCounts: { live: 0 }, sessionPullRequestsV1: { v: 1, links: [first] } },
+        });
+        storage.getState().applySessions([session]);
+        storage.setState((state) => ({ profileScope: { serverId: 'home-a', accountId: 'account-a' },
+            settings: { ...state.settings, autoArchiveAfterLinkedPullRequestsMerge: true } }));
+        const { SessionPullRequests } = await import('./SessionPullRequests');
+        const screen = await renderScreen(<SessionPullRequests sessionId="s1" canEdit metadata={session.metadata} />);
+        expect(screen.findByTestId('session-pr-autoarchive-skipped')).toBeNull();
+    });
+
     it('explains why an older session without verified idle signals cannot autoarchive', async () => {
         readMock.mockResolvedValue(null);
         const session = createSessionFixture({ id: 's1', owner: 'account-a', active: false, presence: 1,

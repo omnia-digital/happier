@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { fetchAndApplySessionById, type SessionByIdEncryption } from './sessionById';
+import { createSessionActionTarget } from '@/components/sessions/actions/sessionActionContext';
+import { listVisibleSessionActionIds } from '@/components/sessions/actions/sessionActionAvailability';
+import type { Session } from '@/sync/domains/state/storageTypes';
+import { encodeBase64 } from '@/encryption/base64';
+import { encodeUTF8 } from '@/encryption/text';
 
 const onAgentRequest = vi.fn();
 
@@ -22,6 +27,58 @@ function createDeferred<T>(): {
 }
 
 describe('fetchAndApplySessionById', () => {
+  it.each(['owner', 'view', 'edit', 'admin', 'unknown', 'compat', 'list-fallback', 'failed-http'] as const)(
+    'establishes account-bound automatic ownership only from direct v2 owner detail: %s', async (kind) => {
+      const applied: Session[] = [];
+      const row = {
+        id: 'ownership-proof', seq: 0, createdAt: 1, updatedAt: 2, active: false, activeAt: 2,
+        encryptionMode: 'plain', metadata: JSON.stringify({ path: '/repo', host: 'fixture' }), metadataVersion: 1,
+        agentState: null, agentStateVersion: 0, dataEncryptionKey: kind === 'compat' ? undefined : null,
+        share: kind === 'unknown' ? undefined : ['view', 'edit', 'admin'].includes(kind)
+          ? { accessLevel: kind, canApprovePermissions: false } : null,
+        // Passthrough wire data must never manufacture client authentication evidence.
+        authenticatedOwnerAccountId: 'forged-owner',
+      };
+      await fetchAndApplySessionById({
+        sessionId: row.id, serverId: 'server-a',
+        credentials: { token: `hdr.${encodeBase64(encodeUTF8(JSON.stringify({ sub: 'account-a' })), 'base64')}.sig`, secret: 'fixture' },
+        clientEncryptionRequirement: 'follow_account', includeTurnsProjection: false,
+        encryption: { decryptEncryptionKey: async () => null, initializeSessions: async () => {}, getSessionEncryption: () => null },
+        sessionDataKeys: new Map(), log: { log: () => {} },
+        request: async (path) => path.startsWith('/v2/sessions/') && kind === 'list-fallback'
+          ? new Response(JSON.stringify({ message: 'Route GET:/v2/sessions/ownership-proof not found', error: 'Not Found', statusCode: 404 }), { status: 404 })
+          : new Response(JSON.stringify(path.startsWith('/v2/sessions/') ? { session: row } : { sessions: [row], hasNext: false, nextCursor: null }), { status: kind === 'failed-http' ? 500 : 200 }),
+        applySessions: (sessions) => { applied.push(...sessions as Session[]); },
+      });
+      expect(applied).toHaveLength(1);
+      expect(applied[0]!.authenticatedOwnerAccountId).toBe(kind === 'owner' ? 'account-a' : undefined);
+    },
+  );
+
+  it.each([null, 'view', 'edit', 'admin', undefined] as const)('preserves owner action availability through real by-id hydration for share %s', async (role) => {
+    const applied: Session[] = [];
+    await fetchAndApplySessionById({
+      sessionId: 'owner-actions', credentials: { token: 'token', secret: 'secret' },
+      clientEncryptionRequirement: 'follow_account', includeTurnsProjection: false,
+      encryption: { decryptEncryptionKey: async () => null, initializeSessions: async () => {}, getSessionEncryption: () => null },
+      sessionDataKeys: new Map(), log: { log: () => {} },
+      request: async () => new Response(JSON.stringify({ session: {
+        id: 'owner-actions', seq: 0, createdAt: 1, updatedAt: 2, active: true, activeAt: 2,
+        encryptionMode: 'plain', metadata: JSON.stringify({ path: '/repo', host: 'fixture' }), metadataVersion: 1,
+        agentState: null, agentStateVersion: 0, dataEncryptionKey: null,
+        share: role === null ? null : role ? { accessLevel: role, canApprovePermissions: false } : undefined,
+      } }), { status: 200 }),
+      applySessions: (sessions) => { applied.push(...sessions as Session[]); },
+    });
+    const target = createSessionActionTarget({ session: applied[0]! });
+    const visible = listVisibleSessionActionIds({ target, surface: 'sessionInfo' });
+    // An absent legacy role keeps its existing manual UI behavior; it is not automatic ownership proof.
+    expect(target.isOwnedByCurrentUser).toBe(role == null);
+    expect(visible.includes('ui.session.stop')).toBe(role == null);
+    expect(visible.includes('ui.session.archive')).toBe(role == null);
+    expect(applied[0]!.accessLevel).toBe(role ?? undefined);
+  });
+
   it('refuses a plaintext session before parsing or applying it when this client requires E2EE', async () => {
     const applySessions = vi.fn();
     const request = vi.fn(async () => new Response(JSON.stringify({

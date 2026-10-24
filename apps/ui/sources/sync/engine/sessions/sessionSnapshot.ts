@@ -201,6 +201,8 @@ function buildHydratedSessionFromDecryptedRow(
         agentState: decryptedState.agentState,
         metadataUnavailable: row.metadata != null && decryptedState.metadata == null,
         accessLevel: resolveSessionAccessLevelFromV2Share(row.share),
+        // A list row is not direct by-id ownership evidence, including passthrough wire fields.
+        authenticatedOwnerAccountId: undefined,
         canApprovePermissions: row.share?.canApprovePermissions ?? undefined,
         latestReadyEventSeq: normalizeSessionListSeq(row.latestReadyEventSeq ?? null),
         latestReadyEventAt: normalizeSessionListTimestamp(row.latestReadyEventAt ?? null),
