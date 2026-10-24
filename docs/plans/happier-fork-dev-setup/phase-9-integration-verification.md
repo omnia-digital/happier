@@ -163,6 +163,32 @@ configured successor are still required; no full-suite green or stable-release v
 
 ### Earlier selective adoption evidence
 
+October24 baseline continuation: current UI fixture recheck passes22files/378tests with the package
+working directory and root-installed Vitest3.2.4 (`.project/logs/tests/oh4-ui-corrected-package-cwd.log`).
+The first root-cwd attempt failed only collection/setup-path resolution and is not behavioral RED.
+All19 cached CLI candidates have fresh passing owner checks across the three lanes; counts include
+adjacent cases: runtime/permission48, permission-adjacent78, provider/process76, IPC/adapters37 and
+directSessions23. Logs are the corresponding `oh4-cli-*-final*`, `oh4-cli-five-green1.log` and
+`oh4-direct-sessions-green.log` under `.project/logs/tests`. Final CLI typecheck passes after three
+test typing corrections. Exact-path commits through `59b801280d` are pushed.
+
+One production defect was reproduced: a retained permission request completing after its persisted
+pending projection disappeared lost its assigned occurrence ID. `edd9f2e587` forwards that existing
+identity through `permissionRequestCoordinator.buildEntryCompletion` to the canonical request store;
+both normal completion and cancellation use that owner. Independent review remeasures the decisive
+lost-projection case1/1 and adjacent replacement controls3/3, with no finding. Real asynchronous
+SessionClient publication and native provider delivery remain separate gates. This changes no wire
+shape or identity generation policy; its0.3 destination disposition remains blocked.
+
+The update publisher tests keep real record writing, fact reading and relay publication but inject
+only OS watch delivery through the existing watchRecord boundary. Actual watcher delivery varied
+across isolated attempts; no timeout increase, polling or production watcher change was added.
+The existing direct watcher integration remains in CLI-common. Process/IPC/path fixtures retain
+real internal ownership and isolate actual filesystem/process boundaries. The original root run has
+progressed into Stack; its missing temporary log still prevents reading that pathname. Server cache
+identifies one Sharp runtime candidate for fresh reproduction. Current whole-root typecheck and a
+configured successor unit run remain required before any full-suite claim.
+
 October24 fetch advances parent dev from `413054f17c` to `2bf968563b` by29 commits, with128 files changed. Five coherent intents have now been selectively adapted through fork owners. This supersedes the earlier fetched-only state; no full parent merge, runtime/version upgrade or daily-app cutover occurred, and the rest of the parent-exclusive history is not certified compatible.
 
 Systemd PATH-only drift uses the existing definition comparator/inventory (`1bb4a2a6c1`): RED2→GREEN20 and CLI types. Activated-binary repair (`5fabb5cb7b`) uses the canonical managed executable resolver, preserves fork update-source safeguards and ends the old guided plan after a successful update. Independent review corrected matching installed-service assessment even when the old plan is empty (`1dbf174d46`), stopped-service/manual-daemon conflation (`aae3956944`), and ambiguous multi-service PID attribution (`c6f9543e71`). Reviewer56 plus CLI types pass; root independently passes7 service/daemon report cases (`/tmp/happier-oh12-root-service-report.log`). No real update, OS service change or native platform execution ran. The private original repair RED log must not be printed/uploaded because its assertion dumped inherited environment; current tests project owned launch fields.
