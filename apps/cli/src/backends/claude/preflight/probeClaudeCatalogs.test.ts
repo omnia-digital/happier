@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -64,7 +65,7 @@ describe('Claude pre-session native catalogs', () => {
       });
       expect(result).toEqual({ commands: [{ name: 'review', description: 'Review changes', argumentHint: '' }], skills: null });
       const events = await waitForClosed(logPath);
-      expect(events[0]).toMatchObject({ type: 'spawn', cwd, configDir: join(cwd, 'selected-config') });
+      expect(events[0]).toMatchObject({ type: 'spawn', cwd: realpathSync(cwd), configDir: join(cwd, 'selected-config') });
       expect(events[0]?.nestedSession).toBeUndefined();
       expect(events[0]?.refreshToken).toBeUndefined();
       expect(events[0]?.argv).toEqual(expect.arrayContaining(['--no-session-persistence', '--setting-sources=project']));
