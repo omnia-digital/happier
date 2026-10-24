@@ -615,6 +615,11 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         setSessionFolderViewModeV1,
         sessionListOrderingMode,
         sessionListMachineViewMode,
+        sessionListStatusGrouping,
+        sessionListStatusSorting,
+        setSessionListStatusGrouping,
+        setSessionListStatusSorting,
+        statusOrganizationActive,
         refreshSessionRepositories,
         getRepositoryAssociationChoices,
         associateSessionRepository,
@@ -677,7 +682,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         () => normalizeSessionFolders(sessionFoldersV1).folders.length > 0,
         [sessionFoldersV1],
     );
-    const showStructuralDragHandles = sessionListMachineViewMode !== 'machine' && sessionFolderViewMode === 'tree' && hasAnySessionFolderInAccount;
+    const structuralRankingEnabled = !statusOrganizationActive && sessionListMachineViewMode !== 'machine';
+    const showStructuralDragHandles = structuralRankingEnabled && sessionFolderViewMode === 'tree' && hasAnySessionFolderInAccount;
     React.useEffect(() => {
         if (selectedHeaderTags.length === 0) return;
         const known = new Set(allKnownTags);
@@ -734,7 +740,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         folderSortMode: sessionListFolderSortMode,
         sessionListOrderingModeV1: sessionListOrderingMode,
         sessionListSectionModeV1: sessionListSectionMode,
-        structuralWritesEnabled: sessionListMachineViewMode !== 'machine',
+        structuralWritesEnabled: structuralRankingEnabled,
         sessionFoldersV1,
         sessionListGroupOrderV1: currentGroupOrderMap,
         sessionWorkspaceOrderV1: currentWorkspaceOrderMap,
@@ -1484,7 +1490,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         sourceLabel: string,
         direction: 'up' | 'down',
     ) => {
-        if (sessionListMachineViewMode === 'machine') return;
+        if (!structuralRankingEnabled) return;
         const result = applyKeyboardMove(sourceRowId, direction);
         if (!result) return;
         sessionListA11y.announceDropResult({
@@ -1492,7 +1498,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
             destinationLabel: resolveDropResultDestinationLabel(result),
             result,
         });
-    }, [applyKeyboardMove, resolveDropResultDestinationLabel, sessionListA11y, sessionListMachineViewMode]);
+    }, [applyKeyboardMove, resolveDropResultDestinationLabel, sessionListA11y, structuralRankingEnabled]);
 
     const handleDragStartRef = React.useRef(handleDragStart);
     handleDragStartRef.current = handleDragStart;
@@ -1544,7 +1550,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         openMoveSheetForTreeRow,
         moveTreeRowToWorkspaceRoot,
         moveTreeRowByKeyboard,
-        reorderEnabled: sessionListMachineViewMode !== 'machine',
+        reorderEnabled: structuralRankingEnabled,
     });
     const visibleSessionNavigationEntries = React.useMemo(
         () => buildVisibleSessionNavigationEntries(renderedListItems),
@@ -1835,13 +1841,13 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                 moveTreeRowToWorkspaceRoot(rowId, rowLabelByTreeRowId.get(rowId) ?? t('sessionsList.sessionFallbackLabel'));
             },
             'sessions.row.moveUp': () => {
-                if (sessionListMachineViewMode === 'machine') return;
+                if (!structuralRankingEnabled) return;
                 const rowId = resolveSessionTreeRowId(activeSessionKey);
                 if (!rowId) return;
                 moveTreeRowByKeyboard(rowId, rowLabelByTreeRowId.get(rowId) ?? t('sessionsList.sessionFallbackLabel'), 'up');
             },
             'sessions.row.moveDown': () => {
-                if (sessionListMachineViewMode === 'machine') return;
+                if (!structuralRankingEnabled) return;
                 const rowId = resolveSessionTreeRowId(activeSessionKey);
                 if (!rowId) return;
                 moveTreeRowByKeyboard(rowId, rowLabelByTreeRowId.get(rowId) ?? t('sessionsList.sessionFallbackLabel'), 'down');
@@ -1861,6 +1867,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         rowLabelByTreeRowId,
         sessionListKeyboardFocused,
         sessionListMachineViewMode,
+        structuralRankingEnabled,
         sessionListSelectionStore,
         surfaceOwnership.interactive,
         numberedSessionEntries,
@@ -1968,6 +1975,10 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                 onFolderViewModeChange={setSessionFolderViewModeV1}
                 orderingMode={sessionListOrderingMode}
                 onOrderingModeChange={setSessionListOrderingModeV1}
+                statusGrouping={sessionListStatusGrouping}
+                statusSorting={sessionListStatusSorting}
+                onStatusGroupingChange={setSessionListStatusGrouping}
+                onStatusSortingChange={setSessionListStatusSorting}
                 folderSortMode={sessionListSavedFolderSortMode}
                 onFolderSortModeChange={setSessionListFolderSortModeV1}
                 hideInactiveSessions={hideInactiveSessions}
@@ -2001,6 +2012,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         hideInactiveSessions,
         sessionListOrderingMode,
         sessionListMachineViewMode,
+        structuralRankingEnabled,
         sessionListSavedFolderSortMode,
         refreshSessionRepositories,
         sessionRepositoriesRefreshing,
@@ -2008,6 +2020,10 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         setSessionListOrderingModeV1,
         setSessionListMachineViewV1,
         setSessionListFolderSortModeV1,
+        sessionListStatusGrouping,
+        sessionListStatusSorting,
+        setSessionListStatusGrouping,
+        setSessionListStatusSorting,
         setHideInactiveSessions,
         setSessionFolderViewModeV1,
         setActiveSearchHeaderControlsAnchorKey,
@@ -2024,7 +2040,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
             const moveActionHandlers = getRowMoveActionHandlers({ sourceRowId: treeRow, sourceLabel: folderLabel });
             return (
                 <DraggableSessionFolderHeaderFrame
-                    dragEnabled={sessionListMachineViewMode !== 'machine'}
+                    dragEnabled={structuralRankingEnabled}
                     folderId={folderHeader.folderId}
                     groupKey={folderHeader.groupKey ?? collapseKey}
                     treeRowId={treeRow}
@@ -2039,7 +2055,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                 >
                     {(dragHandleGesture) => (
                     <FolderGroupHeader
-                        reorderEnabled={sessionListMachineViewMode !== 'machine'}
+                        reorderEnabled={structuralRankingEnabled}
                         item={folderHeader}
                         collapsed={Boolean(collapsedKeys[collapseKey])}
                         dragHandleGesture={dragHandleGesture}
@@ -2049,8 +2065,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                         onAddSubfolder={() => handleAddSessionSubfolder(folderHeader)}
                         onRename={() => handleRenameSessionFolder(folderHeader)}
                         onDelete={() => handleDeleteSessionFolder(folderHeader)}
-                        onMove={sessionListMachineViewMode === 'machine' ? undefined : moveActionHandlers.onMoveToFolder}
-                        onMoveToWorkspaceRoot={sessionListMachineViewMode === 'machine' ? undefined : moveActionHandlers.onMoveToWorkspaceRoot}
+                        onMove={!structuralRankingEnabled ? undefined : moveActionHandlers.onMoveToFolder}
+                        onMoveToWorkspaceRoot={!structuralRankingEnabled ? undefined : moveActionHandlers.onMoveToWorkspaceRoot}
                         onMoveUp={moveActionHandlers.onMoveUp}
                         onMoveDown={moveActionHandlers.onMoveDown}
                         disabled={!folderActionsEnabled}
@@ -2065,7 +2081,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
             const moveActionHandlers = getRowMoveActionHandlers({ sourceRowId: treeRow, sourceLabel: item.title });
             return (
                 <DraggableSessionFolderHeaderFrame
-                    dragEnabled={sessionListMachineViewMode !== 'machine'}
+                    dragEnabled={structuralRankingEnabled}
                     dragKey={treeRow}
                     groupKey={item.groupKey ?? collapseKey}
                     treeRowId={treeRow}
@@ -2080,7 +2096,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                 >
                     {(dragHandleGesture) => (
                     <ProjectGroupHeader
-                        reorderEnabled={sessionListMachineViewMode !== 'machine'}
+                        reorderEnabled={structuralRankingEnabled}
                         item={item}
                         hasMultipleMachines={hasMultipleMachines}
                         dragHandleGesture={dragHandleGesture}
@@ -2124,6 +2140,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
             >
                 <CollapsibleSectionHeader
                     title={title}
+                    subtitle={item.headerKind === 'status' ? item.subtitle : undefined}
                     headerKind={item.headerKind}
                     machineId={item.headerKind === 'machine' ? item.machine?.id : undefined}
                     serverId={item.serverId}
@@ -2159,6 +2176,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         registerTreeRowBounds,
         renderHeaderControls,
         sessionListMachineViewMode,
+        structuralRankingEnabled,
         resolveDropResult,
         unregisterTreeRowBounds,
         workspaceLabelsV1,
@@ -2231,6 +2249,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         sessionListIdentityDisplay: rowPresentationSettings.identityDisplay,
         sessionListOrderingMode,
         sessionListMachineViewMode,
+        structuralRankingEnabled,
         sessionRepositoriesRefreshing,
         sessionListSectionMode,
         sessionListStatusColors: rowPresentationSettings.statusColors,
@@ -2283,6 +2302,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         rowPresentationSettings.backgroundWorkAttentionMode,
         sessionListOrderingMode,
         sessionListMachineViewMode,
+        structuralRankingEnabled,
         sessionRepositoriesRefreshing,
         sessionListSectionMode,
         surfaceOwnership.dataActive,
@@ -2304,7 +2324,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
             groupKind: item.groupKind,
             userOrderingMode: sessionListOrderingMode,
         });
-        const dragEnabled = sessionListMachineViewMode !== 'machine' && (effectiveOrderingMode === 'custom' || showStructuralDragHandles);
+        const dragEnabled = structuralRankingEnabled && (effectiveOrderingMode === 'custom' || showStructuralDragHandles);
         const rowStoreScopeKey = resolveSessionListRowStoreScopeKey({
             sessionId: item.session.id,
             serverId: item.serverId ?? null,
@@ -2375,6 +2395,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         registerTreeRowBounds,
         sessionListOrderingMode,
         sessionListMachineViewMode,
+        structuralRankingEnabled,
         sessionListSectionMode,
         showStructuralDragHandles,
         showNumberedHints,

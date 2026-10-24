@@ -29,6 +29,7 @@ const GUTTER_MIN_WIDTH_PX = 60;
 const HEADER_HORIZONTAL_PADDING_PX = Platform.OS === 'ios' ? 8 : 16;
 
 interface ChatHeaderViewProps {
+    ticketElement?: React.ReactNode;
     title: string;
     subtitle?: string;
     subtitleEllipsizeMode?: 'head' | 'tail';
@@ -65,6 +66,7 @@ interface ChatHeaderViewProps {
 }
 
 export const ChatHeaderView = React.memo(function ChatHeaderView({
+    ticketElement,
     title,
     subtitle,
     subtitleEllipsizeMode = 'tail',
@@ -262,6 +264,7 @@ export const ChatHeaderView = React.memo(function ChatHeaderView({
 
                 {gutterHoldsElement ? null : gutterElement}
                 </View>
+                {ticketElement ? <View style={[styles.ticketRow, { maxWidth }]}>{ticketElement}</View> : null}
                 {gutterHoldsElement ? (
                     <View
                         pointerEvents="box-none"
@@ -302,6 +305,13 @@ const styles = StyleSheet.create(() => ({
         alignItems: 'center',
         paddingHorizontal: HEADER_HORIZONTAL_PADDING_PX,
         width: '100%',
+    },
+    ticketRow: {
+        height: resolveSessionHeaderActionTargetPx(),
+        width: '100%',
+        paddingHorizontal: HEADER_HORIZONTAL_PADDING_PX,
+        alignSelf: 'center',
+        justifyContent: 'center',
     },
     backButton: {
         marginRight: 8,

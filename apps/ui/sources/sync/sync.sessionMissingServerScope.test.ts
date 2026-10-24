@@ -970,6 +970,33 @@ describe('sync.fetchMessages server-scoped known-session checks', () => {
         expect((storage.getState().sessions[sessionId]?.metadata as any)?.summary?.text).toBe('Renamed session');
     });
 
+    it('preserves the public metadata writer lifetime while encryption is pending', async () => {
+        const sessionId = 'ticket_write_scope_race';
+        storage.getState().applySessions([{ ...createSession(sessionId), metadata: { path: '/repo', host: 'host' }, metadataVersion: 1 } as Session]);
+        const encrypted = createDeferred<string>();
+        const started = createDeferred<void>();
+        let current = true;
+        const { sync } = await import('./sync');
+        (sync as any).encryption = { getSessionEncryption: () => ({ encryptMetadata: async () => { started.resolve(); return encrypted.promise; }, decryptMetadata: async () => null }) };
+        const operation = sync.patchSessionMetadataWithRetry(sessionId, (metadata) => ({ ...metadata, name: 'Ticket link' }), { serverId: 'captured-home', accountId: 'captured-account', shouldContinue: () => current });
+        await started.promise;
+        current = false;
+        encrypted.resolve('ciphertext');
+        await operation;
+        expect(emitSessionMetadataUpdateWithServerScopeMock).not.toHaveBeenCalled();
+        expect(storage.getState().sessions[sessionId]?.metadata?.name).toBeUndefined();
+    });
+
+    it('forwards the captured metadata account and lifetime to the actual emission boundary', async () => {
+        const sessionId = 'ticket_write_captured_account';
+        storage.getState().applySessions([{ ...createSession(sessionId), encryptionMode: 'plain', metadata: { path: '/repo', host: 'host' }, metadataVersion: 1 } as Session]);
+        emitSessionMetadataUpdateWithServerScopeMock.mockResolvedValueOnce({ result: 'success' });
+        const shouldContinue = () => true;
+        const { sync } = await import('./sync');
+        await sync.patchSessionMetadataWithRetry(sessionId, (metadata) => ({ ...metadata, name: 'Ticket link' }), { serverId: 'captured-home', accountId: 'captured-account', shouldContinue });
+        expect(emitSessionMetadataUpdateWithServerScopeMock).toHaveBeenCalledWith(expect.objectContaining({ serverId: 'captured-home', accountId: 'captured-account', shouldContinue }));
+    });
+
     it('supports overriding the server scope used by patchSessionMetadataWithRetry', async () => {
         const sessionId = 'plain_metadata_session_override';
         storage.getState().applySessions([{

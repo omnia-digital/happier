@@ -85,6 +85,32 @@ Current scope:
 - GitLab and Bitbucket repository creation are not currently supported from Happier.
 - Publishing is explicit; Happier does not create a repository, remote, commit, or push without a user action.
 
+## Session worktree choices
+
+<Callout type="info">
+  The choices below describe the unreleased Omnia development fork. New-session
+  and configured-fork browser checks pass; native acceptance is still pending.
+</Callout>
+
+After choosing a Git repository and machine in the new-session screen, open the
+worktree picker:
+
+- **No Worktree** uses the repository's main checkout.
+- **New Worktree** selects a fresh checkout with an automatically suggested name.
+- **Existing Worktree** opens a separate list of that repository's linked checkouts.
+- **New worktree from branch** keeps the advanced branch and name choices available.
+
+Choosing an option does not create a directory. Happier creates a requested new
+worktree when you submit the session. Reopening the picker or restoring the draft
+preserves the selected creation intent; changing the machine or repository
+revalidates it.
+
+To carry a conversation into another checkout, choose **Configure a new session**
+from the [fork chooser](/sessions/session-forking), then use the same picker.
+That configure option requires relay support. Direct **Native fork** and
+**Replay fork** currently keep the source checkout and do not offer a checkout
+override.
+
 ## Commit created, refresh failed
 
 <Callout type="info">

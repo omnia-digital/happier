@@ -253,6 +253,7 @@ function buildRenderableFromRowAndCache(
             machineId: cachedEntry.machineId ?? null,
             flavor: cachedEntry.flavor ?? null,
             directSessionV1: cachedEntry.directSessionV1 ?? null,
+            sessionTicketV1: cachedEntry.sessionTicketV1 ?? null,
             hiddenSystemSession: cachedEntry.hiddenSystemSession === true,
         }
         : null;

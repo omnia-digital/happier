@@ -31,6 +31,8 @@ export function mapGithubPullRequest(provider: ScmHostingProvider, raw: unknown)
         ? readGithubString(raw.head.ref)
         : readGithubString(raw.headRefName);
     if (!number || !title || !url || !base || !head) return null;
+    const headSha = (isRecord(raw.head) ? readGithubString(raw.head.sha) : null)
+        ?? readGithubString(raw.headRefOid);
     return {
         provider,
         number,
@@ -39,5 +41,8 @@ export function mapGithubPullRequest(provider: ScmHostingProvider, raw: unknown)
         baseBranch: base,
         headBranch: head,
         state: mapGithubPullState(raw),
+        ...(typeof raw.draft === 'boolean' ? { draft: raw.draft }
+            : typeof raw.isDraft === 'boolean' ? { draft: raw.isDraft } : {}),
+        ...(headSha && /^[0-9a-f]{40,64}$/i.test(headSha) ? { headSha } : {}),
     };
 }

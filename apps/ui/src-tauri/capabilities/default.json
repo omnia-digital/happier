@@ -19,7 +19,8 @@
       "allow": [
         { "url": "https://*" },
         { "url": "http://*" },
-        { "url": "mailto:*" }
+        { "url": "mailto:*" },
+        { "url": "linear://linear.app/*/issue/*" }
       ]
     },
     "allow-desktop-fetch-update",

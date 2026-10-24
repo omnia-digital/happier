@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import { ScmOperationErrorCodeSchema } from './scmErrorCodes.js';
 import { ScmRequestBaseSchema } from './scmRequestBase.js';
+import { SessionPullRequestLinkV1Schema } from './sessionMetadata/sessionPullRequestsV1.js';
 
 export const ScmHostingProviderKindSchema = z.enum([
   'github',
@@ -38,6 +39,8 @@ export const ScmPullRequestSummarySchema = z.object({
   baseBranch: z.string().min(1),
   headBranch: z.string().min(1),
   state: ScmPullRequestStateSchema,
+  draft: z.boolean().optional(),
+  headSha: z.string().regex(/^[0-9a-f]{40,64}$/i).optional(),
 });
 export type ScmPullRequestSummary = z.infer<typeof ScmPullRequestSummarySchema>;
 
@@ -81,6 +84,8 @@ export type ScmPullRequestListResponse = z.infer<typeof ScmPullRequestListRespon
 
 export const ScmPullRequestGetRequestSchema = ScmPullRequestRequestBaseSchema.extend({
   prReference: ScmPullRequestReferenceSchema,
+  /** Explicit repository identity; old CLIs may ignore this field, so callers verify the response too. */
+  linkedIdentity: SessionPullRequestLinkV1Schema.optional(),
 });
 export type ScmPullRequestGetRequest = z.infer<typeof ScmPullRequestGetRequestSchema>;
 

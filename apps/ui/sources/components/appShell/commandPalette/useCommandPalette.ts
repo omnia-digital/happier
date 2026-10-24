@@ -14,18 +14,23 @@ export function useCommandPalette(
     sessionItems: ReadonlyArray<CommandPaletteSearchSessionItem>,
     activeServerId: string,
     navigateToSession: (sessionId: string, options?: NavigateToSessionOptions) => void | Promise<void>,
+    searchQuery: string,
+    setSearchQuery: (query: string) => void,
+    searchMode: 'titles' | 'content',
+    contentCommands: ReadonlyArray<Command>,
 ) {
-    const [searchQuery, setSearchQuery] = useState('');
     const [selectedIndex, setSelectedIndex] = useState(0);
     const inputRef = useRef<ElementRef<typeof TextInput> | null>(null);
     const matchingSessions = useMemo(
-        () => buildCommandPaletteSessionSearchCommands(sessionItems, searchQuery, activeServerId, navigateToSession),
-        [sessionItems, searchQuery, activeServerId, navigateToSession],
+        () => searchMode === 'titles'
+            ? buildCommandPaletteSessionSearchCommands(sessionItems, searchQuery, activeServerId, navigateToSession)
+            : contentCommands,
+        [sessionItems, searchQuery, activeServerId, navigateToSession, searchMode, contentCommands],
     );
 
     // Filter commands based on search query
     const filteredCategories = useMemo((): CommandCategory[] => {
-        if (!searchQuery.trim()) {
+        if (!searchQuery.trim() && searchMode === 'titles') {
             // Group commands by category
             const grouped = commands.reduce((acc, command) => {
                 const category = command.category || 'General';
@@ -74,16 +79,16 @@ export function useCommandPalette(
             title,
             commands: cmds
         }));
-    }, [commands, searchQuery, matchingSessions]);
+    }, [commands, searchQuery, matchingSessions, searchMode]);
 
     // Reset selection when search changes
     useEffect(() => {
         setSelectedIndex(0);
-    }, [searchQuery]);
+    }, [searchQuery, searchMode]);
 
     const handleSelectCommand = useCallback((command: Command) => {
         command.action();
-        onClose();
+        if (!command.keepOpen) onClose();
     }, [onClose]);
 
     // Get flattened commands for keyboard navigation
@@ -118,7 +123,7 @@ export function useCommandPalette(
 
     const handleSearchChange = useCallback((text: string) => {
         setSearchQuery(text);
-    }, []);
+    }, [setSearchQuery]);
 
     return {
         searchQuery,

@@ -299,6 +299,12 @@ export const ACCOUNT_CORE_SETTING_DEFINITIONS = defineSettingDefinitions({
         storageScope: 'account',
         analytics: { trackCurrentState: true, trackChanges: true, valueKind: 'enum', privacy: 'safe', identityScope: 'person' },
     },
+    sessionListStatusSortV1: {
+        schema: z.enum(['none', 'agent', 'ticket']),
+        default: 'none',
+        description: 'Independent status ordering override; preserves the saved custom or date ordering for older clients',
+        storageScope: 'account',
+    },
     sessionListInactiveGroupingV1: {
         schema: z.enum(['project', 'date']),
         default: 'date',

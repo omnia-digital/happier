@@ -53,6 +53,47 @@ afterEach(() => {
 });
 
 describe('concurrent Home organization lifecycle', () => {
+    it('keeps foreign ticket metadata in its fully hydrated Home cache without replacing an active same-ID session', async () => {
+        const { createSessionFixture } = await import('@/dev/testkit');
+        const { buildSessionListRenderableFromSession } = await import('@/sync/domains/session/listing/sessionListRenderable');
+        const { createSessionListStatusInputsSelector } = await import('@/components/sessions/shell/view-state/sessionListStatusInputs');
+        const { projectSessionListStatusView } = await import('@/components/sessions/shell/view-state/projectSessionListStatusView');
+        const { sync } = await import('@/sync/sync');
+        const { Encryption } = await import('@/sync/encryption/encryption');
+        const activeServerId = profiles.getActiveServerId();
+        const link = (workspaceId: string) => ({ v: 1 as const, ticket: { v: 1 as const, provider: 'linear' as const, workspaceId, ticketId: workspaceId, key: 'DEV-1', title: workspaceId, url: `https://linear.app/${workspaceId}/issue/DEV-1` }, reader: { machineId: 'reader', mcpServerId: 'source', directory: '/repo' } });
+        const active = createSessionFixture({ id: 'same-status-id', serverId: activeServerId, encryptionMode: 'plain', metadata: { path: '/active', host: 'active', sessionTicketV1: link('active') } });
+        storage.getState().applySessions([active]);
+        const activeRow = { type: 'session' as const, serverId: activeServerId, session: buildSessionListRenderableFromSession(active) };
+        const foreignRow = { id: active.id, seq: 0, createdAt: 1, updatedAt: 2, active: false, activeAt: 2, archivedAt: null,
+            encryptionMode: 'plain', dataEncryptionKey: null, metadata: JSON.stringify({ path: '/foreign', host: 'foreign', sessionTicketV1: link('foreign') }), metadataVersion: 1, agentState: null, agentStateVersion: 0, share: null };
+        boundary.fetch.mockImplementation(async (input: RequestInfo | URL) => {
+            const url = String(input);
+            if (url.includes(`/v2/sessions/${active.id}`)) return new Response(JSON.stringify({ session: foreignRow }));
+            if (url.includes('/v2/sessions')) return new Response(JSON.stringify({ sessions: [foreignRow], hasNext: false }));
+            if (url.includes('/v1/machines')) return new Response('[]');
+            if (url.includes('/v2/session-organization')) return new Response('{"error":"Not found"}', { status: 404 });
+            return new Response('{"ok":true}');
+        });
+        startConcurrentSessionCacheSync(); await vi.advanceTimersByTimeAsync(1_000);
+        const foreignItems = storage.getState().sessionListViewDataByServerId[remote.id]!;
+        expect(foreignItems.some(item => item.type === 'session' && item.session.metadata?.sessionTicketV1?.ticket.workspaceId === 'foreign')).toBe(true);
+        const owner = sync as unknown as { credentials: unknown; encryption: unknown; ensureSessionListMetadata: (rows: readonly { sessionId: string; serverId: string }[], current: () => boolean) => Promise<unknown[]> };
+        owner.credentials = { ...credentialsFor('active-account'), secret: 'isolated-secret' }; owner.encryption = await Encryption.create(new Uint8Array(32).fill(8));
+        try {
+            expect(await owner.ensureSessionListMetadata([{ sessionId: active.id, serverId: remote.id }], () => true)).toEqual([null]);
+            expect(storage.getState().sessions[active.id]?.metadata?.path).toBe('/active');
+            expect(storage.getState().sessionListViewDataByServerId[remote.id]).toBe(foreignItems);
+            const items = [activeRow, ...foreignItems];
+            const inputs = createSessionListStatusInputsSelector(items, activeServerId, () => 100_000, false)(storage.getState());
+            expect(inputs.ticketAssociations.get(`${activeServerId}:${active.id}`)?.ticket.workspaceId).toBe('active');
+            expect(inputs.ticketAssociations.get(`${remote.id}:${active.id}`)?.ticket.workspaceId).toBe('foreign');
+            const statuses = new Map([...inputs.ticketAssociations].flatMap(([key, association]) => association ? [[key, { phase: 'ready' as const, error: null, snapshot: { ticket: association.ticket, status: { name: 'Custom QA', workflowId: 'workflow', order: 1 }, fetchedAt: 100_000 } }] as const] : []));
+            const grouped = projectSessionListStatusView({ items, grouping: 'ticket', sorting: 'none', ticketStatuses: statuses, ticketAssociations: inputs.ticketAssociations, nowMs: 100_000 });
+            expect(grouped.filter(item => item.type === 'session')).toHaveLength(2);
+            expect(grouped.flatMap(item => item.type === 'header' && item.headerKind === 'status' ? [item.subtitle] : [])).toEqual(['linear · active · workflow', 'linear · foreign · workflow']);
+        } finally { sync.disconnectServer(); }
+    });
     it('restores the selected foreign account order before its refresh and never borrows another account snapshot', async () => {
         saveSessionOrganizationWarmCacheSnapshot(remote.id, 'account-b', snapshot(7, ['A', 'B', 'A2']));
         saveSessionOrganizationWarmCacheSnapshot(remote.id, 'other-account', snapshot(90, ['private-other']));

@@ -825,6 +825,9 @@ describe('SessionsList web virtualization', () => {
 
             expect(screen.root.findByProps({ testID: 'session-list-session:long_working' }).props.rowAttentionAnimationEnabled).toBe(true);
             expect(screen.root.findByProps({ testID: 'session-list-session:long_attention' }).props.rowAttentionAnimationEnabled).toBe(false);
+            expect(screen.root.findByProps({ testID: 'session-list-session:long_0' }).props.ticketStatusDemandEnabled).toBe(true);
+            expect(screen.root.findByProps({ testID: 'session-list-session:long_working' }).props.ticketStatusDemandEnabled).toBe(false);
+            expect(screen.root.findByProps({ testID: 'session-list-session:long_attention' }).props.ticketStatusDemandEnabled).toBe(false);
 
             const subscriptionEvent = syncPerformanceTelemetry.snapshot().events
                 .filter((event) => event.name === 'ui.sessionsList.rowStoreSubscriptions')

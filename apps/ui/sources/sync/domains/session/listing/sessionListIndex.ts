@@ -11,7 +11,7 @@ export type SessionListIndexItem =
     | Readonly<{
         type: 'header';
         title: string;
-        headerKind?: 'date' | 'server' | 'active' | 'inactive' | 'sessions' | 'project' | 'pinned' | 'attention' | 'working' | 'shared' | 'folder' | 'machine';
+        headerKind?: 'date' | 'server' | 'active' | 'inactive' | 'sessions' | 'project' | 'pinned' | 'attention' | 'working' | 'shared' | 'folder' | 'machine' | 'status';
         groupKey?: string;
         workspaceKey?: string;
         repository?: RepositoryHeaderPresentation;

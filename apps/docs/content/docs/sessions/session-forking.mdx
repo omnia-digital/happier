@@ -22,6 +22,11 @@ work. You can choose a **Native fork** when the Agent and fork point support one
 start a child with a bounded transcript seed, or **Configure a new session** to continue through the
 normal new-session screen.
 
+In the unreleased Omnia development fork, **Configure a new session** also offers
+the [new and existing worktree choices](/code/git#session-worktree-choices). The
+configure option depends on relay support. Direct **Native fork** and **Replay
+fork** keep the source checkout; use the configure route to choose another one.
+
 An explicit Native choice is strict: if the provider-native fork is unavailable or fails, Happier
 reports that outcome instead of silently creating a replay child. Existing callers that explicitly
 use the compatibility `auto` strategy may still let the daemon choose its established native-or-replay
