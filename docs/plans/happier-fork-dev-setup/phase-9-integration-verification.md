@@ -303,3 +303,79 @@ The newest-parent audit also found cached native permission responses entering t
 Other newest-parent work is not silently treated as adopted. Claude unified native prompts/one ingress/provider response-location settings (`6afa6f093c`, `2c5fb7c687`) are still missing and need a separate CLI/UI compatibility vertical while retaining daily CLI0.2.16. Android background execution, task-manager and native Expo patches remain deferred to a version-aware device gate. The manifest requests Notifications~0.32.11 but the lock/install resolves0.32.16; manifest range alone does not establish patch compatibility. Parent Windows realpath and daemon scope-proof fixture adjustments (`4f15a97be1`, `c517cc5728`) are validation follow-ups, not missing runtime owners. No full merge is warranted by this selective batch.
 
 The separate v0.3 line advances `67f58e65e5`→`7dd34021f8` by one generated profile/share-viewer bundle commit (two changed files). Neither optional destination `../v0.3.x` nor `../0.3` is available; the destination question is already pending. Every adopted intent—systemd PATH drift, fresh-binary repair/inventory attribution, typed RPC/voice errors, header Pin/information including organization actor safety, and notification occurrence/account authority—has its destination disposition [blocked] on that location. No destination code, alias or branch was created. Native macOS acceptance, Linux/Windows service behavior and release gates remain open. OH-12 remains ongoing.
+
+## Additional October24 parent input corrections
+
+Fresh fetch advances parent `dev` from `2bf968563b` to `1b4cd388a0` by three commits;
+the separate `v0.3` pointer advances `7dd34021f8`→`30144c3f23`. Current source already
+contains the runtime settings, prompt settlement and effective-model owners needed
+by the newest CLI patch, independently of pending unified prompt-location work.
+No full merge or daily runtime/version replacement occurs.
+
+`8b3203f59b` selectively adopts upstream `7b8bf2781b`: environment cards publish
+input events directly, synchronize incoming draft values without echo writes, and
+sanitize vault plaintext/fallbacks from the incoming value. Exact card/test bytes
+match upstream. Meaningful RED is3fail/7pass (rapid edits missing, stale vault
+fallback and external prop echo); GREEN47/5files and UI types pass. Real list and
+preview-hook logic remain in the tests, with only daemon RPC replaced.
+
+`fbac3197ac` adopts upstream `54f8e14b17`: the existing timeout/thinking fields use
+step1 rather than30/100, matching the canonical positive-integer schemas. Owner
+tests RED2→GREEN10/2files. Root resolves both immutable `cli-v0.2.16` and
+`ui-desktop-v0.2.17` to `b8d1c449c46ab4dfa8637db36b66f643d149e66d` and reads its
+same positive-integer/nullable schemas and defaults. This repairs existing UI
+validation without changing format, keys or indefinite-wait behavior. Current
+profile/provider broader checks pass22files/77tests; browser fixture types pass.
+
+The browser fixture's first two iterations fail before reaching product acceptance:
+an early optional readiness check misses the disabled Profile switch, and checkbox
+input assumptions miss the dedicated web `Switch.web.tsx` role-based control. The
+second Profile click actually enables Profiles, removing its own switch, so
+`.check()` cannot subsequently observe it. `2f51ff75f5` corrects these fixture
+contracts without forcing input or weakening persistence/vault/default assertions.
+The next actual Chrome run passes2/2 in86s. `929bf22a6a` scrolls the actual numeric
+fields into view for its screenshot; the exact final replay also passes2/2 in73s
+(`oh12-upstream-ui-inputs-r4-chrome.log`). Root inspects both final images: the
+reopened profile retains OH12_OTHER with vault enabled and no fallback editor;
+provider settings retain900/1024 with indefinite waiting enabled. Disabling vault
+in the reopened draft reveals an empty fallback, proving the old value was removed.
+No production regression is inferred from the fixture failures.
+
+`29083c2253` adopts upstream `1b4cd388a0` through the existing nine CLI files. A
+refused queued-prompt settings update rejects before provider effect and returns
+custody to the existing pending delivery owner. Metadata wakes apply permission
+controls alone, without retrying the rejected model/thinking controls. Remote and
+unified prompt acknowledgments stop guessing the running model; the existing
+effective-model observer owns `sessionAppliedModelV1`, including effort-only
+updates only after actual model evidence. Optional compatibility carriers still
+forward explicit applied IDs but no longer infer them from requested selection.
+The same immutable0.2.16 baseline already declares and reads this applied-model
+record; its shape and version remain unchanged.
+
+The fork lacks upstream's `logger.warnFile`; its existing file-only `infoFile`
+with a warning prefix and the redacted completion event satisfy default file and
+user observability without terminal output. Root verifies session default info
+and daemon default debug in `logFileLevel.ts`. The first imported test run's
+missing logger method is harness failure, not valid RED. The adapted deciding
+test then fails because metadata wakes retry the refused model3times. GREEN82/4
+and adjacent207/7 plus CLI types pass. Root independently passes113/4 runner and
+real SessionClient delivery/outcome tests (`oh12-root-settings-refusal-delivery.log`).
+Separate CLI review catches the failure event calling its requested/setter-acknowledged
+snapshot `Current model`, without observed runtime evidence. `f7484f23d5` changes
+only that label to `Model setting`; two existing refusal cases pass,60are filtered
+(`/tmp/happier-oh12-claude-model-setting-label.log`). Independent delta review confirms
+the finding resolved without a new model cache, state or callback. Retain1failedSol
+review cycle for this CLI batch; UI browser retains2parentfixture iterations,
+with no source implementation failure. Canonical docs guards pass47/47. Real provider/native and0.3 destination
+acceptance remain open; no credentials, daemon, service, installed app or hosted
+preference was changed.
+
+Every new intent has its0.3disposition [blocked] on the requested destination:
+profile event/sanitization authority, numeric schema-consistent inputs, and refused
+prompt/observed-model authority. Fresh discovery confirms both optional aliases
+absent; the additional registered worktrees are the immutable0.2.16 reader and an
+OH59fixture checkout whose UI remains0.2.18, not a verified0.3destination. No port,
+alias or worktree was created for this batch. Existing published profile/provider
+documentation already describes the retained semantics, so no new published
+feature claim is added; the canonical internal Claude matrix records the new
+development-source refusal and authority behavior explicitly.

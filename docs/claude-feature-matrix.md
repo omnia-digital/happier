@@ -58,7 +58,16 @@ cannot acknowledge a pending human prompt.
 The remote Agent SDK registers its live permission-mode control with the launcher's
 existing metadata consumer. Registration re-reads current permission intent, and
 metadata updates reach the streaming query while idle. Prompt-driven updates and
-ExitPlanMode use the same runtime-settings owner. Claude still owns inbound delivery
+ExitPlanMode use the same runtime-settings owner. In development source, metadata
+callbacks apply only permission controls; model and thinking controls are applied
+at most once per explicit queued prompt. If a prompt's settings are refused, the runner
+reports the redacted cause through the completion event and default file log,
+rejects delivery before effect through the existing pending-queue owner, and leaves
+the prompt available for an explicit retry. It does not send the prompt using the
+previous model or retry model controls on metadata wakes. The shared effective-model
+observer owns current-model and Running metadata; remote and unified-terminal prompt
+acknowledgments establish input acceptance only. This is source-tested behavior;
+actual provider/native acceptance remains open in the fork. Claude still owns inbound delivery
 policy: its [non-interactive messaging contract](https://code.claude.com/docs/en/cross-session-messaging#non-interactive-sessions)
 does not expose the terminal approval dialog in `-p` sessions. Happier does not
 override that policy or automatically accept held messages.
