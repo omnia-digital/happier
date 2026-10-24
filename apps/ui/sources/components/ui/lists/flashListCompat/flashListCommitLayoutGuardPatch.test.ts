@@ -67,6 +67,7 @@ describe('flash-list commitLayout guard patch', () => {
 
     const patchContent = readFileSync(patchPath, 'utf8');
     expect(patchContent).toContain('HAPPIER PATCH(flash-list-commit-layout-guard)');
+    expect(patchContent).toContain('HAPPIER PATCH(flash-list-measured-position-commit)');
     expect(patchContent).toContain('dist/recyclerview/RecyclerView.js');
     expect(patchContent).toContain('dist/recyclerview/ViewHolderCollection.js');
   });
@@ -138,45 +139,46 @@ describe('flash-list commitLayout guard patch', () => {
     const originalPixelSize = pixelRatio.getPixelSizeForLayoutSize;
     pixelRatio.getPixelSizeForLayoutSize = (value: number) => value;
     try {
-    const recyclerViewManagerModule = (await import(
-      '../../../../../node_modules/@shopify/flash-list/dist/recyclerview/RecyclerViewManager.js'
-    )) as unknown as { RecyclerViewManager: FlashListRecyclerViewManagerConstructor };
-    const data = [{ id: 'project' }, { id: 'first-session' }, { id: 'second-session' }];
-    const manager = new recyclerViewManagerModule.RecyclerViewManager({
-      data,
-      estimatedItemSize: 73,
-      horizontal: false,
-      keyExtractor: (item) => item.id,
-      overrideItemLayout: () => undefined,
-      renderItem: () => null,
-    });
-    manager.updateProps(manager.props);
-    manager.updateLayoutParams({ width: 400, height: 800 }, 0);
-    const measured = (projectHeight: number) => [
-      { index: 0, dimensions: { x: 0, y: 0, width: 400, height: projectHeight } },
-      { index: 1, dimensions: { x: 0, y: 0, width: 400, height: 35 } },
-      { index: 2, dimensions: { x: 0, y: 0, width: 400, height: 46 } },
-    ];
-    manager.modifyChildrenLayout(measured(73), data.length);
-    (manager as { isFirstPaintOnUiComplete: boolean }).isFirstPaintOnUiComplete = true;
-    let settled = false;
-    for (let pass = 0; pass < 10; pass++) {
-      if (!manager.modifyChildrenLayout(measured(73), data.length)) {
-        settled = true;
-        break;
+      const recyclerViewManagerModule = (await import(
+        '../../../../../node_modules/@shopify/flash-list/dist/recyclerview/RecyclerViewManager.js'
+      )) as unknown as { RecyclerViewManager: FlashListRecyclerViewManagerConstructor };
+      const data = [{ id: 'project' }, { id: 'first-session' }, { id: 'second-session' }];
+      const manager = new recyclerViewManagerModule.RecyclerViewManager({
+        data,
+        estimatedItemSize: 73,
+        horizontal: false,
+        keyExtractor: (item) => item.id,
+        overrideItemLayout: () => undefined,
+        renderItem: () => null,
+      });
+      manager.updateProps(manager.props);
+      manager.updateLayoutParams({ width: 400, height: 800 }, 0);
+      const measured = (projectHeight: number) => [
+        { index: 0, dimensions: { x: 0, y: 0, width: 400, height: projectHeight } },
+        { index: 1, dimensions: { x: 0, y: 0, width: 400, height: 35 } },
+        { index: 2, dimensions: { x: 0, y: 0, width: 400, height: 46 } },
+      ];
+      manager.modifyChildrenLayout(measured(73), data.length);
+      (manager as { isFirstPaintOnUiComplete: boolean }).isFirstPaintOnUiComplete = true;
+      let settled = false;
+      for (let pass = 0; pass < 10; pass++) {
+        if (!manager.modifyChildrenLayout(measured(73), data.length)) {
+          settled = true;
+          break;
+        }
       }
-    }
-    expect(settled).toBe(true);
-    const before = manager.getLayout(1).y;
-    const visibleBefore = manager.computeVisibleIndices().toArray();
+      expect(settled).toBe(true);
+      const before = manager.getLayout(1).y;
+      const visibleBefore = manager.computeVisibleIndices().toArray();
+      expect(visibleBefore).toEqual([0, 1, 2]);
 
-    const needsCommit = manager.modifyChildrenLayout(measured(47), data.length);
+      const needsCommit = manager.modifyChildrenLayout(measured(47), data.length);
 
-    expect(before).toBe(73);
-    expect(manager.getLayout(1).y).toBe(47);
-    expect(manager.computeVisibleIndices().toArray()).toEqual(visibleBefore);
-    expect(needsCommit).toBe(true);
-    expect(manager.modifyChildrenLayout(measured(47), data.length)).toBe(false);
+      expect(before).toBe(73);
+      expect(manager.getLayout(1).y).toBe(47);
+      expect(manager.computeVisibleIndices().toArray()).toEqual(visibleBefore);
+      expect(needsCommit).toBe(true);
+      expect(manager.modifyChildrenLayout(measured(47), data.length)).toBe(false);
     } finally {
       if (originalPixelSize === undefined) delete pixelRatio.getPixelSizeForLayoutSize;
       else pixelRatio.getPixelSizeForLayoutSize = originalPixelSize;

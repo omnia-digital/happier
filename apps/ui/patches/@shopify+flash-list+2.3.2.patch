@@ -91,10 +91,43 @@ index 6799c8a..e505a79 100644
          }
          if (horizontal &&
 diff --git a/node_modules/@shopify/flash-list/dist/recyclerview/RecyclerViewManager.js b/node_modules/@shopify/flash-list/dist/recyclerview/RecyclerViewManager.js
-index 1aa651d..f99c8e9 100644
+index 1aa651d..f7a6bb8 100644
 --- a/node_modules/@shopify/flash-list/dist/recyclerview/RecyclerViewManager.js
 +++ b/node_modules/@shopify/flash-list/dist/recyclerview/RecyclerViewManager.js
-@@ -316,8 +316,10 @@ export class RecyclerViewManager {
+@@ -6,6 +6,7 @@ import { RVLinearLayoutManagerImpl } from "./layout-managers/LinearLayoutManager
+ import { RVMasonryLayoutManagerImpl } from "./layout-managers/MasonryLayoutManager";
+ import { RVEngagedIndicesTrackerImpl, } from "./helpers/EngagedIndicesTracker";
+ import { RenderStackManager } from "./RenderStackManager";
++import { areDimensionsNotEqual } from "./utils/measureLayout";
+ // Abstracts layout manager, render stack manager and viewability manager and generates render stack (progressively on load)
+ export class RecyclerViewManager {
+     get animationOptimizationsEnabled() {
+@@ -187,6 +188,14 @@ export class RecyclerViewManager {
+     }
+     modifyChildrenLayout(layoutInfo, dataLength) {
+         var _a, _b;
++        // HAPPIER PATCH(flash-list-measured-position-commit): unchanged engaged indices do not
++        // mean unchanged cell positions. A measured header can shrink while the same rows stay
++        // visible; its followers must receive the recomputed top values in a layout commit.
++        const measuredGeometryChanged = this.hasRenderedProgressively && layoutInfo.some(({ index, dimensions }) => {
++            const previous = this.tryGetLayout(index);
++            return previous && (areDimensionsNotEqual(previous.width, dimensions.width) ||
++                areDimensionsNotEqual(previous.height, dimensions.height));
++        });
+         (_a = this.layoutManager) === null || _a === void 0 ? void 0 : _a.modifyLayout(layoutInfo, dataLength);
+         if (dataLength === 0) {
+             return false;
+@@ -200,7 +209,8 @@ export class RecyclerViewManager {
+             if (!this.isFirstPaintOnUiComplete) {
+                 return false;
+             }
+-            return this.recomputeEngagedIndices() !== undefined;
++            const engagedIndicesChanged = this.recomputeEngagedIndices() !== undefined;
++            return measuredGeometryChanged || engagedIndicesChanged;
+         }
+         else {
+             this.renderProgressively();
+@@ -316,8 +326,10 @@ export class RecyclerViewManager {
              this.applyInitialScrollAdjustment();
              const visibleIndices = this.computeVisibleIndices();
              // console.log("---------> visibleIndices", visibleIndices);
