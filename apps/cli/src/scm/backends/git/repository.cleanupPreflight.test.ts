@@ -82,9 +82,80 @@ describe('Git cleanup preflight evidence', () => {
             },
         });
     });
+
+    it('reports locked registration and refuses a changed claimed path or Git common dir', async () => {
+        const f = await fixture();
+        await f.git(f.repo, 'worktree', 'lock', f.worktree, '--reason', 'fixture');
+        const expected = {
+            worktreeRealPath: f.identity.worktreePath,
+            registeredWorktreeRealPath: f.identity.registeredWorktreePath,
+            gitCommonDirRealPath: f.identity.commonDirPath,
+            branchName: 'feature',
+        };
+        expect(await readGitWorktreeCleanupEvidence(expected)).toMatchObject({
+            kind: 'ok', registration: { isLocked: true, isMain: false },
+        });
+        expect(await readGitWorktreeCleanupEvidence({ ...expected, worktreeRealPath: f.repo })).toMatchObject({
+            kind: 'unavailable', reason: 'identity_changed',
+        });
+        expect(await readGitWorktreeCleanupEvidence({ ...expected, gitCommonDirRealPath: f.bare })).toMatchObject({
+            kind: 'unavailable', reason: 'identity_changed',
+        });
+    });
 });
 
-describe('fresh published merge proof', () => {
+describe('current PR state and source publication evidence', () => {
+    it.each(['merge', 'squash', 'rebase'] as const)('observes unchanged published source after %s integration without target ancestry assumptions', async (method) => {
+        const f = await fixture();
+        await writeFile(join(f.worktree, 'feature.txt'), 'feature\n');
+        await f.git(f.worktree, 'add', 'feature.txt');
+        await f.git(f.worktree, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'feature');
+        const sourceOid = (await f.git(f.worktree, 'rev-parse', 'HEAD')).stdout.trim();
+        await f.git(f.worktree, 'push', f.bare, 'feature:feature');
+        if (method === 'merge') {
+            await f.git(f.repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'merge', '--no-ff', '--no-edit', 'feature');
+        } else if (method === 'squash') {
+            await f.git(f.repo, 'merge', '--squash', 'feature');
+            await f.git(f.repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'squash feature');
+        } else {
+            await writeFile(join(f.repo, 'main.txt'), 'main change\n');
+            await f.git(f.repo, 'add', 'main.txt');
+            await f.git(f.repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'main change');
+            await f.git(f.repo, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'cherry-pick', sourceOid);
+        }
+        await f.git(f.repo, 'push', f.bare, 'main:main');
+        await f.git(f.repo, 'remote', 'set-url', 'origin', 'https://github.com/example/repo.git');
+        const gitEvidence = await readGitWorktreeCleanupEvidence({
+            worktreeRealPath: f.identity.worktreePath,
+            registeredWorktreeRealPath: f.identity.registeredWorktreePath,
+            gitCommonDirRealPath: f.identity.commonDirPath,
+            branchName: 'feature',
+        });
+        expect(gitEvidence.kind).toBe('ok');
+        if (gitEvidence.kind !== 'ok') throw new Error('Git fixture evidence unavailable');
+        expect(gitEvidence.headOid).toBe(sourceOid);
+        const link = { providerKind: 'github' as const, providerBaseUrl: 'https://github.com',
+            repository: 'example/repo', number: 7, url: 'https://github.com/example/repo/pull/7' };
+        const summary: ScmPullRequestSummary = {
+            provider: { kind: 'github', name: 'GitHub', baseUrl: link.providerBaseUrl, nameWithOwner: link.repository, remoteName: null },
+            number: link.number, title: 'Feature', url: link.url, baseBranch: 'main', headBranch: 'feature',
+            state: 'merged', draft: false, headSha: sourceOid, headRepository: link.repository,
+        };
+        const backend = createGitPullRequestBackend({
+            githubCliAdapter: { ...githubCliScmHostingProviderAdapter, getPullRequest: async () => summary },
+            detectGithubCliAuth: async () => ({ kind: 'authenticated', command: 'gh', host: 'github.com' }),
+        });
+        const result = await readGitPublishedMergeEvidence({
+            gitEvidence, link, backend,
+            readRemoteRefs: async () => await runScmCommand({ bin: 'git', cwd: f.worktree,
+                args: ['ls-remote', '--symref', '--exit-code', '--', f.bare, 'HEAD', 'refs/heads/feature'] }),
+        });
+        expect(result).toMatchObject({ kind: 'current_publication_match', atMergeSourceHead: 'unproven',
+            headOid: sourceOid, remoteOid: sourceOid, remoteDefaultBranch: 'main' });
+        const ancestry = await runScmCommand({ bin: 'git', cwd: f.repo, args: ['merge-base', '--is-ancestor', sourceOid, 'main'] });
+        expect(ancestry.success).toBe(method === 'merge');
+    });
+
     it('requires the provider PR head and live source branch to match the claimed local HEAD', async () => {
         const f = await fixture();
         await f.git(f.repo, 'remote', 'set-url', 'origin', 'https://github.com/example/repo.git');
@@ -123,7 +194,8 @@ describe('fresh published merge proof', () => {
             });
         };
         const read = () => readGitPublishedMergeEvidence({ gitEvidence, link, backend, readRemoteRefs });
-        expect(await read()).toMatchObject({ kind: 'verified', headOid: gitEvidence.headOid, remoteName: 'origin', remoteDefaultBranch: 'main' });
+        expect(await read()).toMatchObject({ kind: 'current_publication_match', atMergeSourceHead: 'unproven',
+            headOid: gitEvidence.headOid, remoteName: 'origin', remoteDefaultBranch: 'main' });
         providerResult = { ...summary, state: 'closed' };
         expect(await read()).toMatchObject({ kind: 'unavailable', reason: 'pr_not_merged' });
         providerResult = { ...summary, state: 'merged', headSha: 'a'.repeat(40) };
@@ -139,6 +211,29 @@ describe('fresh published merge proof', () => {
         providerResult = { ...summary, url: 'https://github.com/other/repo/pull/7', provider: { ...summary.provider, nameWithOwner: 'other/repo' } };
         expect(await read()).toMatchObject({ kind: 'unavailable' });
         providerResult = summary;
+        await f.git(f.repo, 'remote', 'set-url', 'origin', 'https://github.com/other/repo.git');
+        const wrongRemote = await readGitWorktreeCleanupEvidence({
+            worktreeRealPath: f.identity.worktreePath, registeredWorktreeRealPath: f.identity.registeredWorktreePath,
+            gitCommonDirRealPath: f.identity.commonDirPath, branchName: 'feature',
+        });
+        if (wrongRemote.kind !== 'ok') throw new Error('Wrong-remote fixture evidence unavailable');
+        expect(await readGitPublishedMergeEvidence({ gitEvidence: wrongRemote, link, backend, readRemoteRefs })).toMatchObject({
+            kind: 'unavailable', reason: 'remote_identity_unavailable',
+        });
+        await f.git(f.repo, 'remote', 'set-url', 'origin', 'https://github.com/example/repo.git');
+        await f.git(f.repo, 'remote', 'set-url', '--push', 'origin', 'https://github.com/other/repo.git');
+        const wrongPushRemote = await readGitWorktreeCleanupEvidence({
+            worktreeRealPath: f.identity.worktreePath, registeredWorktreeRealPath: f.identity.registeredWorktreePath,
+            gitCommonDirRealPath: f.identity.commonDirPath, branchName: 'feature',
+        });
+        if (wrongPushRemote.kind !== 'ok') throw new Error('Wrong-push fixture evidence unavailable');
+        expect(await readGitPublishedMergeEvidence({ gitEvidence: wrongPushRemote, link, backend, readRemoteRefs })).toMatchObject({
+            kind: 'unavailable', reason: 'remote_identity_unavailable',
+        });
+        await f.git(f.repo, 'remote', 'set-url', '--push', 'origin', 'https://github.com/example/repo.git');
+        await f.git(f.bare, 'symbolic-ref', 'HEAD', 'refs/heads/feature');
+        expect(await read()).toMatchObject({ kind: 'unavailable', reason: 'default_branch' });
+        await f.git(f.bare, 'symbolic-ref', 'HEAD', 'refs/heads/main');
         await f.git(f.bare, 'update-ref', 'refs/heads/feature', (await f.git(f.bare, 'rev-parse', 'refs/heads/main')).stdout.trim());
         expect(await read()).toMatchObject({ kind: 'unavailable', reason: 'remote_head_mismatch' });
         await f.git(f.bare, 'update-ref', '-d', 'refs/heads/feature');
@@ -159,8 +254,8 @@ describe('host claim and archived-session preflight', () => {
         await bindCreatedWorktreeToTrackedSession({ ...owner, sessionId: 'session-one', runnerPid: 12345,
             runnerPath: f.worktree, serverResolution: 'created' });
         const result = await readHostWorktreeCleanupPreflight({
-            owner: { homeDir: owner.homeDir, activeServerDir: owner.activeServerDir, ring: owner.ring,
-                machineId: owner.machineId, launchNonce: owner.launchNonce },
+            owner: { machineId: owner.machineId, launchNonce: owner.launchNonce },
+            hostScope: { homeDir: owner.homeDir, activeServerDir: owner.activeServerDir, ring: owner.ring },
             credentials: { token: 'fixture-token', encryption: null },
             server: {
                 accountId: async () => owner.accountId,
@@ -172,16 +267,67 @@ describe('host claim and archived-session preflight', () => {
         });
         expect(result).toMatchObject({
             kind: 'observed', sessionId: 'session-one',
-            worktree: { kind: 'skipped', blockers: expect.arrayContaining(['process_visibility_unknown', 'publication_unproven']) },
-            localBranch: { kind: 'skipped', blockers: expect.arrayContaining(['worktree_registered', 'branch_protection_unknown']) },
+            visibleSessionInventory: { pathInUse: false, complete: true },
+            worktree: { kind: 'skipped', blockers: expect.arrayContaining(['process_visibility_unknown', 'publication_unproven', 'integration_snapshot_unproven']) },
+            localBranch: { kind: 'skipped', blockers: expect.arrayContaining(['worktree_registered', 'branch_protection_unknown', 'integration_snapshot_unproven']) },
+            tempDirectory: { kind: 'skipped', blockers: ['temp_directory_unclaimed'] },
+        });
+        const conflicting = await readHostWorktreeCleanupPreflight({
+            owner: { machineId: owner.machineId, launchNonce: owner.launchNonce },
+            hostScope: { homeDir: owner.homeDir, activeServerDir: owner.activeServerDir, ring: owner.ring },
+            credentials: { token: 'fixture-token', encryption: null },
+            server: {
+                accountId: async () => owner.accountId,
+                session: async () => ({ id: 'session-one', active: false, archivedAt: 12, machineId: owner.machineId,
+                    encryptionMode: 'plain', metadata: JSON.stringify({ path: f.worktree, machineId: owner.machineId,
+                        happyHomeDir: owner.homeDir }), dataEncryptionKey: null }),
+                page: async ({ archivedOnly }) => archivedOnly
+                    ? { sessions: [], hasNext: false, nextCursor: null }
+                    : { sessions: [{ id: 'session-two', active: false, archivedAt: null, encryptionMode: 'plain',
+                        metadata: JSON.stringify({ path: f.worktree, machineId: owner.machineId }), dataEncryptionKey: null }],
+                        hasNext: true, nextCursor: null },
+            },
+        });
+        expect(conflicting).toMatchObject({ kind: 'observed',
+            visibleSessionInventory: { pathInUse: true, complete: false },
+            worktree: { blockers: expect.arrayContaining(['other_session_uses_worktree', 'session_inventory_unknown']) },
         });
         const wrongAccount = await readHostWorktreeCleanupPreflight({
-            owner: { homeDir: owner.homeDir, activeServerDir: owner.activeServerDir, ring: owner.ring,
-                machineId: owner.machineId, launchNonce: owner.launchNonce },
+            owner: { machineId: owner.machineId, launchNonce: owner.launchNonce },
+            hostScope: { homeDir: owner.homeDir, activeServerDir: owner.activeServerDir, ring: owner.ring },
             credentials: { token: 'fixture-token', encryption: null },
             server: { accountId: async () => 'other-account', session: async () => null,
                 page: async () => ({ sessions: [], hasNext: false, nextCursor: null }) },
         });
         expect(wrongAccount).toMatchObject({ kind: 'unavailable', reason: 'claim_unavailable' });
+        const wrongSessionPath = await readHostWorktreeCleanupPreflight({
+            owner: { machineId: owner.machineId, launchNonce: owner.launchNonce },
+            hostScope: { homeDir: owner.homeDir, activeServerDir: owner.activeServerDir, ring: owner.ring },
+            credentials: { token: 'fixture-token', encryption: null },
+            server: { accountId: async () => owner.accountId,
+                session: async () => ({ id: 'session-one', active: false, archivedAt: 12,
+                    encryptionMode: 'plain', metadata: JSON.stringify({ path: f.repo, machineId: owner.machineId,
+                        happyHomeDir: owner.homeDir }), dataEncryptionKey: null }),
+                page: async () => ({ sessions: [], hasNext: false, nextCursor: null }) },
+        });
+        expect(wrongSessionPath).toMatchObject({ kind: 'unavailable', reason: 'session_identity_mismatch' });
+        const activeSession = await readHostWorktreeCleanupPreflight({
+            owner: { machineId: owner.machineId, launchNonce: owner.launchNonce },
+            hostScope: { homeDir: owner.homeDir, activeServerDir: owner.activeServerDir, ring: owner.ring },
+            credentials: { token: 'fixture-token', encryption: null },
+            server: { accountId: async () => owner.accountId,
+                session: async () => ({ id: 'session-one', active: true, archivedAt: null,
+                    encryptionMode: 'plain', metadata: JSON.stringify({ path: f.worktree, machineId: owner.machineId,
+                        happyHomeDir: owner.homeDir }), dataEncryptionKey: null }),
+                page: async () => ({ sessions: [], hasNext: false, nextCursor: null }) },
+        });
+        expect(activeSession).toMatchObject({ kind: 'unavailable', reason: 'session_not_archived' });
+        const scopeDrift = await readHostWorktreeCleanupPreflight({
+            owner: { machineId: owner.machineId, launchNonce: owner.launchNonce },
+            credentials: { token: 'fixture-token', encryption: null },
+            server: { accountId: async () => owner.accountId, session: async () => null,
+                page: async () => ({ sessions: [], hasNext: false, nextCursor: null }) },
+        });
+        expect(scopeDrift).toMatchObject({ kind: 'unavailable', reason: 'scope_unavailable' });
     });
 });
