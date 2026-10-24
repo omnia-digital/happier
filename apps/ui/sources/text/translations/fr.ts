@@ -457,6 +457,9 @@ export const fr: TranslationStructure = {
         checking: 'Vérification…',
         checked: 'Vérifié à l’instant',
         stale: 'Périmé',
+        autoArchiveWorkUnverified: 'L’archivage automatique attend de pouvoir vérifier que la session est inactive, au repos et sans travail en attente. Les anciens hôtes peuvent ne pas transmettre ces signaux.',
+        autoArchived: 'Archivée automatiquement',
+        autoArchivedReason: 'Toutes les PR liées ont été vérifiées comme fusionnées',
     },
     sessionTickets: {
         link: "Lier un ticket",

@@ -16,6 +16,7 @@ import { useVisibleSessionListViewData } from '@/hooks/session/useVisibleSession
 import { useResolvedActiveServerSelection } from '@/hooks/server/useEffectiveServerSelection';
 import { buildSessionListViewDataForRenderableState } from '@/sync/store/domains/sessionListRenderableCommit';
 import { afterSessionArchiveConfirmed } from '../sessions';
+import { appendSessionAutoArchiveHistory, readSessionAutoArchiveHistory } from '@happier-dev/protocol';
 
 const sessionId = 'same_session_id';
 const response = (archivedAt: number | null) => new Response(JSON.stringify({ success: true, archivedAt }));
@@ -220,5 +221,21 @@ describe('server-scoped session archive operations', () => {
         });
         expect(result).toMatchObject({ historyRecorded: false, code: 'archive_reason_not_recorded' });
         expect(metadataPatch).not.toHaveBeenCalled();
+    });
+
+    it('keeps the encrypted automatic reason after the canonical unarchive operation', async () => {
+        const current = storage.getState().sessions[sessionId]!;
+        const link = { providerKind: 'github' as const, providerBaseUrl: 'https://github.com', repository: 'owner/repo',
+            number: 7, url: 'https://github.com/owner/repo/pull/7' };
+        storage.getState().applySessions([{ ...current, archivedAt: 42,
+            metadata: appendSessionAutoArchiveHistory(current.metadata!, {
+                trigger: 'all_linked_pull_requests_merged', archivedAt: 42, links: [link],
+            }),
+        }]);
+        activeResponse.mockImplementationOnce(async () => response(null));
+        await expect(sessionUnarchiveWithServerScope(sessionId, { serverId: serverA.id }))
+            .resolves.toMatchObject({ success: true, archivedAt: null });
+        expect(storage.getState().sessions[sessionId]?.archivedAt).toBeNull();
+        expect(readSessionAutoArchiveHistory(storage.getState().sessions[sessionId]?.metadata)[0]?.links).toEqual([link]);
     });
 });

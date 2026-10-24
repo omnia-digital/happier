@@ -457,6 +457,9 @@ export const de: TranslationStructure = {
         checking: 'Wird geprüft…',
         checked: 'Gerade geprüft',
         stale: 'Veraltet',
+        autoArchiveWorkUnverified: 'Die automatische Archivierung wartet, bis Inaktivität, Leerlauf und das Fehlen ausstehender Arbeit bestätigt sind. Ältere Hosts melden diese Signale möglicherweise nicht.',
+        autoArchived: 'Automatisch archiviert',
+        autoArchivedReason: 'Alle verknüpften PRs wurden als zusammengeführt bestätigt',
     },
     sessionTickets: {
         link: "Ticket verknüpfen",

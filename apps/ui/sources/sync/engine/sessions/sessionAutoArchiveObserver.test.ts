@@ -25,6 +25,7 @@ describe('foreground session autoarchive observer', () => {
     let serverId: string;
     let foreground = true;
     let observer: ReturnType<typeof createSessionAutoArchiveObserver> | null = null;
+    const metadataHydrate = vi.fn(async () => true);
     const archiveRequest = vi.fn(async () => new Response(JSON.stringify({ archivedAt: 42 })));
 
     beforeEach(() => {
@@ -40,6 +41,8 @@ describe('foreground session autoarchive observer', () => {
             return consume ? await consume(response) : response;
         });
         metadataPatch.mockReset();
+        metadataHydrate.mockReset();
+        metadataHydrate.mockImplementation(async () => true);
         metadataPatch.mockImplementation(async (id, update, options) => {
             if (!options.shouldContinue()) return;
             const current = storage.getState().sessions[id];
@@ -64,7 +67,7 @@ describe('foreground session autoarchive observer', () => {
 
     function start(checkIntervalMs = 60_000, maxConcurrentCandidates = 4) {
         observer = createSessionAutoArchiveObserver({
-            isForeground: () => foreground, ensureMetadata: async () => true,
+            isForeground: () => foreground, ensureMetadata: metadataHydrate,
             checkIntervalMs, maxConcurrentCandidates,
         });
     }
@@ -75,6 +78,8 @@ describe('foreground session autoarchive observer', () => {
     it('does no provider or archive work while disabled or backgrounded, then archives an inactive all-merged session once', async () => {
         providerGet.mockImplementation(async (_id, input) => ({ success: true, pullRequest: summary(input.linkedIdentity.repository === 'owner/one' ? 0 : 1) }));
         start();
+        expect(providerGet).not.toHaveBeenCalled();
+        storage.setState((state) => ({ settings: { ...state.settings, cleanupLocalResourcesOnArchive: true } }));
         expect(providerGet).not.toHaveBeenCalled();
         foreground = false;
         enable();
@@ -137,6 +142,47 @@ describe('foreground session autoarchive observer', () => {
         await vi.waitFor(() => expect(archiveRequest).toHaveBeenCalledTimes(1));
     });
 
+    it('hydrates a warm projected link whose agent live count was omitted before provider verification', async () => {
+        const row = storage.getState().sessionListRenderables['session-a']!;
+        storage.setState({ sessionListRenderables: { 'session-a': { ...row, metadata: {
+            ...row.metadata!, agentActivityCounts: undefined,
+        } } } });
+        providerGet.mockImplementation(async (_id, input) => ({ success: true, pullRequest: summary(input.linkedIdentity.repository === 'owner/one' ? 0 : 1) }));
+        start(); enable();
+        await vi.waitFor(() => expect(archiveRequest).toHaveBeenCalledTimes(1));
+        expect(metadataHydrate).toHaveBeenCalledTimes(1);
+    });
+
+    it('hydrates a cold inactive catalog shell without projected links after explicit opt-in', async () => {
+        const full = storage.getState().sessions['session-a']!;
+        const row = storage.getState().sessionListRenderables['session-a']!;
+        storage.setState({ sessions: {}, sessionListRenderables: { 'session-a': { ...row, metadata: null, metadataUnavailable: true } } });
+        metadataHydrate.mockImplementation(async () => {
+            storage.getState().applySessions([full]);
+            return true;
+        });
+        providerGet.mockImplementation(async (_id, input) => ({ success: true, pullRequest: summary(input.linkedIdentity.repository === 'owner/one' ? 0 : 1) }));
+        start();
+        expect(metadataHydrate).not.toHaveBeenCalled();
+        enable();
+        await vi.waitFor(() => expect(archiveRequest).toHaveBeenCalledTimes(1));
+        expect(metadataHydrate).toHaveBeenCalledTimes(1);
+    });
+
+    it('requests a forced metadata refresh when the catalog version is newer than the full session', async () => {
+        const row = storage.getState().sessionListRenderables['session-a']!;
+        storage.setState({ sessionListRenderables: { 'session-a': { ...row, metadataVersion: row.metadataVersion + 1 } } });
+        metadataHydrate.mockImplementation(async () => {
+            const full = storage.getState().sessions['session-a']!;
+            storage.getState().applySessions([{ ...full, metadataVersion: row.metadataVersion + 1 }]);
+            return true;
+        });
+        providerGet.mockImplementation(async (_id, input) => ({ success: true, pullRequest: summary(input.linkedIdentity.repository === 'owner/one' ? 0 : 1) }));
+        start(); enable();
+        await vi.waitFor(() => expect(archiveRequest).toHaveBeenCalledTimes(1));
+        expect(metadataHydrate.mock.calls[0]?.[3]).toBe(true);
+    });
+
     it('notices a remote merge on the foreground cadence without a catalog update', async () => {
         let merged = false;
         providerGet.mockImplementation(async (_id, input) => ({ success: true, pullRequest: summary(
@@ -180,6 +226,20 @@ describe('foreground session autoarchive observer', () => {
         await new Promise((resolve) => setTimeout(resolve, 30));
         expect(providerGet).toHaveBeenCalledTimes(1);
         expect(archiveRequest).not.toHaveBeenCalled();
+    });
+
+    it('coalesces repeated foreground checks while one candidate is in flight', async () => {
+        const held = createDeferred<{ success: true; pullRequest: ScmPullRequestSummary }>();
+        providerGet.mockReturnValueOnce(held.promise).mockImplementation(async () => ({ success: true, pullRequest: summary(1) }));
+        start(); enable();
+        await vi.waitFor(() => expect(providerGet).toHaveBeenCalledTimes(1));
+        observer!.recheck(); observer!.recheck(); observer!.recheck();
+        expect(providerGet).toHaveBeenCalledTimes(1);
+        held.resolve({ success: true, pullRequest: summary(0) });
+        await vi.waitFor(() => expect(archiveRequest).toHaveBeenCalledTimes(1));
+        expect(providerGet).toHaveBeenCalledTimes(2);
+        observer!.recheck();
+        expect(archiveRequest).toHaveBeenCalledTimes(1);
     });
 
     it('retains a failed post-success history write for foreground retry without crossing Home accounts', async () => {

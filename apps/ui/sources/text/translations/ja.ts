@@ -624,6 +624,9 @@ export const ja: TranslationStructure = {
         checking: '確認中…',
         checked: '確認済み',
         stale: '古い情報',
+        autoArchiveWorkUnverified: 'セッションが非アクティブで、処理中または保留中の作業がないと確認できるまで自動アーカイブは待機します。古いホストではこれらの状態が報告されない場合があります。',
+        autoArchived: '自動的にアーカイブしました',
+        autoArchivedReason: 'リンクされたすべての PR のマージを確認しました',
     },
     sessionTickets: {
         link: "チケットをリンク",

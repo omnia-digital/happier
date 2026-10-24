@@ -631,6 +631,9 @@ export const ca: TranslationStructure = {
         checking: 'Comprovant…',
         checked: 'Comprovat ara',
         stale: 'Obsolet',
+        autoArchiveWorkUnverified: 'L’arxivament automàtic espera fins que es pugui verificar que la sessió és inactiva, està en repòs i no té feina pendent. Les màquines antigues poden no informar d’aquests senyals.',
+        autoArchived: 'Arxivada automàticament',
+        autoArchivedReason: 'S’ha verificat que totes les PR vinculades estan fusionades',
     },
     sessionTickets: {
         link: "Vincula un tiquet",

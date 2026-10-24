@@ -15,26 +15,36 @@ export type SessionAutoArchiveAssessment = Readonly<{
 
 const skip = (reason: Exclude<SessionAutoArchiveAssessment['reason'], 'ready'>): SessionAutoArchiveAssessment => ({ eligible: false, reason });
 
-/** Cheap catalog gate. No provider read is attempted until every local work signal is settled. */
-export function assessSessionAutoArchiveCandidate(input: Readonly<{
+type CandidateInput = Readonly<{
     session: SessionListRenderableSession;
     enabled: boolean;
     archivePending: boolean;
     accountId?: string;
-}>): SessionAutoArchiveAssessment {
+}>;
+
+/** Catalog-only gate for bounded metadata hydration after explicit opt-in. */
+export function assessSessionAutoArchiveHydrationCandidate(input: CandidateInput): SessionAutoArchiveAssessment {
     const session = input.session;
     if (!input.enabled) return skip('disabled');
     if (session.archivedAt != null) return skip('archived');
     if (input.archivePending) return skip('archive_pending');
-    if (session.metadataUnavailable || !session.metadata) return skip('metadata_unavailable');
-    if (readSessionPullRequestLinks(session.metadata).length === 0) return skip('no_links');
     if (session.accessLevel !== 'admin' && (!input.accountId || session.owner !== input.accountId)) return skip('work_unverified');
     if (session.active !== false || typeof session.presence !== 'number' || !Number.isFinite(session.presence)
         || session.thinking !== false || session.pendingCount !== 0 || session.pendingBlockedCount !== 0
         || session.runtimeActivityState !== 'idle' || session.runtimeActivityActiveCount !== 0
         || session.latestTurnStatus === 'in_progress' || session.pendingActivationAuthorization != null
-        || session.hasPendingPermissionRequests !== false || session.hasPendingUserActionRequests !== false
-        || session.metadata.agentActivityCounts?.live !== 0) return skip('work_unverified');
+        || session.hasPendingPermissionRequests !== false || session.hasPendingUserActionRequests !== false) return skip('work_unverified');
+    return { eligible: true, reason: 'ready' };
+}
+
+/** Final local gate after metadata-only hydration; no provider read is attempted before this. */
+export function assessSessionAutoArchiveCandidate(input: CandidateInput): SessionAutoArchiveAssessment {
+    const base = assessSessionAutoArchiveHydrationCandidate(input);
+    if (!base.eligible) return base;
+    const session = input.session;
+    if (session.metadataUnavailable || !session.metadata) return skip('metadata_unavailable');
+    if (readSessionPullRequestLinks(session.metadata).length === 0) return skip('no_links');
+    if (session.metadata.agentActivityCounts?.live !== 0) return skip('work_unverified');
     return { eligible: true, reason: 'ready' };
 }
 

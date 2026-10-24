@@ -455,6 +455,9 @@ export const en = {
         checking: 'Checking…',
         checked: 'Checked now',
         stale: 'Stale',
+        autoArchiveWorkUnverified: 'Automatic archive waits until inactivity, idle activity, and no pending work can all be verified. Older hosts may not report these signals.',
+        autoArchived: 'Archived automatically',
+        autoArchivedReason: 'All linked PRs were verified merged',
     },
     sessionTickets: {
         link: 'Link ticket',

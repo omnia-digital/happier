@@ -1,8 +1,8 @@
 import * as React from 'react';
 import { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { renderScreen } from '@/dev/testkit';
-import { sessionPullRequestLinkFromUrl } from '@happier-dev/protocol';
+import { createSessionFixture, renderScreen } from '@/dev/testkit';
+import { appendSessionAutoArchiveHistory, sessionPullRequestLinkFromUrl } from '@happier-dev/protocol';
 import { storage } from '@/sync/domains/state/storage';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -34,14 +34,17 @@ vi.mock('@/modal', async () => {
 
 const first = sessionPullRequestLinkFromUrl('https://github.com/owner/one/pull/7')!;
 const second = sessionPullRequestLinkFromUrl('https://github.com/owner/two/pull/7')!;
-const originalScope = storage.getState().profileScope;
+const originalState = storage.getState();
 
 describe('SessionPullRequests', () => {
     beforeEach(() => {
         readMock.mockReset(); addMock.mockClear(); changeMock.mockClear(); removeMock.mockClear();
         openMock.mockClear(); promptMock.mockReset(); alertMock.mockClear(); captureScopeMock.mockClear();
     });
-    afterEach(async () => { await act(async () => { storage.setState({ profileScope: originalScope }); }); });
+    afterEach(async () => { await act(async () => { storage.setState({
+        profileScope: originalState.profileScope, settings: originalState.settings,
+        sessions: originalState.sessions, sessionListRenderables: originalState.sessionListRenderables,
+    }); }); });
 
     it('shows distinct same-number repositories and unknown status when the host is unavailable', async () => {
         readMock.mockRejectedValue(new Error('offline'));
@@ -128,5 +131,35 @@ describe('SessionPullRequests', () => {
         expect(screen.findByTestId('session-pr-add')).toBeNull();
         expect(screen.findByTestId('session-pr-change-github-github.com-owner/one-7')).toBeNull();
         expect(screen.findByTestId('session-pr-remove-github-github.com-owner/one-7')).toBeNull();
+    });
+
+    it('explains why an older session without verified idle signals cannot autoarchive', async () => {
+        readMock.mockResolvedValue(null);
+        const session = createSessionFixture({ id: 's1', owner: 'account-a', active: false, presence: 1,
+            pendingCount: 0, pendingBlockedCount: 0, thinking: false, runtimeActivityState: 'idle',
+            metadata: { path: '/fixture', host: 'fixture-host', sessionPullRequestsV1: { v: 1, links: [first] } },
+        });
+        storage.getState().applySessions([session]);
+        storage.setState((state) => ({ profileScope: { serverId: 'home-a', accountId: 'account-a' },
+            settings: { ...state.settings, autoArchiveAfterLinkedPullRequestsMerge: true } }));
+        const { SessionPullRequests } = await import('./SessionPullRequests');
+        const screen = await renderScreen(<SessionPullRequests sessionId="s1" canEdit metadata={session.metadata} />);
+        expect(screen.findByTestId('session-pr-autoarchive-skipped')).not.toBeNull();
+        expect(JSON.stringify(screen.tree.toJSON())).toContain('Older hosts may not report these signals');
+    });
+
+    it('shows the persisted automatic archive reason and linked identities after archive', async () => {
+        readMock.mockResolvedValue(null);
+        const metadata = appendSessionAutoArchiveHistory({ path: '/fixture', host: 'fixture-host', sessionPullRequestsV1: { v: 1, links: [first, second] } }, {
+            trigger: 'all_linked_pull_requests_merged', archivedAt: 42, links: [first, second],
+        });
+        storage.getState().applySessions([createSessionFixture({ id: 's1', owner: 'account-a', archivedAt: 42, metadata })]);
+        const { SessionPullRequests } = await import('./SessionPullRequests');
+        const screen = await renderScreen(<SessionPullRequests sessionId="s1" canEdit metadata={metadata} />);
+        expect(screen.findByTestId('session-pr-autoarchive-history')).not.toBeNull();
+        const rendered = JSON.stringify(screen.tree.toJSON());
+        expect(rendered).toContain('All linked PRs were verified merged');
+        expect(rendered).toContain('owner/one #7');
+        expect(rendered).toContain('owner/two #7');
     });
 });

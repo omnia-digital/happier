@@ -2,7 +2,7 @@ import { readSessionPullRequestLinks, type SessionPullRequestLinkV1 } from '@hap
 import { areServerProfileIdentifiersEquivalent } from '@/sync/domains/server/serverProfiles';
 import { getActiveServerSnapshot } from '@/sync/domains/server/serverRuntime';
 import { areServerAccountScopesEqual, serverAccountScopeKeySuffix, type ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
-import { assessSessionAutoArchiveCandidate, assessVerifiedSessionPullRequests } from '@/sync/domains/session/archive/sessionAutoArchiveEligibility';
+import { assessSessionAutoArchiveCandidate, assessSessionAutoArchiveHydrationCandidate, assessVerifiedSessionPullRequests } from '@/sync/domains/session/archive/sessionAutoArchiveEligibility';
 import { readSessionArchivePending } from '@/sync/domains/session/listing/sessionArchiveState';
 import { buildSessionListRenderableFromSession, type SessionListRenderableSession } from '@/sync/domains/session/listing/sessionListRenderable';
 import { storage } from '@/sync/domains/state/storage';
@@ -19,7 +19,7 @@ function linksStillMatch(left: readonly SessionPullRequestLinkV1[], right: reado
 /** One foreground observer on the existing catalog and Sync lifecycle; no provider-status cache. */
 export function createSessionAutoArchiveObserver(input: Readonly<{
     isForeground: () => boolean;
-    ensureMetadata: (sessionId: string, serverId: string, shouldContinue: () => boolean) => Promise<boolean>;
+    ensureMetadata: (sessionId: string, serverId: string, shouldContinue: () => boolean, forceRefresh: boolean) => Promise<boolean>;
     checkIntervalMs: number;
     maxConcurrentCandidates: number;
 }>): Readonly<{ recheck: () => void; dispose: () => void }> {
@@ -60,28 +60,43 @@ export function createSessionAutoArchiveObserver(input: Readonly<{
         return !!row && !!full
             && (!full.serverId || areServerProfileIdentifiersEquivalent(full.serverId, scope.serverId))
             && full.active === false && full.archivedAt == null
-            && assessSessionAutoArchiveCandidate({
+            && full.metadataVersion >= row.metadataVersion
+            && assessSessionAutoArchiveHydrationCandidate({
                 session: row, enabled: true, archivePending: pending, accountId: scope.accountId,
             }).eligible
             && assessSessionAutoArchiveCandidate({
                 session: buildSessionListRenderableFromSession(full), enabled: true, archivePending: pending, accountId: scope.accountId,
             }).eligible
-            && linksStillMatch(readSessionPullRequestLinks(row.metadata), links)
             && linksStillMatch(readSessionPullRequestLinks(full.metadata), links);
     };
 
-    const attempt = async (scope: ServerAccountScope, row: SessionListRenderableSession, links: readonly SessionPullRequestLinkV1[]): Promise<void> => {
+    const hydrationCandidateCurrent = (scope: ServerAccountScope, sessionId: string): boolean => {
+        if (!scopeCurrent(scope)) return false;
+        const state = storage.getState();
+        const row = state.sessionListRenderables[sessionId];
+        return !!row && assessSessionAutoArchiveHydrationCandidate({
+            session: row, enabled: true,
+            archivePending: readSessionArchivePending(state, sessionId, scope.serverId), accountId: scope.accountId,
+        }).eligible;
+    };
+
+    const attempt = async (scope: ServerAccountScope, row: SessionListRenderableSession): Promise<void> => {
         const sessionId = row.id;
         const shouldContinue = () => scopeCurrent(scope);
         try {
-            if (!candidateCurrent(scope, sessionId, links)) return;
+            if (!hydrationCandidateCurrent(scope, sessionId)) return;
             // Sync owns this observer; load operations after its singleton has initialized.
             const [{ readLinkedPullRequest }, { archiveSessionWithPendingState }, { sessionArchiveWithServerScope }] = await Promise.all([
                 import('@/sync/ops/sessionPullRequestLinks'),
                 import('@/components/sessions/sessionStopArchiveFlow'),
                 import('@/sync/ops/sessions'),
             ]);
-            if (!await input.ensureMetadata(sessionId, scope.serverId, shouldContinue) || !candidateCurrent(scope, sessionId, links)) return;
+            const current = storage.getState();
+            const forceRefresh = !!current.sessions[sessionId]?.metadata
+                && current.sessions[sessionId]!.metadataVersion < (current.sessionListRenderables[sessionId]?.metadataVersion ?? 0);
+            if (!await input.ensureMetadata(sessionId, scope.serverId, shouldContinue, forceRefresh)) return;
+            const links = readSessionPullRequestLinks(storage.getState().sessions[sessionId]?.metadata);
+            if (!candidateCurrent(scope, sessionId, links)) return;
             const results = [];
             for (const link of links) {
                 if (!shouldContinue()) return;
@@ -153,7 +168,7 @@ export function createSessionAutoArchiveObserver(input: Readonly<{
         const state = storage.getState();
         for (const row of Object.values(state.sessionListRenderables)) {
             if (!row || checked.has(row)) continue;
-            const decision = assessSessionAutoArchiveCandidate({
+            const decision = assessSessionAutoArchiveHydrationCandidate({
                 session: row, enabled: true, archivePending: readSessionArchivePending(state, row.id, scope.serverId), accountId: scope.accountId,
             });
             if (!decision.eligible) continue;
@@ -161,7 +176,7 @@ export function createSessionAutoArchiveObserver(input: Readonly<{
             if (inFlight.has(key)) continue;
             checked.add(row);
             inFlight.add(key);
-            void candidateLimiter.run(() => attempt(scope, row, readSessionPullRequestLinks(row.metadata)))
+            void candidateLimiter.run(() => attempt(scope, row))
                 .catch(() => syncReliabilityTelemetry.record('session.autoarchive.candidate_failed'));
         }
     };

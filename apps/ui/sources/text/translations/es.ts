@@ -641,6 +641,9 @@ export const es: TranslationStructure = {
         checking: 'Comprobando…',
         checked: 'Comprobado ahora',
         stale: 'Desactualizado',
+        autoArchiveWorkUnverified: 'El archivo automático espera hasta poder verificar que la sesión está inactiva, en reposo y sin trabajo pendiente. Es posible que los equipos antiguos no informen estas señales.',
+        autoArchived: 'Archivada automáticamente',
+        autoArchivedReason: 'Se verificó que todas las PR vinculadas estaban fusionadas',
     },
     sessionTickets: {
         link: "Vincular ticket",

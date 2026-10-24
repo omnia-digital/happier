@@ -661,6 +661,9 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
         checking: '檢查中…',
         checked: '剛剛檢查',
         stale: '已過時',
+        autoArchiveWorkUnverified: '自動封存會等待確認工作階段已停用、處於閒置狀態且沒有待處理工作。舊版主機可能不會回報這些狀態。',
+        autoArchived: '已自動封存',
+        autoArchivedReason: '已驗證所有關聯 PR 均已合併',
     },
     sessionTickets: {
         link: "關聯工單",
