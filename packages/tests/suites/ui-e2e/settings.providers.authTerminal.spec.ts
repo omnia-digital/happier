@@ -110,6 +110,7 @@ test.describe('ui e2e: provider settings auth status', () => {
       await expect(timeoutField.locator('input')).toHaveValue('900');
       await expect(thinkingField.locator('input')).toHaveValue('1024');
       await expect(indefiniteField).toHaveAttribute('aria-checked', 'true');
+      await thinkingField.scrollIntoViewIfNeeded();
       await page.screenshot({ path: join(suiteDir, 'claude-positive-integers-persisted.png'), fullPage: true });
     } catch (error) {
       throw appendBrowserDiagnostics(error, browserDiagnostics());
