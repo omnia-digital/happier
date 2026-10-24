@@ -1,6 +1,7 @@
 import { readStoredSessionMessagesReadProjectionFromStateLike } from '@/sync/domains/messages/readStoredSessionMessages';
 import {
     deriveSessionListAttentionState,
+    deriveSessionListVisualStatus,
     deriveSessionListMeaningfulActivityAt,
     resolveSessionListUpdatedAt,
     resolveSessionListSecondaryLineMode,
@@ -304,6 +305,15 @@ export function buildSessionListRowModel(input: BuildSessionListRowModelInput): 
     const pendingCount = readPendingCount(input.state ?? {}, resolvedSession);
     const pendingBlockedCount = readPendingBlockedCount(input.state ?? {}, resolvedSession);
     const hasUnreadMessages = resolveHasUnreadMessages(input.state ?? {}, resolvedSession);
+    const meaningfulActivityAt = resolveMeaningfulActivityAt(input.state ?? {}, resolvedSession);
+    const visualStatus = deriveSessionListVisualStatus({
+        sessionState: status.state,
+        latestTurnStatus: resolvedSession.latestTurnStatus ?? null,
+        latestTurnStatusObservedAt: normalizeFiniteTimestamp(resolvedSession.latestTurnStatusObservedAt),
+        meaningfulActivityAt,
+        pendingCount,
+        pendingBlockedCount,
+    });
     const attentionState = deriveSessionListAttentionState({
         hasUnreadMessages,
         pendingCount,
@@ -316,7 +326,7 @@ export function buildSessionListRowModel(input: BuildSessionListRowModelInput): 
         latestTurnStatusObservedAt: normalizeFiniteTimestamp(resolvedSession.latestTurnStatusObservedAt),
         lastRuntimeIssue: resolvedSession.lastRuntimeIssue ?? null,
         seq: normalizeFiniteTimestamp(resolvedSession.seq),
-        meaningfulActivityAt: resolveMeaningfulActivityAt(input.state ?? {}, resolvedSession),
+        meaningfulActivityAt,
         latestReadyEventSeq:
             input.state?.messages?.latestReadyEventSeq
             ?? (resolvedSession as Session).latestReadyEventSeq
@@ -405,6 +415,7 @@ export function buildSessionListRowModel(input: BuildSessionListRowModelInput): 
         testID: `session-list-item-${sessionId}`,
         session: resolvedSession,
         status,
+        visualStatus,
         statusSignature: buildStatusSignature(status, nextRuntimeFreshnessAtMs),
         nextRuntimeFreshnessAtMs,
         secondaryLineMode,

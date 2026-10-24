@@ -5,7 +5,7 @@ import type { Session } from '@/sync/domains/state/storageTypes';
 import type { SessionMessages } from '@/sync/store/domains/messages';
 import type { SessionPending } from '@/sync/store/domains/pending';
 import type { SessionStatus } from '@/utils/sessions/sessionUtils';
-import type { SessionListSecondaryLineMode } from '@/sync/domains/session/listing/deriveSessionListActivity';
+import type { SessionListSecondaryLineMode, SessionListVisualStatus } from '@/sync/domains/session/listing/deriveSessionListActivity';
 import type { SessionAttentionStandingPolicy, SessionReminderPresentation } from '@/sync/domains/session/organization/attentionStanding';
 import type { SessionRowAttentionState, SessionRowDensity, SessionRowPresentation } from './resolveSessionRowPresentation';
 
@@ -94,6 +94,7 @@ export type SessionListRowModel = Readonly<{
     testID: string;
     session: Session | SessionListRenderableSession;
     status: SessionStatus;
+    visualStatus: SessionListVisualStatus;
     statusSignature: string;
     nextRuntimeFreshnessAtMs: number | null;
     secondaryLineMode: SessionListSecondaryLineMode;

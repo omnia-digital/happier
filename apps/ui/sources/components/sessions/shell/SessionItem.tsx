@@ -31,6 +31,8 @@ import { ContextMenu } from '@/components/ui/forms/dropdown/ContextMenu';
 import { CopiedPill } from '@/components/ui/copy/CopiedPill';
 import { useTemporaryCopyFeedback } from '@/components/ui/copy/useTemporaryCopyFeedback';
 import { SessionRowAttentionIndicator } from './row/SessionRowAttentionIndicator';
+import { SessionRowStatusBadge, resolveSessionRowStatusTint } from './row/SessionRowStatusBadge';
+import type { SessionListVisualStatus } from '@/sync/domains/session/listing/deriveSessionListActivity';
 import type { SessionRowAttentionState, SessionRowPresentation } from './row/resolveSessionRowPresentation';
 import type { SessionListRowModel } from './row/sessionListRowModelTypes';
 import {
@@ -206,6 +208,7 @@ type SessionItemRenderProps = Omit<SessionItemBaseProps, 'activityTimeMode' | 's
     activityTimeLabel: string;
     rowAttentionState: SessionRowAttentionState;
     rowPresentation: SessionRowPresentation;
+    visualStatus?: SessionListVisualStatus;
     workingIndicatorMode: SessionItemWorkingIndicatorMode;
     workingIndicatorPaused?: boolean;
     rowAttentionAnimationEnabled: boolean;
@@ -282,6 +285,12 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     sessionItemMinimal: {
         paddingHorizontal: 8,
+    },
+    statusBadgeSlot: {
+        width: 18,
+        height: 18,
+        marginRight: 7,
+        flexShrink: 0,
     },
     sessionItemSelected: {
         backgroundColor: theme.colors.surface.selected,
@@ -771,6 +780,7 @@ const SessionItemContent = React.memo(
         activityTimeLabel,
         rowAttentionState,
         rowPresentation,
+        visualStatus = 'idle',
         workingIndicatorMode,
         workingIndicatorPaused,
         rowAttentionAnimationEnabled,
@@ -1503,6 +1513,7 @@ const SessionItemContent = React.memo(
                     selected || rowSelection.isSelected ? styles.sessionItemSelected : null,
                     embedded && !embeddedIsLast ? styles.embeddedSeparator : null,
                     { height: sessionListRowHeight },
+                    { backgroundColor: resolveSessionRowStatusTint(visualStatus, theme) },
                 ]}
                 onPress={handleRowPress}
                 // @ts-expect-error - react-native types do not model the web context-menu event; RN Web supports onContextMenu.
@@ -1524,6 +1535,14 @@ const SessionItemContent = React.memo(
                         style={styles.sessionCurrentIndicator}
                     />
                 ) : null}
+                <View style={styles.statusBadgeSlot}>
+                    <SessionRowStatusBadge
+                        sessionId={resolvedSession.id}
+                        status={visualStatus}
+                        hasUnreadMessages={hasUnreadMessages}
+                        animationEnabled={attentionIndicatorAnimationEnabled}
+                    />
+                </View>
                 {shouldRenderLeadingIdentity || shouldRenderSelectionCheckbox ? (
                     <View
                         style={[
@@ -2149,6 +2168,7 @@ function SessionItemFromRowModel(props: SessionItemProps & { rowModel: SessionLi
             activityTimeLabel={rowModel.activity.label}
             rowAttentionState={rowModel.attention.rowState}
             rowPresentation={rowModel.presentation}
+            visualStatus={rowModel.visualStatus}
             workingIndicatorMode={rowModel.workingIndicatorMode}
             workingIndicatorPaused={rowModel.workingIndicatorPaused}
             rowAttentionAnimationEnabled={itemProps.rowAttentionAnimationEnabled !== false}

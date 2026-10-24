@@ -169,6 +169,26 @@ function createSettings(
 }
 
 describe('buildSessionListRowModel', () => {
+    it('shows a successful latest turn after it is read, but never treats a retained or disconnected row as finished', () => {
+        const completed = createRenderable('latest-complete', {
+            active: true,
+            latestTurnStatus: 'completed',
+            latestTurnStatusObservedAt: NOW_MS - 1_000,
+            meaningfulActivityAt: NOW_MS - 2_000,
+            lastViewedSessionSeq: 10,
+        });
+        const build = (session: SessionListRenderableSession, overrides: Partial<Extract<SessionListViewItem, { type: 'session' }>> = {}) => buildSessionListRowModel({
+            item: createSessionItem(session, overrides), state: {}, isFirst: true, isLast: true, isSingle: true, settings: createSettings(),
+        });
+        expect(build(completed).visualStatus).toBe('finished');
+        expect(build(completed, { groupKind: 'pinned' }).visualStatus).toBe('finished');
+        expect(build({ ...completed, presence: 0 }).visualStatus).toBe('offline');
+        expect(build({ ...completed, meaningfulActivityAt: NOW_MS + 1 }).visualStatus).toBe('idle');
+        expect(build({ ...completed, latestTurnStatus: 'cancelled' }).visualStatus).toBe('cancelled');
+        expect(build({ ...completed, latestTurnStatus: 'failed' }).visualStatus).toBe('error');
+        expect(build({ ...completed, pendingBlockedCount: 1 }).visualStatus).toBe('input');
+    });
+
     it('uses the maintained unread watermark in a row without a store renderable', () => {
         let historicalVisits = 0;
         const message: Message = {

@@ -248,6 +248,7 @@ function createSessionRowModel(overrides: Partial<SessionListRowModel> = {}): Se
             isPulsing: true,
         },
         statusSignature: 'thinking:model is working',
+        visualStatus: 'working',
         nextRuntimeFreshnessAtMs: null,
         secondaryLineMode: 'status',
         attention: {
@@ -326,6 +327,7 @@ function createSessionRowModelForProps(props: SessionItemForTestProps): SessionL
         serverId: props.serverId ?? 'server_a',
         serverName: props.serverName ?? 'Server A',
         status,
+        visualStatus: 'idle',
         statusSignature: `${status.state}:${status.statusText}`,
         secondaryLineMode,
         attention: {

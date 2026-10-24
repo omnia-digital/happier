@@ -110,6 +110,7 @@ export function createSessionItemTestRowModel(
         testID: `session-list-item-${sessionId}`,
         session,
         status,
+        visualStatus: 'idle',
         statusSignature: `${status.state}|${status.isConnected ? 1 : 0}|${status.statusText}`,
         nextRuntimeFreshnessAtMs: null,
         secondaryLineMode,

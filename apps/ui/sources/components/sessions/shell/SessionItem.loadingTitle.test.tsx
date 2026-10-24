@@ -171,6 +171,7 @@ function createMetadataPendingRowModel(id: string): SessionListRowModel {
         testID: `session-list-item-${id}`,
         session,
         status: createWaitingStatus(),
+        visualStatus: 'idle',
         statusSignature: 'waiting|0|0||0|',
         nextRuntimeFreshnessAtMs: null,
         secondaryLineMode: 'path',
