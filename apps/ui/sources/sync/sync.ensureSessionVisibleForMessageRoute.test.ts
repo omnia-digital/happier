@@ -178,7 +178,7 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
             latestTurnStatus: 'completed' as const, runtimeActivityState: 'idle' as const, runtimeActivityActiveCount: 0,
             runtimeActivityObservedAt: 2, runtimeActivityRevision: 1, thinking: false,
         };
-        const { V2SessionRecordSchema } = await import('@happier-dev/protocol');
+        const { V2SessionRecordSchema, readSessionPullRequestLinks } = await import('@happier-dev/protocol');
         expect(V2SessionRecordSchema.safeParse(row).success).toBe(true);
         const { sync } = await import('./sync');
         const owner = sync as unknown as { credentials: unknown; encryption: Awaited<ReturnType<typeof Encryption.create>>; sessionDataKeys: Map<string, Uint8Array>;
@@ -215,7 +215,7 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
             expect(storage.getState().sessions[id]).toBeUndefined();
             expect(storage.getState().sessionListRenderables[id]?.metadata?.agentActivityCounts).toBeUndefined();
         } else {
-            expect(storage.getState().sessions[id]?.metadata?.sessionPullRequestsV1?.links).toEqual([link]);
+            expect(readSessionPullRequestLinks(storage.getState().sessions[id]?.metadata)).toEqual([link]);
             expect(storage.getState().sessions[id]?.authenticatedOwnerAccountId).toBeUndefined();
         }
         expect(storage.getState().sessionListRenderables[id]?.metadata?.sessionPullRequestsV1?.links).toEqual(cacheKind !== 'cold' ? [link] : undefined);
@@ -238,7 +238,6 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
             await vi.waitFor(() => expect(storage.getState().sessions[id]).toBeDefined());
             await vi.waitFor(() => expect(providerGet).toHaveBeenCalledTimes(1));
             expect(requestMock.mock.calls.map(([path]) => path)).toEqual([`/v2/sessions/${id}`]);
-            const { readSessionPullRequestLinks } = await import('@happier-dev/protocol');
             expect(readSessionPullRequestLinks(storage.getState().sessions[id]?.metadata)).toEqual([link]);
             const hydratedTarget = createSessionActionTarget({ session: storage.getState().sessions[id]! });
             expect(hydratedTarget.isOwnedByCurrentUser).toBe(true);
