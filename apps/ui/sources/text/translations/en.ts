@@ -5778,6 +5778,8 @@ export const en = {
     commandPalette: {
         placeholder: 'Type a command or search...',
         noCommandsFound: 'No commands found',
+        searchScope: 'Searches loaded sessions from your selected servers and loads older sessions from the active server.',
+        searchUnavailable: 'Could not load older sessions. Results may be incomplete. Try searching again.',
         shortcutsHelpTitle: 'Keyboard shortcuts',
         shortcutsHelpBody: ({ shortcuts }: { shortcuts: string }) => `Active shortcuts:\n${shortcuts}`,
         shortcutsHelpEmpty: 'No shortcuts are active on this device.',

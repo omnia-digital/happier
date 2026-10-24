@@ -4260,6 +4260,37 @@ class Sync {
         return promise;
     }
 
+    /** Continue the ordinary decrypted session-list cursor while a search surface needs history. */
+    public fetchRemainingSessions = async (shouldContinue: () => boolean): Promise<void> => {
+        const serverId = getActiveServerSnapshot().serverId;
+        const accountId = storage.getState().profile?.id;
+        const generation = this.serverScopeGeneration;
+        const initialFetch = this.fetchSessionsInFlight;
+        if (initialFetch?.generation === generation && shouldContinue()) {
+            await initialFetch.promise;
+        }
+        while (
+            shouldContinue()
+            && this.credentials
+            && this.sessionListHasMore
+            && this.sessionListNextCursor
+            && this.serverScopeGeneration === generation
+            && getActiveServerSnapshot().serverId === serverId
+            && storage.getState().profile?.id === accountId
+        ) {
+            const cursor = this.sessionListNextCursor;
+            await this.fetchMoreSessions();
+            if (
+                shouldContinue()
+                && this.serverScopeGeneration === generation
+                && this.sessionListHasMore
+                && this.sessionListNextCursor === cursor
+            ) {
+                throw new Error('Session list pagination made no progress while searching titles');
+            }
+        }
+    }
+
     private fetchArchivedSessionsPage = async (options?: FetchArchivedSessionsOptions): Promise<void> => {
         if (!this.credentials) return;
         const generation = this.serverScopeGeneration;

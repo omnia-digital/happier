@@ -6454,6 +6454,8 @@ export const it: TranslationStructure = {
   commandPalette: {
     placeholder: "Digita un comando o cerca...",
     noCommandsFound: "Nessun comando trovato",
+    searchScope: 'Cerca le sessioni caricate dai server selezionati e carica quelle precedenti dal server attivo.',
+    searchUnavailable: 'Impossibile caricare le sessioni precedenti. I risultati potrebbero essere incompleti. Riprova.',
         shortcutsHelpTitle: 'Scorciatoie da tastiera',
         shortcutsHelpBody: ({ shortcuts }: { shortcuts: string }) => `Scorciatoie attive:\n${shortcuts}`,
         shortcutsHelpEmpty: 'Nessuna scorciatoia attiva su questo dispositivo.',

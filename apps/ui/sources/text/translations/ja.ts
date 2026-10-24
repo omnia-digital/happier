@@ -6377,6 +6377,8 @@ localTailscale: {
   commandPalette: {
     placeholder: "コマンドを入力または検索...",
     noCommandsFound: "コマンドが見つかりません",
+    searchScope: '選択したサーバーの読み込み済みセッションを検索し、使用中のサーバーの古いセッションも読み込みます。',
+    searchUnavailable: '古いセッションを読み込めませんでした。結果が不完全な可能性があります。もう一度検索してください。',
         shortcutsHelpTitle: 'キーボードショートカット',
         shortcutsHelpBody: ({ shortcuts }: { shortcuts: string }) => `有効なショートカット:\n${shortcuts}`,
         shortcutsHelpEmpty: 'このデバイスで有効なショートカットはありません。',

@@ -6654,6 +6654,8 @@ export const ru: TranslationStructure = {
   commandPalette: {
     placeholder: "Введите команду или поиск...",
     noCommandsFound: "Команды не найдены",
+    searchScope: 'Ищет загруженные сеансы выбранных серверов и загружает старые сеансы активного сервера.',
+    searchUnavailable: 'Не удалось загрузить старые сеансы. Результаты могут быть неполными. Повторите поиск.',
         shortcutsHelpTitle: 'Сочетания клавиш',
         shortcutsHelpBody: ({ shortcuts }: { shortcuts: string }) => `Активные сочетания:\n${shortcuts}`,
         shortcutsHelpEmpty: 'На этом устройстве нет активных сочетаний.',

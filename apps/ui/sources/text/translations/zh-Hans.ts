@@ -5912,6 +5912,8 @@ export const zhHans: TranslationStructure = {
   commandPalette: {
     placeholder: "输入命令或搜索...",
     noCommandsFound: "未找到命令",
+    searchScope: '搜索已从所选服务器加载的会话，并加载活动服务器上的较早会话。',
+    searchUnavailable: '无法加载较早的会话。结果可能不完整。请重新搜索。',
         shortcutsHelpTitle: '键盘快捷键',
         shortcutsHelpBody: ({ shortcuts }: { shortcuts: string }) => `可用快捷键:\n${shortcuts}`,
         shortcutsHelpEmpty: '此设备上没有启用的快捷键。',
