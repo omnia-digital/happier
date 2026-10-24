@@ -532,6 +532,21 @@ test.describe('ui e2e: session list ordering mode', () => {
           scrollTop: scroll?.scrollTop ?? null,
           rowOrder: Array.from(document.querySelectorAll('[data-testid^="session-list-item-"]'))
             .map((row) => row.getAttribute('data-testid')).slice(0, 16),
+          listGeometry: Array.from(document.querySelectorAll(
+            '[data-testid^="session-list-item-"], [data-testid^="session-list-header:"], [data-testid^="session-list-project-header:"]',
+          )).slice(0, 24).map((element) => {
+            const bounds = element.getBoundingClientRect();
+            return { testId: element.getAttribute('data-testid'), y: bounds.y, height: bounds.height };
+          }),
+          ancestors: (() => {
+            const result: Array<{ testId: string | null; tag: string; y: number; height: number }> = [];
+            let element = current?.parentElement ?? null;
+            for (let depth = 0; element && depth < 8; depth++, element = element.parentElement) {
+              const bounds = element.getBoundingClientRect();
+              result.push({ testId: element.getAttribute('data-testid'), tag: element.tagName, y: bounds.y, height: bounds.height });
+            }
+            return result;
+          })(),
         });
       };
       snapshot('before-click');
