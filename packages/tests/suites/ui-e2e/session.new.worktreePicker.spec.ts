@@ -107,12 +107,22 @@ test.describe('ui e2e: /new worktree picker (Phase 5 SelectionList migration)', 
             uiBaseUrl,
             terminalConnectUrlTimeoutMs: 180_000,
             daemonStartupTimeoutMs: 180_000,
-            extraEnv: { HAPPIER_CLAUDE_PATH: fakeClaudeFixturePath(), HAPPIER_E2E_FAKE_CLAUDE_LOG: fakeClaudeLogPath },
+            extraEnv: {
+                HOME: cliHomeDir,
+                CLAUDE_CONFIG_DIR: resolve(join(cliHomeDir, 'claude')),
+                HAPPIER_CLAUDE_CONFIG_DIR: resolve(join(cliHomeDir, 'claude')),
+                HAPPIER_CLAUDE_PATH: fakeClaudeFixturePath(),
+                HAPPIER_E2E_FAKE_CLAUDE_LOG: fakeClaudeLogPath,
+            },
         });
 
         await enableEnhancedSessionWizard({ page, baseUrl: uiBaseUrl, timeoutMs: 180_000 });
         await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/new?happier_hmr=0`, 120_000);
         await expect(page.getByTestId('new-session-composer-input')).toBeVisible({ timeout: 60_000 });
+        // Choose the fixture backend before entering the directory: the shared
+        // agent helper dismisses an expanded path input with Escape, which is a
+        // value-field clear when a directory has already been entered.
+        await selectNewSessionAgent({ page, agentId: 'claude' });
 
         const draftText = 'worktree picker pointer smoke';
         await page.getByTestId('new-session-composer-input').fill(draftText);
@@ -136,6 +146,11 @@ test.describe('ui e2e: /new worktree picker (Phase 5 SelectionList migration)', 
         await expect(page.getByTestId('selection-list:worktree-root:option:create_git_worktree')).toBeVisible();
 
         const list = async () => (await execFileAsync('git', ['worktree', 'list', '--porcelain'], { cwd: worktreeRepoDir })).stdout;
+        const receivedUserTextAtPath = async (path: string) => {
+            const events: Record<string, unknown>[] = (await readFile(fakeClaudeLogPath, 'utf8').catch(() => '')).split('\n').filter(Boolean).map((line) => JSON.parse(line));
+            const invocations = new Set(events.filter((event) => event.type === 'invocation' && event.mode === 'sdk' && event.cwd === path).map((event) => event.invocationId));
+            return events.some((event) => event.type === 'sdk_stdin' && event.hasUserText === true && invocations.has(event.invocationId));
+        };
         const initialWorktrees = await list();
         const openPicker = async () => {
             await page.getByTestId('new-session-checkout-chip').click();
@@ -169,7 +184,7 @@ test.describe('ui e2e: /new worktree picker (Phase 5 SelectionList migration)', 
         await openPicker();
         await choose('create_git_worktree');
         expect(await list()).toBe(initialWorktrees);
-        await selectNewSessionAgent({ page, agentId: 'claude' });
+        await expect(page.getByTestId('new-session-agent-dropdown-trigger')).toContainText('Claude');
         await page.getByTestId('new-session-composer-input').fill(draftText);
         await expect(page.getByTestId('new-session-composer-send')).toBeEnabled();
         await page.getByTestId('new-session-composer-send').click();
@@ -177,10 +192,7 @@ test.describe('ui e2e: /new worktree picker (Phase 5 SelectionList migration)', 
         await expect.poll(async () => (await list()).split('worktree ').length - 1, { timeout: 60_000 }).toBe(2);
         const worktreePaths = (await list()).split('\n').filter((line) => line.startsWith('worktree ')).map((line) => line.slice(9));
         const newPath = worktreePaths.find((path) => path !== worktreeRepoDir)!;
-        await expect.poll(async () => {
-            const events = (await readFile(fakeClaudeLogPath, 'utf8').catch(() => '')).split('\n').filter(Boolean).map((line) => JSON.parse(line));
-            return events.some((event) => event.type === 'invocation' && event.cwd === newPath && !event.argv.includes('--version'));
-        }, { timeout: 120_000 }).toBe(true);
+        await expect.poll(() => receivedUserTextAtPath(newPath), { timeout: 120_000 }).toBe(true);
         await writeFile(testInfo.outputPath('oh65-worktree-proof.txt'), await list());
         await page.screenshot({ path: testInfo.outputPath('oh65-launched-worktree.png') });
 
@@ -212,10 +224,7 @@ test.describe('ui e2e: /new worktree picker (Phase 5 SelectionList migration)', 
         await page.waitForURL((url) => url.pathname.startsWith('/session/'), { timeout: 180_000 });
         await expect.poll(async () => (await list()).split('worktree ').length - 1, { timeout: 60_000 }).toBe(3);
         const forkPath = (await list()).split('\n').filter((line) => line.startsWith('worktree ')).map((line) => line.slice(9)).find((path) => !worktreePaths.includes(path))!;
-        await expect.poll(async () => {
-            const events = (await readFile(fakeClaudeLogPath, 'utf8')).split('\n').filter(Boolean).map((line) => JSON.parse(line));
-            return events.some((event) => event.type === 'invocation' && event.cwd === forkPath && !event.argv.includes('--version'));
-        }, { timeout: 120_000 }).toBe(true);
+        await expect.poll(() => receivedUserTextAtPath(forkPath), { timeout: 120_000 }).toBe(true);
         await writeFile(testInfo.outputPath('oh65-fork-worktree-proof.txt'), await list());
         await page.screenshot({ path: testInfo.outputPath('oh65-fork-launched-worktree.png') });
         } catch (error) { throw appendBrowserDiagnostics(error, diagnostics()); }

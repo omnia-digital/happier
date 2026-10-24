@@ -80,6 +80,7 @@ function mockConcurrentSessionCacheDeps() {
     vi.doMock('@/auth/storage/tokenStorage', () => ({
         TokenStorage: {
             getCredentialsForServerUrl: (...args: unknown[]) => getCredentialsForServerUrlSpy(...args),
+            subscribeCredentialChanges: () => () => {},
         },
         isLegacyAuthCredentials: (credentials: unknown) =>
             Boolean(credentials && typeof credentials === 'object' && typeof (credentials as { secret?: unknown }).secret === 'string'),
