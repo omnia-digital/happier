@@ -3,6 +3,7 @@ import { runWithCurrentServerScopedSessionContext } from '@/sync/runtime/orchest
 import { parseToken } from '@/utils/auth/parseToken';
 import { TokenStorage, type AuthCredentials } from '@/auth/storage/tokenStorage';
 import { areServerProfileIdentifiersEquivalent, getServerProfileById, resolveServerProfileScopeId } from '@/sync/domains/server/serverProfiles';
+import { getActiveServerAccountScope } from '@/sync/domains/scope/activeServerAccountScope';
 
 /**
  * Credentials, target URL, and the server id every session-organization write must be keyed by.
@@ -37,16 +38,23 @@ export async function resolveSessionOrganizationMutationScope(
     if (!requestedServerId) return { ok: false, reason: 'server-id' };
     const serverProfile = getServerProfileById(requestedServerId);
     if (!serverProfile) return { ok: false, reason: 'server-profile' };
+    const serverId = resolveServerProfileScopeId(serverProfile);
+    const activeScope = getActiveServerAccountScope();
+    const accountId = expectedAccountId ?? (
+        activeScope && areServerProfileIdentifiersEquivalent(activeScope.serverId, serverId)
+            ? activeScope.accountId
+            : undefined
+    );
     const credentials = await TokenStorage.getCredentialsForServerUrl(serverProfile.serverUrl, {
         serverId: serverProfile.id,
     });
     if (!credentials) return { ok: false, reason: 'credentials' };
-    if (expectedAccountId && parseToken(credentials.token) !== expectedAccountId) return { ok: false, reason: 'credentials' };
+    if (accountId && parseToken(credentials.token) !== accountId) return { ok: false, reason: 'credentials' };
     return {
         ok: true,
         scope: {
             credentials,
-            serverId: resolveServerProfileScopeId(serverProfile),
+            serverId,
             serverUrl: serverProfile.serverUrl,
         },
     };
