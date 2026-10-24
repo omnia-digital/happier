@@ -6,6 +6,13 @@ const boundary = vi.hoisted(() => ({
     account: 'account-a',
     holdCursor: null as string | null,
     releaseHeldPage: null as (() => void) | null,
+    secureStore: new Map<string, string>(),
+}));
+
+vi.mock('@/auth/storage/nativeSecureStoreWithDevFallback', () => ({
+    readNativeSecureStoreString: async (key: string) => boundary.secureStore.get(key) ?? null,
+    writeNativeSecureStoreString: async (key: string, value: string) => { boundary.secureStore.set(key, value); },
+    removeNativeSecureStoreString: async (key: string) => { boundary.secureStore.delete(key); },
 }));
 
 vi.mock('@/sync/runtime/connectivity/serverReachabilitySupervisorPool', async (importOriginal) => ({
@@ -58,11 +65,12 @@ vi.mock('@/sync/runtime/connectivity/serverReachabilityRuntimeFetch', () => ({
             }), { status: 200 });
         }
         if (path === '/v2/sessions?limit=50&cursor=older') {
+            const requestAccount = boundary.account;
             if (boundary.holdCursor === 'older') {
                 await new Promise<void>((resolve) => { boundary.releaseHeldPage = resolve; });
             }
             return new Response(JSON.stringify({
-                sessions: [sessionRow('target', `${boundary.account} older title`)],
+                sessions: [sessionRow('target', `${requestAccount} older title`)],
                 nextCursor: 'oldest', hasNext: true,
             }), { status: 200 });
         }
@@ -120,6 +128,7 @@ afterEach(async () => {
     boundary.account = 'account-a';
     boundary.holdCursor = null;
     boundary.releaseHeldPage = null;
+    boundary.secureStore.clear();
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
     vi.resetModules();
@@ -151,16 +160,16 @@ describe('selected-Home command palette title paging', () => {
     });
 
     it('does not publish an old account page after selected Home credentials change', async () => {
-        const { storage, owner, active } = await setup();
+        const { storage, owner } = await setup();
         try {
+            const { TokenStorage } = await import('@/auth/storage/tokenStorage');
             boundary.holdCursor = 'older';
             const search = owner.fetchRemainingSelectedServerSessions(['srv_oh56_remote'], () => true);
             await vi.waitFor(() => expect(boundary.requests).toContain('/v2/sessions?limit=50&cursor=older'));
             boundary.account = 'account-b';
-            storage.setState((state) => ({ settings: { ...state.settings, serverSelectionActiveTargetKind: 'server', serverSelectionActiveTargetId: active.id } }));
+            expect(await TokenStorage.setCredentials({ token: `header.${btoa(JSON.stringify({ sub: boundary.account }))}.signature`, secret: 'test-secret' })).toBe(true);
             await vi.waitFor(() => expect(boundary.reachability.size).toBe(0));
             boundary.holdCursor = null;
-            storage.setState((state) => ({ settings: { ...state.settings, serverSelectionActiveTargetKind: 'group', serverSelectionActiveTargetId: 'both' } }));
             await vi.waitFor(() => expect(boundary.reachability.size).toBe(1));
             for (const callback of boundary.reachability.values()) callback({ phase: 'online' });
             await vi.waitFor(() => expect(storage.getState().sessionListViewDataByServerId['srv_oh56_remote']?.filter((item) => item.type === 'session').length).toBe(50));
@@ -170,6 +179,11 @@ describe('selected-Home command palette title paging', () => {
             expect(storage.getState().sessionListViewDataByServerId['srv_oh56_remote']).toEqual(expect.arrayContaining([
                 expect.objectContaining({ type: 'session', session: expect.objectContaining({
                     id: 'target', metadata: expect.objectContaining({ name: 'account-b older title' }),
+                }) }),
+            ]));
+            expect(storage.getState().sessionListViewDataByServerId['srv_oh56_remote']).not.toEqual(expect.arrayContaining([
+                expect.objectContaining({ type: 'session', session: expect.objectContaining({
+                    id: 'target', metadata: expect.objectContaining({ name: 'account-a older title' }),
                 }) }),
             ]));
         } finally {

@@ -102,8 +102,10 @@ function areAuthCredentialsEquivalent(a: AuthCredentials, b: AuthCredentials): b
 let started = false;
 let storageUnsubscribe: (() => void) | null = null;
 let activeServerUnsubscribe: (() => void) | null = null;
+let credentialUnsubscribe: (() => void) | null = null;
 let stopPeriodicRefresh: (() => void) | null = null;
 let reconcileTimer: ReturnType<typeof setTimeout> | null = null;
+let reconcileEpoch = 0;
 
 function normalizeServerUrl(url: string): string {
     return canonicalizeServerUrl(String(url ?? ''));
@@ -544,8 +546,8 @@ function createManagedServer(target: ConcurrentTarget, credentials: AuthCredenti
     return entry;
 }
 
-async function reconcileConcurrentServers(): Promise<void> {
-    if (!started) return;
+async function reconcileConcurrentServers(epoch: number): Promise<void> {
+    if (!started || epoch !== reconcileEpoch) return;
     const profiles = listServerProfiles();
     const activeServerId = getActiveServerSnapshot().serverId;
     const settings = storage.getState().settings;
@@ -583,6 +585,7 @@ async function reconcileConcurrentServers(): Promise<void> {
 
     for (const target of targets) {
         const credentials = await TokenStorage.getCredentialsForServerUrl(target.serverUrl, { serverId: target.id });
+        if (!started || epoch !== reconcileEpoch) return;
         if (!credentials) {
             stopManagedServer(target.id);
             updateConcurrentSessionListCache(target.id, null);
@@ -615,10 +618,11 @@ async function reconcileConcurrentServers(): Promise<void> {
 
 function scheduleReconcile(): void {
     if (!started) return;
+    reconcileEpoch += 1;
     if (reconcileTimer) return;
     reconcileTimer = setTimeout(() => {
         reconcileTimer = null;
-        void reconcileConcurrentServers();
+        void reconcileConcurrentServers(reconcileEpoch);
     }, 0);
 }
 
@@ -644,6 +648,17 @@ export function startConcurrentSessionCacheSync(): void {
         scheduleReconcile();
     });
 
+    credentialUnsubscribe = TokenStorage.subscribeCredentialChanges(() => {
+        // A credential event does not identify its Home. Invalidate captured credentials and
+        // their visible rows synchronously, before an old in-flight page can publish again.
+        for (const serverId of Array.from(managedServers.keys())) {
+            stopManagedServer(serverId);
+            updateConcurrentSessionListCache(serverId, null);
+            clearConcurrentMachineListCache(serverId);
+        }
+        scheduleReconcile();
+    });
+
     stopPeriodicRefresh = startRuntimeActiveGatedInterval(() => {
         for (const entry of managedServers.values()) {
             queueRefresh(entry);
@@ -657,6 +672,7 @@ export function startConcurrentSessionCacheSync(): void {
 export function stopConcurrentSessionCacheSync(): void {
     if (!started) return;
     started = false;
+    reconcileEpoch += 1;
 
     if (reconcileTimer) {
         clearTimeout(reconcileTimer);
@@ -673,6 +689,10 @@ export function stopConcurrentSessionCacheSync(): void {
     if (activeServerUnsubscribe) {
         activeServerUnsubscribe();
         activeServerUnsubscribe = null;
+    }
+    if (credentialUnsubscribe) {
+        credentialUnsubscribe();
+        credentialUnsubscribe = null;
     }
 
     for (const serverId of Array.from(managedServers.keys())) {
