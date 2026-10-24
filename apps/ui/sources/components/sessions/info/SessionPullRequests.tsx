@@ -139,7 +139,7 @@ export function SessionPullRequests(props: Readonly<{ sessionId: string; metadat
         ]);
     };
     return <ItemGroup title={t('sessionPullRequests.title')}>
-        {autoArchiveSkip && <Item testID="session-pr-autoarchive-skipped" title={t('settingsSession.archiveAutomation.title')} subtitle={t('sessionPullRequests.autoArchiveWorkUnverified')} icon={<Icon name="info" size={29} color={theme.colors.text.secondary} />} />}
+        {autoArchiveSkip && <Item testID="session-pr-autoarchive-skipped" title={t('settingsSession.archiveAutomation.title')} subtitle={t('sessionPullRequests.autoArchiveWorkUnverified')} subtitleLines={0} icon={<Icon name="info" size={29} color={theme.colors.text.secondary} />} />}
         {archiveHistory && <Item testID="session-pr-autoarchive-history" title={t('sessionPullRequests.autoArchived')} subtitle={`${t('sessionPullRequests.autoArchivedReason')} · ${archiveHistory.links.map((link) => `${link.repository} #${link.number}`).join(', ')}`} icon={<Icon name="archive" size={29} color={theme.colors.text.secondary} />} />}
         {links.map((link) => <LinkedPullRequest key={`${activeScope?.serverId ?? 'none'}:${activeScope?.accountId ?? 'none'}:${link.url}`} sessionId={props.sessionId} link={link} canEdit={props.canEdit} onChange={change} onRemove={remove} />)}
         {props.canEdit && <Item testID="session-pr-add" title={t('sessionPullRequests.add')} subtitle={t('sessionPullRequests.addSubtitle')} icon={<Icon name="link" size={29} color={theme.colors.accent.blue} />} onPress={() => { void add(); }} />}
