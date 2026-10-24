@@ -13,6 +13,7 @@ import { deleteSessionTag } from './deleteSessionTag';
 import { upsertSessionLabel } from './upsertSessionLabel';
 import { deleteSessionLabel } from './deleteSessionLabel';
 import { fetchAndApplySessionOrganizationSnapshot } from './fetchSessionOrganizationSnapshot';
+import { setSessionTagLabels } from './setSessionTagLabels';
 
 const boundary = vi.hoisted(() => ({
     credentials: { token: '', secret: 'secret' },
@@ -94,6 +95,8 @@ function projection() {
         tags: state.sessionOrganizationTagsByTagKey,
         tagAssignments: state.sessionOrganizationTagAssignmentsBySessionKey,
         labels: state.sessionOrganizationLabelsByLabelKey,
+        loading: state.sessionOrganizationLoadingByServerId,
+        errors: state.sessionOrganizationErrorByServerId,
     };
 }
 beforeEach(() => {
@@ -109,6 +112,34 @@ beforeEach(() => {
 });
 
 describe('organization mutations publish only to their captured account', () => {
+    it('does not resolve an A tag-label action from B’s already-visible tag definitions', async () => {
+        seed('account-b');
+        boundary.assignTags.mockResolvedValue({ sessionId: 'session', tagIds: ['tag'] });
+        await expect(setSessionTagLabels({ ...base, sessionId: 'session', tags: ['account-b'] })).rejects.toThrow();
+        expect(boundary.assignTags).not.toHaveBeenCalled();
+    });
+
+    it('resolves tags for a saved foreign Home while a different Home is active', async () => {
+        getStorage().setState({ profileScope: { serverId: 'other-home', accountId: 'viewer' } });
+        boundary.assignTags.mockResolvedValue({ sessionId: 'session', tagIds: ['tag'] });
+        await setSessionTagLabels({ ...base, sessionId: 'session', tags: ['account-a'] });
+        expect(boundary.assignTags).toHaveBeenCalledWith(expect.objectContaining({
+            credentials: credentialsA,
+            request: { tagIds: ['tag'] },
+        }));
+    });
+
+    it('does not assign a B tag to A when an A tag refresh loses its account scope', async () => {
+        const response = deferred<{ snapshot: SessionOrganizationSnapshot }>();
+        boundary.fetchSnapshot.mockReturnValue(response.promise);
+        const pending = setSessionTagLabels({ ...base, sessionId: 'session', tags: ['account-b'] });
+        await vi.waitFor(() => expect(boundary.fetchSnapshot).toHaveBeenCalledTimes(1));
+        seed('account-b');
+        response.resolve({ snapshot: organizationSnapshot('account-a') });
+        await expect(pending).rejects.toThrow();
+        expect(boundary.assignTags).not.toHaveBeenCalled();
+    });
+
     it('does not apply a late A organization snapshot over B', async () => {
         const response = deferred<{ snapshot: ReturnType<typeof organizationSnapshot> }>();
         boundary.fetchSnapshot.mockReturnValue(response.promise);
