@@ -76,8 +76,9 @@ export async function readLinkedPullRequest(sessionId: string, link: SessionPull
     if (!response.pullRequest) return null;
     const returned = sessionPullRequestLinkFromSummary(response.pullRequest);
     // Old CLIs may ignore linkedIdentity and look up the same number in the checkout repository.
-    if (!returned || sessionPullRequestLinkKey(returned) !== sessionPullRequestLinkKey(link)
-        || returned.url !== link.url) throw new Error('The host returned a different pull request identity.');
+    if (!returned || sessionPullRequestLinkKey(returned) !== sessionPullRequestLinkKey(link)) {
+        throw new Error('The host returned a different pull request identity.');
+    }
     return response.pullRequest;
 }
 

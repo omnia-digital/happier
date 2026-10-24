@@ -12,7 +12,7 @@ import { useMountedRef } from '@/hooks/ui/useMountedRef';
 import { openExternalUrl } from '@/utils/url/openExternalUrl';
 import { captureSessionPullRequestActionScope, captureSessionPullRequestFromSummary, type SessionPullRequestActionScope } from '@/sync/ops/sessionPullRequestLinks';
 import type { PullRequestUiModel } from '@/components/sessions/sourceControl/pullRequests/pullRequestUiModel';
-import { sessionPullRequestLinkFromSummary, type ScmHostingProvider, type ScmPullRequestRunStackedResponse, type ScmPullRequestSummary } from '@happier-dev/protocol';
+import { sessionPullRequestLinkFromSummary, sessionPullRequestRepositoriesMatch, type ScmHostingProvider, type ScmPullRequestRunStackedResponse, type ScmPullRequestSummary } from '@happier-dev/protocol';
 
 type ExistingPullRequestModel = Extract<PullRequestUiModel, { kind: 'existing_pull_request' }>;
 type ReadyPullRequestModel = Extract<PullRequestUiModel, { kind: 'ready_to_create' }>;
@@ -69,8 +69,10 @@ export function useScmPullRequestOperations(input: Readonly<{
             return;
         }
         const link = sessionPullRequestLinkFromSummary(pullRequest);
-        if (!link || link.providerKind !== expectedProvider.kind || link.providerBaseUrl !== expectedProvider.baseUrl
-            || link.repository !== expectedProvider.nameWithOwner) {
+        let expectedOrigin: string | null = null;
+        try { expectedOrigin = new URL(expectedProvider.baseUrl).origin; } catch { /* handled as an invalid provider below */ }
+        if (!link || !expectedProvider.nameWithOwner || link.providerKind !== expectedProvider.kind || link.providerBaseUrl !== expectedOrigin
+            || !sessionPullRequestRepositoriesMatch(link.providerKind, link.repository, expectedProvider.nameWithOwner)) {
             Modal.alert(t('common.error'), t('sessionPullRequests.invalidUrl'));
             return;
         }

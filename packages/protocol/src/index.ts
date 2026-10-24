@@ -3701,6 +3701,7 @@ export {
   sessionPullRequestLinkFromSummary,
   sessionPullRequestLinkFromUrl,
   sessionPullRequestLinkKey,
+  sessionPullRequestRepositoriesMatch,
   type SessionPullRequestLinkV1,
   type SessionPullRequestsV1,
 } from './sessionMetadata/sessionPullRequestsV1.js';

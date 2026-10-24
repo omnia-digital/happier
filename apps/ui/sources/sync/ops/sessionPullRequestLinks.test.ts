@@ -65,6 +65,19 @@ describe('session pull request links', () => {
         await expect(readLinkedPullRequest('s1', link)).resolves.toBeNull();
     });
 
+    it('accepts a fresh GitHub response whose canonical repository URL uses different casing', async () => {
+        storage.setState({ profileScope: { serverId: 'home-a', accountId: 'account-a' }, sessions: {
+            s1: { id: 's1', serverId: 'home-a', metadata: { path: '/work' } } as any,
+        } });
+        const returned = {
+            ...wrongRepo,
+            provider: { ...wrongRepo.provider, nameWithOwner: 'Owner/Other' },
+            url: 'https://github.com/Owner/Other/pull/51',
+        };
+        getMock.mockResolvedValue({ success: true, pullRequest: returned });
+        await expect(readLinkedPullRequest('s1', link)).resolves.toEqual(returned);
+    });
+
     it('drops a held provider result after the Home account changes', async () => {
         storage.setState({ profileScope: { serverId: 'home-a', accountId: 'account-a' }, sessions: {
             s1: { id: 's1', serverId: 'home-a', metadata: { path: '/work', host: 'machine' } } as any,

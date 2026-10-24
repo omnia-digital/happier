@@ -13,7 +13,8 @@ export const SessionPullRequestLinkV1Schema = z.object({
 }).strict().superRefine((link, ctx) => {
   const parsed = sessionPullRequestLinkFromUrl(link.url, { kind: link.providerKind, baseUrl: link.providerBaseUrl });
   if (!parsed || parsed.providerKind !== link.providerKind || parsed.providerBaseUrl !== link.providerBaseUrl
-    || parsed.repository !== link.repository || parsed.number !== link.number || parsed.url !== link.url) {
+    || !sessionPullRequestRepositoriesMatch(link.providerKind, parsed.repository, link.repository)
+    || parsed.number !== link.number || parsed.url !== link.url) {
     ctx.addIssue({ code: 'custom', message: 'Pull request URL must match its provider, repository and number', path: ['url'] });
   }
 });
@@ -26,6 +27,10 @@ export const SessionPullRequestsV1Schema = z.object({
 export type SessionPullRequestsV1 = z.infer<typeof SessionPullRequestsV1Schema>;
 
 type AllowedProvider = Readonly<{ kind: 'github' | 'gitlab'; baseUrl: string }>;
+
+export function sessionPullRequestRepositoriesMatch(kind: 'github' | 'gitlab', left: string, right: string): boolean {
+  return kind === 'github' ? left.toLowerCase() === right.toLowerCase() : left === right;
+}
 
 function normalizeProviderBaseUrl(raw: string): string | null {
   try {
@@ -72,12 +77,14 @@ export function sessionPullRequestLinkFromSummary(summary: ScmPullRequestSummary
     kind: summary.provider.kind,
     baseUrl: summary.provider.baseUrl,
   });
-  if (!link || link.number !== summary.number || link.repository !== summary.provider.nameWithOwner) return null;
+  if (!link || !summary.provider.nameWithOwner || link.number !== summary.number
+    || !sessionPullRequestRepositoriesMatch(link.providerKind, link.repository, summary.provider.nameWithOwner)) return null;
   return link;
 }
 
 export function sessionPullRequestLinkKey(link: SessionPullRequestLinkV1): string {
-  return `${link.providerKind}\u0000${link.providerBaseUrl}\u0000${link.repository}\u0000${link.number}`;
+  const repository = link.providerKind === 'github' ? link.repository.toLowerCase() : link.repository;
+  return `${link.providerKind}\u0000${link.providerBaseUrl}\u0000${repository}\u0000${link.number}`;
 }
 
 export function readSessionPullRequestLinks(metadata: unknown): readonly SessionPullRequestLinkV1[] {
