@@ -98,19 +98,26 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             const production = await seed('OH60 Production', 4);
             const unavailable = await seed('OH60 Unavailable', 5);
             for (let index = 0; index < 32; index++) await seed('OH60 unlinked filler ' + index);
-            const publish = async (sessionId: string, thinking: boolean) => {
+            const publish = async (sessionId: string) => {
                 const { socket } = await createMachineBoundSessionScopedSocketCollector({ baseUrl: server!.baseUrl, token: access.token, sessionId,
                     machineMetadataCiphertext: encryptLegacyBase64({ host: 'OH60 isolated runtime publisher', platform: 'darwin' }, secret) });
                 publishers.push(socket); socket.connect();
                 await waitFor(async () => socket.isConnected(), { timeoutMs: 20_000, context: 'connect isolated status publisher' });
-                const alive = () => socket.emit('session-alive', { sid: sessionId, time: Date.now(), thinking });
+                const alive = () => socket.emit('session-alive', { sid: sessionId, time: Date.now(), thinking: false });
                 alive(); keepAlives.push(setInterval(alive, 15_000));
                 await waitFor(async () => (await fetchSessionV2(server!.baseUrl, access.token, sessionId)).active, { timeoutMs: 20_000, context: 'live fixture runtime' });
                 return socket;
             };
-            const idlePublisher = await publish(idle, false);
-            const workingPublisher = await publish(working, true);
-            await publish(testing, false); await publish(production, false); await publish(unavailable, false);
+            const publishRuntimeActivity = async (socket: SocketCollector, sessionId: string, state: 'active' | 'idle') => {
+                const ack = await socket.emitWithAck<{ status?: string }>('session-runtime-activity-snapshot', {
+                    sessionId, mutationId: `runtime-activity-${randomUUID()}`,
+                    snapshot: { state, activeCount: state === 'active' ? 1 : 0 },
+                });
+                if (ack?.status !== 'applied' && ack?.status !== 'unchanged') throw new Error(`Runtime activity snapshot was not applied (status=${String(ack?.status)})`);
+            };
+            const idlePublisher = await publish(idle);
+            const workingPublisher = await publish(working);
+            await publish(testing); await publish(production); await publish(unavailable);
             const catalog = await fetchSessionsV2(server.baseUrl, access.token, { limit: 50 });
             expect(catalog.sessions).toHaveLength(39);
             expect(catalog.sessions.every(session => typeof session.dataEncryptionKey === 'string')).toBe(true);
@@ -136,6 +143,7 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await expect(page.getByText('Q/A - Dev', { exact: true }).first()).toBeVisible({ timeout: 60_000 });
             await expect(row(idle)).toBeVisible({ timeout: 60_000 });
             expect((await readFile(readLog, 'utf8')).split('\n')).toContain('DEV-1');
+            await publishRuntimeActivity(workingPublisher, working, 'active');
             await choose('session-list-status-sort-agent');
             await expect.poll(async () => (await position(working)) < (await position(idle))).toBe(true);
             await expect(page.getByTestId('session-row-status-' + working + '-working')).toBeVisible({ timeout: 60_000 });
@@ -159,7 +167,7 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await choose('session-list-status-group-agent');
             await expect(statusHeaders.filter({ hasText: 'working...' }).first()).toBeVisible();
             clearInterval(keepAlives[1]);
-            workingPublisher.emit('session-alive', { sid: working, time: Date.now(), thinking: false });
+            await publishRuntimeActivity(workingPublisher, working, 'idle');
             await expect(page.getByTestId('session-row-status-' + working + '-idle')).toBeVisible({ timeout: 60_000 });
             await expect(statusHeaders.filter({ hasText: 'working...' })).toHaveCount(0);
             await expect(page).toHaveURL(new RegExp('/session/' + idle));
