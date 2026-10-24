@@ -496,10 +496,6 @@ test.describe('ui e2e: session list ordering mode', () => {
     const selectedSessionId = await createPlainSession({ ...sessionParams, title: `selected ${run.runId}` });
     const clickedSessionId = await createPlainSession({ ...sessionParams, title: `clicked ${run.runId}` });
     const mutatingSessionRequests: string[] = [];
-    const flashListWarnings: string[] = [];
-    page.on('console', (message) => {
-      if (message.type() === 'warning' || message.type() === 'error') flashListWarnings.push(message.text());
-    });
     page.on('request', (request) => {
       const url = new URL(request.url());
       if (/\/v[12]\/sessions(?:\/|$)/.test(url.pathname) && request.method() !== 'GET') {
@@ -514,100 +510,8 @@ test.describe('ui e2e: session list ordering mode', () => {
     const clickedRow = page.getByTestId(`session-list-item-${clickedSessionId}`);
     await expect(selectedRow).toHaveCount(1, { timeout: 120_000 });
     await expect(clickedRow).toHaveCount(1, { timeout: 120_000 });
-    await page.evaluate((sessionId) => {
-      const watched = document.querySelector(`[data-testid="session-list-item-${sessionId}"]`);
-      const watchedHeader = document.querySelector('[data-testid^="session-list-project-header:"]');
-      const events: unknown[] = [];
-      (window as typeof window & { __oh50RowEvents?: unknown[] }).__oh50RowEvents = events;
-      const snapshot = (type: string, event?: PointerEvent | MouseEvent) => {
-        const current = document.querySelector(`[data-testid="session-list-item-${sessionId}"]`);
-        const rect = current?.getBoundingClientRect();
-        const target = event?.target instanceof Element ? event.target : null;
-        const hit = event ? document.elementFromPoint(event.clientX, event.clientY) : null;
-        const scroll = current?.closest('[data-testid="sessions-list-keyboard-zone"]');
-        const header = document.querySelector('[data-testid^="session-list-project-header:"]');
-        const firstProjectRow = Array.from(document.querySelectorAll('[data-testid^="session-list-item-"]'))
-          .find((row) => header && Boolean(header.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING));
-        const layoutChain = (start: Element | null | undefined) => {
-          const result: Array<Record<string, string | number | null>> = [];
-          for (let element = start; element; element = element.parentElement) {
-            const bounds = element.getBoundingClientRect();
-            const style = getComputedStyle(element);
-            result.push({
-              testId: element.getAttribute('data-testid'), tag: element.tagName,
-              y: bounds.y, height: bounds.height,
-              position: style.position, top: style.top, cssHeight: style.height,
-              minHeight: style.minHeight, marginTop: style.marginTop, marginBottom: style.marginBottom,
-              paddingTop: style.paddingTop, paddingBottom: style.paddingBottom, transform: style.transform,
-            });
-            if (element === scroll) break;
-          }
-          return result;
-        };
-        events.push({
-          type,
-          watchedConnected: watched?.isConnected ?? null,
-          sameElement: watched === current,
-          rect: rect ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null,
-          point: event ? { x: event.clientX, y: event.clientY } : null,
-          targetRow: target?.closest('[data-testid^="session-list-item-"]')?.getAttribute('data-testid') ?? null,
-          hitRow: hit?.closest('[data-testid^="session-list-item-"]')?.getAttribute('data-testid') ?? null,
-          hitTestId: hit?.getAttribute('data-testid') ?? null,
-          scrollTop: scroll?.scrollTop ?? null,
-          rowOrder: Array.from(document.querySelectorAll('[data-testid^="session-list-item-"]'))
-            .map((row) => row.getAttribute('data-testid')).slice(0, 16),
-          sameHeaderElement: watchedHeader === header,
-          headerChain: layoutChain(header),
-          firstProjectRowChain: layoutChain(firstProjectRow),
-          listGeometry: Array.from(document.querySelectorAll(
-            '[data-testid^="session-list-item-"], [data-testid^="session-list-header:"], [data-testid^="session-list-project-header:"]',
-          )).slice(0, 24).map((element) => {
-            const bounds = element.getBoundingClientRect();
-            const parent = element.parentElement?.getBoundingClientRect();
-            const grandparent = element.parentElement?.parentElement?.getBoundingClientRect();
-            return {
-              testId: element.getAttribute('data-testid'), y: bounds.y, height: bounds.height,
-              parent: parent ? { y: parent.y, height: parent.height } : null,
-              grandparent: grandparent ? { y: grandparent.y, height: grandparent.height } : null,
-              ...(element.getAttribute('data-testid')?.startsWith('session-list-project-header:') ? {
-                outer: (() => {
-                  const result: Array<{ y: number; height: number; top: string; cssHeight: string; minHeight: string }> = [];
-                  let ancestor = element.parentElement?.parentElement?.parentElement ?? null;
-                  for (let depth = 0; ancestor && depth < 4; depth++, ancestor = ancestor.parentElement) {
-                    const rect = ancestor.getBoundingClientRect();
-                    const style = getComputedStyle(ancestor);
-                    result.push({ y: rect.y, height: rect.height, top: style.top, cssHeight: style.height, minHeight: style.minHeight });
-                  }
-                  return result;
-                })(),
-              } : {}),
-            };
-          }),
-          ancestors: (() => {
-            const result: Array<{ testId: string | null; tag: string; y: number; height: number }> = [];
-            let element = current?.parentElement ?? null;
-            for (let depth = 0; element && depth < 8; depth++, element = element.parentElement) {
-              const bounds = element.getBoundingClientRect();
-              result.push({ testId: element.getAttribute('data-testid'), tag: element.tagName, y: bounds.y, height: bounds.height });
-            }
-            return result;
-          })(),
-        });
-      };
-      snapshot('before-click');
-      for (const type of ['pointerdown', 'pointerup', 'click'] as const) {
-        document.addEventListener(type, (event) => snapshot(type, event), true);
-      }
-    }, selectedSessionId);
     await selectedRow.click();
-    try {
-      await expect.poll(() => new URL(page.url()).pathname, { timeout: 90_000 }).toBe(`/session/${selectedSessionId}`);
-    } catch (error) {
-      console.error('OH50 row lifecycle diagnostic', JSON.stringify(await page.evaluate(() =>
-        (window as typeof window & { __oh50RowEvents?: unknown[] }).__oh50RowEvents ?? [])));
-      console.error('OH54 browser warnings', JSON.stringify(flashListWarnings));
-      throw error;
-    }
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 90_000 }).toBe(`/session/${selectedSessionId}`);
     await expect(page.getByTestId(`session-list-machine-identity-${selectedSessionId}-tooltip`)).toBeVisible();
 
     async function expectBlankDraftAndCancel(): Promise<void> {
