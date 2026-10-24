@@ -4,6 +4,7 @@ import { getReleaseRingPublicLabel, type PublicReleaseRingId } from '@happier-de
 
 import { configuration } from '@/configuration';
 import { resolveBackgroundServiceRepairPlanForCurrentRuntime } from '@/diagnostics/backgroundServiceRepair/resolveBackgroundServiceRepairPlanForCurrentRuntime';
+import { happierHomeDirsMatch } from '@/daemon/ownership/happierHomeDirComparableKey';
 import { resolveDaemonServiceCliRuntimeFromEnv } from '@/daemon/service/cli';
 
 export async function maybeRunDoctorRepair(params: Readonly<{
@@ -22,7 +23,12 @@ export async function maybeRunDoctorRepair(params: Readonly<{
     includeAllModes: runtime.platform === 'linux',
     systemUser: '',
   });
-  if (repairState.plan.actions.length === 0 && repairState.plan.manualWarnings.length === 0) {
+  // The loaded updater can only compare a service with its own template. A
+  // service that matches it may still need repair under the activated CLI.
+  const hasOwnedService = repairState.services.some((service) =>
+    service.releaseChannel === params.channel
+    && happierHomeDirsMatch(service.happierHomeDir, runtime.happierHomeDir));
+  if (!hasOwnedService && repairState.plan.actions.length === 0 && repairState.plan.manualWarnings.length === 0) {
     return false;
   }
 
