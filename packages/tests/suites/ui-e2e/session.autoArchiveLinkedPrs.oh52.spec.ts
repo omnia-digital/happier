@@ -186,6 +186,7 @@ exit 1
             await gotoDomContentLoadedWithRetries(page, `${baseUrl}/session/${merged}/info`, 120_000);
             await expect(page.getByTestId('session-pr-add')).toBeVisible({ timeout: 120_000 });
             await expect(page.getByTestId('session-pr-change-github-github.com-owner/one-7')).toBeVisible();
+            await expect(page.getByTestId('session-info-header-status')).toBeVisible();
             await page.getByTestId('session-pr-add').scrollIntoViewIfNeeded();
             await page.screenshot({ path: testInfo.outputPath('oh52-owner-pr-controls.png') });
             receipt('owned session retains visible PR link and correction controls');
@@ -227,12 +228,21 @@ exit 1
             await expect(page.getByTestId('session-pr-autoarchive-history')).toContainText('All linked PRs were verified merged');
             await expect(page.getByTestId('session-pr-autoarchive-history')).toContainText('owner/one #7');
             await expect(page.getByTestId('session-pr-autoarchive-history')).toContainText('owner/two #7');
+            await expect.soft(page.getByTestId('session-info-header-status')).toHaveCount(0);
             await page.screenshot({ path: testInfo.outputPath('oh52-confirmed-autoarchive-history.png') });
             await page.reload();
             await expect(page.getByTestId('session-pr-autoarchive-history')).toBeVisible({ timeout: 120_000 });
+            await expect.soft(page.getByTestId('session-info-header-status')).toHaveCount(0);
             await gotoDomContentLoadedWithRetries(page, `${baseUrl}/session/${unknownWork}/info`, 120_000);
             await expect(page.getByTestId('session-pr-autoarchive-skipped')).toBeVisible({ timeout: 120_000 });
             await expect(page.getByTestId('session-pr-autoarchive-skipped')).toContainText('Older hosts may not report these signals');
+            await expect(page.getByTestId('session-info-header-status')).toBeVisible();
+            const explanation = page.getByTestId('session-pr-autoarchive-skipped').getByText('Older hosts may not report these signals', { exact: false });
+            await explanation.scrollIntoViewIfNeeded();
+            expect.soft(await explanation.evaluate((element) => ({
+                horizontallyClipped: element.scrollWidth > element.clientWidth,
+                verticallyClipped: element.scrollHeight > element.clientHeight,
+            }))).toEqual({ horizontallyClipped: false, verticallyClipped: false });
             await page.screenshot({ path: testInfo.outputPath('oh52-unknown-work-skipped.png') });
             receipt('rendered archive reason, reload and unknown-work skip verified');
         } catch (error) { throw appendBrowserDiagnostics(error, diagnostics()); }
