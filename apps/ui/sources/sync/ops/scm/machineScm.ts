@@ -359,22 +359,25 @@ export async function machineScmBranchCheckout(
 export async function machineScmWorktreeCreate(
     machineId: string,
     request: ScmWorktreeCreateRequest,
+    scope?: ServerAccountScope,
 ): Promise<ScmWorktreeCreateResponse> {
-    return await callMachineScm<ScmWorktreeCreateResponse, ScmWorktreeCreateRequest>(machineId, RPC_METHODS.SCM_WORKTREE_CREATE, request);
+    return await callMachineScm<ScmWorktreeCreateResponse, ScmWorktreeCreateRequest>(machineId, RPC_METHODS.SCM_WORKTREE_CREATE, request, scope);
 }
 
 export async function machineScmWorktreeRemove(
     machineId: string,
     request: ScmWorktreeRemoveRequest,
+    scope?: ServerAccountScope,
 ): Promise<ScmWorktreeRemoveResponse> {
-    return await callMachineScm<ScmWorktreeRemoveResponse, ScmWorktreeRemoveRequest>(machineId, RPC_METHODS.SCM_WORKTREE_REMOVE, request);
+    return await callMachineScm<ScmWorktreeRemoveResponse, ScmWorktreeRemoveRequest>(machineId, RPC_METHODS.SCM_WORKTREE_REMOVE, request, scope);
 }
 
 export async function machineScmWorktreePrune(
     machineId: string,
     request: ScmWorktreePruneRequest,
+    scope?: ServerAccountScope,
 ): Promise<ScmWorktreePruneResponse> {
-    return await callMachineScm<ScmWorktreePruneResponse, ScmWorktreePruneRequest>(machineId, RPC_METHODS.SCM_WORKTREE_PRUNE, request);
+    return await callMachineScm<ScmWorktreePruneResponse, ScmWorktreePruneRequest>(machineId, RPC_METHODS.SCM_WORKTREE_PRUNE, request, scope);
 }
 
 export async function machineScmRemotePublish(

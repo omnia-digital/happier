@@ -22,9 +22,10 @@ import {
 } from '@/sync/ops';
 import { useSetting } from '@/sync/domains/state/storage';
 import type { ScmWorkingSnapshot } from '@/sync/domains/state/storageTypes';
-import { useSessionMachineTarget } from '@/components/sessions/model/useSessionMachineTarget';
 import { showSwitchBranchWithChangesDialog } from './SwitchBranchWithChangesDialog';
 import { t } from '@/text';
+import { scmRepositoryService } from '@/scm/scmRepositoryService';
+import { areServerAccountScopesEqual } from '@/sync/domains/scope/serverAccountScope';
 import { scmStatusSync } from '@/scm/scmStatusSync';
 import { buildSourceControlBranchMenuItems } from './buildSourceControlBranchMenuItems';
 import {
@@ -38,6 +39,8 @@ import { parsePullRequestReferenceInput } from './pullRequestReferenceInput';
 import { Icon } from '@/components/ui/icons/Icon';
 import { resolveNewSessionDraftRouteIdentity } from '@/components/sessions/new/navigation/newSessionDraftRouteIdentity';
 import { buildNewSessionLaunchRouteParams } from '@/components/sessions/new/navigation/newSessionRouteParams';
+
+type SessionScmTarget = NonNullable<Awaited<ReturnType<typeof scmRepositoryService.resolveRequestForSession>>>;
 
 export type SourceControlBranchMenuProps = Readonly<{
     sessionId: string;
@@ -55,7 +58,6 @@ export function SourceControlBranchMenu(props: SourceControlBranchMenuProps): Re
     const writeEnabled = props.writeEnabled !== false;
     const snapshot = props.snapshot;
     const currentBranch = props.currentBranch;
-    const machineTarget = useSessionMachineTarget(props.sessionId);
 
     const branchSwitchSettingRaw = useSetting('scmUncommittedChangesStrategy');
     const branchSwitchSetting = normalizeBranchSwitchSetting(branchSwitchSettingRaw);
@@ -72,6 +74,20 @@ export function SourceControlBranchMenu(props: SourceControlBranchMenuProps): Re
 
     const [open, setOpen] = React.useState(false);
     const [includeRemotes, setIncludeRemotes] = React.useState(false);
+    const [resolvedMenuTarget, setResolvedMenuTarget] = React.useState<SessionScmTarget | null>(null);
+    const menuTarget = resolvedMenuTarget?.sessionId === props.sessionId ? resolvedMenuTarget : null;
+    React.useEffect(() => {
+        if (!open) return;
+        let current = true;
+        void scmRepositoryService.resolveRequestForSession(props.sessionId).then((target) => {
+            if (current) setResolvedMenuTarget(target);
+        }).catch((error) => {
+            if (!current) return;
+            setResolvedMenuTarget(null);
+            Modal.alert(t('common.error'), error instanceof Error ? error.message : t('files.branchMenu.failedToLoad'));
+        });
+        return () => { current = false; };
+    }, [open, props.sessionId]);
 
     const worktreeRows = React.useMemo(() => {
         const worktrees = snapshot?.repo.worktrees ?? [];
@@ -84,17 +100,27 @@ export function SourceControlBranchMenu(props: SourceControlBranchMenuProps): Re
     const canCreateWorktrees = snapshot?.capabilities?.worktreeCreate === true && writeEnabled && !disabled;
     const canLaunchWorktreeSession = snapshot?.repo.isRepo === true;
 
-    const openNewSessionForDirectory = React.useCallback((directory: string) => {
+    const openNewSessionForDirectory = React.useCallback(async (directory: string, options?: {
+        worktree?: string;
+        target?: SessionScmTarget;
+    }) => {
+        const currentTarget = await scmRepositoryService.resolveRequestForSession(props.sessionId);
+        if (!currentTarget?.machineId) return;
+        const target = options?.target ?? currentTarget;
+        if (!areServerAccountScopesEqual(currentTarget.scope, target.scope)
+            || currentTarget.machineId !== target.machineId) return;
         const draftId = resolveNewSessionDraftRouteIdentity({ routeDraftId: undefined }).draftId;
         router.push({
             pathname: '/new',
             params: buildNewSessionLaunchRouteParams({
                 draftId,
-                machineId: machineTarget?.machineId,
-                directory,
+                targetServerId: target.scope.serverId,
+                machineId: target.machineId,
+                directory: options?.worktree === 'new' ? target.resolvedPath : directory,
+                worktree: options?.worktree,
             }),
         });
-    }, [machineTarget?.machineId, router]);
+    }, [props.sessionId, router]);
 
     const readCachedBranches = React.useCallback(() => {
         return repoScmBranchService.readCachedBranchesForSession({
@@ -136,7 +162,7 @@ export function SourceControlBranchMenu(props: SourceControlBranchMenuProps): Re
             currentBranch,
             includeRemotes,
             loading,
-            hasMachineTarget: Boolean(machineTarget),
+            hasMachineTarget: Boolean(menuTarget?.machineId),
             worktreeRows,
             checkIconColor: theme.colors.text.secondary,
         });
@@ -151,7 +177,7 @@ export function SourceControlBranchMenu(props: SourceControlBranchMenuProps): Re
         currentBranch,
         includeRemotes,
         loading,
-        machineTarget,
+        menuTarget,
         theme.colors.text.secondary,
         worktreeRows,
     ]);
@@ -307,12 +333,14 @@ export function SourceControlBranchMenu(props: SourceControlBranchMenuProps): Re
     }, [canCheckoutPullRequests, closeMenu, promptForPullRequestReference, props.sessionId]);
 
     const openPullRequestWorktree = React.useCallback(async () => {
-        if (!canPreparePullRequestWorktrees || !machineTarget) return;
+        if (!canPreparePullRequestWorktrees) return;
+        const target = await scmRepositoryService.resolveRequestForSession(props.sessionId);
+        if (!target?.machineId) return;
         const prReference = await promptForPullRequestReference();
         if (!prReference) return;
 
         const response = await sessionScmPullRequestPrepareWorktree(props.sessionId, {
-            sourcePath: machineTarget.basePath,
+            sourcePath: target.resolvedPath,
             mode: 'worktree',
             prReference,
         });
@@ -324,24 +352,26 @@ export function SourceControlBranchMenu(props: SourceControlBranchMenuProps): Re
         repoScmBranchService.invalidateBranchesForSession({ sessionId: props.sessionId });
         await scmStatusSync.invalidateFromMutationAndAwait(props.sessionId);
         closeMenu();
-        openNewSessionForDirectory(response.targetPath);
+        await openNewSessionForDirectory(response.targetPath, { target });
     }, [
         canPreparePullRequestWorktrees,
         closeMenu,
-        machineTarget,
         openNewSessionForDirectory,
         promptForPullRequestReference,
         props.sessionId,
     ]);
 
     const createWorktreeFromCurrentBranch = React.useCallback(async () => {
-        if (!canCreateWorktrees || !machineTarget || !currentBranch) {
+        if (!canCreateWorktrees || !currentBranch) {
             return;
         }
+        const target = await scmRepositoryService.resolveRequestForSession(props.sessionId);
+        if (!target?.machineId) return;
 
         const response = await repoScmWorktreeService.createWorktreeForMachinePath({
-            machineId: machineTarget.machineId,
-            path: machineTarget.basePath,
+            scope: target.scope,
+            machineId: target.machineId,
+            path: target.resolvedPath,
             baseRef: null,
         });
         if (!response.success) {
@@ -350,21 +380,24 @@ export function SourceControlBranchMenu(props: SourceControlBranchMenuProps): Re
         }
 
         closeMenu();
-        openNewSessionForDirectory(resolveSessionPathWithinWorktree({
-            selectedPath: machineTarget.basePath,
+        await openNewSessionForDirectory(resolveSessionPathWithinWorktree({
+            selectedPath: target.resolvedPath,
             worktreePath: response.worktreePath,
-            sourceRootPath: response.sourceRootPath || machineTarget.basePath,
-        }));
-    }, [canCreateWorktrees, closeMenu, currentBranch, machineTarget, openNewSessionForDirectory]);
+            sourceRootPath: response.sourceRootPath || target.resolvedPath,
+        }), { target });
+    }, [canCreateWorktrees, closeMenu, currentBranch, openNewSessionForDirectory, props.sessionId]);
 
     const pruneWorktrees = React.useCallback(async () => {
-        if (!canCreateWorktrees || !machineTarget) {
+        if (!canCreateWorktrees) {
             return;
         }
+        const target = await scmRepositoryService.resolveRequestForSession(props.sessionId);
+        if (!target?.machineId) return;
 
         const response = await repoScmWorktreeService.pruneWorktreesForMachinePath({
-            machineId: machineTarget.machineId,
-            path: machineTarget.basePath,
+            scope: target.scope,
+            machineId: target.machineId,
+            path: target.resolvedPath,
         });
         if (!response.success) {
             Modal.alert(t('common.error'), response.stderr || t('files.branchMenu.worktrees.pruneFailed'));
@@ -373,12 +406,14 @@ export function SourceControlBranchMenu(props: SourceControlBranchMenuProps): Re
 
         closeMenu();
         await scmStatusSync.invalidateFromMutationAndAwait(props.sessionId);
-    }, [canCreateWorktrees, closeMenu, machineTarget, props.sessionId]);
+    }, [canCreateWorktrees, closeMenu, props.sessionId]);
 
     const removeWorktree = React.useCallback(async (worktreePath: string) => {
-        if (!canCreateWorktrees || !machineTarget) {
+        if (!canCreateWorktrees) {
             return;
         }
+        const target = await scmRepositoryService.resolveRequestForSession(props.sessionId);
+        if (!target?.machineId) return;
 
         const confirmed = await Modal.confirm(
             t('files.branchMenu.worktrees.removeConfirmTitle'),
@@ -394,8 +429,9 @@ export function SourceControlBranchMenu(props: SourceControlBranchMenuProps): Re
         }
 
         const response = await repoScmWorktreeService.removeWorktreeForMachinePath({
-            machineId: machineTarget.machineId,
-            path: machineTarget.basePath,
+            scope: target.scope,
+            machineId: target.machineId,
+            path: target.resolvedPath,
             worktreePath,
         });
         if (!response.success) {
@@ -405,9 +441,9 @@ export function SourceControlBranchMenu(props: SourceControlBranchMenuProps): Re
 
         closeMenu();
         await scmStatusSync.invalidateFromMutationAndAwait(props.sessionId);
-    }, [canCreateWorktrees, closeMenu, machineTarget, props.sessionId]);
+    }, [canCreateWorktrees, closeMenu, props.sessionId]);
 
-    const directoryFallback = machineTarget?.basePath ?? snapshot?.repo.rootPath ?? '.';
+    const directoryFallback = menuTarget?.resolvedPath ?? snapshot?.repo.rootPath ?? '.';
 
     const onSelect = React.useCallback(async (itemId: string) => {
         await handleSourceControlBranchMenuSelect({
@@ -416,12 +452,10 @@ export function SourceControlBranchMenu(props: SourceControlBranchMenuProps): Re
             closeMenu,
             createWorktreeFromCurrentBranch,
             directoryFallback,
-            machineTarget: machineTarget ? { machineId: machineTarget.machineId, basePath: machineTarget.basePath } : null,
             openPullRequestWorktree,
             openNewSessionForDirectory,
             pruneWorktrees,
             removeWorktree,
-            router,
             setIncludeRemotes,
             setOpen,
             switchBranch,
@@ -431,8 +465,6 @@ export function SourceControlBranchMenu(props: SourceControlBranchMenuProps): Re
         checkoutPullRequestLocally,
         createWorktreeFromCurrentBranch,
         directoryFallback,
-        machineTarget?.basePath,
-        machineTarget?.machineId,
         openPullRequestWorktree,
         openNewSessionForDirectory,
         pruneWorktrees,

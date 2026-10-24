@@ -25,6 +25,7 @@ describe('materializeNewSessionCheckout', () => {
         const { materializeNewSessionCheckout } = await import('./materializeNewSessionCheckout');
         const result = await materializeNewSessionCheckout({
             machineId: 'machine-1',
+            scope: { serverId: 'home', accountId: 'account' },
             selectedPath: '/repo-linked/packages/app',
             checkoutCreationDraft: {
                 kind: 'git_worktree',
@@ -53,6 +54,7 @@ describe('materializeNewSessionCheckout', () => {
         const { materializeNewSessionCheckout } = await import('./materializeNewSessionCheckout');
         const result = await materializeNewSessionCheckout({
             machineId: 'machine-1',
+            scope: { serverId: 'home', accountId: 'account' },
             selectedPath: 'C:/Repo-Linked/Packages/App',
             checkoutCreationDraft: {
                 kind: 'git_worktree',
@@ -81,6 +83,7 @@ describe('materializeNewSessionCheckout', () => {
         const { materializeNewSessionCheckout } = await import('./materializeNewSessionCheckout');
         const result = await materializeNewSessionCheckout({
             machineId: 'machine-1',
+            scope: { serverId: 'home', accountId: 'account' },
             selectedPath: '/Repo-Linked/packages/app',
             checkoutCreationDraft: {
                 kind: 'git_worktree',
@@ -109,6 +112,7 @@ describe('materializeNewSessionCheckout', () => {
         const { materializeNewSessionCheckout } = await import('./materializeNewSessionCheckout');
         const result = await materializeNewSessionCheckout({
             machineId: 'machine-1',
+            scope: { serverId: 'home', accountId: 'account' },
             selectedPath: '/repo/packages/app',
             checkoutCreationDraft: {
                 kind: 'git_worktree',
@@ -120,6 +124,7 @@ describe('materializeNewSessionCheckout', () => {
 
         expect(createWorktreeForMachinePathSpy).toHaveBeenCalledWith({
             machineId: 'machine-1',
+            scope: { serverId: 'home', accountId: 'account' },
             path: '/repo/packages/app',
             displayName: 'feature/auth',
             baseRef: null,

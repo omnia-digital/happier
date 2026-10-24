@@ -1,9 +1,11 @@
+import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import { repoScmWorktreeService } from '@/scm/repository/repoScmWorktreeService';
 import { resolveSessionPathWithinWorktree } from '@/scm/repository/resolveSessionPathWithinWorktree';
 import type { NewSessionCheckoutCreationDraft } from '@/sync/domains/state/newSessionCheckoutDraft';
 
 export interface MaterializeNewSessionCheckoutParams {
     machineId: string;
+    scope?: ServerAccountScope;
     selectedPath: string;
     checkoutCreationDraft?: NewSessionCheckoutCreationDraft | null;
 }
@@ -32,8 +34,11 @@ export async function materializeNewSessionCheckout(
         };
     }
 
+    if (!params.scope) return { success: false, error: 'Worktree target is unavailable' };
+
     const worktreeResult = await repoScmWorktreeService.createWorktreeForMachinePath({
         machineId: params.machineId,
+        scope: params.scope,
         path: params.selectedPath,
         displayName: params.checkoutCreationDraft?.displayName ?? null,
         baseRef: params.checkoutCreationDraft?.baseRef ?? null,

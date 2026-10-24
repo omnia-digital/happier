@@ -22,6 +22,8 @@ installRepositoryScmCommonModuleMocks({
     }),
 });
 
+const scope = { serverId: 'home', accountId: 'account' };
+
 describe('repoScmWorktreeService', () => {
     afterEach(() => {
         machineScmWorktreeCreateMock.mockReset();
@@ -78,6 +80,7 @@ describe('repoScmWorktreeService', () => {
 
         const { repoScmWorktreeService } = await import('./repoScmWorktreeService');
         const result = await repoScmWorktreeService.createWorktreeForMachinePath({
+            scope,
             machineId: 'machine-1',
             path: '/repo/packages/app',
             baseRef: 'feature/auth',
@@ -91,6 +94,7 @@ describe('repoScmWorktreeService', () => {
                 branchMode: 'new',
                 displayName: expect.any(String),
             },
+            scope,
         );
         expect(result.success).toBe(true);
     });
@@ -106,6 +110,7 @@ describe('repoScmWorktreeService', () => {
 
         const { repoScmWorktreeService } = await import('./repoScmWorktreeService');
         const result = await repoScmWorktreeService.createWorktreeForMachinePath({
+            scope,
             machineId: 'machine-1',
             path: '/repo/packages/app',
             displayName: 'feature/auth',
@@ -119,12 +124,14 @@ describe('repoScmWorktreeService', () => {
                 displayName: 'feature/auth',
                 branchMode: 'existing',
             },
+            scope,
         );
         expect(result.success).toBe(true);
     });
 
     it('resolves tilde machine paths to absolute paths using the machine homeDir before invoking the worktree RPC', async () => {
         storageGetStateMock.mockReturnValue({
+            profileScope: scope,
             machines: {
                 'machine-1': {
                     id: 'machine-1',
@@ -144,6 +151,7 @@ describe('repoScmWorktreeService', () => {
 
         const { repoScmWorktreeService } = await import('./repoScmWorktreeService');
         await repoScmWorktreeService.createWorktreeForMachinePath({
+            scope,
             machineId: 'machine-1',
             path: '~/repo/packages/app',
             baseRef: 'feature/auth',
@@ -155,6 +163,7 @@ describe('repoScmWorktreeService', () => {
                 cwd: '/Users/tester/repo/packages/app',
                 baseRef: 'feature/auth',
             }),
+            scope,
         );
     });
 
@@ -164,11 +173,13 @@ describe('repoScmWorktreeService', () => {
 
         const { repoScmWorktreeService } = await import('./repoScmWorktreeService');
         const removeResult = await repoScmWorktreeService.removeWorktreeForMachinePath({
+            scope,
             machineId: 'machine-1',
             path: '/repo',
             worktreePath: '/repo/.worktrees/feature-auth',
         });
         const pruneResult = await repoScmWorktreeService.pruneWorktreesForMachinePath({
+            scope,
             machineId: 'machine-1',
             path: '/repo',
         });
@@ -179,12 +190,14 @@ describe('repoScmWorktreeService', () => {
                 cwd: '/repo',
                 worktreePath: '/repo/.worktrees/feature-auth',
             },
+            scope,
         );
         expect(machineScmWorktreePruneMock).toHaveBeenCalledWith(
             'machine-1',
             {
                 cwd: '/repo',
             },
+            scope,
         );
         expect(removeResult.success).toBe(true);
         expect(pruneResult.success).toBe(true);

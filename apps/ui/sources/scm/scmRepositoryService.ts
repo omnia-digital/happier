@@ -534,17 +534,21 @@ export class ScmRepositoryService {
         }
     }
 
-    async fetchSnapshotForSession(sessionId: string): Promise<UiScmWorkingSnapshot | null> {
+    async resolveRequestForSession(sessionId: string) {
         const activeScopeAtStart = storage.getState().profileScope;
         const scope = await this.resolveScopeForServer(resolveServerIdForSessionIdFromLocalCache(sessionId));
         const activeScopeNow = storage.getState().profileScope;
         if (activeScopeAtStart !== activeScopeNow && !areServerAccountScopesEqual(activeScopeAtStart, activeScopeNow)) return null;
         if (!scope) return null;
         const resolved = resolveRepoScmSessionRequest({ sessionId, scope });
-        const request = resolved ? { ...resolved, scope, repoIdentityKey: this.scopedKey(scope, resolved.repoIdentityKey) } : null;
-        if (!request) {
-            return null;
-        }
+        return resolved ? { ...resolved, scope } : null;
+    }
+
+    async fetchSnapshotForSession(sessionId: string): Promise<UiScmWorkingSnapshot | null> {
+        const resolved = await this.resolveRequestForSession(sessionId);
+        if (!resolved) return null;
+        const scope = resolved.scope;
+        const request = { ...resolved, repoIdentityKey: this.scopedKey(scope, resolved.repoIdentityKey) };
 
         return await this.fetchSnapshotForRepoIdentity(request.repoIdentityKey, async () => {
             const fetchedAt = Date.now();
