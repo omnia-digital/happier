@@ -379,3 +379,36 @@ alias or worktree was created for this batch. Existing published profile/provide
 documentation already describes the retained semantics, so no new published
 feature claim is added; the canonical internal Claude matrix records the new
 development-source refusal and authority behavior explicitly.
+
+## Source CLI terminal pairing follow-through
+
+OH-4's existing provider-auth browser case can exercise normal CLI terminal login
+against a fresh isolated relay/account, then launch the live-source daemon and
+read the explicit fake Codex's logged-out status. It uses current source symlinks,
+not a packaged release. This is a source-pairing gate; actual vendor execution,
+native restart and the persistent development stack remain separate obligations.
+
+Pre-run source inspection finds fixture isolation incomplete: login inherits
+Codex home/API-key variables, and normal post-authentication reconciliation
+discovers installed services using the OS user home ahead of HOME. `6e6e32dcac`
+sets fixture HOME/USERPROFILE and the existing explicit service user/Happier-home
+overrides for both children, and removes Codex home/API auth overrides. It keeps
+the source entrypoint and existing fake executable explicit; auth bootstrap and
+real-provider/service flags stay disabled. Normal fresh-account authorization is
+performed through the actual isolated UI rather than imported credentials.
+
+Root independently traces service runtime precedence and macOS inventory:
+`discoverInstalledDaemonServiceEntries` reads only the fixture user's absent
+Library/LaunchAgents directory and returns empty before any OS manager command.
+`reconcileDefaultFollowingBackgroundServicesAfterAuthentication` returns on empty
+default-following modes, so no daily-service restart can be selected. Existing
+inventory/discovery tests pass46/2files; fixture typecheck passes. The actual
+browser run remains pending; private authentication logs/URL fragments are not
+printed, uploaded or committed.
+
+Independent OH-10 revalidation finds the required `yarn ghops` read-only command
+blocked by its unavailable bot credential. The connected commit-workflow tool
+filters to PR events, so it cannot prove push CI status. A smaller successful
+Linear query returns no OH release pipelines; the first broad pipeline query
+exceeded server complexity and supplies no result. No workflow dispatch, personal
+credential fallback, GitHub admin change or fictitious release was attempted.
