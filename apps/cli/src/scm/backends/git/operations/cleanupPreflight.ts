@@ -26,7 +26,8 @@ type PublicationFailure =
 export type GitPublishedMergeEvidence =
     | Readonly<{ kind: 'unavailable'; reason: PublicationFailure }>
     | Readonly<{
-        kind: 'verified';
+        kind: 'current_publication_match';
+        atMergeSourceHead: 'unproven';
         providerKind: SessionPullRequestLinkV1['providerKind'];
         repository: string;
         pullRequestNumber: number;
@@ -38,7 +39,7 @@ export type GitPublishedMergeEvidence =
         remoteDefaultBranch: string;
     }>;
 
-/** Re-reads provider and remote facts. The result is evidence, never removal permission. */
+/** Re-reads current provider and remote facts. This does not prove the source snapshot integrated at merge time. */
 export async function readGitPublishedMergeEvidence(input: Readonly<{
     gitEvidence: GitEvidence;
     link: SessionPullRequestLinkV1;
@@ -113,7 +114,8 @@ export async function readGitPublishedMergeEvidence(input: Readonly<{
     if (sourceRefs.length !== 1 || sourceRefs[0]![1]!.toLowerCase() !== input.gitEvidence.headOid) return unavailable('remote_head_mismatch');
     if (!await matchesCurrentCheckout()) return unavailable('local_head_changed');
     return {
-        kind: 'verified',
+        kind: 'current_publication_match',
+        atMergeSourceHead: 'unproven',
         providerKind: input.link.providerKind,
         repository: input.link.repository,
         pullRequestNumber: input.link.number,
