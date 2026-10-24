@@ -5,6 +5,58 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizePublicReleaseChannel } from '../release/lib/public-release-rings.mjs';
 
+export const FORK_RELEASE_REPOSITORY = 'omnia-digital/happier';
+
+// Keep this known upstream verifier only as a refusal marker. It must never be
+// used to authorize a fork release or as the fork's signing configuration.
+const UPSTREAM_UPDATER_PUBLIC_KEY = 'dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEFCRTk2MjE4RjNCMEYxRUYKUldUdjhiRHpHR0xwcTFIUjMvb1FBbW5HOUFYSkd5aGlHa204MWZuRk50ekF5WVZQdU1mVkRWWnkK';
+
+/**
+ * Validate the effective Tauri release config, after the channel overlay. This
+ * is source preparation only: Apple registration and ownership of the signing
+ * key still require separate external evidence before distribution.
+ *
+ * @param {{ environment: string; tauriDir?: string; baseConfig?: object; overlayConfig?: object; repository?: string }} options
+ */
+export function assertForkDesktopReleaseOwnership({ environment, tauriDir = fileURLToPath(new URL('../../../apps/ui/src-tauri', import.meta.url)), baseConfig, overlayConfig, repository }) {
+  const channel = normalizePublicReleaseChannel(environment);
+  if (!channel) throw new Error(`unsupported Tauri environment: ${environment}`);
+  const read = (/** @type {string} */ file) => JSON.parse(fs.readFileSync(path.join(tauriDir, file), 'utf8'));
+  const base = baseConfig ?? read('tauri.conf.json');
+  const overlay = overlayConfig ?? (channel === 'stable' ? {} : read(resolveTauriChannelConfigFile(channel)));
+  const effective = {
+    ...base,
+    ...overlay,
+    plugins: {
+      ...base.plugins,
+      ...overlay.plugins,
+      updater: { ...base.plugins?.updater, ...overlay.plugins?.updater },
+    },
+  };
+  const identity = String(effective.identifier ?? '').trim();
+  if (!identity || identity === 'dev.happier.app' || identity.startsWith('dev.happier.app.')) {
+    throw new Error(`Fork desktop release ownership is unconfigured: upstream identifier ${identity || '<missing>'} for ${channel}`);
+  }
+  const suffix = channel === 'stable' ? 'stable' : channel === 'preview' ? 'preview' : 'dev';
+  const expectedFeed = `https://github.com/${FORK_RELEASE_REPOSITORY}/releases/download/ui-desktop-${suffix}/latest.json`;
+  const endpoints = effective.plugins.updater.endpoints;
+  if (!Array.isArray(endpoints) || endpoints.length !== 1 || endpoints[0] !== expectedFeed) {
+    throw new Error(`Fork desktop release ownership is unconfigured: expected fork update feed ${expectedFeed}`);
+  }
+  const pubkey = String(effective.plugins.updater.pubkey ?? '').trim();
+  if (!pubkey || pubkey === UPSTREAM_UPDATER_PUBLIC_KEY) {
+    throw new Error('Fork desktop release ownership is unconfigured: upstream updater key or missing fork key');
+  }
+  const decoded = Buffer.from(pubkey, 'base64').toString('utf8').trim().split(/\r?\n/u);
+  if (decoded.length !== 2 || !decoded[0].startsWith('untrusted comment: minisign public key') || !/^RW[A-Za-z0-9+/=]{50,}$/u.test(decoded[1])) {
+    throw new Error('Fork desktop release ownership is unconfigured: updater key is not an encoded minisign public key');
+  }
+  if (repository && repository !== FORK_RELEASE_REPOSITORY) {
+    throw new Error(`Fork desktop release ownership is unconfigured: release repository ${repository} differs from ${FORK_RELEASE_REPOSITORY}`);
+  }
+  return { channel, identifier: identity, updateFeed: expectedFeed, updaterPublicKey: pubkey };
+}
+
 /** @param {string} environment */
 export function resolveTauriChannelConfigFile(environment) {
   const channel = normalizePublicReleaseChannel(environment);

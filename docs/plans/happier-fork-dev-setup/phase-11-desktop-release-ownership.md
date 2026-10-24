@@ -21,7 +21,7 @@ OH-55 changed display names and artwork while explicitly preserving existing ide
 
 - [x] 🟢 Trace canonical effective variant configs, updater calls, installer destinations and fork/dev build consumers; distinguish inert documentation from executable source defaults.
 - [x] 🟢 Record smallest source-backed ownership design before edits, including coexistence and unavailable ownership inputs.
-- [ ] 🔴 RED/GREEN effective fork config/update destination/trust guards, stack overrides, release refusal when ownership is unconfigured, and affected CLI/sidecar source contracts.
+- [ ] 🟡 RED/GREEN effective fork config/update destination/trust guards, stack overrides, release refusal when ownership is unconfigured, and affected CLI/sidecar source contracts.
 - [ ] 🔴 Validate required generated/config artifacts without launching or replacing the running app. Use isolated output paths and preserve existing artifacts/work.
 - [ ] 🔴 Relevant typechecks/tests and independent source review. Keep actual signing/notarization/installation/platform acceptance separate.
 
@@ -34,3 +34,9 @@ Routing selected Sol/high, zero failed cycles. The source worker completed disco
 - Observed: executable first-party downloads have independent owners: CLI self-update, relay runtime/doctor, stack self-host runtime, standalone shell/PowerShell installers and the relay-server runner. Some have an override but default to the upstream repository and/or upstream minisign trust. Stack source clone defaults are used by bootstrap when no repo is supplied; help/provisioning references are separate.
 - Decision: preserve the current dev stack and its identifiers. Reject distributable desktop preparation while the fork's Tauri identifier, matching fork feed and distinct updater trust are unconfigured. Put that check at the canonical Tauri build/preparation entry points rather than rewriting the live dev configuration. For binary/update paths, align executable defaults with the fork only together with fork-owned signature trust; when that trust is unavailable, refuse the update instead of treating the upstream key as fork authority. Preserve explicit user-supplied source overrides and upstream reference text.
 - Missing external ownership evidence: registered macOS bundle identifiers, an Omnia updater public key with securely stored private signer, fork release feeds/assets, and Developer ID/notarization credentials. Source checks can prove fail-closed preparation and coexistence, but cannot establish those external facts or an installed native receipt.
+
+## Implementation evidence
+
+- The first RED ran `node --test scripts/pipeline/tauri/fork-release-ownership.test.mjs` through `hstack-exec`: the current publicdev release builder exited 0 with upstream identity/feed/key. The current source config also lacks a fork-owned stable, preview or publicdev effective owner.
+- First GREEN: the channel owner now validates effective identifier, exact fork feed, non-upstream encoded minisign public key and optional release repository. The release builder and direct Tauri build entry points refuse before frontend/sidecar work; manifest generation refuses an upstream `--repo`. Focused tests passed: 5 fork ownership tests and 4 existing manifest preparation tests. This is configuration coherence, not proof that Apple registered an identifier or that the key is controlled by Omnia.
+- Remaining: source and packaged CLI/setup/relay/self-host download defaults, associated signature trust, source clone defaults, broader validation and review.
