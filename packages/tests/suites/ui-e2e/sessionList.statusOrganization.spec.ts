@@ -204,7 +204,7 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             expect((await readUiE2eScopedAccountSettings({ page })).sessionListStatusSortV1).toBe('agent');
             await page.setViewportSize({ width: 390, height: 900 });
             await gotoDomContentLoadedWithRetries(page, baseUrl, 120_000);
-            await page.getByTestId('machine-monitoring-toggle').click();
+            await expect(page.getByTestId('machine-monitoring-toggle')).toHaveCount(0);
             await expect(statusHeaders.filter({ hasText: 'Ready for Prod' }).first()).toBeVisible({ timeout: 60_000 });
             await page.screenshot({ path: testInfo.outputPath('oh60-compact-status-organization.png') });
             await page.setViewportSize({ width: 1360, height: 900 });
