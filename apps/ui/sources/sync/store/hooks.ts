@@ -1,3 +1,5 @@
+import { readSessionOrganizationServerScopedId } from '../domains/session/organization/keys';
+import { buildSessionOrganizationFolderViewState, buildSessionOrganizationOrderViewState } from '../domains/session/organization/viewState';
 import React from 'react';
 import type { SessionMessagesTailBoundary } from '@/sync/runtime/sessionMessagesTailDiscontinuity';
 import { useShallow } from 'zustand/react/shallow';
@@ -23,6 +25,8 @@ import {
 } from '../domains/artifacts/approvalArtifacts';
 import { isAutomationLinkedToSession } from '../domains/automations/automationSessionLink';
 import type { LocalSettings } from '../domains/settings/localSettings';
+import { readMachineDisplayColor, readMachineDisplayIcon, resolveMachineDisplayPreferenceScope, type MachineDisplayPreferenceScope } from '../domains/machines/machineDisplayIconPreference';
+import { getActiveServerId, subscribeServerProfiles } from '../domains/server/serverProfiles';
 import type { AgentTextMessage, Message } from '../domains/messages/messageTypes';
 import type { Settings } from '../domains/settings/settings';
 import { settingsDefaults } from '../domains/settings/settings';
@@ -325,9 +329,8 @@ export function useSessionFolderAssignmentsBySessionKey(): Record<string, string
   return getStorage()(useShallow((state) => state.sessionFolderAssignmentsBySessionKey));
 }
 
-export function useSessionOrganizationProjection(serverId: string | null | undefined): SessionOrganizationProjection | null {
-  const normalizedServerId = typeof serverId === 'string' && serverId.trim().length > 0 ? serverId.trim() : null;
-  const snapshot = getStorage()(
+function useSessionOrganizationProjectionSnapshot() {
+  return getStorage()(
     useShallow((state) => ({
       schemaVersionByServerId: state.sessionOrganizationSchemaVersionByServerId,
       snapshotVersionByServerId: state.sessionOrganizationSnapshotVersionByServerId,
@@ -341,11 +344,40 @@ export function useSessionOrganizationProjection(serverId: string | null | undef
       labelsByLabelKey: state.sessionOrganizationLabelsByLabelKey,
     })),
   );
+}
+
+export function useSessionOrganizationProjection(serverId: string | null | undefined): SessionOrganizationProjection | null {
+  const normalizedServerId = typeof serverId === 'string' && serverId.trim().length > 0 ? serverId.trim() : null;
+  const snapshot = useSessionOrganizationProjectionSnapshot();
 
   return React.useMemo(() => {
     if (!normalizedServerId) return null;
     return buildSessionOrganizationProjection(snapshot, normalizedServerId);
   }, [normalizedServerId, snapshot]);
+}
+
+export function useSessionOrganizationProjections(serverIds: readonly string[]): Readonly<Record<string, SessionOrganizationProjection>> {
+  const snapshot = useSessionOrganizationProjectionSnapshot();
+  const serverIdsKey = JSON.stringify([...new Set(serverIds.map(id => id.trim()).filter(Boolean))]);
+  return React.useMemo(() => Object.fromEntries((JSON.parse(serverIdsKey) as string[]).map(serverId => [
+    serverId, buildSessionOrganizationProjection(snapshot, serverId),
+  ])), [snapshot, serverIdsKey]);
+}
+
+export function readSessionOrganizationFolders(serverId: string) {
+  return buildSessionOrganizationFolderViewState(Object.entries(getStorage().getState().sessionOrganizationFoldersByFolderKey)
+    .filter(([key, folder]) => readSessionOrganizationServerScopedId(key, serverId) === folder.folderId)
+    .map(([, folder]) => folder));
+}
+
+/** Reads only order entries; Repository view does not subscribe to unrelated organization data. */
+export function useSessionOrganizationGroupOrderByServer(serverIds: readonly string[]) {
+  const idsKey = JSON.stringify(serverIds);
+  const entries = getStorage()(state => serverIds.length > 0 ? state.sessionOrganizationOrderEntriesByScopeKey : null);
+  return React.useMemo(() => Object.fromEntries((JSON.parse(idsKey) as string[]).map(serverId => {
+    const scopedEntries = Object.fromEntries(Object.entries(entries ?? {}).filter(([key]) => key.startsWith(`${serverId}:`)));
+    return [serverId, buildSessionOrganizationOrderViewState(serverId, scopedEntries).sessionListGroupOrderV1];
+  })), [entries, idsKey]);
 }
 
 export function useSessionOrganizationPinnedSessionKeys(): readonly string[] {
@@ -1965,6 +1997,36 @@ export function useSessionRepositoryTreeExpandedPaths(sessionId: string | null):
 
 export function useLocalSetting<K extends keyof LocalSettings>(name: K): LocalSettings[K] {
   return getStorage()(useShallow((state) => state.localSettings[name]));
+}
+
+// Unscoped single-Home rows follow the active Home; cached rows can retain a
+// profile identifier from before identity discovery. Resolve both through the
+// server-profile owner and subscribe to the scalar identity, not its whole map.
+function useMachineDisplayScope(serverId?: string | null): MachineDisplayPreferenceScope {
+  const getScope = React.useCallback(
+    () => JSON.stringify(resolveMachineDisplayPreferenceScope(serverId?.trim() || getActiveServerId())),
+    [serverId],
+  );
+  const serializedScope = React.useSyncExternalStore(subscribeServerProfiles, getScope, getScope);
+  return React.useMemo(() => JSON.parse(serializedScope) as MachineDisplayPreferenceScope, [serializedScope]);
+}
+
+export function useMachineDisplayIcon(serverId?: string | null, machineId?: string | null) {
+  const resolvedScope = useMachineDisplayScope(serverId);
+  return getStorage()((state) => readMachineDisplayIcon(
+    state.localSettings.machineDisplayIconByMachineV1,
+    resolvedScope,
+    machineId,
+  ));
+}
+
+export function useMachineDisplayColor(serverId?: string | null, machineId?: string | null) {
+  const resolvedScope = useMachineDisplayScope(serverId);
+  return getStorage()((state) => readMachineDisplayColor(
+    state.localSettings.machineDisplayColorByMachineV1,
+    resolvedScope,
+    machineId,
+  ));
 }
 
 function normalizeSessionLocalSettingScopeId(value: string | null | undefined): string | null {

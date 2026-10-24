@@ -89,11 +89,13 @@ function getActiveEffectiveBindings(params: Readonly<{
     surface: KeyboardSurface;
     singleKeyShortcutsEnabled: boolean;
 }>): readonly KeybindingRule[] {
+    const command = defaultKeyboardCommands.find((entry) => entry.id === params.commandId);
     return getEffectiveBindings(params.commandId, params.overrides)
         .filter((binding) => isKeybindingRuleAvailable(binding, {
             platform: params.platform,
             surface: params.surface,
             singleKeyShortcutsEnabled: params.singleKeyShortcutsEnabled,
+            allowWhenSingleKeyShortcutsDisabled: command?.allowWhenSingleKeyShortcutsDisabled,
         }));
 }
 

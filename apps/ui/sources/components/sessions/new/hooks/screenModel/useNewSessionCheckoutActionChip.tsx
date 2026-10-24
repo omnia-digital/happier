@@ -15,6 +15,7 @@ import { t } from '@/text';
 import { generateWorktreeName } from '@/utils/worktree/generateWorktreeName';
 import type { NewSessionCheckoutCreationDraft } from '@/sync/domains/state/newSessionCheckoutDraft';
 import type { ScmWorkingSnapshot } from '@/sync/domains/state/storageTypes';
+import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import { Icon } from '@/components/ui/icons/Icon';
 import { useNowMs } from '@/hooks/time/useNowMs';
 import { AGENT_INPUT_CHIP_ICON_SIZE_PX, AGENT_INPUT_CHIP_ICON_STYLE } from '@/components/sessions/agentInput/definitions/agentInputChipIconMetrics';
@@ -79,6 +80,7 @@ function CheckoutChip(props: Readonly<{
 }
 
 export function useNewSessionCheckoutActionChip(params: Readonly<{
+    scmScope?: ServerAccountScope | null;
     repoScmSnapshot: ScmWorkingSnapshot | null;
     checkoutChipModel: NewSessionCheckoutChipModel;
     checkoutPickerOpen: boolean;
@@ -157,6 +159,20 @@ export function useNewSessionCheckoutActionChip(params: Readonly<{
             closePopover();
         };
 
+        const onSelectNewWorktree = () => {
+            params.shouldReconcileInitialHydratedCheckoutCreationDraftRef.current = false;
+            params.setCheckoutCreationDraft((current) => current?.branchMode === 'new'
+                ? current
+                : buildGitWorktreeCheckoutCreationDraft({
+                    existingDraft: null,
+                    fallbackDisplayName: worktreeNameSuggestion,
+                    baseRef: null,
+                    branchMode: 'new',
+                }));
+            clearPending();
+            closePopover();
+        };
+
         const onCreateWorktreeWithName = (selection: WorktreeCreateSelection) => {
             params.shouldReconcileInitialHydratedCheckoutCreationDraftRef.current = false;
             params.pendingGitWorktreeBaseRefRef.current = selection.baseRef;
@@ -194,6 +210,7 @@ export function useNewSessionCheckoutActionChip(params: Readonly<{
             : null;
 
         const rootStep = buildWorktreeSelectionListSteps({
+            scope: params.scmScope,
             snapshot: params.repoScmSnapshot,
             currentDirPath: currentPathOption?.kind === 'current_path' ? currentPathOption.path : params.selectedPath,
             machineId: params.selectedMachineId,
@@ -206,6 +223,7 @@ export function useNewSessionCheckoutActionChip(params: Readonly<{
             pendingWorktreeBaseRef,
             onSelectPendingWorktree: closePopover,
             onSelectCurrentDir,
+            onSelectNewWorktree,
             onSelectExistingWorktree,
             onCreateWorktreeWithName,
             onReuseExistingWorktreeForBranch,
@@ -220,6 +238,11 @@ export function useNewSessionCheckoutActionChip(params: Readonly<{
 
         return {
             key: CHIP_KEY,
+            stabilityKey: JSON.stringify([
+                params.scmScope, params.selectedMachineId, params.selectedPath,
+                params.repoScmSnapshot?.fetchedAt, params.repoScmSnapshot?.repo.worktrees,
+                params.checkoutCreationDraft, nowMs,
+            ]),
             controlId: 'checkout',
             collapsedOptionsPopover: {
                 presentation: 'list',
@@ -250,6 +273,7 @@ export function useNewSessionCheckoutActionChip(params: Readonly<{
         };
     }, [
         params.checkoutChipModel,
+        params.scmScope,
         params.checkoutPickerOpen,
         params.machineHomeDir,
         params.pendingGitWorktreeBaseRefRef,

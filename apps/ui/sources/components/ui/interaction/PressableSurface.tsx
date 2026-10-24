@@ -29,6 +29,8 @@ export type PressableSurfaceProps = Readonly<{
     onPress?: (event: GestureResponderEvent) => void;
     onLongPress?: (event: GestureResponderEvent) => void;
     disabled?: boolean;
+    /** Decorative hover targets can keep a tooltip without creating another keyboard stop. */
+    focusable?: boolean;
     /** Renders the resting fill as if hovered — a control that is toggled on. */
     active?: boolean;
     tone?: PressFeedbackTone;
@@ -41,7 +43,7 @@ export type PressableSurfaceProps = Readonly<{
     focusRingRadius?: number;
     focusRingPlacement?: FocusRingPlacement;
     /** The control's own box styling. The feedback fill is applied ON TOP of it. */
-    style?: StyleProp<ViewStyle>;
+    style?: PressableProps['style'];
     /**
      * Applied LAST, after the feedback fill, so a consumer's `style` prop still has the final word
      * — which is the ordering the adopting controls already had.
@@ -51,6 +53,8 @@ export type PressableSurfaceProps = Readonly<{
     webTooltip?: string;
     tooltipContent?: React.ReactNode;
     tooltipPlacement?: 'top' | 'bottom' | 'left' | 'right';
+    /** Share the control's existing anchor when it also positions an adjacent popover. */
+    anchorRef?: React.RefObject<View | null>;
     testID?: string;
 }>;
 
@@ -65,7 +69,8 @@ export const PressableSurface = React.memo((props: PressableSurfaceProps) => {
     const keyboardModality = useIsKeyboardModality();
     const [focused, setFocused] = React.useState(false);
     const [hovered, setHovered] = React.useState(false);
-    const anchorRef = React.useRef<View | null>(null);
+    const internalAnchorRef = React.useRef<View | null>(null);
+    const anchorRef = props.anchorRef ?? internalAnchorRef;
     const ringVisible = focused && keyboardModality && !disabled;
     // `FocusRing` runs a Reanimated animated style, so an always-mounted one would cost a shared
     // value per control on every surface in the app for a ring that native can never show (RN
@@ -80,8 +85,11 @@ export const PressableSurface = React.memo((props: PressableSurfaceProps) => {
 
     const resolveStyle = React.useCallback(({ pressed, hovered }: { pressed?: boolean; hovered?: boolean }) => {
         const backgroundColor = feedback.resolveBackgroundColor({ pressed, hovered });
+        const consumerStyle = typeof props.style === 'function'
+            ? props.style({ pressed: pressed === true, hovered: hovered === true })
+            : props.style;
         return [
-            props.style,
+            consumerStyle,
             Platform.OS === 'web' ? WEB_FOCUS_OUTLINE_RESET : null,
             backgroundColor === undefined ? null : { backgroundColor },
             props.styleOverride,
@@ -100,6 +108,8 @@ export const PressableSurface = React.memo((props: PressableSurfaceProps) => {
             onHoverOut={props.webTooltip ? handleHoverOut : undefined}
             hitSlop={props.hitSlop}
             disabled={disabled}
+            focusable={props.focusable}
+            tabIndex={props.focusable === false ? -1 : undefined}
             accessibilityRole={props.accessibilityRole ?? 'button'}
             accessibilityLabel={props.accessibilityLabel}
             accessibilityHint={props.accessibilityHint}

@@ -59,7 +59,7 @@ export type SessionListRowModelBoundaryProps = Readonly<{
     dataIndex: number;
     dragEnabled: boolean;
     draggingSessionKey: string | null;
-    folderViewEnabled: boolean;
+    reorderActionsEnabled: boolean;
     folderActionsEnabled: boolean;
     forkActionContext?: SessionItemProps['forkActionContext'];
     getRowMoveActionHandlers: (input: Readonly<{
@@ -74,6 +74,9 @@ export type SessionListRowModelBoundaryProps = Readonly<{
     nativeContextMenuSessionKey: string | null;
     onDragCancel: (event: UseSessionInlineDragCancelEvent) => void;
     onDragStart: (sessionKey: string) => void;
+    onHoverArchiveTarget?: SessionItemProps['onHoverArchiveTarget'];
+    onShortcutTargetChange?: SessionItemProps['onShortcutTargetChange'];
+    onShortcutPresenceChange?: SessionItemProps['onShortcutPresenceChange'];
     onDropResult: UseSessionInlineDragParams['onDropResult'];
     onRegisterTreeRowBounds: RegisterSessionListTreeRowBounds;
     onUnregisterTreeRowBounds: UnregisterSessionListTreeRowBounds;
@@ -83,6 +86,7 @@ export type SessionListRowModelBoundaryProps = Readonly<{
     rowStoreSubscriptionEnabled: boolean;
     rowStoreSubscriptionMode: SessionListRowStoreSubscriptionMode;
     settings: SessionListRowPresentationSettings;
+    shortcutHint?: number;
     viewableSessionRowKeys: ReadonlySet<string> | null;
 }>;
 
@@ -319,6 +323,10 @@ const SessionListRowModelBoundaryContent = React.memo(function SessionListRowMod
             dataIndex={props.dataIndex}
             overlayShared={props.overlayShared}
             rowModel={rowModel}
+            onHoverArchiveTarget={props.onHoverArchiveTarget}
+            onShortcutTargetChange={props.onShortcutTargetChange}
+            onShortcutPresenceChange={props.onShortcutPresenceChange}
+            shortcutHint={props.shortcutHint}
             session={rowModel.session}
             subtitleOverride={rowModel.subtitle ?? null}
             subtitleEllipsizeMode={rowModel.subtitleEllipsizeMode}
@@ -343,8 +351,8 @@ const SessionListRowModelBoundaryContent = React.memo(function SessionListRowMod
             forkActionContext={props.forkActionContext}
             onMoveToFolder={props.folderActionsEnabled ? moveActionHandlers.onMoveToFolder : undefined}
             onMoveToWorkspaceRoot={props.folderActionsEnabled ? moveActionHandlers.onMoveToWorkspaceRoot : undefined}
-            onMoveUp={props.folderViewEnabled ? moveActionHandlers.onMoveUp : undefined}
-            onMoveDown={props.folderViewEnabled ? moveActionHandlers.onMoveDown : undefined}
+            onMoveUp={props.reorderActionsEnabled ? moveActionHandlers.onMoveUp : undefined}
+            onMoveDown={props.reorderActionsEnabled ? moveActionHandlers.onMoveDown : undefined}
             secondaryLineMode={rowModel.secondaryLineMode}
             compact={rowModel.compact}
             compactMinimal={rowModel.compactMinimal}

@@ -46,6 +46,7 @@ describe('buildInboxSessionContextByKey', () => {
 
         expect(result.get('server-a:session-1')?.workspaceName).toBe('Happier Core');
         expect(result.get('server-a:session-1')?.workspaceName).not.toContain('/home/leeroy');
+        expect(result.get('server-a:session-1')?.machineId).toBe('machine-1');
     });
 
     it('preserves the canonical custom workspace label for the exact Home', () => {
@@ -58,5 +59,22 @@ describe('buildInboxSessionContextByKey', () => {
         });
 
         expect(result.get('server-a:session-1')?.workspaceName).toBe('Design System');
+    });
+
+    it('keeps the displayed successor name and icon identity together after machine replacement', () => {
+        const session = makeSession('/home/leeroy/project');
+        const result = buildInboxSessionContextByKey({
+            sessionByKey: new Map([['server-a:session-1', { serverId: 'server-a', sessionId: session.id, session }]]),
+            machines: {
+                'machine-1': { id: 'machine-1', replacedByMachineId: 'machine-2', metadata: { host: 'old-host' } },
+                'machine-2': { id: 'machine-2', metadata: { displayName: 'Successor' } },
+            } as any,
+            workspaceLabelsByServerId: new Map(),
+        });
+
+        expect(result.get('server-a:session-1')).toMatchObject({
+            machineId: 'machine-2',
+            machineLabel: 'Successor',
+        });
     });
 });

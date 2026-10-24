@@ -65,6 +65,7 @@ export function FolderGroupHeader(props: Readonly<{
     item: SessionFolderHeaderItem;
     collapsed: boolean;
     dragHandleGesture?: UseSessionInlineDragResult['gesture'];
+    reorderEnabled?: boolean;
     onToggleCollapse: () => void;
     onFocus: () => void;
     onNewSession: () => void;
@@ -109,19 +110,19 @@ export function FolderGroupHeader(props: Readonly<{
         },
         ...(props.onMoveUp ? [{ id: 'move-up', title: t('common.moveUp'), disabled: props.disabled }] : []),
         ...(props.onMoveDown ? [{ id: 'move-down', title: t('common.moveDown'), disabled: props.disabled }] : []),
-        {
+        ...(props.reorderEnabled === false ? [] : [{
             id: 'move',
             title: t('sessionsList.moveFolder'),
             icon: <Icon name="arrow-circle-right" size={16} color={iconColor} />,
             disabled: props.disabled || !props.onMove,
-        },
+        }]),
         {
             id: 'delete',
             title: t('sessionsList.deleteFolder'),
             icon: <Icon name="trash" size={16} color={iconColor} />,
             disabled: props.disabled,
         },
-    ], [iconColor, props.disabled, props.onMove, props.onMoveUp, props.onMoveDown]);
+    ], [iconColor, props.disabled, props.onMove, props.onMoveUp, props.onMoveDown, props.reorderEnabled]);
 
     const handleMenuSelect = React.useCallback(async (itemId: string) => {
         if (props.disabled) return;
@@ -204,7 +205,7 @@ export function FolderGroupHeader(props: Readonly<{
                     <Icon name="folder" size={14} color={iconColor} />
                     <Text style={styles.title} numberOfLines={1}>{props.item.title}</Text>
                 </Pressable>
-                {props.dragHandleGesture ? (
+                {props.reorderEnabled === false ? null : props.dragHandleGesture ? (
                     <GestureDetector gesture={props.dragHandleGesture}>
                         <View
                             style={[styles.actionButton, webReorderHandleStyle]}

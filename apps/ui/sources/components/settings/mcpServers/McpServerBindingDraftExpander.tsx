@@ -30,8 +30,6 @@ function createDraftBinding(serverId: string, machines: readonly Machine[]): Mcp
 export const McpServerBindingDraftExpander = React.memo(function McpServerBindingDraftExpander(props: Readonly<{
     serverId: string;
     machines: readonly Machine[];
-    favoriteDirectories: string[];
-    onChangeFavoriteDirectories: (next: string[]) => void;
     onAddBinding: (binding: McpServerBindingV1) => void;
     expandedContainerStyle?: React.ComponentProps<typeof InlineAddExpander>['expandedContainerStyle'];
 }>) {
@@ -98,8 +96,6 @@ export const McpServerBindingDraftExpander = React.memo(function McpServerBindin
                             updatedAt: Date.now(),
                         };
                     }),
-                favoriteDirectories: props.favoriteDirectories,
-                onChangeFavoriteDirectories: props.onChangeFavoriteDirectories,
             },
             chrome: {
                 kind: 'card',
@@ -110,9 +106,7 @@ export const McpServerBindingDraftExpander = React.memo(function McpServerBindin
         });
     }, [
         draftBinding,
-        props.favoriteDirectories,
         props.machines,
-        props.onChangeFavoriteDirectories,
         updateDraftBinding,
     ]);
 

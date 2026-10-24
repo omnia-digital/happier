@@ -36,6 +36,8 @@ export type SessionListPlacementProjection = Readonly<{
     kind: SessionListPlacementKind;
     timestamp: number | null;
     retainedWorking: boolean;
+    /** Present only when blocked outgoing delivery produced action-required placement. */
+    attentionSource?: 'blocked_delivery';
     /**
      * Only meaningful for a 'standing' placement: true when the user asked for
      * THIS session to stay in the band, false when standing comes from the
@@ -68,7 +70,10 @@ export function projectSessionListPlacement(params: Readonly<{
         return createPlacement('permission_required', resolveSessionListPlacementTimestampForReason(params.session, 'permission_required'));
     }
     if ((params.session.pendingBlockedCount ?? 0) > 0) {
-        return createPlacement('action_required', resolveSessionListPlacementTimestampForReason(params.session, 'action_required'));
+        return {
+            ...createPlacement('action_required', resolveSessionListPlacementTimestampForReason(params.session, 'action_required')),
+            attentionSource: 'blocked_delivery',
+        };
     }
     if (runtimeStatus.working) {
         return createPlacement('working', null);
@@ -172,6 +177,7 @@ export function didSessionListPlacementProjectionDiverge(params: Readonly<{
         if (
             previousPlacement.kind !== nextPlacement.kind
             || previousPlacement.timestamp !== nextPlacement.timestamp
+            || previousPlacement.attentionSource !== nextPlacement.attentionSource
         ) {
             return true;
         }

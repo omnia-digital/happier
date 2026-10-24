@@ -4,7 +4,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { storage } from '@/sync/domains/state/storage';
 import { projectSessionArchivesToListViewData, readSessionArchiveOperationsForServers } from '@/sync/domains/session/listing/sessionArchiveState';
 import { TokenStorage } from '@/auth/storage/tokenStorage';
-import { SessionListViewItem, useLocalSetting, useOpenApprovalSessionIds, useSessionListViewData, useSessionListViewDataByServerId, useSessionOrganizationProjection, useSetting } from '@/sync/domains/state/storage';
+import { SessionListViewItem, useLocalSetting, useOpenApprovalSessionIds, useSessionListViewData, useSessionListViewDataByServerId, useSessionOrganizationProjections, useSetting } from '@/sync/domains/state/storage';
 import { buildSessionListShellViewItemSignature } from '@/sync/store/hooks';
 import { resolveNextSessionRuntimePresentationFreshnessAtMs } from '@/sync/domains/session/attention/deriveSessionRuntimePresentationState';
 import { resolveSessionListSourceData } from '@/sync/domains/session/listing/sessionListPresentation';
@@ -53,7 +53,7 @@ import {
     resolveNextSessionAttentionReminderWakeAtMs,
     type SessionAttentionStandingPolicy,
 } from '@/sync/domains/session/organization/attentionStanding';
-import { buildSessionOrganizationListViewState } from '@/sync/domains/session/organization/viewState';
+import { buildSessionOrganizationListViewStateForServers } from '@/sync/domains/session/organization/viewState';
 import { getServerProfileById } from '@/sync/domains/server/serverProfiles';
 import { fetchAndApplySessionFolderAssignments } from '@/sync/ops/sessionOrganization';
 import { useFeatureEnabled } from '@/hooks/server/useFeatureEnabled';
@@ -801,11 +801,8 @@ function useSessionListDataState(
     const sessionFoldersEnabled = useFeatureEnabled('sessions.folders');
     const sessionFolderViewModeV1 = useSetting('sessionFolderViewModeV1');
     const selection = useResolvedActiveServerSelection();
-    const organizationProjection = useSessionOrganizationProjection(selection.activeServerId);
-    const organizationListViewState = React.useMemo(() => buildSessionOrganizationListViewState({
-        serverId: selection.activeServerId,
-        projection: organizationProjection,
-    }), [organizationProjection, selection.activeServerId]);
+    const organizationProjections = useSessionOrganizationProjections(selection.enabled ? selection.allowedServerIds : [selection.activeServerId]);
+    const organizationListViewState = React.useMemo(() => buildSessionOrganizationListViewStateForServers(organizationProjections), [organizationProjections]);
     const pinnedSessionKeysV1 = organizationListViewState.pinnedSessionKeysV1;
     const attentionStanding = useSessionAttentionStandingInputs(
         organizationListViewState.attentionStandingOverridesBySessionKey,

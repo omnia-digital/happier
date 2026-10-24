@@ -31,6 +31,7 @@ export interface ConfirmModalConfig extends BaseModalConfig {
     cancelText?: string;
     confirmText?: string;
     destructive?: boolean;
+    confirmOnEnter?: boolean;
 }
 
 export interface PromptModalConfig extends BaseModalConfig {
@@ -122,6 +123,7 @@ export interface IModal {
         cancelText?: string;
         confirmText?: string;
         destructive?: boolean;
+        confirmOnEnter?: boolean;
     }): Promise<boolean>;
     prompt(title: string, message?: string, options?: {
         placeholder?: string;

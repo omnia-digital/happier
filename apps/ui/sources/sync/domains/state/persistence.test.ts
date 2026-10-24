@@ -115,6 +115,37 @@ describe('persistence', () => {
         expect([...store.keys()]).toEqual([]);
     });
 
+    it('roundtrips local machine colors and resets only the selected server-machine choice', async () => {
+        const { withMachineDisplayColor } = await import('../machines/machineDisplayIconPreference');
+        const initial = persistenceModule.loadLocalSettings();
+        expect(initial.machineDisplayColorByMachineV1).toEqual({});
+        persistenceModule.saveLocalSettings({
+            ...initial,
+            machineDisplayIconByMachineV1: { '["server-a","machine-a"]': 'cloud' },
+            machineDisplayColorByMachineV1: {
+                '["server-a","machine-a"]': 'blue',
+                '["server-b","machine-a"]': 'purple',
+                '["server-a","machine-b"]': 'red',
+            },
+        });
+        const loaded = persistenceModule.loadLocalSettings();
+        expect(loaded.machineDisplayColorByMachineV1).toEqual({
+            '["server-a","machine-a"]': 'blue',
+            '["server-b","machine-a"]': 'purple',
+            '["server-a","machine-b"]': 'red',
+        });
+        persistenceModule.saveLocalSettings({
+            ...loaded,
+            machineDisplayColorByMachineV1: withMachineDisplayColor(loaded.machineDisplayColorByMachineV1, 'server-a', 'machine-a', 'automatic'),
+        });
+        const reset = persistenceModule.loadLocalSettings();
+        expect(reset.machineDisplayColorByMachineV1).toEqual({
+            '["server-b","machine-a"]': 'purple',
+            '["server-a","machine-b"]': 'red',
+        });
+        expect(reset.machineDisplayIconByMachineV1).toEqual(loaded.machineDisplayIconByMachineV1);
+    });
+
     describe('session model modes', () => {
         it('loads default settings without touching the settings store bootstrap path', () => {
             expect(loadSettings()).toBeTruthy();

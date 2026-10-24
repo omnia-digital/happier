@@ -71,6 +71,8 @@ installSessionHandoffCommonModuleMocks({
             useMachineRecordValues: () => allMachinesState,
             useSessions: () => sessionsState,
             useSession: (id: string) => sessionsByIdState[id] ?? null,
+            useActiveServerAccountScope: () => ({ serverId: 'server_a', accountId: 'account_a' }),
+            useSetting: (key: string) => settingsState[key],
             useSettingMutable: (key: string) => [
                 settingsState[key],
                 (next: any) => {
@@ -166,6 +168,8 @@ describe('SessionHandoffPickerModal', () => {
         ];
         settingsState.favoriteMachines = [];
         settingsState.recentMachinePaths = [];
+        settingsState.favoriteDirectories = [];
+        settingsState.machinePathPreferencesByTargetV1 = {};
         settingsState.sessionHandoffDefaultsV1 = {
             v: 1,
             workspaceTransferEnabled: true,
@@ -346,8 +350,16 @@ describe('SessionHandoffPickerModal', () => {
         allMachinesState[0]!.metadata.homeDir = '/home/target';
         settingsState.recentMachinePaths = [{
             machineId: 'machine_target',
-            path: '/home/target/recent-project',
+            path: '/another/account-project',
         }];
+        settingsState.machinePathPreferencesByTargetV1 = {
+            [JSON.stringify(['server_a', 'account_a', 'machine_target'])]: {
+                favorites: [], recentPaths: ['/home/target/recent-project'],
+            },
+            [JSON.stringify(['server_a', 'account_b', 'machine_target'])]: {
+                favorites: [], recentPaths: ['/home/target/foreign-project'],
+            },
+        };
 
         const screen = await renderScreen(<SessionHandoffPickerModal
             onClose={vi.fn()}
@@ -372,6 +384,8 @@ describe('SessionHandoffPickerModal', () => {
         });
         expect(screen.findByTestId('path-selection-list:header:input')).not.toBeNull();
         expect(screen.findByTestId('path-selection-list:path-root:option:recent:/home/target/recent-project')).not.toBeNull();
+        expect(screen.findByTestId('path-selection-list:path-root:option:recent:/another/account-project')).toBeNull();
+        expect(screen.findByTestId('path-selection-list:path-root:option:recent:/home/target/foreign-project')).toBeNull();
         await act(async () => {
             screen.changeTextByTestId('path-selection-list:header:input', '/home/target/pasted-project');
         });

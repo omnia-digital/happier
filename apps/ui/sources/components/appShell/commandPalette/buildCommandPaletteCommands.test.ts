@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { vi } from 'vitest';
 
 import type { Command } from './types';
-import { buildCommandPaletteCommands } from './buildCommandPaletteCommands';
+import { buildCommandPaletteCommands, buildCommandPaletteSessionSearchCommands, type CommandPaletteSearchSessionItem } from './buildCommandPaletteCommands';
 
 const createSessionActionDraftSpy = vi.fn();
 let mockedState: any = null;
@@ -29,6 +29,40 @@ function buildSettingsWithExecutionRunsEnabled() {
 }
 
 describe('buildCommandPaletteCommands', () => {
+  it('finds a session beyond recent suggestions by its current title and retains scoped context', () => {
+    const navigateToSession = vi.fn();
+    const makeItem = (id: string, name: string, serverId: string, serverName: string, path: string) => ({
+      type: 'session' as const,
+      serverId,
+      serverName,
+      session: { id, updatedAt: Number(id.slice(1)), metadata: { name, path, host: `${serverId}.host` } },
+    });
+    const items = [
+      ...Array.from({ length: 5 }, (_, index) => makeItem(`s${index + 2}`, `Recent ${index}`, 'server-a', 'Home A', `/work/recent-${index}`)),
+      makeItem('s1', 'Release Checklist', 'server-a', 'Home A', '/work/api'),
+      makeItem('s8', 'Release Checklist', 'server-b', 'Home B', '/work/mobile'),
+    ];
+
+    const matches = buildCommandPaletteSessionSearchCommands(items as CommandPaletteSearchSessionItem[], 'rElEaSe', 'server-a', navigateToSession);
+    expect(matches).toHaveLength(2);
+    expect(matches.map((match) => match.subtitle)).toEqual([
+      expect.stringContaining('/work/mobile'),
+      expect.stringContaining('/work/api'),
+    ]);
+    expect(matches[0]?.subtitle).toContain('Home B');
+    matches[0]?.action();
+    expect(navigateToSession).toHaveBeenCalledWith('s8', { serverId: 'server-b' });
+
+    items[6]!.session.metadata.name = 'Incident Retrospective';
+    expect(buildCommandPaletteSessionSearchCommands(items as CommandPaletteSearchSessionItem[], 'release', 'server-a', navigateToSession)).toHaveLength(1);
+    expect(buildCommandPaletteSessionSearchCommands(items as CommandPaletteSearchSessionItem[], 'retrospect', 'server-a', navigateToSession)[0]?.title).toBe('Incident Retrospective');
+    expect(buildCommandPaletteSessionSearchCommands(items as CommandPaletteSearchSessionItem[], 'no-such-title', 'server-a', navigateToSession)).toEqual([]);
+
+    const summaryItem = makeItem('s9', 'Old metadata name', 'server-a', 'Home A', '/work/summary');
+    const withCurrentTitle = [{ ...summaryItem, session: { ...summaryItem.session, metadata: { ...summaryItem.session.metadata, summaryText: 'Current display title' } } }];
+    expect(buildCommandPaletteSessionSearchCommands(withCurrentTitle as CommandPaletteSearchSessionItem[], 'display title', 'server-a', navigateToSession)[0]?.title).toBe('Current display title');
+    expect(buildCommandPaletteSessionSearchCommands(withCurrentTitle as CommandPaletteSearchSessionItem[], 'old metadata', 'server-a', navigateToSession)).toEqual([]);
+  });
   it('delegates the new-session command to the caller-owned ordinary-entry callback', async () => {
     const push = vi.fn();
     const openNewSession = vi.fn();

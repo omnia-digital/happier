@@ -2,6 +2,7 @@ import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { renderScreen, standardCleanup } from '@/dev/testkit';
+import { lightTheme } from '@/theme';
 import { resolveSessionRowPresentation } from './row/resolveSessionRowPresentation';
 import { createSessionItemTestRowModel, installSessionShellCommonModuleMocks } from './sessionShellTestHelpers';
 
@@ -183,5 +184,27 @@ describe('SessionItem attention standing', () => {
 
         expect(screen.findByTestId(STATUS_TEXT_TEST_ID)).toBeNull();
         expect(screen.findByTestId(INDICATOR_TEST_ID)).toBeNull();
+    });
+
+    it.each([
+        ['default', false, false],
+        ['compact', true, false],
+        ['minimal', true, true],
+    ] as const)('keeps a visible finished badge and tint in the %s selected row', async (_label, compact, compactMinimal) => {
+        const { SessionItem } = await import('./SessionItem');
+        const session = createSession();
+        const props: SessionItemProps = {
+            session, serverId: 'server_a', selected: true, isFirst: true, isLast: true, isSingle: true,
+            compact, compactMinimal, variant: 'no-path',
+        };
+        const rowModel = createSessionItemTestRowModel(props, { visualStatus: 'finished' });
+        const screen = await renderScreen(<SessionItem {...props} rowModel={rowModel} />);
+        const badge = screen.findByTestId(`session-row-status-${SESSION_ID}-finished`);
+        expect(badge?.props.accessibilityLabel).toBe('status.sidebarFinished');
+        const row = screen.findByTestId(`session-list-item-${SESSION_ID}`);
+        const rowStyles = Object.assign({}, ...(row?.props.style ?? []));
+        expect(rowStyles.backgroundColor).toBe(lightTheme.colors.state.success.background);
+        expect(screen.findByTestId(`session-item-current-indicator-${SESSION_ID}`)).toBeTruthy();
+        expect(screen.findByTestId(`session-list-right-identity-${SESSION_ID}`)).toBeNull();
     });
 });

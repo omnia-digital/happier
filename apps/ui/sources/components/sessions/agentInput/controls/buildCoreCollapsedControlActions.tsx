@@ -98,7 +98,7 @@ export function buildCoreCollapsedControlActions(opts: Readonly<{
             options: [],
             selectedId: opts.sessionModeLabel,
             label: opts.sessionModeLabel,
-        });
+        }, t('agentInput.mode.build'), t('agentInput.mode.plan'));
         controlActionsById.mode = [{
             id: 'mode',
             label: opts.sessionModeLabel,

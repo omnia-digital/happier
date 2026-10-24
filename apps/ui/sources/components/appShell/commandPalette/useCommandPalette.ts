@@ -3,12 +3,25 @@ import type { ElementRef } from 'react';
 
 import { Command, CommandCategory } from './types';
 import { TextInput } from '@/components/ui/text/Text';
+import { t } from '@/text';
+import { buildCommandPaletteSessionSearchCommands, type CommandPaletteSearchSessionItem } from './buildCommandPaletteCommands';
+import type { NavigateToSessionOptions } from '@/hooks/session/useNavigateToSession';
 
 
-export function useCommandPalette(commands: Command[], onClose: () => void) {
+export function useCommandPalette(
+    commands: Command[],
+    onClose: () => void,
+    sessionItems: ReadonlyArray<CommandPaletteSearchSessionItem>,
+    activeServerId: string,
+    navigateToSession: (sessionId: string, options?: NavigateToSessionOptions) => void | Promise<void>,
+) {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedIndex, setSelectedIndex] = useState(0);
     const inputRef = useRef<ElementRef<typeof TextInput> | null>(null);
+    const matchingSessions = useMemo(
+        () => buildCommandPaletteSessionSearchCommands(sessionItems, searchQuery, activeServerId, navigateToSession),
+        [sessionItems, searchQuery, activeServerId, navigateToSession],
+    );
 
     // Filter commands based on search query
     const filteredCategories = useMemo((): CommandCategory[] => {
@@ -31,19 +44,23 @@ export function useCommandPalette(commands: Command[], onClose: () => void) {
         }
 
         // Fuzzy search
-        const query = searchQuery.toLowerCase();
+        const query = searchQuery.trim().toLocaleLowerCase();
         const filtered = commands.filter(command => {
+            // Recent suggestions are replaced by live, scoped title matches while searching.
+            if (command.category === t('commandPalette.commands.recentSessionsCategory')) return false;
             const titleMatch = command.title.toLowerCase().includes(query);
             const subtitleMatch = command.subtitle?.toLowerCase().includes(query);
             return titleMatch || subtitleMatch;
         });
 
-        if (filtered.length === 0) {
+        const results = [...matchingSessions, ...filtered];
+
+        if (results.length === 0) {
             return [];
         }
 
         // Group filtered results
-        const grouped = filtered.reduce((acc, command) => {
+        const grouped = results.reduce((acc, command) => {
             const category = command.category || 'Results';
             if (!acc[category]) {
                 acc[category] = [];
@@ -57,7 +74,7 @@ export function useCommandPalette(commands: Command[], onClose: () => void) {
             title,
             commands: cmds
         }));
-    }, [commands, searchQuery]);
+    }, [commands, searchQuery, matchingSessions]);
 
     // Reset selection when search changes
     useEffect(() => {

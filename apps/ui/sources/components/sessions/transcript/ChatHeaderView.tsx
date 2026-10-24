@@ -15,6 +15,7 @@ import { t } from '@/text';
 import { resolveOptionalSessionScreenTestId, useSessionScreenTestIdsEnabled } from '../shell/sessionScreenTestIds';
 import { resolveChatHeaderContentInsets } from './chatHeaderLayout';
 import { Icon } from '@/components/ui/icons/Icon';
+import { SessionMachineIdentity } from '@/components/sessions/SessionMachineIdentity';
 import { resolveSessionHeaderActionTargetPx } from '@/components/sessions/actions/sessionHeaderIconMetrics';
 
 
@@ -32,6 +33,10 @@ interface ChatHeaderViewProps {
     subtitle?: string;
     subtitleEllipsizeMode?: 'head' | 'tail';
     badges?: ReadonlyArray<string>;
+    /** Canonical display name of the machine hosting the selected session. */
+    machineLabel?: string | null;
+    machineId?: string | null;
+    machineServerId?: string | null;
     onBackPress?: () => void;
     avatarId?: string;
     /** Resolved agent for this session, when there is one. Shown in place of the avatar on request. */
@@ -64,6 +69,9 @@ export const ChatHeaderView = React.memo(function ChatHeaderView({
     subtitle,
     subtitleEllipsizeMode = 'tail',
     badges,
+    machineLabel,
+    machineId,
+    machineServerId,
     onBackPress,
     avatarId,
     agentId,
@@ -212,6 +220,15 @@ export const ChatHeaderView = React.memo(function ChatHeaderView({
                                     </Text>
                                 </View>
                             ))
+                        ) : null}
+                        {machineLabel ? (
+                            <SessionMachineIdentity
+                                testID="session-header-machine-identity"
+                                label={machineLabel}
+                                machineId={machineId}
+                                serverId={machineServerId}
+                                variant="header"
+                            />
                         ) : null}
                     </View>
                     {subtitle && (

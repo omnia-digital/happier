@@ -78,6 +78,33 @@ vi.mock('@/components/sessions/new/components/MachineCliGlyphs', () => ({
 }));
 
 describe('MachineSelector (disable offline)', () => {
+    it('uses the server-scoped machine glyph for concrete rows and the selected trigger', async () => {
+        captured.reset();
+        const machine = { id: 'same-machine', active: true, activeAt: Date.now(), metadata: { displayName: 'Studio' } } as any;
+        await renderScreen(<MachineSelector
+            machines={[machine]}
+            selectedMachine={machine}
+            recentMachines={[machine]}
+            onSelect={vi.fn()}
+            serverId="server-b"
+            showCliGlyphs={false}
+        />);
+        expect(captured.lastConfig.getItemIcon(machine).props).toMatchObject({ serverId: 'server-b', machineId: 'same-machine' });
+        expect(captured.lastConfig.getRecentItemIcon(machine).props).toMatchObject({ serverId: 'server-b', machineId: 'same-machine' });
+
+        captured.reset();
+        await renderScreen(<MachineSelector
+            machines={[machine]}
+            selectedMachine={machine}
+            recentMachines={[machine]}
+            onSelect={vi.fn()}
+            serverId="server-b"
+            showCliGlyphs={false}
+            presentation="dropdown"
+        />);
+        expect(captured.lastDropdownProps.itemTrigger.icon.props).toMatchObject({ serverId: 'server-b', machineId: 'same-machine' });
+        expect(captured.lastDropdownProps.items[0].icon.props).toMatchObject({ serverId: 'server-b', machineId: 'same-machine' });
+    });
     it('uses broad online presence for picker availability while exact readiness is unresolved', async () => {
         captured.reset();
 

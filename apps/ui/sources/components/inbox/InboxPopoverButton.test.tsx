@@ -84,7 +84,16 @@ describe('InboxPopoverButton', () => {
 
         expect(capture.contentModelMounts).toBe(0);
         expect(capture.activeContentModels).toBe(0);
-        expect(screen.findByTestId('test-inbox-trigger')?.props.accessibilityState).toEqual({ expanded: false });
+        const trigger = screen.find((node) => (
+            node.props.testID === 'test-inbox-trigger'
+            && node.props.webTooltip === 'inbox.toolbarTooltip'
+        ));
+        expect(trigger.props).toMatchObject({
+            accessibilityLabel: 'tabs.inbox',
+            webTooltip: 'inbox.toolbarTooltip',
+            focusRingRadius: 16,
+        });
+        expect(screen.findByTestId('test-inbox-trigger')?.props.accessibilityState).toEqual(expect.objectContaining({ expanded: false }));
         await act(async () => {
             await screen.findByTestId('test-inbox-trigger')?.props.onPress({
                 currentTarget: {
@@ -93,7 +102,7 @@ describe('InboxPopoverButton', () => {
             });
         });
 
-        expect(screen.findByTestId('test-inbox-trigger')?.props.accessibilityState).toEqual({ expanded: true });
+        expect(screen.findByTestId('test-inbox-trigger')?.props.accessibilityState).toEqual(expect.objectContaining({ expanded: true }));
         expect(capture.contentModelMounts).toBeGreaterThan(0);
         expect(capture.activeContentModels).toBe(1);
         expect(capture.popoverProps).toMatchObject({
@@ -103,6 +112,7 @@ describe('InboxPopoverButton', () => {
             maxWidthCap: 420,
             maxHeightCap: 560,
         });
+        expect(capture.popoverProps?.anchorRef).toBe(trigger.props.anchorRef);
         expect(capture.contentProps).toMatchObject({ model, presentation: 'popover' });
         expect(capture.contentProps?.onBeforeNavigate).toEqual(expect.any(Function));
         expect(screen.getTextContent()).not.toContain('tabs.inbox');
@@ -112,7 +122,7 @@ describe('InboxPopoverButton', () => {
         expect(openInbox).toHaveBeenCalledTimes(1);
         expect(screen.findAllByType('Popover' as never)).toHaveLength(0);
         expect(capture.activeContentModels).toBe(0);
-        expect(screen.findByTestId('test-inbox-trigger')?.props.accessibilityState).toEqual({ expanded: false });
+        expect(screen.findByTestId('test-inbox-trigger')?.props.accessibilityState).toEqual(expect.objectContaining({ expanded: false }));
     });
 
     it('lets Inbox item navigation dismiss the popover without changing the model owner', async () => {

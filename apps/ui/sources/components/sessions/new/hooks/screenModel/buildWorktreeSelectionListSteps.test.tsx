@@ -64,7 +64,12 @@ function makeSnapshot(overrides?: Partial<ScmWorkingSnapshot['repo']>): ScmWorki
 
 function findStaticSection(step: SelectionListStep, sectionId: string): SelectionListSection | undefined {
     const section = step.sections.find((candidate) => candidate.id === sectionId);
-    return section?.kind === 'static' ? section : undefined;
+    if (section?.kind === 'static') return section;
+    if (sectionId === 'worktree:existing') {
+        const existingStep = requireOption(requireStaticSection(step, 'worktree:quick-actions'), 'existing_git_worktree').openStep;
+        return existingStep ? findStaticSection(existingStep, sectionId) : undefined;
+    }
+    return undefined;
 }
 
 function requireStaticSection(step: SelectionListStep, sectionId: string): SelectionListSection {
@@ -122,8 +127,8 @@ function requireReuseExistingRow(option: SelectionListOption): SelectionListOpti
 }
 
 function requireCreateWorktreeStep(rootStep: SelectionListStep): SelectionListStep {
-    const quickActions = requireStaticSection(rootStep, 'worktree:quick-actions');
-    return requireOpenStep(requireOption(quickActions, 'create_git_worktree'));
+    const advanced = requireStaticSection(rootStep, 'worktree:advanced');
+    return requireOpenStep(requireOption(advanced, 'create_git_worktree_from_branch'));
 }
 
 function requireDynamicSection(step: SelectionListStep, sectionId: string): SelectionListDynamicSection {
@@ -163,7 +168,7 @@ describe('buildWorktreeSelectionListSteps', () => {
         // First section: quick actions (use-current-dir + create-new-worktree drill-down).
         const sectionIds = rootStep.sections.map((s) => s.id);
         expect(sectionIds).toContain('worktree:quick-actions');
-        expect(sectionIds).toContain('worktree:existing');
+        expect(sectionIds).not.toContain('worktree:existing');
 
         const quickActions = requireStaticSection(rootStep, 'worktree:quick-actions');
         const optionIds = quickActions.options.map((o) => o.id);
@@ -174,7 +179,7 @@ describe('buildWorktreeSelectionListSteps', () => {
         currentDirOption?.onSelect?.();
         expect(onSelectCurrentDir).toHaveBeenCalledTimes(1);
 
-        const createWorktreeOption = requireOption(quickActions, 'create_git_worktree');
+        const createWorktreeOption = requireOption(requireStaticSection(rootStep, 'worktree:advanced'), 'create_git_worktree_from_branch');
         expect(createWorktreeOption?.openStep).toBeDefined();
         expect(createWorktreeOption?.openStep?.id).toBe('worktree-create');
 
@@ -571,10 +576,10 @@ describe('buildWorktreeSelectionListSteps', () => {
             onReuseExistingWorktreeForBranch: vi.fn(),
         });
 
-        const existing = rootStep.sections.find((s) => s.id === 'worktree:existing');
+        const existing = findStaticSection(rootStep, 'worktree:existing');
         // The trailing-slash worktree IS the current dir, so the entire existing-worktrees section
         // should be omitted (the only entry would have been suppressed).
-        expect(existing).toBeUndefined();
+        expect(existing?.options).toEqual([]);
     });
 
     it('R10: treats backslash-separator paths as equivalent to forward-slash (Windows-style match)', async () => {
@@ -601,8 +606,8 @@ describe('buildWorktreeSelectionListSteps', () => {
 
         // The backslash worktree resolves to the same canonical path as currentDirPath, so the
         // existing-worktrees section must be omitted.
-        const existing = rootStep.sections.find((s) => s.id === 'worktree:existing');
-        expect(existing).toBeUndefined();
+        const existing = findStaticSection(rootStep, 'worktree:existing');
+        expect(existing?.options).toEqual([]);
     });
 
     it('R10: expands tilde currentDirPath against machineHomeDir for self-row suppression', async () => {
@@ -628,9 +633,9 @@ describe('buildWorktreeSelectionListSteps', () => {
             onReuseExistingWorktreeForBranch: vi.fn(),
         });
 
-        const existing = rootStep.sections.find((s) => s.id === 'worktree:existing');
+        const existing = findStaticSection(rootStep, 'worktree:existing');
         // /Users/leeroy/foo === ~/foo (after expansion), so this worktree should be suppressed.
-        expect(existing).toBeUndefined();
+        expect(existing?.options).toEqual([]);
     });
 
     it('R10: branch row routes to reuse only when the existing worktree is not the canonical current dir', async () => {
@@ -694,8 +699,8 @@ describe('buildWorktreeSelectionListSteps', () => {
             onReuseExistingWorktreeForBranch: vi.fn(),
         });
 
-        const existing = rootStep.sections.find((s) => s.id === 'worktree:existing');
-        if (existing?.kind !== 'static') throw new Error('existing must be static');
+        const existing = findStaticSection(rootStep, 'worktree:existing');
+        if (!existing) throw new Error('existing must be static');
         const row = existing.options.find((o) => o.id === 'checkout:/repo/.worktrees/feature');
         expect(row).toBeDefined();
         const accessory = row!.rightAccessory as React.ReactElement;
@@ -995,7 +1000,7 @@ describe('buildWorktreeSelectionListSteps', () => {
         });
         const quickActions = rootStep.sections.find((s) => s.id === 'worktree:quick-actions');
         if (quickActions?.kind !== 'static') throw new Error('quick-actions must be static');
-        const createOption = quickActions.options.find((o) => o.id === 'create_git_worktree');
+        const createOption = requireStaticSection(rootStep, 'worktree:advanced').options.find((o) => o.id === 'create_git_worktree_from_branch');
         const createStep = createOption?.openStep;
         expect(createStep).toBeDefined();
         const sections = createStep!.sections;
@@ -1383,8 +1388,8 @@ describe('buildWorktreeSelectionListSteps', () => {
             onReuseExistingWorktreeForBranch: vi.fn(),
         });
 
-        const existing = rootStep.sections.find((s) => s.id === 'worktree:existing');
-        if (existing?.kind !== 'static') throw new Error('existing must be static');
+        const existing = findStaticSection(rootStep, 'worktree:existing');
+        if (!existing) throw new Error('existing must be static');
         const row = existing.options.find((o) => o.id === 'checkout:/repo/.worktrees/feature');
         const accessory = row?.rightAccessory as React.ReactElement;
         const fragmentChildren = React.Children.toArray((accessory.props as { children: React.ReactNode }).children);
@@ -1431,8 +1436,8 @@ describe('buildWorktreeSelectionListSteps', () => {
             onReuseExistingWorktreeForBranch: vi.fn(),
         });
 
-        const existing = rootStep.sections.find((s) => s.id === 'worktree:existing');
-        if (existing?.kind !== 'static') throw new Error('existing must be static');
+        const existing = findStaticSection(rootStep, 'worktree:existing');
+        if (!existing) throw new Error('existing must be static');
         const row = existing.options.find((o) => o.id === 'checkout:/repo/.worktrees/feature');
         const accessory = row?.rightAccessory as React.ReactElement;
         const fragmentChildren = React.Children.toArray((accessory.props as { children: React.ReactNode }).children);
@@ -1503,8 +1508,8 @@ describe('buildWorktreeSelectionListSteps', () => {
             onReuseExistingWorktreeForBranch: vi.fn(),
         });
 
-        const existing = rootStep.sections.find((s) => s.id === 'worktree:existing');
-        if (existing?.kind !== 'static') throw new Error('existing must be static');
+        const existing = findStaticSection(rootStep, 'worktree:existing');
+        if (!existing) throw new Error('existing must be static');
         const row = existing.options.find((o) => o.id === 'checkout:/repo/.worktrees/feature');
         const accessory = row!.rightAccessory as React.ReactElement;
         const fragmentChildren = React.Children.toArray((accessory.props as { children: React.ReactNode }).children);

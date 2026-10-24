@@ -57,6 +57,8 @@ installAgentInputCommonModuleMocks({
         return createTextModuleMock({
             translate: (key: string, params?: { name?: string }) => {
                 if (key === 'agentInput.mode.badgeA11y') return `Mode: ${params?.name ?? ''}`;
+                if (key === 'agentInput.mode.build') return 'Build';
+                if (key === 'agentInput.mode.plan') return 'Planning';
                 return key;
             },
         });
@@ -696,6 +698,41 @@ describe('AgentInput (modelOptionsOverride)', () => {
         expect(screen.findByTestId('agent-input-selection-list-popover')).toBeNull();
     });
 
+    it('keeps the provider mode id while showing Build as an icon-only active mode with picker labels', async () => {
+        const onAcpSessionModeChange = vi.fn();
+        const screen = await renderScreen(React.createElement(AgentInput, {
+            value: 'hello',
+            placeholder: 'placeholder',
+            onChangeText: () => {},
+            onSend: () => {},
+            autocompleteKinds: [],
+            autocompleteSuggestions: async () => [],
+            agentType: 'opencode',
+            acpSessionModeOptionsOverride: [
+                { id: 'default', name: 'Default' },
+                { id: 'plan', name: 'Planning' },
+                { id: 'review', name: 'Review' },
+                { id: 'build', name: 'Build' },
+            ],
+            acpSessionModeSelectedIdOverride: 'default',
+            onAcpSessionModeChange,
+        } as any));
+
+        const modeChip = screen.findByTestId('agent-input-session-mode-chip');
+        expect(modeChip?.props.accessibilityLabel).toBe('Build');
+        expect(screen.findByTestId('agent-input-session-mode-chip-label:default')).toBeNull();
+        expect(findIconNode(modeChip!, 'rocket-launch')).toBeTruthy();
+        expect(screen.getTextContent()).not.toContain('Default');
+
+        await screen.pressByTestIdAsync('agent-input-session-mode-chip');
+        expect(screen.findByTestId('agent-input-selection-list-popover')).toBeTruthy();
+        expect(screen.getTextContent()).toContain('Build');
+        expect(screen.getTextContent()).toContain('Planning');
+        await screen.pressByTestIdAsync('selection-list:session-mode-root:option:plan');
+
+        expect(onAcpSessionModeChange).toHaveBeenCalledWith('plan');
+    });
+
     it.each([null, 'default'] as const)('distinguishes unset permissions from native Default in preflight (%s)', async (selectedModeId) => {
         const onAcpSessionModeChange = vi.fn();
         const screen = await renderScreen(React.createElement(AgentInput, {
@@ -833,7 +870,7 @@ describe('AgentInput (modelOptionsOverride)', () => {
         expect(modeChip).toBeTruthy();
         expect(modeChip?.props.accessibilityLabel).toContain('Build');
         expect(findIconNode(modeChip!, 'rocket-launch')).toBeTruthy();
-        expect(findIconNode(modeChip!, 'list')).toBeUndefined();
+        expect(findIconNode(modeChip!, 'list-checks')).toBeUndefined();
 
         await screen.pressByTestIdAsync('agent-input-session-mode-chip');
 
@@ -842,7 +879,7 @@ describe('AgentInput (modelOptionsOverride)', () => {
         expect(screen.findByTestId('agent-input-selection-list-popover')).toBeNull();
     });
 
-    it('keeps the existing list icon and bare mode label when the selected ACP mode is Plan', async () => {
+    it('keeps the Planning label accessible while rendering the selected ACP mode as an icon only', async () => {
 
         const screen = await renderScreen(React.createElement(AgentInput, {
                     value: 'hello',
@@ -865,10 +902,10 @@ describe('AgentInput (modelOptionsOverride)', () => {
                 } as any));
         const modeChip = screen.findByTestId('agent-input-session-mode-chip');
         expect(modeChip).toBeTruthy();
-        expect(modeChip?.props.accessibilityLabel).toContain('Plan');
-        expect(findIconNode(modeChip!, 'list')).toBeTruthy();
+        expect(modeChip?.props.accessibilityLabel).toContain('Planning');
+        expect(findIconNode(modeChip!, 'list-checks')).toBeTruthy();
         expect(findIconNode(modeChip!, 'rocket-launch')).toBeUndefined();
-        expect(screen.findByTestId('agent-input-session-mode-chip-label:plan')).toBeTruthy();
+        expect(screen.findByTestId('agent-input-session-mode-chip-label:plan')).toBeNull();
     });
 
     it('opens ACP mode picker popover instead of cycling when selectable options exceed threshold', async () => {

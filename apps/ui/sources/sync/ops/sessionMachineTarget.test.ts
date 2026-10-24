@@ -14,6 +14,19 @@ vi.mock('@/sync/domains/state/storage', async () => {
 });
 
 describe('sessionMachineTarget', () => {
+    it('keeps another Home control target independent from active machine replacements and projects', async () => {
+        const { readMachineControlTargetForSession } = await import('./sessionMachineTarget');
+        getStateSpy.mockReturnValue({
+            profileScope: { serverId: 'home-b', accountId: 'account-b' },
+            sessions: { s1: { active: false, metadata: { machineId: 'm1', path: '/owner/repo' } } },
+            machines: { m1: { id: 'm1', active: false, replacedByMachineId: 'm2' }, m2: { id: 'm2', active: true } },
+            getProjectForSession: () => ({ key: { machineId: 'm2', path: '/other/project' } }),
+        });
+        expect(readMachineControlTargetForSession('s1', { serverId: 'home-a', accountId: 'account-a' })).toEqual({
+            machineId: 'm1', basePath: '/owner/repo', confidence: 'metadata_direct', originMachineId: 'm1', replaced: false,
+        });
+    });
+
     it('reads machine target from session metadata when available', async () => {
         const { readMachineTargetForSession } = await import('./sessionMachineTarget');
         getStateSpy.mockReturnValue({

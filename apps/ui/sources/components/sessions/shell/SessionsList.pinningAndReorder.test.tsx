@@ -831,6 +831,8 @@ describe('SessionsList pinning + per-group ordering', () => {
             'expected sess_live_2 session row',
         );
 
+        expect(row1.props.rowModel).toMatchObject({ machineId: 'machine-live-1', serverId: 'server_a', machineLabel: 'Rebound workstation' });
+        expect(row2.props.rowModel).toMatchObject({ machineId: 'machine-live-2', serverId: 'server_a' });
         expect(row1.props.subtitleOverride).toContain('Rebound workstation');
         expect(row1.props.subtitleOverride).toContain('live-a');
         expect(row2.props.subtitleOverride).toContain('rebound-2.local');

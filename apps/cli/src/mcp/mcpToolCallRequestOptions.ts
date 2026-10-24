@@ -69,9 +69,11 @@ export async function callMcpToolWithResolvedTimeout(params: Readonly<{
   args: unknown;
   requestMetadata?: RequestMeta;
   onprogress?: RequestOptions['onprogress'];
+  signal?: AbortSignal;
 }>): ReturnType<Client['callTool']> {
   return await params.client.callTool(
     {
+      ...(params.signal ? { signal: params.signal } : {}),
       name: params.toolName,
       arguments: normalizeMcpToolArguments(params.args),
       ...(params.requestMetadata === undefined ? {} : { _meta: params.requestMetadata }),

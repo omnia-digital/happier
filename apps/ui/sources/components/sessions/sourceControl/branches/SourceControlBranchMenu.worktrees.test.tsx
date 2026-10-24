@@ -2,6 +2,7 @@ import * as React from 'react';
 import { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { renderScreen } from '@/dev/testkit';
+import { createSessionFixture } from '@/dev/testkit/fixtures/sessionFixtures';
 import {
     installSourceControlBranchMenuCommonModuleMocks,
     openSourceControlBranchMenu,
@@ -14,10 +15,15 @@ installSourceControlBranchMenuCommonModuleMocks();
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
 describe('SourceControlBranchMenu worktrees', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
         resetSourceControlBranchMenuCommonModuleMockState();
         sourceControlBranchMenuModuleState.useSettingMock.mockImplementation(() => 'always_bring');
         sourceControlBranchMenuModuleState.modalConfirmSpy.mockResolvedValue(false);
+        const { storage } = await import('@/sync/domains/state/storage');
+        storage.setState({ profileScope: { serverId: 'server-a', accountId: 'account-a' }, sessions: {
+            s1: createSessionFixture({ id: 's1', serverId: 'server-a', metadata: { machineId: 'machine-1', path: '/repo' } as never }),
+        } });
+        sourceControlBranchMenuModuleState.readMachineTargetForSessionMock.mockReturnValue({ machineId: 'machine-1', basePath: '/repo' });
     });
 
     it('surfaces sibling worktrees and opens a new session in the selected worktree', async () => {
@@ -61,6 +67,8 @@ describe('SourceControlBranchMenu worktrees', () => {
             pathname: '/new',
             params: {
                 draftId: expect.stringMatching(/^[0-9a-f-]{36}$/i),
+                spawnServerId: 'server-a',
+                machineId: 'machine-1',
                 directory: '/repo/.worktrees/feature-auth',
             },
         });
@@ -104,6 +112,7 @@ describe('SourceControlBranchMenu worktrees', () => {
         });
 
         expect(sourceControlBranchMenuModuleState.createWorktreeForMachinePathMock).toHaveBeenCalledWith({
+            scope: { serverId: 'server-a', accountId: 'account-a' },
             machineId: 'machine-1',
             path: '/repo',
             baseRef: null,
@@ -112,6 +121,7 @@ describe('SourceControlBranchMenu worktrees', () => {
             pathname: '/new',
             params: {
                 draftId: expect.stringMatching(/^[0-9a-f-]{36}$/i),
+                spawnServerId: 'server-a',
                 machineId: 'machine-1',
                 directory: '/repo/.dev/worktree/feature-auth',
             },
@@ -160,6 +170,7 @@ describe('SourceControlBranchMenu worktrees', () => {
             pathname: '/new',
             params: {
                 draftId: expect.stringMatching(/^[0-9a-f-]{36}$/i),
+                spawnServerId: 'server-a',
                 machineId: 'machine-1',
                 directory: '/repo/.dev/worktree/feature-auth/packages/app',
             },
@@ -200,6 +211,7 @@ describe('SourceControlBranchMenu worktrees', () => {
         });
 
         expect(sourceControlBranchMenuModuleState.pruneWorktreesForMachinePathMock).toHaveBeenCalledWith({
+            scope: { serverId: 'server-a', accountId: 'account-a' },
             machineId: 'machine-1',
             path: '/repo',
         });
@@ -241,6 +253,7 @@ describe('SourceControlBranchMenu worktrees', () => {
             pathname: '/new',
             params: {
                 draftId: expect.stringMatching(/^[0-9a-f-]{36}$/i),
+                spawnServerId: 'server-a',
                 machineId: 'machine-1',
                 directory: '/repo',
                 worktree: 'new',
@@ -290,6 +303,7 @@ describe('SourceControlBranchMenu worktrees', () => {
         });
 
         expect(sourceControlBranchMenuModuleState.removeWorktreeForMachinePathMock).toHaveBeenCalledWith({
+            scope: { serverId: 'server-a', accountId: 'account-a' },
             machineId: 'machine-1',
             path: '/repo',
             worktreePath: '/repo/.worktrees/feature-auth',
@@ -397,6 +411,7 @@ describe('SourceControlBranchMenu worktrees', () => {
             pathname: '/new',
             params: {
                 draftId: expect.stringMatching(/^[0-9a-f-]{36}$/i),
+                spawnServerId: 'server-a',
                 machineId: 'machine-1',
                 directory: '/repo/.dev/worktree/pr-42/packages/app',
             },

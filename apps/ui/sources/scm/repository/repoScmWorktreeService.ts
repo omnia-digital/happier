@@ -1,3 +1,4 @@
+import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import {
     SCM_OPERATION_ERROR_CODES,
     type ScmWorktree,
@@ -68,11 +69,12 @@ export class RepoScmWorktreeService {
     async createWorktreeForMachinePath(input: Readonly<{
         machineId: string;
         path: string;
+        scope: ServerAccountScope;
         displayName?: string | null;
         baseRef?: string | null;
         branchMode?: 'new' | 'existing';
     }>): Promise<ScmWorktreeCreateResponse> {
-        const request = resolveRepoScmMachinePathRequest({ machineId: input.machineId, path: input.path });
+        const request = resolveRepoScmMachinePathRequest({ machineId: input.machineId, path: input.path, scope: input.scope });
         if (!request) {
             return {
                 success: false,
@@ -88,15 +90,16 @@ export class RepoScmWorktreeService {
             displayName: input.displayName?.trim() || generateWorktreeName(),
             baseRef: input.baseRef?.trim() || undefined,
             branchMode: input.branchMode ?? 'new',
-        });
+        }, input.scope);
     }
 
     async removeWorktreeForMachinePath(input: Readonly<{
         machineId: string;
         path: string;
+        scope: ServerAccountScope;
         worktreePath: string;
     }>): Promise<ScmWorktreeRemoveResponse> {
-        const request = resolveRepoScmMachinePathRequest({ machineId: input.machineId, path: input.path });
+        const request = resolveRepoScmMachinePathRequest({ machineId: input.machineId, path: input.path, scope: input.scope });
         if (!request) {
             return {
                 success: false,
@@ -109,14 +112,15 @@ export class RepoScmWorktreeService {
         return await machineScmWorktreeRemove(request.machineId, {
             cwd: request.resolvedPath,
             worktreePath: input.worktreePath,
-        });
+        }, input.scope);
     }
 
     async pruneWorktreesForMachinePath(input: Readonly<{
         machineId: string;
         path: string;
+        scope: ServerAccountScope;
     }>): Promise<ScmWorktreePruneResponse> {
-        const request = resolveRepoScmMachinePathRequest({ machineId: input.machineId, path: input.path });
+        const request = resolveRepoScmMachinePathRequest({ machineId: input.machineId, path: input.path, scope: input.scope });
         if (!request) {
             return {
                 success: false,
@@ -128,7 +132,7 @@ export class RepoScmWorktreeService {
 
         return await machineScmWorktreePrune(request.machineId, {
             cwd: request.resolvedPath,
-        });
+        }, input.scope);
     }
 }
 

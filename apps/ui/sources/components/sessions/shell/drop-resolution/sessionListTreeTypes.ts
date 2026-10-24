@@ -45,6 +45,7 @@ export type SessionListTreeRowMetadata = Readonly<{
 export type SessionListTreeContainerMetadata = Readonly<{
     containerId: string;
     kind: 'workspace-order' | 'children';
+    displayOrderOnly?: boolean;
     rootId: string;
     groupKey: string;
     parentRowId: string | null;

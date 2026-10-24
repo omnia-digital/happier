@@ -6,6 +6,8 @@ import { DEFAULT_AGENT_ID, type AgentId } from '@happier-dev/agents';
 import { isAgentId } from '@/agents/registry/registryCore';
 import { listPreferredMachineIds } from '@/components/settings/pickers/resolvePreferredMachineId';
 import { getActiveServerSnapshot } from '@/sync/domains/server/serverRuntime';
+import { getActiveServerAccountScope } from '@/sync/domains/scope/activeServerAccountScope';
+import { recentMachinePathsForScope } from '@/sync/domains/settings/machinePathPreferences';
 import { storage } from '@/sync/domains/state/storage';
 import { resolveMachineForActiveServerFromState, resolveVisibleMachinesForActiveServerFromState } from '@/sync/store/domains/machines/resolveMachinesForActiveServerFromState';
 import { readDirectSessionLink } from '@/sync/domains/session/directSessions/readDirectSessionLink';
@@ -68,6 +70,13 @@ function joinFsPath(base: string, child: string): string {
   return `${trimmedBase}/${trimmedChild}`;
 }
 
+function scopedRecentMachinePaths(state: any) {
+  return recentMachinePathsForScope(
+    state?.settings?.machinePathPreferencesByTargetV1 ?? {},
+    getActiveServerAccountScope(),
+  );
+}
+
 function resolveVoiceHomeDirectory(state: any, machineId: string): string | null {
   const agentCfg: any = state?.settings?.voice?.adapters?.local_conversation?.agent ?? {};
   const subdir = normalizeNonEmptyString(agentCfg?.voiceHomeSubdirName) ?? 'voice-agent';
@@ -76,7 +85,7 @@ function resolveVoiceHomeDirectory(state: any, machineId: string): string | null
   const happyHomeDir = normalizeNonEmptyString(machine?.metadata?.happyHomeDir);
   if (happyHomeDir) return joinFsPath(happyHomeDir, subdir);
 
-  for (const recent of state?.settings?.recentMachinePaths ?? []) {
+  for (const recent of scopedRecentMachinePaths(state)) {
     if (normalizeNonEmptyString(recent?.machineId) !== machineId) continue;
     const recentDirectory = normalizeNonEmptyString(recent?.path);
     if (recentDirectory) return recentDirectory;
@@ -99,7 +108,7 @@ function resolveReplacementAwareVoiceMachineId(machineId: string | null | undefi
 function resolveRecentVoiceDirectoryForMachine(state: any, machineId: string | null | undefined): string | null {
   const normalizedMachineId = normalizeNonEmptyString(machineId);
   if (!normalizedMachineId) return null;
-  for (const recent of state?.settings?.recentMachinePaths ?? []) {
+  for (const recent of scopedRecentMachinePaths(state)) {
     if (normalizeNonEmptyString(recent?.machineId) !== normalizedMachineId) continue;
     const recentDirectory = normalizeNonEmptyString(recent?.path);
     if (recentDirectory) return recentDirectory;
@@ -110,7 +119,7 @@ function resolveRecentVoiceDirectoryForMachine(state: any, machineId: string | n
 function resolveRecentVoiceDirectoryForRouteMachine(state: any, routeMachineId: string | null | undefined): string | null {
   const normalizedRouteMachineId = normalizeNonEmptyString(routeMachineId);
   if (!normalizedRouteMachineId) return null;
-  for (const recent of state?.settings?.recentMachinePaths ?? []) {
+  for (const recent of scopedRecentMachinePaths(state)) {
     const recentMachineId = normalizeNonEmptyString(recent?.machineId);
     if (resolveReplacementAwareVoiceMachineId(recentMachineId) !== normalizedRouteMachineId) continue;
     const recentDirectory = normalizeNonEmptyString(recent?.path);
@@ -133,7 +142,7 @@ function resolveSpawnTarget(state: any): { machineId: string; directory: string 
     if (machineId && directory) return { machineId, directory };
   }
 
-  const recent = state?.settings?.recentMachinePaths?.[0] ?? null;
+  const recent = scopedRecentMachinePaths(state)[0] ?? null;
   const recentMachineId = normalizeNonEmptyString(recent?.machineId);
   const recentDirectory = normalizeNonEmptyString(recent?.path);
   const recentRouteMachineId = resolveReplacementAwareVoiceMachineId(recentMachineId);
@@ -183,16 +192,14 @@ function resolveVoiceHomeSpawnTarget(state: any): { machineId: string; directory
   const candidateMachineIds: Array<string | null | undefined> = [
     resolveSpawnTarget(state)?.machineId,
     ...(
-      Array.isArray(state?.settings?.recentMachinePaths)
-        ? state.settings.recentMachinePaths.map((entry: any) => normalizeNonEmptyString(entry?.machineId))
-        : []
+      scopedRecentMachinePaths(state).map((entry) => normalizeNonEmptyString(entry.machineId))
     ),
     ...resolveVisibleMachinesForActiveServerFromState(state)
       .filter((machine) => machine.active === true)
       .map((machine) => normalizeNonEmptyString(machine.id)),
     ...listPreferredMachineIds({
       machines: resolveVisibleMachinesForActiveServerFromState(state),
-      recentMachinePaths: Array.isArray(state?.settings?.recentMachinePaths) ? state.settings.recentMachinePaths : [],
+      recentMachinePaths: scopedRecentMachinePaths(state),
     }),
     ...resolveVisibleMachinesForActiveServerFromState(state).map((machine) => normalizeNonEmptyString(machine.id)),
   ];

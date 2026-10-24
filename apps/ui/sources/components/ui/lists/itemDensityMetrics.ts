@@ -64,6 +64,13 @@ export const ITEM_SUBTITLE_TEXT_METRICS: Record<ResolvedItemDensity, Readonly<{
     },
 };
 
+export const ITEM_ROW_MIN_HEIGHT: Record<ResolvedItemDensity, number> = {
+    comfortable: selectValue({ ios: 44, default: 56 }),
+    cozy: selectValue({ ios: 42, default: 44 }),
+    compact: selectValue({ ios: 38, default: 34 }),
+    tight: selectValue({ ios: 36, default: 24 }),
+};
+
 /**
  * The horizontal padding an item row reserves inside its own bounds, per density.
  *

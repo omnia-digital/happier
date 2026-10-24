@@ -101,6 +101,7 @@ export function SelectableMenuResults(props: {
     onSelectionChange: (index: number) => void;
     onPressItem: (item: SelectableMenuItem) => void;
     onOpenSubmenu?: (itemId: string, anchorRef: React.RefObject<unknown>) => void;
+    onRegisterSubmenuAnchor?: (itemId: string, anchorRef: React.RefObject<unknown>) => void;
     rowVariant: SelectableRowVariant;
     emptyLabel?: string | null;
     showCategoryTitles?: boolean;
@@ -179,6 +180,7 @@ export function SelectableMenuResults(props: {
                     currentIndex++;
                     const rowAnchorRef = getRowAnchorRef(String(item.id));
                     const submenuAnchorRef = getSubmenuAnchorRef(String(item.id));
+                    if (item.hasSubmenu) props.onRegisterSubmenuAnchor?.(String(item.id), submenuAnchorRef as React.RefObject<unknown>);
                     const testIdSafeItemId = String(item.id).replace(/[^a-zA-Z0-9_-]/g, '_');
                     const optionTestID = item.testID ?? `dropdown-option-${testIdSafeItemId}`;
                     const handleOptionMouseDownCapture =
@@ -204,6 +206,7 @@ export function SelectableMenuResults(props: {
                             rowRole="menu"
                             testID={optionTestID}
                             title={item.title}
+                            titleLines={0}
                             subtitle={item.subtitleNode ?? item.subtitle}
                             icon={item.left}
                             rightElement={item.right}
@@ -227,6 +230,7 @@ export function SelectableMenuResults(props: {
                             leftGap={item.leftGap}
                             right={item.right}
                             title={item.titleNode ?? item.title}
+                            titleLines={0}
                             subtitle={item.subtitleNode ?? item.subtitle}
                             containerStyle={item.rowContainerStyle}
                             titleStyle={item.rowTitleStyle}

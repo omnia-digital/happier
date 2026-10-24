@@ -73,7 +73,16 @@ export function getCheckoutChipRootStepFromChip(chip: AgentInputExtraActionChip 
 function getStaticSectionFromRootStep(rootStep: SelectionListStep | undefined, sectionId: string): SelectionListSection | undefined {
     if (!rootStep) return undefined;
     const descriptor = rootStep.sections.find((section) => section.id === sectionId);
-    if (!descriptor || descriptor.kind !== 'static') return undefined;
+    if (!descriptor || descriptor.kind !== 'static') {
+        const choices = rootStep.sections.flatMap((section) => section.kind === 'static' ? section.options : []);
+        for (const option of choices) {
+            if (option.openStep) {
+                const nested = getStaticSectionFromRootStep(option.openStep, sectionId);
+                if (nested) return nested;
+            }
+        }
+        return undefined;
+    }
     return descriptor;
 }
 

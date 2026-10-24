@@ -106,11 +106,35 @@ export function filterSessionListItemsByFocusedFolder(
         }
     }
 
+    const includedMachineGroupKeys = new Set<string>();
+    const includedProjectGroupKeys = new Set<string>();
+    let currentMachineGroupKey: string | null = null;
+    let currentProjectGroupKey: string | null = null;
+    for (const item of items) {
+        if (item.type === 'header') {
+            if (item.headerKind === 'machine') currentMachineGroupKey = item.groupKey ?? null;
+            else if (item.headerKind === 'server' || item.headerKind === 'active' || item.headerKind === 'inactive' || item.headerKind === 'sessions' || item.headerKind === 'pinned' || item.headerKind === 'attention' || item.headerKind === 'working') currentMachineGroupKey = null;
+            if (item.headerKind === 'project') currentProjectGroupKey = item.groupKey ?? null;
+            else if (item.headerKind === 'machine' || item.headerKind === 'server' || item.headerKind === 'active' || item.headerKind === 'inactive' || item.headerKind === 'sessions' || item.headerKind === 'pinned' || item.headerKind === 'attention' || item.headerKind === 'working') currentProjectGroupKey = null;
+            const folder = asSessionFolderHeaderItem(item);
+            if (folder && includedFolderIds.has(folder.folderId)) {
+                if (currentMachineGroupKey) includedMachineGroupKeys.add(currentMachineGroupKey);
+                if (currentProjectGroupKey) includedProjectGroupKeys.add(currentProjectGroupKey);
+            }
+        } else if (readSessionFolderId(item) && includedFolderIds.has(readSessionFolderId(item)!)) {
+            if (currentMachineGroupKey) includedMachineGroupKeys.add(currentMachineGroupKey);
+            if (currentProjectGroupKey) includedProjectGroupKeys.add(currentProjectGroupKey);
+        }
+    }
+
     return items.filter((item) => {
         if (item.type === 'header') {
             const headerKind = String(item.headerKind ?? '');
             if (headerKind === 'active' || headerKind === 'inactive' || headerKind === 'sessions') return true;
-            if (headerKind === 'project' && focusedWorkspace) {
+            if (headerKind === 'machine') return Boolean(item.groupKey && includedMachineGroupKeys.has(item.groupKey));
+            if (headerKind === 'project') {
+                if (item.groupKey && includedProjectGroupKeys.has(item.groupKey)) return true;
+                if (!focusedWorkspace) return false;
                 const workspace = resolveDurableWorkspaceRefForSessionListHeader(item);
                 return workspace ? compareSessionFolderWorkspaceRefs(workspace, focusedWorkspace) : false;
             }

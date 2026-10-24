@@ -88,8 +88,6 @@ describe('McpWorkspaceRootPickerModal openers', () => {
             <McpServerBindingDraftExpander
                 serverId="server-1"
                 machines={[machine]}
-                favoriteDirectories={[]}
-                onChangeFavoriteDirectories={() => {}}
                 onAddBinding={() => {}}
             />,
         );

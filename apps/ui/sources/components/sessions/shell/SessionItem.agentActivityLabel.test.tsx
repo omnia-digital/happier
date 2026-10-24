@@ -185,19 +185,39 @@ describe('SessionItem agent-activity label', () => {
         const props: SessionItemProps = { session: createSession(), compact: minimal, compactMinimal: minimal, variant: 'no-path' };
         const screen = await renderScreen(<SessionItem {...props} rowModel={createSessionItemTestRowModel(props, {
             status: { ...workingStatus, state: 'background_active', statusText: '1 task running in background' },
+            visualStatus: 'working',
             hasUnreadMessages: true,
             attention: { listState: indicator === 'working' ? 'thinking' : 'unread', rowState: indicator },
             presentation: { attentionIndicator: indicator, titleTone: 'emphasized', secondaryLine: minimal ? 'none' : 'status' },
         })} />);
         const suffix = minimal ? 'trailing' : 'secondary';
         if (indicator === 'working') {
-            expect(screen.findByTestId(`session-row-attention-indicator-spinner-${SESSION_ID}-${suffix}`)).toBeTruthy();
+            expect(screen.findByTestId(`session-row-attention-indicator-spinner-${SESSION_ID}-${suffix}`)).toBeNull();
+            expect(screen.findByTestId(`session-row-status-spinner-${SESSION_ID}`)).toBeTruthy();
+            expect(screen.findByTestId(`session-row-status-unread-${SESSION_ID}`)).toBeTruthy();
             expect(screen.findByTestId(`session-row-unread-indicator-${SESSION_ID}-${suffix}`)).toBeNull();
         } else {
             expect(screen.findByTestId(`session-row-attention-indicator-dot-${SESSION_ID}-${suffix}`)).toBeTruthy();
+            expect(screen.findByTestId(`session-row-status-spinner-${SESSION_ID}`)).toBeTruthy();
+            expect(screen.findByTestId(`session-row-status-unread-${SESSION_ID}`)).toBeTruthy();
+            expect(screen.findByTestId(`session-row-attention-indicator-${SESSION_ID}-${suffix}`)?.props.accessibilityLabel)
+                .toBe('1 task running in background, settingsNotifications.badges.unreadTitle');
         }
-        expect(screen.findByTestId(`session-row-attention-indicator-${SESSION_ID}-${suffix}`)?.props.accessibilityLabel)
-            .toBe('1 task running in background, settingsNotifications.badges.unreadTitle');
+    });
+
+    it('renders the selected working pulse once in the leading badge', async () => {
+        const { SessionItem } = await import('./SessionItem');
+        const props: SessionItemProps = { session: createSession(), compact: true, compactMinimal: true, variant: 'no-path' };
+        const screen = await renderScreen(<SessionItem {...props} rowModel={createSessionItemTestRowModel(props, {
+            status: workingStatus,
+            visualStatus: 'working',
+            workingIndicatorMode: 'pulse',
+            attention: { listState: 'thinking', rowState: 'working' },
+            presentation: { attentionIndicator: 'working', titleTone: 'emphasized', secondaryLine: 'none' },
+        })} />);
+        expect(screen.findByTestId(`session-row-status-pulse-${SESSION_ID}`)).toBeTruthy();
+        expect(screen.findByTestId(`session-row-status-spinner-${SESSION_ID}`)).toBeNull();
+        expect(screen.findByTestId(`session-row-attention-indicator-${SESSION_ID}-trailing`)).toBeNull();
     });
 
     it('paints the sentence the row model handed it', async () => {

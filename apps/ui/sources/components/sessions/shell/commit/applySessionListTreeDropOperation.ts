@@ -1,3 +1,4 @@
+import { isSessionListTreeDestinationCompatible } from '../drop-resolution/isSessionListTreeDestinationCompatible';
 import type { TreeInstruction } from '@/components/ui/treeDragDrop';
 import type { SessionFoldersV1 } from '@/sync/domains/session/folders';
 import {
@@ -43,6 +44,7 @@ export type ApplySessionListTreeDropOperationContext = Readonly<{
     folderSortMode?: SessionListFolderSortMode;
     sessionListOrderingModeV1?: SessionListOrderingModeV1;
     sessionListSectionModeV1?: SessionListOrderingSectionMode;
+    structuralWritesEnabled?: boolean;
     setSessionFoldersV1: (next: SessionFoldersV1) => void;
     setSessionListGroupOrderV1: (next: Record<string, string[]>) => void;
     setSessionWorkspaceOrderV1?: (next: Record<string, string[]>) => void;
@@ -70,7 +72,7 @@ function findContainerEdgeChildRowId(params: Readonly<{
 }>): string | null {
     const children = Array.from(params.tree.rowMetadataById.values())
         .filter((metadata) => metadata.containerId === params.containerId
-            && metadata.kind !== 'workspace-root'
+            && (params.tree.containerMetadataById.get(params.containerId)?.kind === 'workspace-order' || metadata.kind !== 'workspace-root')
             && metadata.rowId !== params.sourceRowId)
         .sort((left, right) => left.itemIndex - right.itemIndex);
     const child = params.edge === 'first' ? children[0] : children[children.length - 1];
@@ -242,15 +244,14 @@ async function applyFolderDrop(params: Readonly<{
         source,
     });
     const destinationParentFolderId = destination.container.folderId;
-    const beforeFolderId = destination.beforeRowId
+    const beforeFolderId = !destination.container.displayOrderOnly && destination.beforeRowId
         ? resolveFolderSiblingTargetId(destination.target)
         : null;
-    const afterFolderId = destination.afterRowId
+    const afterFolderId = !destination.container.displayOrderOnly && destination.afterRowId
         ? resolveFolderSiblingTargetId(destination.target)
         : null;
     const shouldMoveFolderTree = currentParentFolderId !== destinationParentFolderId
-        || Boolean(beforeFolderId)
-        || Boolean(afterFolderId);
+        || (!destination.container.displayOrderOnly && (Boolean(beforeFolderId) || Boolean(afterFolderId)));
 
     if (shouldMoveFolderTree) {
         applyFolderTreeMove({
@@ -284,6 +285,14 @@ function applyWorkspaceDrop(params: Readonly<{
     destination: SessionListTreeDropDestination;
     context: ApplySessionListTreeDropOperationContext;
 }>): boolean {
+    if (params.destination.container.displayOrderOnly) {
+        return applyGroupOrderUpdate({
+            tree: params.tree, currentMap: params.context.sessionListGroupOrderV1,
+            movedRowId: params.source.metadata.rowId, containerId: params.destination.container.containerId,
+            beforeRowId: params.destination.beforeRowId, afterRowId: params.destination.afterRowId,
+            setSessionListGroupOrderV1: params.context.setSessionListGroupOrderV1,
+        });
+    }
     const setSessionWorkspaceOrderV1 = params.context.setSessionWorkspaceOrderV1;
     if (!setSessionWorkspaceOrderV1) return false;
     return applyWorkspaceOrderUpdate({
@@ -322,6 +331,10 @@ export async function applySessionListTreeDropOperation(params: Readonly<{
         };
     }
 
+    if (params.source.metadata.kind !== 'workspace-root' && !isSessionListTreeDestinationCompatible(params.source.metadata, destination.container)) {
+        return { ok: false, operationKind: 'invalid', reason: 'workspace-scope-mismatch' };
+    }
+
     const currentParentFolderId = params.source.metadata.kind === 'folder'
         ? resolveCurrentParentFolderId({ tree: params.tree, source: params.source })
         : null;
@@ -330,6 +343,10 @@ export async function applySessionListTreeDropOperation(params: Readonly<{
         destination,
         currentParentFolderId,
     });
+
+    if (params.context.structuralWritesEnabled === false && params.source.metadata.kind !== 'session') {
+        return { ok: false, operationKind, reason: 'structural-writes-disabled' };
+    }
 
     if (params.source.metadata.kind === 'session') {
         const effectiveOrderingMode = resolveEffectiveOrderingModeForSessionSource({
@@ -349,7 +366,7 @@ export async function applySessionListTreeDropOperation(params: Readonly<{
                 source: params.source,
                 destination,
                 context: params.context,
-                writeGroupOrder: effectiveOrderingMode === 'custom',
+                writeGroupOrder: effectiveOrderingMode === 'custom' && params.context.structuralWritesEnabled !== false,
             }),
             operationKind,
         };

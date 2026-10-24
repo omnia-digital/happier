@@ -20,6 +20,8 @@ import {
     searchParamsState,
     TEST_DRAFT_ID,
     targetServerState,
+    tempSessionDataState,
+    useCreateNewSessionArgsRef,
     useNewSessionScreenModelModulePromise,
     workspaceGraphState,
 } from './__tests__/draftPersistenceTestEnvironment';
@@ -42,6 +44,49 @@ import {
  * graph reactivity, and target-server-scoped fail-closed behavior.
  */
 describe('useNewSessionScreenModel (draft hydration — checkout)', () => {
+    it.each(['new', 'configured fork'])('preserves %s settings and fresh creation intent across all three choices and draft persistence', async (entry) => {
+        const sourceContext = { v: 1 as const, kind: 'session_replay' as const, sourceSessionId: 'source', forkPoint: { type: 'latest' as const } };
+        if (entry === 'configured fork') {
+            searchParamsState.value = { dataId: 'fork-source' };
+            tempSessionDataState.value = { sourceContext, sourceContextServerId: 'server-a' };
+        }
+        persistedDraft.checkoutCreationDraft = null;
+        repoSnapshotState.value = {
+            ...repoSnapshotState.value,
+            repo: { ...repoSnapshotState.value.repo, worktrees: [
+                { path: '/repo/custom', branch: 'main', isMain: true, isCurrent: true },
+                { path: '/repo/release', branch: 'release', isCurrent: false },
+            ] },
+        };
+        let model: any = null;
+        await renderNewSessionScreenModel((next) => { model = next; });
+        const original = useCreateNewSessionArgsRef.current;
+        const choose = async (section: string, id: string) => {
+            const option = getCheckoutChipStaticSection(model, section)?.options.find((candidate) => candidate.id === id);
+            expect(option?.onSelect).toBeTypeOf('function');
+            await act(async () => { option?.onSelect?.(); });
+        };
+        await choose('worktree:quick-actions', 'current_path');
+        await choose('worktree:quick-actions', 'create_git_worktree');
+        const firstDraft = model.simpleProps.checkoutCreationDraft;
+        expect(firstDraft).toMatchObject({ kind: 'git_worktree', displayName: expect.any(String), baseRef: null, branchMode: 'new' });
+        const existing = getCheckoutChipStaticSection(model, 'worktree:existing')?.options[0];
+        expect(existing).toBeDefined();
+        await choose('worktree:existing', existing!.id);
+        expect(model.simpleProps.checkoutCreationDraft).toBeNull();
+        await choose('worktree:quick-actions', 'create_git_worktree');
+        expect(model.simpleProps.checkoutCreationDraft).toEqual(firstDraft);
+        await act(async () => { persistDraftNowRef.current?.(); });
+        expect(saveNewSessionDraftMock).toHaveBeenLastCalledWith(expect.objectContaining({ checkoutCreationDraft: firstDraft }));
+        await choose('worktree:quick-actions', 'current_path');
+        expect(model.simpleProps.checkoutCreationDraft).toBeNull();
+        expect(useCreateNewSessionArgsRef.current).toMatchObject({
+            agentType: original?.agentType,
+            permissionMode: original?.permissionMode,
+            modelMode: original?.modelMode,
+            ...(entry === 'configured fork' ? { sourceContext } : {}),
+        });
+    });
     afterEach(() => {
         standardCleanup();
     });
@@ -170,6 +215,7 @@ describe('useNewSessionScreenModel (draft hydration — checkout)', () => {
         expect(getCheckoutChipQuickActionIds(model)).toEqual([
             'current_path',
             'create_git_worktree',
+            'existing_git_worktree',
         ]);
 
         const toggleCollapsedPopover = vi.fn();
@@ -212,6 +258,7 @@ describe('useNewSessionScreenModel (draft hydration — checkout)', () => {
         expect(getCheckoutChipQuickActionIds(model)).toEqual([
             'current_path',
             'create_git_worktree',
+            'existing_git_worktree',
         ]);
     });
 
@@ -371,6 +418,7 @@ describe('useNewSessionScreenModel (draft hydration — checkout)', () => {
         expect(getCheckoutChipQuickActionIds(model)).toEqual([
             'current_path',
             'create_git_worktree',
+            'existing_git_worktree',
         ]);
         expect(getCheckoutChipExistingWorktreeIds(model).length).toBeGreaterThan(0);
     });
@@ -403,7 +451,7 @@ describe('useNewSessionScreenModel (draft hydration — checkout)', () => {
         await renderScreen(React.createElement(Probe));
 
         const quickActions = getCheckoutChipStaticSection(model, 'worktree:quick-actions');
-        const createOption = quickActions?.options.find((option) => option.id === 'create_git_worktree');
+        const createOption = getCheckoutChipStaticSection(model, 'worktree:advanced')?.options.find((option) => option.id === 'create_git_worktree_from_branch');
 
         expect(createOption).toBeTruthy();
         expect(createOption?.openStep?.id).toBe('worktree-create');
@@ -471,6 +519,7 @@ describe('useNewSessionScreenModel (draft hydration — checkout)', () => {
         expect(initialOptionIds).toEqual([
             'current_path',
             'create_git_worktree',
+            'existing_git_worktree',
         ]);
 
         await act(async () => {
@@ -519,6 +568,7 @@ describe('useNewSessionScreenModel (draft hydration — checkout)', () => {
         expect(updatedOptionIds).toEqual([
             'current_path',
             'create_git_worktree',
+            'existing_git_worktree',
         ]);
     });
 
@@ -550,6 +600,7 @@ describe('useNewSessionScreenModel (draft hydration — checkout)', () => {
         expect(optionIds).toEqual([
             'current_path',
             'create_git_worktree',
+            'existing_git_worktree',
         ]);
         expect(model?.simpleProps?.selectedWorkspaceId).toBeUndefined();
         expect(model?.simpleProps?.selectedWorkspaceLocationId).toBeUndefined();
@@ -576,20 +627,11 @@ describe('useNewSessionScreenModel (draft hydration — checkout)', () => {
         await renderScreen(React.createElement(Probe));
 
         const chip = findCheckoutChip(model);
-        expect(chip?.controlId).toBe('checkout');
-        expect(chip?.collapsedOptionsPopover?.title).toBe('newSession.checkout.selectTitle');
-
         expect(model?.simpleProps?.selectedWorkspaceId).toBeUndefined();
         expect(model?.simpleProps?.selectedWorkspaceLocationId).toBeUndefined();
         expect(model?.simpleProps?.selectedWorkspaceCheckoutId).toBeUndefined();
-        expect(getCheckoutChipLabel(model)).toBe('newSession.checkout.noWorktree');
-
-        expect(chip).toBeTruthy();
-
-        const optionIds = getCheckoutChipQuickActionIds(model);
-        expect(optionIds).toEqual([
-            'current_path',
-            'create_git_worktree',
-        ]);
+        // No authenticated account binding exists for Server B in this fixture.
+        // Do not project Server A's repository/worktree choices into that target.
+        expect(chip).toBeUndefined();
     });
 });

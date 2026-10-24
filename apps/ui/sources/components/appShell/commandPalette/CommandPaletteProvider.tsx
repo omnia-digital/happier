@@ -170,9 +170,10 @@ function WebCommandPaletteProvider({ children }: { children: React.ReactNode }) 
             component: CommandPalette,
             props: {
                 commands: buildCommands(),
+                navigateToSession,
             }
         });
-    }, [buildCommands, commandPaletteEnabled]);
+    }, [buildCommands, commandPaletteEnabled, navigateToSession]);
 
     const keyboardHandlers = useMemo(() => ({
         ...(commandPaletteEnabled ? { 'commandPalette.open': showCommandPalette } : {}),

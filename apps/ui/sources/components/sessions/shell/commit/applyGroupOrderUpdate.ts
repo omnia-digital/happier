@@ -14,7 +14,7 @@ function collectDirectChildOrderKeys(
     const keys: string[] = [];
     for (const metadata of tree.rowMetadataById.values()) {
         if (metadata.containerId !== containerId) continue;
-        if (metadata.kind === 'workspace-root') continue;
+        if (metadata.kind === 'workspace-root' && !tree.containerMetadataById.get(containerId)?.displayOrderOnly) continue;
         if (metadata.orderKey && (!orderKeyFilter || orderKeyFilter(metadata.orderKey))) {
             keys.push(metadata.orderKey);
         }
@@ -169,6 +169,7 @@ export function buildSessionListGroupOrderAfterTreeDrop(params: Readonly<{
         beforeKey: anchors.beforeKey,
         afterKey: anchors.afterKey,
         maxKeys: SESSION_LIST_GROUP_ORDER_MAX_KEYS_PER_GROUP,
+        moveKind: container.displayOrderOnly && moved.containerId === container.containerId ? 'display' : 'structural',
     });
     if (!params.orderKeyFilter) return filteredNext;
     return mergeFilteredScopeOrderMap({

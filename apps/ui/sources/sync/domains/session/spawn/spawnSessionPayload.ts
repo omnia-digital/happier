@@ -24,6 +24,8 @@ import { readNonBlankSessionControlIdentifier } from '@/sync/domains/sessionCont
 export interface SpawnSessionOptions {
     machineId: string;
     serverId?: string | null;
+    /** Account that owned the selected machine when this launch was requested. UI-local; never sent to the daemon. */
+    expectedAccountId?: string | null;
     directory: string;
     transcriptStorage?: 'persisted' | 'direct';
     approvedNewDirectoryCreation?: boolean;

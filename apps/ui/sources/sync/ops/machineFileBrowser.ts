@@ -13,6 +13,7 @@ import { machineRpcWithServerScope } from '@/sync/runtime/orchestration/serverSc
 
 type MachineFileBrowserOpts = Readonly<{
     serverId?: string | null;
+    accountId?: string | null;
     timeoutMs?: number | null;
 }>;
 
@@ -44,6 +45,7 @@ export async function machineFilesystemListRoots(
         const response = await machineRpcWithServerScope<unknown, undefined>({
             machineId,
             serverId: opts?.serverId,
+            accountId: opts?.accountId,
             timeoutMs: opts?.timeoutMs ?? undefined,
             method: RPC_METHODS.DAEMON_FILESYSTEM_LIST_ROOTS,
             payload: undefined,
@@ -68,6 +70,7 @@ export async function machineFilesystemListDirectory(
         const response = await machineRpcWithServerScope<unknown, DaemonFilesystemListDirectoryRequest>({
             machineId,
             serverId: opts?.serverId,
+            accountId: opts?.accountId,
             timeoutMs: opts?.timeoutMs ?? undefined,
             method: RPC_METHODS.DAEMON_FILESYSTEM_LIST_DIRECTORY,
             payload,

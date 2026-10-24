@@ -1,3 +1,4 @@
+import { createSessionOrganizationMutationPublisher } from '@/sync/domains/session/organization/mutationScope';
 import type { AuthCredentials } from '@/auth/storage/tokenStorage';
 import { reorderSessionOrganization as reorderSessionOrganizationApi } from '@/sync/api/session/sessionOrganizationApi';
 import { getStorage } from '@/sync/domains/state/storageStore';
@@ -9,6 +10,7 @@ export async function reorderSessionOrganization(params: Readonly<{
     serverUrl?: string;
     request: ReorderSessionOrganizationRequest;
 }>): Promise<void> {
+    const publish = createSessionOrganizationMutationPublisher(params);
     const optimisticEntries = params.request.entries.map((entry) => ({
         scopeKind: params.request.scopeKind,
         scopeKey: params.request.scopeKey,
@@ -16,10 +18,13 @@ export async function reorderSessionOrganization(params: Readonly<{
         itemKey: entry.itemKey,
         sortKey: entry.sortKey,
     }));
-    const recordId = getStorage().getState().applySessionOrganizationOrderScopeOptimistic(params.serverId, {
-        scopeKind: params.request.scopeKind,
-        scopeKey: params.request.scopeKey,
-        entries: optimisticEntries,
+    let recordId: string | null = null;
+    await publish(() => {
+        recordId = getStorage().getState().applySessionOrganizationOrderScopeOptimistic(params.serverId, {
+            scopeKind: params.request.scopeKind,
+            scopeKey: params.request.scopeKey,
+            entries: optimisticEntries,
+        });
     });
     try {
         const response = await reorderSessionOrganizationApi({
@@ -27,15 +32,18 @@ export async function reorderSessionOrganization(params: Readonly<{
             serverUrl: params.serverUrl,
             request: params.request,
         });
-        getStorage().getState().commitSessionOrganizationOptimistic(recordId);
-        const reconcileRecordId = getStorage().getState().applySessionOrganizationOrderScopeOptimistic(params.serverId, {
-            scopeKind: params.request.scopeKind,
-            scopeKey: params.request.scopeKey,
-            entries: response.orderEntries,
+        await publish(() => {
+            const reconcileRecordId = getStorage().getState().applySessionOrganizationOrderScopeOptimistic(params.serverId, {
+                scopeKind: params.request.scopeKind,
+                scopeKey: params.request.scopeKey,
+                entries: response.orderEntries,
+            });
+            getStorage().getState().commitSessionOrganizationOptimistic(reconcileRecordId);
         });
-        getStorage().getState().commitSessionOrganizationOptimistic(reconcileRecordId);
     } catch (error) {
-        getStorage().getState().rollbackSessionOrganizationOptimistic(recordId);
+        if (recordId) await publish(() => getStorage().getState().rollbackSessionOrganizationOptimistic(recordId!));
         throw error;
+    } finally {
+        if (recordId) getStorage().getState().commitSessionOrganizationOptimistic(recordId);
     }
 }

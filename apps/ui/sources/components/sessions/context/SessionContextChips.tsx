@@ -4,9 +4,12 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 
 import { Text } from '@/components/ui/text/Text';
 import { Icon } from '@/components/ui/icons/Icon';
+import { MachineDisplayGlyph } from '@/components/sessions/SessionMachineIdentity';
 
 export const SessionContextChips = React.memo(function SessionContextChips(props: Readonly<{
     machineLabel: string | null;
+    machineId?: string | null;
+    serverId?: string | null;
     pathLabel: string | null;
 }>) {
     const { theme } = useUnistyles();
@@ -17,7 +20,7 @@ export const SessionContextChips = React.memo(function SessionContextChips(props
         <View style={styles.row}>
             {props.machineLabel ? (
                 <View style={styles.chip}>
-                    <Icon name="desktop" size={14} color={theme.colors.text.secondary} />
+                    <MachineDisplayGlyph serverId={props.serverId} machineId={props.machineId} size={14} color={theme.colors.text.secondary} />
                     <Text style={styles.text} numberOfLines={1}>{props.machineLabel}</Text>
                 </View>
             ) : null}

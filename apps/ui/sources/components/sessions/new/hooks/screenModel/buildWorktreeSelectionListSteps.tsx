@@ -10,6 +10,7 @@ import { StatusPill } from '@/components/ui/status/StatusPill';
 import { repoScmBranchService } from '@/scm/repository/repoScmBranchService';
 import { buildWorktreeRelativePath, type ScmBranchListEntry, type ScmWorktree } from '@happier-dev/protocol';
 import type { ScmWorkingSnapshot } from '@/sync/domains/state/storageTypes';
+import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import { normalizeFileSystemPath } from '@/sync/domains/fileSystem/normalizeFileSystemPath';
 import { formatPathRelativeToHome } from '@/utils/sessions/formatPathRelativeToHome';
 import { resolveWorktreeNameForCommit } from '@/utils/worktree/resolveWorktreeNameForCommit';
@@ -34,8 +35,9 @@ export const PENDING_GIT_WORKTREE_OPTION_ID = 'pending_git_worktree';
  *
  * Builds the `SelectionListStep` tree consumed by the worktree popover. The
  * root step exposes:
- *   - QUICK_ACTIONS: "Use current directory" + "Create new worktree from…" (drill-down).
- *   - EXISTING_WORKTREES: one row per repo worktree (excluding the main / current-dir entry).
+ *   - QUICK_ACTIONS: No Worktree, automatic fresh New Worktree, and a separate
+ *     Existing Worktree submenu (excluding the main/current-dir entry).
+ *   - ADVANCED: explicit branch/name customization, including intentional reuse.
  *
  * Drill-down step (`worktree-create`):
  *   - LOCAL_BRANCHES + REMOTE_BRANCHES, populated via `repoScmBranchService` as a
@@ -69,6 +71,7 @@ export type WorktreeCreateSelection = Readonly<{
 }>;
 
 export type WorktreeSelectionListBuilderParams = Readonly<{
+    scope?: ServerAccountScope | null;
     snapshot: ScmWorkingSnapshot | null;
     /** Current selected path in the new-session screen; used to elide self-rows + reuse path matching. */
     currentDirPath: string;
@@ -92,6 +95,7 @@ export type WorktreeSelectionListBuilderParams = Readonly<{
      * user commits an empty or git-invalid name.
      */
     worktreeNameSuggestion: string;
+    onSelectNewWorktree?: () => void;
     onSelectCurrentDir: () => void;
     onSelectExistingWorktree: (worktreePath: string) => void;
     /**
@@ -441,6 +445,7 @@ function buildBranchesResolver(params: WorktreeSelectionListBuilderParams, opts:
             return { options: [] };
         }
         const branches = await repoScmBranchService.fetchBranchesForMachinePath({
+            ...(params.scope ? { scope: params.scope } : {}),
             machineId: params.machineId,
             path: params.machinePath,
             includeRemotes: opts.includeRemotes,
@@ -490,7 +495,7 @@ function buildCreateWorktreeStep(params: WorktreeSelectionListBuilderParams): Se
         : null;
     const branchResolverKey = params.machineId === null
         ? 'no-machine'
-        : `${params.machineId}::${canonicalMachinePath ?? ''}`;
+        : JSON.stringify([params.scope?.serverId, params.scope?.accountId, params.machineId, canonicalMachinePath]);
 
     // FR4-8: the branch resolvers ignore the input seed (they always fetch the
     // full local/remote branch list for the bound machine+repo), so we explicitly
@@ -561,11 +566,23 @@ export function buildWorktreeSelectionListSteps(params: WorktreeSelectionListBui
             label: t('newSession.checkout.newWorktree'),
             subtitle: t('newSession.checkout.newWorktreeSubtitle'),
             icon: <Icon name="plus-circle" size={WORKTREE_ROW_ICON_SIZE} color={params.rowIconColor} />,
-            openStep: createStep,
+            onSelect: params.onSelectNewWorktree,
+        },
+        {
+            id: 'existing_git_worktree',
+            label: t('newSession.checkout.existingWorktree'),
+            subtitle: t('newSession.checkout.existingWorktreeSubtitle'),
+            icon: <Icon name="stack-simple" size={WORKTREE_ROW_ICON_SIZE} color={params.rowIconColor} />,
+            openStep: {
+                id: 'worktree-existing',
+                title: t('newSession.checkout.existingWorktree'),
+                backLabel: t('newSession.worktree.backToRoot'),
+                inputPlaceholder: t('newSession.worktree.searchPlaceholder'),
+                sections: [{ kind: 'static', id: 'worktree:existing', options: buildExistingWorktreeOptions(params) }],
+                emptyStateLabel: t('newSession.checkout.existingWorktreeEmptySubtitle'),
+            },
         },
     ];
-
-    const existingOptions = buildExistingWorktreeOptions(params);
 
     const sections: SelectionListSectionDescriptor[] = [];
 
@@ -615,14 +632,16 @@ export function buildWorktreeSelectionListSteps(params: WorktreeSelectionListBui
         options: quickActions,
     });
 
-    if (existingOptions.length > 0) {
-        sections.push({
-            kind: 'static',
-            id: 'worktree:existing',
-            title: t('newSession.checkout.existingWorktreesSectionTitle'),
-            options: existingOptions,
-        });
-    }
+    sections.push({
+        kind: 'static',
+        id: 'worktree:advanced',
+        options: [{
+            id: 'create_git_worktree_from_branch',
+            label: t('newSession.worktree.createTitle'),
+            icon: <Icon name="git-branch" size={WORKTREE_ROW_ICON_SIZE} color={params.rowIconColor} />,
+            openStep: createStep,
+        }],
+    });
 
     return {
         id: 'worktree-root',

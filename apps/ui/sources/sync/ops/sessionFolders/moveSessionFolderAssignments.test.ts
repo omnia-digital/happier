@@ -8,6 +8,16 @@ vi.mock('@/sync/http/client', () => ({
     serverFetch: mocks.serverFetch,
 }));
 
+const credentials = { token: `header.${Buffer.from(JSON.stringify({ sub: 'account-a' })).toString('base64')}.signature`, secret: 'secret-a' };
+vi.mock('@/auth/storage/tokenStorage', async (original) => {
+    const actual = await original<typeof import('@/auth/storage/tokenStorage')>();
+    return { ...actual, TokenStorage: { ...actual.TokenStorage, getCredentialsForServerUrl: async () => credentials } };
+});
+vi.mock('@/sync/domains/server/serverProfiles', async (original) => ({
+    ...await original<typeof import('@/sync/domains/server/serverProfiles')>(),
+    getServerProfileById: () => ({ id: 'server-a', serverUrl: 'https://server-a.test' }),
+}));
+
 function jsonResponse(body: unknown): Response {
     return new Response(JSON.stringify(body), {
         status: 200,
@@ -19,6 +29,7 @@ describe('moveSessionFolderAssignments', () => {
     beforeEach(async () => {
         mocks.serverFetch.mockReset();
         const { getStorage } = await import('@/sync/domains/state/storageStore');
+        getStorage().setState({ profileScope: { serverId: 'server-a', accountId: 'account-a' } });
         getStorage().getState().clearSessionFolderAssignmentsForServer('server-a');
     });
 
@@ -39,7 +50,7 @@ describe('moveSessionFolderAssignments', () => {
         }));
 
         await moveSessionFolderAssignments({
-            credentials: { token: 'token-a', secret: 'secret-a' },
+            credentials,
             serverId: 'server-a',
             fromFolderIds: ['deleted-folder'],
             toFolderId: 'parent-folder',

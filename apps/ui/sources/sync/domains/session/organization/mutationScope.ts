@@ -1,5 +1,8 @@
+import { getStorage } from '@/sync/domains/state/storageStore';
+import { runWithCurrentServerScopedSessionContext } from '@/sync/runtime/orchestration/serverScopedRpc/resolveServerScopedSessionContext';
+import { parseToken } from '@/utils/auth/parseToken';
 import { TokenStorage, type AuthCredentials } from '@/auth/storage/tokenStorage';
-import { getServerProfileById, resolveServerProfileScopeId } from '@/sync/domains/server/serverProfiles';
+import { areServerProfileIdentifiersEquivalent, getServerProfileById, resolveServerProfileScopeId } from '@/sync/domains/server/serverProfiles';
 
 /**
  * Credentials, target URL, and the server id every session-organization write must be keyed by.
@@ -28,6 +31,7 @@ export type SessionOrganizationMutationScopeResult =
  */
 export async function resolveSessionOrganizationMutationScope(
     serverIdRaw: string | null | undefined,
+    expectedAccountId?: string,
 ): Promise<SessionOrganizationMutationScopeResult> {
     const requestedServerId = typeof serverIdRaw === 'string' ? serverIdRaw.trim() : '';
     if (!requestedServerId) return { ok: false, reason: 'server-id' };
@@ -37,6 +41,7 @@ export async function resolveSessionOrganizationMutationScope(
         serverId: serverProfile.id,
     });
     if (!credentials) return { ok: false, reason: 'credentials' };
+    if (expectedAccountId && parseToken(credentials.token) !== expectedAccountId) return { ok: false, reason: 'credentials' };
     return {
         ok: true,
         scope: {
@@ -44,5 +49,31 @@ export async function resolveSessionOrganizationMutationScope(
             serverId: resolveServerProfileScopeId(serverProfile),
             serverUrl: serverProfile.serverUrl,
         },
+    };
+}
+
+/** Keep local optimistic/result/rollback publication on the account that authorized the write. */
+export function createSessionOrganizationMutationPublisher(params: Readonly<{
+    credentials: AuthCredentials;
+    serverId: string;
+    serverUrl?: string;
+}>): (publish: () => void) => Promise<boolean> {
+    const targetServerUrl = params.serverUrl ?? getServerProfileById(params.serverId)?.serverUrl;
+    const targetAccountId = parseToken(params.credentials.token);
+    return async (publish) => {
+        if (!targetServerUrl) return false;
+        let published = false;
+        await runWithCurrentServerScopedSessionContext({
+            targetServerId: params.serverId,
+            targetServerUrl,
+            targetAccountId,
+        }, () => {
+            const activeScope = getStorage().getState().profileScope;
+            if (activeScope && areServerProfileIdentifiersEquivalent(activeScope.serverId, params.serverId)
+                && activeScope.accountId !== targetAccountId) return;
+            publish();
+            published = true;
+        });
+        return published;
     };
 }

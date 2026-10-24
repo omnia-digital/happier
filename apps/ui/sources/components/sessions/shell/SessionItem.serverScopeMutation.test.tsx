@@ -276,6 +276,7 @@ describe('SessionItem server-scoped mutations', () => {
                 cancelText: 'common.cancel',
                 confirmText: 'sessionInfo.stopSession',
                 destructive: true,
+                confirmOnEnter: false,
             },
         );
         expect(modalAlertSpy).not.toHaveBeenCalled();
@@ -399,6 +400,7 @@ describe('SessionItem server-scoped mutations', () => {
                 cancelText: 'common.cancel',
                 confirmText: 'sessionInfo.stopSession',
                 destructive: true,
+                confirmOnEnter: false,
             },
         );
         expect(modalAlertSpy).not.toHaveBeenCalled();
@@ -463,6 +465,7 @@ describe('SessionItem server-scoped mutations', () => {
                 cancelText: 'common.cancel',
                 confirmText: 'sessionInfo.stopSession',
                 destructive: true,
+                confirmOnEnter: false,
             },
         );
         expect(modalAlertSpy).not.toHaveBeenCalled();
@@ -529,6 +532,7 @@ describe('SessionItem server-scoped mutations', () => {
                 cancelText: 'common.cancel',
                 confirmText: 'sessionInfo.stopSession',
                 destructive: true,
+                confirmOnEnter: false,
             },
         );
         expect(modalAlertSpy).not.toHaveBeenCalled();
@@ -935,6 +939,7 @@ describe('SessionItem server-scoped mutations', () => {
                 cancelText: 'common.cancel',
                 confirmText: 'sessionInfo.stopSession',
                 destructive: true,
+                confirmOnEnter: false,
             },
         );
         expect(modalAlertSpy).not.toHaveBeenCalled();

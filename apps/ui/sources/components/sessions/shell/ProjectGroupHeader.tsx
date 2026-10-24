@@ -11,6 +11,7 @@ import { Typography } from '@/constants/Typography';
 import type { SessionListViewItem } from '@/sync/domains/state/storage';
 import { t } from '@/text';
 import { useWorkspaceFavicon } from './useWorkspaceFavicon';
+import type { RepositoryCheckout, RepositoryAssociationChoice } from '@/sync/domains/session/listing/sessionRepositoryIdentity';
 import { Icon } from '@/components/ui/icons/Icon';
 
 const WORKSPACE_FAVICON_SIZE = 16;
@@ -123,12 +124,15 @@ export const ProjectGroupHeader = React.memo(function ProjectGroupHeader(props: 
     workspaceFaviconsEnabled?: boolean;
     workspaceMachineSubtitlesEnabled?: boolean;
     dragHandleGesture?: UseSessionInlineDragResult['gesture'];
+    reorderEnabled?: boolean;
     onMoveUp?: () => void;
     onMoveDown?: () => void;
     onRenameWorkspace: (workspaceKey: string, currentLabel: string) => void;
     onResetWorkspaceName: (workspaceKey: string) => void;
-    onCreateSession: () => void;
-    onAddFolder: () => void | Promise<void>;
+    onCreateSession: (checkout?: RepositoryCheckout) => void;
+    onAddFolder: (checkout?: RepositoryCheckout) => void | Promise<void>;
+    getRepositoryAssociationChoices?: (checkout: RepositoryCheckout) => readonly RepositoryAssociationChoice[];
+    onAssociateRepository?: (checkout: RepositoryCheckout, choice: RepositoryAssociationChoice | 'new' | null) => Promise<void>;
     collapsed: boolean;
     onToggleCollapse: () => void;
     headerTestId: string;
@@ -163,7 +167,8 @@ export const ProjectGroupHeader = React.memo(function ProjectGroupHeader(props: 
     const shouldUseStartEllipsis = !hasCustomLabel && isWeb;
     const nativeEllipsizeMode = !isWeb && !hasCustomLabel ? 'head' : 'tail';
     const actionIconColor = theme.colors.text.secondary;
-    const canCreateSession = typeof onCreateSession === 'function' && Boolean(item.workspaceScopeHint);
+    const checkouts = item.repository?.checkouts;
+    const canCreateSession = typeof onCreateSession === 'function' && Boolean(item.workspaceScopeHint || checkouts?.length);
     const favicon = useWorkspaceFavicon({
         enabled: workspaceFaviconsEnabled,
         serverId: item.workspaceScopeHint?.serverId ?? item.serverId ?? null,
@@ -172,6 +177,34 @@ export const ProjectGroupHeader = React.memo(function ProjectGroupHeader(props: 
     });
 
     const menuItems = React.useMemo((): DropdownMenuItem[] => {
+        if (checkouts) {
+            const checkoutItem = (checkout: RepositoryCheckout, index: number, action: string): DropdownMenuItem => ({
+                id: `${action}:${index}`, title: checkout.machineLabel ?? checkout.machineId, subtitle: checkout.path,
+            });
+            const items: DropdownMenuItem[] = [
+                { id: 'repository-new-session', title: t('machine.launchNewSessionInDirectory'), submenu: {
+                    items: checkouts.map((checkout, index) => checkoutItem(checkout, index, 'repository-new-session')),
+                } },
+                { id: 'repository-add-folder', title: t('sessionsList.addFolder'), submenu: {
+                    items: checkouts.map((checkout, index) => checkoutItem(checkout, index, 'repository-add-folder')),
+                } },
+                { id: 'repository-associate', title: t('sessionsList.repositoryAssociate'), submenu: {
+                    items: checkouts.map((checkout, index) => ({
+                        ...checkoutItem(checkout, index, 'repository-associate'),
+                        submenu: { items: [
+                            ...(menuOpen ? props.getRepositoryAssociationChoices?.(checkout) ?? [] : []).map(choice => ({
+                                id: `repository-associate:${index}:choice:${encodeURIComponent(choice.identity)}`, title: choice.label,
+                            })),
+                            { id: `repository-associate:${index}:new`, title: t('sessionsList.repositoryNewGroup') },
+                            { id: `repository-associate:${index}:automatic`, title: t('sessionsList.repositoryAutomatic') },
+                        ] },
+                    })),
+                } },
+            ];
+            if (props.onMoveUp) items.push({ id: 'move-up', title: t('common.moveUp') });
+            if (props.onMoveDown) items.push({ id: 'move-down', title: t('common.moveDown') });
+            return items;
+        }
         const items: DropdownMenuItem[] = [
             {
                 id: 'add-folder',
@@ -195,9 +228,22 @@ export const ProjectGroupHeader = React.memo(function ProjectGroupHeader(props: 
             });
         }
         return items;
-    }, [hasCustomLabel, actionIconColor, canCreateSession, props.onMoveUp, props.onMoveDown]);
+    }, [checkouts, menuOpen, props.getRepositoryAssociationChoices, hasCustomLabel, actionIconColor, canCreateSession, props.onMoveUp, props.onMoveDown]);
 
     const handleMenuSelect = React.useCallback(async (itemId: string) => {
+        if (itemId.startsWith('repository-')) {
+            const [action, indexRaw, selection, encodedIdentity] = itemId.split(':');
+            const checkout = checkouts?.[Number(indexRaw)];
+            if (!checkout) return;
+            if (action === 'repository-new-session') onCreateSession(checkout);
+            else if (action === 'repository-add-folder') await onAddFolder(checkout);
+            else if (action === 'repository-associate') {
+                const choice = selection === 'new' ? 'new' : selection === 'automatic' ? null
+                    : props.getRepositoryAssociationChoices?.(checkout).find(value => value.identity === decodeURIComponent(encodedIdentity ?? ''));
+                if (choice !== undefined) await props.onAssociateRepository?.(checkout, choice);
+            }
+            return;
+        }
         if (itemId === 'add-folder') {
             await onAddFolder();
         } else if (itemId === 'rename') {
@@ -209,7 +255,7 @@ export const ProjectGroupHeader = React.memo(function ProjectGroupHeader(props: 
         } else if (itemId === 'reset') {
             onResetWorkspaceName(workspaceKey);
         }
-    }, [workspaceKey, displayTitle, onAddFolder, onRenameWorkspace, onResetWorkspaceName, props.onMoveUp, props.onMoveDown]);
+    }, [checkouts, onCreateSession, props.getRepositoryAssociationChoices, props.onAssociateRepository, workspaceKey, displayTitle, onAddFolder, onRenameWorkspace, onResetWorkspaceName, props.onMoveUp, props.onMoveDown]);
 
     const chevronColor = theme.colors.text.secondary;
     return (
@@ -276,7 +322,7 @@ export const ProjectGroupHeader = React.memo(function ProjectGroupHeader(props: 
                     ) : null}
                 </Pressable>
                 <View style={styles.trailingActions}>
-                    {reorderHandleKey && props.dragHandleGesture ? (
+                    {props.reorderEnabled !== false && reorderHandleKey && props.dragHandleGesture ? (
                         <GestureDetector gesture={props.dragHandleGesture}>
                             <View
                                 style={[styles.actionButton, webReorderHandleStyle]}
@@ -286,7 +332,7 @@ export const ProjectGroupHeader = React.memo(function ProjectGroupHeader(props: 
                                 <Icon name="list" size={14} color={actionIconColor} />
                             </View>
                         </GestureDetector>
-                    ) : showHoverActions && reorderHandleKey ? (
+                    ) : props.reorderEnabled !== false && showHoverActions && reorderHandleKey ? (
                         <Pressable
                             style={styles.actionButton}
                             testID={`session-workspace-reorder-handle:${reorderHandleKey}`}
@@ -297,7 +343,7 @@ export const ProjectGroupHeader = React.memo(function ProjectGroupHeader(props: 
                             <Icon name="list" size={14} color={actionIconColor} />
                         </Pressable>
                     ) : null}
-                    {(showHoverActions || props.dragHandleGesture) && workspaceKey ? (
+                    {(showHoverActions || props.dragHandleGesture) && (workspaceKey || checkouts?.length) ? (
                         <DropdownMenu
                             open={menuOpen}
                             onOpenChange={setMenuOpen}
@@ -333,7 +379,8 @@ export const ProjectGroupHeader = React.memo(function ProjectGroupHeader(props: 
                             style={styles.actionButton}
                             onPress={(event) => {
                                 (event as any)?.stopPropagation?.();
-                                onCreateSession();
+                                if (checkouts && checkouts.length > 1) setMenuOpen(true);
+                                else onCreateSession(checkouts?.[0]);
                             }}
                             accessibilityRole="button"
                             accessibilityLabel={t('machine.launchNewSessionInDirectory')}

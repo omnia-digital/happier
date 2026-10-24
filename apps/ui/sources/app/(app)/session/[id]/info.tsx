@@ -49,6 +49,7 @@ import {
     resolveSessionHandoffUiAvailability,
 } from '@/sync/domains/sessionHandoff/resolveSessionHandoffUiAvailability';
 import { readDisplayMachineTargetForSession } from '@/sync/ops/sessionMachineTarget';
+import { MachineDisplayGlyph } from '@/components/sessions/SessionMachineIdentity';
 import { useSessionMachineTarget } from '@/components/sessions/model/useSessionMachineTarget';
 import { getActionSpec } from '@happier-dev/protocol';
 import { SessionRetentionNotice } from '@/components/sessions/info/SessionRetentionNotice';
@@ -59,10 +60,10 @@ import {
     type SessionHandoffRuntimeAvailability,
 } from '@/sync/domains/sessionHandoff/useSessionHandoffSourceReachability';
 import { safeRouterBack } from '@/utils/navigation/safeRouterBack';
-import { buildNewSessionTempDataFromSessionConfiguration } from '@/components/sessions/authoring/draft/sessionConfigurationSeed';
-import { storeTempData } from '@/utils/sessions/tempDataStore';
-import { resolveNewSessionDraftRouteIdentity } from '@/components/sessions/new/navigation/newSessionDraftRouteIdentity';
-import { buildNewSessionLaunchRouteParams } from '@/components/sessions/new/navigation/newSessionRouteParams';
+import {
+    buildNewSessionSameSetupRoute,
+    resolveNewSessionSameSetupTarget,
+} from '@/components/sessions/new/navigation/newSessionSameSetup';
 import { completeSessionForkNavigation } from '@/components/sessions/transcript/forkContext/completeSessionForkNavigation';
 import { createSessionActionTarget } from '@/components/sessions/actions/sessionActionContext';
 import { useSessionAttentionStandingInputs } from '@/hooks/session/useSessionAttentionStandingInputs';
@@ -643,14 +644,13 @@ function SessionInfoContent({ session, sessionServerId, sourceMachineIdForHandof
         });
     }, [session.id, session.updatedAt, session.metadata]);
     const reachableMachineId = reachableMachineTarget?.machineId ?? null;
-    const newSessionSeedTarget = reachableMachineTarget
-        && (!displayMachineTarget || reachableMachineTarget.machineId === displayMachineTarget.machineId)
-        ? reachableMachineTarget
-        : displayMachineTarget;
-    const newSessionSeedMachineId = newSessionSeedTarget?.machineId
-        ?? (typeof session.metadata?.machineId === 'string' ? session.metadata.machineId : null);
-    const newSessionSeedDirectory = newSessionSeedTarget?.basePath
-        ?? (typeof session.metadata?.path === 'string' ? session.metadata.path : null);
+    const newSessionSeedTarget = resolveNewSessionSameSetupTarget({
+        session,
+        reachableTarget: reachableMachineTarget,
+        displayTarget: displayMachineTarget,
+    });
+    const newSessionSeedMachineId = newSessionSeedTarget.machineId;
+    const newSessionSeedDirectory = newSessionSeedTarget.directory;
     const displayMachineId = displayMachineTarget?.machineId ?? null;
     const sessionLogPath = React.useMemo(() => {
         const value = typeof (session.metadata as any)?.sessionLogPath === 'string'
@@ -915,24 +915,12 @@ function SessionInfoContent({ session, sessionServerId, sourceMachineIdForHandof
     ]);
 
     const handleNewSessionSameSetup = useCallback(() => {
-        const draftId = resolveNewSessionDraftRouteIdentity({ routeDraftId: undefined }).draftId;
-        const dataId = storeTempData(buildNewSessionTempDataFromSessionConfiguration({
+        router.push(buildNewSessionSameSetupRoute({
             session,
             machineId: newSessionSeedMachineId,
-            directoryOverride: newSessionSeedDirectory,
-        }));
-        router.push({
-            pathname: '/new',
-            params: {
-                ...buildNewSessionLaunchRouteParams({
-                    draftId,
-                    machineId: newSessionSeedMachineId,
-                    directory: newSessionSeedDirectory,
-                    targetServerId: sessionServerId,
-                }),
-                dataId,
-            },
-        } as any);
+            directory: newSessionSeedDirectory,
+            targetServerId: sessionServerId,
+        }) as any);
     }, [newSessionSeedDirectory, newSessionSeedMachineId, router, session, sessionServerId]);
 
     const handleHandoffAction = useCallback(async () => {
@@ -1246,7 +1234,7 @@ function SessionInfoContent({ session, sessionServerId, sourceMachineIdForHandof
                         <Item
                             title={t('sessionInfo.host')}
                             subtitle={session.metadata.host}
-                            icon={<Icon name="desktop" size={29} color={theme.colors.accent.indigo} />}
+                            icon={<MachineDisplayGlyph serverId={sessionServerId ?? routeScope.serverId} machineId={displayMachineId} size={29} color={theme.colors.accent.indigo} />}
                             showChevron={false}
                         />
                         <Item

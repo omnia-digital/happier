@@ -9,6 +9,7 @@ import {
     renderScreen,
 } from '@/dev/testkit';
 import { installApprovalCommonModuleMocks } from './approvalsTestHelpers';
+import { readMachineDisplayIcon, withMachineDisplayIcon } from '@/sync/domains/machines/machineDisplayIconPreference';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -172,6 +173,7 @@ let currentArtifact: any = createApprovalArtifact();
 let sessionFixtures: Record<string, Session> = createSessionFixtures();
 let machineFixtures: Record<string, Machine> = createMachineFixtures();
 let storageState = createStorageState();
+let machineIcons = withMachineDisplayIcon({}, 'server-approval', 'machine-target', 'cloud');
 installApprovalCommonModuleMocks({
     reactNative: async () => {
         const { createReactNativeWebMock } = await import('@/dev/testkit/mocks/reactNative');
@@ -226,6 +228,8 @@ installApprovalCommonModuleMocks({
             useArtifact: () => currentArtifact,
             useSession: (sessionId: string) => sessionFixtures[sessionId] ?? null,
             useMachine: (machineId: string) => machineFixtures[machineId] ?? null,
+            useMachineDisplayIcon: (serverId?: string | null, machineId?: string | null) =>
+                readMachineDisplayIcon(machineIcons, serverId, machineId),
             storage: {
                 getState: () => storageState,
             },
@@ -290,6 +294,7 @@ describe('ApprovalDetailScreen', () => {
         machineFixtures = createMachineFixtures();
         storageState = createStorageState();
         currentArtifact = createApprovalArtifact();
+        machineIcons = withMachineDisplayIcon({}, 'server-approval', 'machine-target', 'cloud');
     });
 
     it('renders requester, session context, and structured action details', async () => {
@@ -307,6 +312,24 @@ describe('ApprovalDetailScreen', () => {
         expect(text).toContain('Agent wants to answer the pending question');
         expect(text).toContain('Continue?');
         expect(text).toContain('Yes');
+    });
+
+    it.each(['request', 'header', 'cache'] as const)('uses the approval %s server for the machine icon when session scope is missing', async (source) => {
+        sessionFixtures['session-1'] = { ...sessionFixtures['session-1'], serverId: undefined };
+        currentArtifact = createApprovalArtifact(source === 'request' ? 'server-approval' : undefined);
+        if (source === 'header') currentArtifact.header.serverId = 'server-approval';
+        if (source === 'cache') resolveServerIdForSessionIdFromLocalCacheSpy.mockReturnValue('server-approval');
+        // The same machine id on another server must not select its different icon.
+        machineIcons = withMachineDisplayIcon(machineIcons, 'server-other', 'machine-target', 'laptop');
+        const { ApprovalDetailScreen } = await import('./ApprovalDetailScreen');
+        const { Icon } = await import('@/components/ui/icons/Icon');
+
+        const screen = await renderScreen(<ApprovalDetailScreen artifactId="artifact-1" />);
+        const icons = screen.findAllByType(Icon).map((icon) => icon.props.name);
+
+        expect(screen.getTextContent()).toContain('Rebound workstation');
+        expect(icons).toContain('cloud');
+        expect(icons).not.toContain('laptop');
     });
 
     it('opens the linked session from the approval context card', async () => {

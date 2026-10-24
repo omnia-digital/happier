@@ -5,6 +5,14 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import type { CustomModalInjectedProps } from '@/modal';
 import { useModalCardChrome } from '@/modal/components/card/useModalCardChrome';
 import { t } from '@/text';
+import { Text } from '@/components/ui/text/Text';
+import { useSessionListViewData, useSessionListViewDataByServerId } from '@/sync/store/hooks';
+import { useResolvedActiveServerSelection } from '@/hooks/server/useEffectiveServerSelection';
+import { resolveSessionListSourceData } from '@/sync/domains/session/listing/sessionListPresentation';
+import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
+import type { NavigateToSessionOptions } from '@/hooks/session/useNavigateToSession';
+import { sync } from '@/sync/sync';
+import { fetchRemainingSelectedServerSessions } from '@/sync/runtime/orchestration/concurrentSessionCache';
 
 import { CommandPaletteInput } from './CommandPaletteInput';
 import { CommandPaletteResults } from './CommandPaletteResults';
@@ -13,13 +21,19 @@ import { Command } from './types';
 
 export type CommandPaletteProps = CustomModalInjectedProps & Readonly<{
     commands: Command[];
+    navigateToSession: (sessionId: string, options?: NavigateToSessionOptions) => void | Promise<void>;
 }>;
 
-const stylesheet = StyleSheet.create(() => ({
+const stylesheet = StyleSheet.create((theme) => ({
     body: {
         flex: 1,
         minHeight: 0,
         width: '100%',
+    },
+    searchScope: {
+        color: theme.colors.text.secondary,
+        paddingHorizontal: 32,
+        paddingTop: 10,
     },
 }));
 
@@ -42,6 +56,22 @@ export function CommandPalette(props: CommandPaletteProps) {
 
     useModalCardChrome(props.setChrome, chrome);
 
+    const selection = useResolvedActiveServerSelection();
+    const activeData = useSessionListViewData();
+    const byServerId = useSessionListViewDataByServerId(selection.enabled ? selection.allowedServerIds : []);
+    const sessionItems = React.useMemo(() => {
+        const source = resolveSessionListSourceData({
+            enabled: selection.enabled,
+            activeServerId: selection.activeServerId,
+            activeData,
+            byServerId,
+            selectedServerIds: selection.allowedServerIds,
+        });
+        return source?.filter((item): item is Extract<SessionListViewItem, { type: 'session' }> =>
+            item.type === 'session' && item.session.archivedAt == null,
+        ) ?? [];
+    }, [activeData, byServerId, selection.activeServerId, selection.allowedServerIds, selection.enabled]);
+
     const {
         searchQuery,
         selectedIndex,
@@ -51,7 +81,40 @@ export function CommandPalette(props: CommandPaletteProps) {
         handleSelectCommand,
         handleKeyPress,
         setSelectedIndex,
-    } = useCommandPalette(props.commands, props.onClose);
+    } = useCommandPalette(props.commands, props.onClose, sessionItems, selection.activeServerId, props.navigateToSession);
+
+    const [historySearchFailed, setHistorySearchFailed] = React.useState(false);
+    const searchDemanded = searchQuery.trim().length > 0;
+    const sessionListReady = activeData !== null;
+    const selectedForeignServerIds = selection.enabled
+        ? selection.allowedServerIds.filter((id) => id !== selection.activeServerId)
+        : [];
+    const selectedForeignServerKey = selectedForeignServerIds.join('\u0000');
+    const selectedForeignReady = selectedForeignServerIds.every((id) => byServerId[id] !== undefined);
+    React.useEffect(() => {
+        if (!searchDemanded || !sessionListReady) {
+            setHistorySearchFailed(false);
+            return;
+        }
+        let active = true;
+        setHistorySearchFailed(false);
+        void sync.fetchRemainingSessions(() => active).catch((error) => {
+            if (!active) return;
+            console.error('[CommandPalette] Could not load older session titles', error);
+            setHistorySearchFailed(true);
+        });
+        return () => { active = false; };
+    }, [searchDemanded, selection.activeServerId, sessionListReady]);
+    React.useEffect(() => {
+        if (!searchDemanded || !selectedForeignReady || !selectedForeignServerKey) return;
+        let active = true;
+        void fetchRemainingSelectedServerSessions(selectedForeignServerKey.split('\u0000'), () => active).catch((error) => {
+            if (!active) return;
+            console.error('[CommandPalette] Could not load older selected-server titles', error);
+            setHistorySearchFailed(true);
+        });
+        return () => { active = false; };
+    }, [searchDemanded, selectedForeignReady, selectedForeignServerKey]);
 
     // Only render on web
     if (Platform.OS !== 'web') {
@@ -67,6 +130,9 @@ export function CommandPalette(props: CommandPaletteProps) {
                 inputRef={inputRef}
                 autoFocus={true}
             />
+            {searchDemanded ? <Text testID="command-palette:search-scope" style={styles.searchScope}>
+                {t(historySearchFailed ? 'commandPalette.searchUnavailable' : 'commandPalette.searchScope')}
+            </Text> : null}
             <CommandPaletteResults
                 categories={filteredCategories}
                 selectedIndex={selectedIndex}

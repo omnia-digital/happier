@@ -1,3 +1,4 @@
+import * as React from 'react';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { renderHook } from '@/dev/testkit';
@@ -154,6 +155,33 @@ function firstStaticOption(model: ReturnType<typeof UseMachineSelectionListModel
 }
 
 describe('useMachineSelectionListModel', () => {
+    it('scopes concrete machine glyphs in single and multi-server choices', async () => {
+        const fixture = createFixture();
+        const handlers = makeHandlers();
+        const single = await renderModel(fixture, handlers);
+        const firstIcon = firstStaticOption(single.getCurrent()).icon as React.ReactElement<{ serverId: string; machineId: string }>;
+        expect(firstIcon.props).toMatchObject({ serverId: 'server-a', machineId: 'm-1' });
+        await single.unmount();
+
+        const otherGroup: ServerScopedMachineGroup = {
+            ...fixture.groups[0]!,
+            serverId: 'server-b',
+            serverName: 'Server B',
+            machines: [{ ...createScopedMachine(fixture.machines[0]!), serverId: 'server-b' }],
+        };
+        const multi = await renderHook(
+            () => useMachineSelectionListModel({ ...buildParams(fixture, handlers), groups: [...fixture.groups, otherGroup] }),
+        );
+        const sections = multi.getCurrent().rootStep.sections;
+        const first = sections[0];
+        const second = sections[1];
+        if (first?.kind !== 'static' || second?.kind !== 'static') throw new Error('expected grouped machine options');
+        expect((first.options[0]?.icon as React.ReactElement<{ serverId: string; machineId: string }>).props)
+            .toMatchObject({ serverId: 'server-a', machineId: 'm-1' });
+        expect((second.options[0]?.icon as React.ReactElement<{ serverId: string; machineId: string }>).props)
+            .toMatchObject({ serverId: 'server-b', machineId: 'm-1' });
+        await multi.unmount();
+    });
     it('reuses the derived model when only the caller handler identities change', async () => {
         const rendered = await renderModel(createFixture(), makeHandlers());
         const first = rendered.getCurrent();

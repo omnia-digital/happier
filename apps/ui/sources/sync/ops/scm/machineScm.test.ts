@@ -21,6 +21,16 @@ vi.mock('@/sync/domains/state/storage', async () => {
 });
 
 describe('machineScm', () => {
+    it('keeps new-session branch requests on their selected Home/account', async () => {
+        getStateMock.mockReturnValue({ settings: {} });
+        machineRpcWithServerScopeMock.mockResolvedValue({ success: true, branches: [] });
+        const { machineScmBranchList } = await import('./machineScm');
+        const scope = { serverId: 'target-home', accountId: 'target-account' };
+        await machineScmBranchList('same-machine', { cwd: '/repo' }, scope);
+        expect(machineRpcWithServerScopeMock).toHaveBeenCalledWith(expect.objectContaining({
+            ...scope, machineId: 'same-machine', method: RPC_METHODS.SCM_BRANCH_LIST,
+        }));
+    });
     afterEach(() => {
         machineRpcWithServerScopeMock.mockReset();
         getStateMock.mockReset();

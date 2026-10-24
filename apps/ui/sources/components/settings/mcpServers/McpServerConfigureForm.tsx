@@ -19,7 +19,6 @@ import { SegmentedTabBar } from '@/components/ui/navigation/SegmentedTabBar';
 import { SettingsActionFooter } from '@/components/ui/settingsSurface/SettingsActionFooter';
 import { Text, TextInput } from '@/components/ui/text/Text';
 import type { SavedSecret } from '@/sync/domains/settings/savedSecretTypes';
-import { useSettingMutable } from '@/sync/domains/state/storage';
 import type { Machine } from '@/sync/domains/state/storageTypes';
 import { parseMcpCommandLine } from '@/sync/domains/settings/mcpServers/parseMcpCommandLine';
 import { t } from '@/text';
@@ -39,8 +38,6 @@ export const McpServerConfigureForm = React.memo(function McpServerConfigureForm
     isExistingServer: boolean;
 }>) {
     const { theme } = useUnistyles();
-    const [favoriteDirectoriesRaw, setFavoriteDirectoriesRaw] = useSettingMutable('favoriteDirectories');
-    const favoriteDirectories = Array.isArray(favoriteDirectoriesRaw) ? favoriteDirectoriesRaw : [];
     const [advancedCommandEditorOpen, setAdvancedCommandEditorOpen] = React.useState(false);
 
     const transportItems = React.useMemo(() => ([
@@ -285,8 +282,6 @@ export const McpServerConfigureForm = React.memo(function McpServerConfigureForm
             <McpServerBindingDraftExpander
                 serverId={props.draftServer.id}
                 machines={props.machines}
-                favoriteDirectories={favoriteDirectories}
-                onChangeFavoriteDirectories={setFavoriteDirectoriesRaw}
                 onAddBinding={(binding) => props.onChangeBindings((current) => [...current, binding])}
                 expandedContainerStyle={styles.expandedBindingContainer}
             />

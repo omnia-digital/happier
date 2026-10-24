@@ -96,13 +96,14 @@ function buildReachabilityMachineDisplaySignature(machines: Readonly<Record<stri
     }));
 }
 
-function buildSessionReachableDisplay(input: Readonly<{
+export function buildSessionReachableDisplay(input: Readonly<{
     item: Extract<SessionListViewItem, { type: 'session' }>;
     machinesById: Readonly<Record<string, MachineDisplayRenderable>>;
     workspaceLabelsV1: Readonly<Record<string, string>>;
 }>): Readonly<{
     display: SessionReachableDisplay;
     machineKey: string;
+    workspace: ReturnType<typeof resolveSessionWorkspacePresentation>;
 }> {
     const target = readDisplayMachineTargetForSession({
         sessionId: input.item.session.id,
@@ -124,6 +125,7 @@ function buildSessionReachableDisplay(input: Readonly<{
     return {
         display,
         machineKey: resolveMachineKey(display),
+        workspace,
     };
 }
 

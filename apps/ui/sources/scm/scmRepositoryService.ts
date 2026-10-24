@@ -1,3 +1,8 @@
+import { resolveServerIdForSessionIdFromLocalCache } from '@/sync/runtime/orchestration/serverScopedRpc/resolveServerIdForSessionIdFromLocalCache';
+import { resolveServerScopedSessionContext } from '@/sync/runtime/orchestration/serverScopedRpc/resolveServerScopedSessionContext';
+import { areServerProfileIdentifiersEquivalent } from '@/sync/domains/server/serverProfiles';
+import { storage } from '@/sync/domains/state/storage';
+import { areServerAccountScopesEqual, type ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import type {
     ScmStatusSnapshotResponse,
     ScmWorkingSnapshot as ProtocolScmWorkingSnapshot,
@@ -31,6 +36,7 @@ const DEFAULT_MAX_REPO_ENRICHMENT_CACHE_ENTRIES = 32;
 const DEFAULT_MAX_PER_REPO_ENRICHMENT_ENTRIES = 64;
 
 type RepoSnapshotRequestContext = Readonly<{
+    scope: ServerAccountScope;
     machineId: string;
     resolvedPath: string;
     includeWorktreeStatus: boolean;
@@ -302,6 +308,29 @@ export class ScmRepositoryService {
         );
     }
 
+    private resolveScope(scope?: ServerAccountScope, serverId?: string | null): ServerAccountScope | null {
+        if (scope) return scope;
+        const active = storage.getState().profileScope;
+        return active && (!serverId || areServerProfileIdentifiersEquivalent(serverId, active.serverId)) ? active : null;
+    }
+
+    async resolveScopeForServer(serverId?: string | null): Promise<ServerAccountScope | null> {
+        const active = this.resolveScope(undefined, serverId);
+        if (active) return active;
+        if (!serverId) return null;
+        const context = await resolveServerScopedSessionContext({ serverId, preferScoped: true });
+        return context.scope === 'scoped' ? { serverId: context.targetServerId, accountId: context.targetAccountId } : null;
+    }
+
+    private scopedKey(scope: ServerAccountScope, key: string): string {
+        return `${JSON.stringify([scope.serverId, scope.accountId])}\0${key}`;
+    }
+
+    private withRequestNamespace(requestKey: string, key: string): string {
+        const namespace = requestKey.slice(0, requestKey.indexOf('\0') + 1);
+        return key.startsWith(namespace) ? key : `${namespace}${key}`;
+    }
+
     private normalizePositiveCount(value: unknown, fallback: number): number {
         if (typeof value === 'number' && Number.isFinite(value)) {
             return Math.max(1, Math.floor(value));
@@ -325,6 +354,7 @@ export class ScmRepositoryService {
         machineId: string;
         resolvedPath: string;
         repoIdentityKey: string;
+        scope: ServerAccountScope;
     }>): string | null {
         const normalizedResolvedPath = normalizeFileSystemPath(input.resolvedPath);
         if (!normalizedResolvedPath) {
@@ -347,7 +377,7 @@ export class ScmRepositoryService {
         let bestMatchKey: string | null = null;
         let bestMatchRootLen = -1;
         for (const [candidateKey, candidateSnapshot] of this.repoSnapshotCache) {
-            if (!candidateKey.startsWith(`${input.machineId}:`)) {
+            if (!candidateKey.startsWith(this.scopedKey(input.scope, `${input.machineId}:`))) {
                 continue;
             }
             if (!candidateSnapshot?.repo?.isRepo) {
@@ -369,8 +399,8 @@ export class ScmRepositoryService {
             if (normalizedRootPath.length > bestMatchRootLen) {
                 bestMatchRootLen = normalizedRootPath.length;
                 bestMatchKey =
-                    candidateSnapshot.projectKey && this.repoSnapshotCache.has(candidateSnapshot.projectKey)
-                        ? candidateSnapshot.projectKey
+                    candidateSnapshot.projectKey && this.repoSnapshotCache.has(this.scopedKey(input.scope, candidateSnapshot.projectKey))
+                        ? this.scopedKey(input.scope, candidateSnapshot.projectKey)
                         : candidateKey;
             }
         }
@@ -392,7 +422,7 @@ export class ScmRepositoryService {
     }
 
     private isPotentialSameRepoRequest(a: RepoSnapshotRequestContext, b: RepoSnapshotRequestContext): boolean {
-        if (a.machineId !== b.machineId || a.includeWorktreeStatus !== b.includeWorktreeStatus) {
+        if (a.scope.serverId !== b.scope.serverId || a.scope.accountId !== b.scope.accountId || a.machineId !== b.machineId || a.includeWorktreeStatus !== b.includeWorktreeStatus) {
             return false;
         }
         if (
@@ -439,12 +469,14 @@ export class ScmRepositoryService {
         snapshot: UiScmWorkingSnapshot | null,
         options?: Readonly<{
             canonicalIdentityKeyOverride?: (snapshot: UiScmWorkingSnapshot | null) => string;
+            requestContext?: RepoSnapshotRequestContext;
         }>,
     ): void {
-        const canonicalIdentityKey = options?.canonicalIdentityKeyOverride
+        const canonicalIdentityKeyRaw = options?.canonicalIdentityKeyOverride
             ? options.canonicalIdentityKeyOverride(snapshot)
-            : (snapshot?.projectKey ? snapshot.projectKey : repoIdentityKey);
+            : resolveCanonicalScmProjectKey({ machineId: options?.requestContext?.machineId, snapshot, fallbackProjectKey: snapshot?.projectKey ?? repoIdentityKey });
 
+        const canonicalIdentityKey = this.withRequestNamespace(repoIdentityKey, canonicalIdentityKeyRaw);
         this.repoSnapshotCache.set(canonicalIdentityKey, snapshot);
         if (canonicalIdentityKey !== repoIdentityKey) {
             this.repoSnapshotCache.delete(repoIdentityKey);
@@ -502,11 +534,21 @@ export class ScmRepositoryService {
         }
     }
 
+    async resolveRequestForSession(sessionId: string) {
+        const activeScopeAtStart = storage.getState().profileScope;
+        const scope = await this.resolveScopeForServer(resolveServerIdForSessionIdFromLocalCache(sessionId));
+        const activeScopeNow = storage.getState().profileScope;
+        if (activeScopeAtStart !== activeScopeNow && !areServerAccountScopesEqual(activeScopeAtStart, activeScopeNow)) return null;
+        if (!scope) return null;
+        const resolved = resolveRepoScmSessionRequest({ sessionId, scope });
+        return resolved ? { ...resolved, scope } : null;
+    }
+
     async fetchSnapshotForSession(sessionId: string): Promise<UiScmWorkingSnapshot | null> {
-        const request = resolveRepoScmSessionRequest({ sessionId });
-        if (!request) {
-            return null;
-        }
+        const resolved = await this.resolveRequestForSession(sessionId);
+        if (!resolved) return null;
+        const scope = resolved.scope;
+        const request = { ...resolved, repoIdentityKey: this.scopedKey(scope, resolved.repoIdentityKey) };
 
         return await this.fetchSnapshotForRepoIdentity(request.repoIdentityKey, async () => {
             const fetchedAt = Date.now();
@@ -514,9 +556,9 @@ export class ScmRepositoryService {
             // Session SCM RPC runs within the session working directory already. Passing an absolute
             // `cwd` is both redundant and brittle (tilde paths, symlink differences, etc.) because
             // the CLI security layer resolves `cwd` relative to the working directory.
-            const response = await sessionScmStatusSnapshot(sessionId, {});
+            const response = await sessionScmStatusSnapshot(sessionId, {}, scope);
             const projectKey = resolveCanonicalScmProjectKey({
-                fallbackProjectKey: request.repoIdentityKey,
+                fallbackProjectKey: resolved!.repoIdentityKey,
                 machineId: request.machineId,
                 snapshot: readSuccessfulSnapshot(response) ?? null,
             });
@@ -528,6 +570,7 @@ export class ScmRepositoryService {
             });
         }, { requestContext: request.machineId
             ? {
+                scope,
                 machineId: request.machineId,
                 resolvedPath: request.resolvedPath,
                 includeWorktreeStatus: false,
@@ -539,9 +582,15 @@ export class ScmRepositoryService {
     async fetchSnapshotForMachinePath(input: Readonly<{
         machineId: string;
         path: string;
+        scope?: ServerAccountScope;
+        serverId?: string | null;
         includeWorktreeStatus?: boolean;
     }>): Promise<UiScmWorkingSnapshot | null> {
-        const request = resolveRepoScmMachinePathRequest(input);
+        const scope = this.resolveScope(input.scope, input.serverId)
+            ?? await this.resolveScopeForServer(input.serverId);
+        if (!scope) return null;
+        const resolved = resolveRepoScmMachinePathRequest({ ...input, scope });
+        const request = resolved ? { ...resolved, scope, repoIdentityKey: this.scopedKey(scope, resolved.repoIdentityKey) } : null;
         if (!request) {
             return null;
         }
@@ -552,9 +601,9 @@ export class ScmRepositoryService {
             const response = await machineScmStatusSnapshot(request.machineId, {
                 cwd: request.resolvedPath,
                 ...(includeWorktreeStatus ? { includeWorktreeStatus: true } : {}),
-            });
+            }, scope);
             const projectKey = resolveCanonicalScmProjectKey({
-                fallbackProjectKey: request.repoIdentityKey,
+                fallbackProjectKey: resolved!.repoIdentityKey,
                 machineId: request.machineId,
                 snapshot: readSuccessfulSnapshot(response) ?? null,
             });
@@ -565,9 +614,10 @@ export class ScmRepositoryService {
                 emptyRootPath: request.resolvedPath,
             });
         }, { canonicalIdentityKeyOverride: includeWorktreeStatus
-            ? (snapshot) => this.applyStatusCacheNamespace(snapshot?.projectKey ?? request.repoIdentityKey, true)
+            ? (snapshot) => this.applyStatusCacheNamespace(resolveCanonicalScmProjectKey({ machineId: request.machineId, snapshot, fallbackProjectKey: request.repoIdentityKey }), true)
             : undefined,
             requestContext: {
+                scope,
                 machineId: request.machineId,
                 resolvedPath: request.resolvedPath,
                 includeWorktreeStatus,
@@ -578,9 +628,14 @@ export class ScmRepositoryService {
     readCachedSnapshotForMachinePath(input: Readonly<{
         machineId: string;
         path: string;
+        scope?: ServerAccountScope;
+        serverId?: string | null;
         includeWorktreeStatus?: boolean;
     }>): UiScmWorkingSnapshot | null {
-        const request = resolveRepoScmMachinePathRequest(input);
+        const scope = this.resolveScope(input.scope, input.serverId);
+        if (!scope) return null;
+        const resolved = resolveRepoScmMachinePathRequest({ ...input, scope });
+        const request = resolved ? { ...resolved, scope, repoIdentityKey: this.scopedKey(scope, resolved.repoIdentityKey) } : null;
         if (!request) {
             return null;
         }
@@ -593,6 +648,7 @@ export class ScmRepositoryService {
             // Also try canonical-projectKey-based enriched key by prefix-matching against the lightweight alias resolver.
             const aliasedLightweightKey =
                 this.resolveCachedRepoIdentityKeyForMachinePath({
+                    scope,
                     machineId: request.machineId,
                     resolvedPath: request.resolvedPath,
                     repoIdentityKey: request.repoIdentityKey,
@@ -606,6 +662,7 @@ export class ScmRepositoryService {
 
         const resolvedCacheKey =
             this.resolveCachedRepoIdentityKeyForMachinePath({
+                scope,
                 machineId: request.machineId,
                 resolvedPath: request.resolvedPath,
                 repoIdentityKey: request.repoIdentityKey,
@@ -649,9 +706,11 @@ export class ScmRepositoryService {
         machineId: string;
         resolvedPath: string;
         repoIdentityKey: string;
+        scope: ServerAccountScope;
     }>): string {
         const resolvedSnapshotKey =
             this.resolveCachedRepoIdentityKeyForMachinePath({
+                scope: request.scope,
                 machineId: request.machineId,
                 resolvedPath: request.resolvedPath,
                 repoIdentityKey: request.repoIdentityKey,
@@ -685,12 +744,15 @@ export class ScmRepositoryService {
     async fetchWorktreesEnrichment(input: Readonly<{
         machineId: string;
         path: string;
+        scope?: ServerAccountScope;
+        serverId?: string | null;
         worktreePaths: ReadonlyArray<string>;
     }>): Promise<ScmWorktreeEnrichmentEntry[] | null> {
-        const request = resolveRepoScmMachinePathRequest({
-            machineId: input.machineId,
-            path: input.path,
-        });
+        const scope = this.resolveScope(input.scope, input.serverId)
+            ?? await this.resolveScopeForServer(input.serverId);
+        if (!scope) return null;
+        const resolved = resolveRepoScmMachinePathRequest({ ...input, scope });
+        const request = resolved ? { ...resolved, scope, repoIdentityKey: this.scopedKey(scope, resolved.repoIdentityKey) } : null;
         if (!request) return null;
 
         const cacheKey = this.resolveWorktreesEnrichmentCacheKey(request);
@@ -705,7 +767,7 @@ export class ScmRepositoryService {
                     const response = await machineScmWorktreesEnrichment(request.machineId, {
                         cwd: request.resolvedPath,
                         worktreePaths: [...worktreePaths],
-                    });
+                    }, scope);
                     if (!response || response.success !== true || !response.worktrees) {
                         return null;
                     }
@@ -747,8 +809,13 @@ export class ScmRepositoryService {
     readCachedWorktreesEnrichment(input: Readonly<{
         machineId: string;
         path: string;
+        scope?: ServerAccountScope;
+        serverId?: string | null;
     }>): ScmWorktreeEnrichmentEntry[] | null {
-        const request = resolveRepoScmMachinePathRequest(input);
+        const scope = this.resolveScope(input.scope, input.serverId);
+        if (!scope) return null;
+        const resolved = resolveRepoScmMachinePathRequest({ ...input, scope });
+        const request = resolved ? { ...resolved, scope, repoIdentityKey: this.scopedKey(scope, resolved.repoIdentityKey) } : null;
         if (!request) return null;
         const cacheKey = this.resolveWorktreesEnrichmentCacheKey(request);
         const perRepoMap = this.worktreesEnrichmentCache.get(cacheKey);
@@ -766,7 +833,10 @@ export class ScmRepositoryService {
     }
 
     readCachedSnapshotForSession(sessionId: string): UiScmWorkingSnapshot | null {
-        const request = resolveRepoScmSessionRequest({ sessionId });
+        const scope = this.resolveScope(undefined, resolveServerIdForSessionIdFromLocalCache(sessionId));
+        if (!scope) return null;
+        const resolved = resolveRepoScmSessionRequest({ sessionId, scope });
+        const request = resolved ? { ...resolved, scope, repoIdentityKey: this.scopedKey(scope, resolved.repoIdentityKey) } : null;
         if (!request) {
             return null;
         }
@@ -774,6 +844,7 @@ export class ScmRepositoryService {
         const resolvedCacheKey =
             request.machineId
                 ? this.resolveCachedRepoIdentityKeyForMachinePath({
+                    scope,
                     machineId: request.machineId,
                     resolvedPath: request.resolvedPath,
                     repoIdentityKey: request.repoIdentityKey,

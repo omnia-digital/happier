@@ -22,6 +22,7 @@ export async function importLegacySessionOrganization(params: Readonly<{
             ...folder,
             display: await prepareSessionOrganizationDisplayEnvelopeForWrite({
                 credentials: params.credentials,
+                serverUrl: params.serverUrl,
                 envelope: folder.display,
             }),
         }))),
@@ -29,6 +30,7 @@ export async function importLegacySessionOrganization(params: Readonly<{
             ...tag,
             display: await prepareSessionOrganizationDisplayEnvelopeForWrite({
                 credentials: params.credentials,
+                serverUrl: params.serverUrl,
                 envelope: tag.display,
             }),
         }))),
@@ -36,6 +38,7 @@ export async function importLegacySessionOrganization(params: Readonly<{
             ...label,
             display: await prepareSessionOrganizationDisplayEnvelopeForWrite({
                 credentials: params.credentials,
+                serverUrl: params.serverUrl,
                 envelope: label.display,
             }),
         }))),

@@ -148,6 +148,7 @@ class ModalManagerClass implements IModal {
             cancelText?: string;
             confirmText?: string;
             destructive?: boolean;
+            confirmOnEnter?: boolean;
         }
     ): Promise<boolean> {
         if (Platform.OS === 'web') {
@@ -163,7 +164,8 @@ class ModalManagerClass implements IModal {
                 message,
                 cancelText: options?.cancelText,
                 confirmText: options?.confirmText,
-                destructive: options?.destructive
+                destructive: options?.destructive,
+                confirmOnEnter: options?.confirmOnEnter,
             } as Omit<ModalConfig, 'id'>);
 
             return new Promise<boolean>((resolve) => {

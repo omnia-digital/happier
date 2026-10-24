@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const credentialListeners = vi.hoisted(() => new Set<() => void>());
 const getCredentialsSpy = vi.hoisted(() => vi.fn());
 const createEncryptionSpy = vi.hoisted(() => vi.fn());
 const listServerProfilesSpy = vi.hoisted(() => vi.fn());
@@ -16,6 +17,10 @@ function tokenForSub(sub: string): string {
 vi.mock('@/auth/storage/tokenStorage', () => ({
   TokenStorage: {
     getCredentialsForServerUrl: (...args: unknown[]) => getCredentialsSpy(...args),
+    subscribeCredentialChanges: (listener: () => void) => {
+      credentialListeners.add(listener);
+      return () => credentialListeners.delete(listener);
+    },
   },
 }));
 
@@ -197,5 +202,28 @@ describe('resolveServerScopedSessionContext', () => {
       token,
       encryption: fakeEncryption,
     });
+  });
+});
+
+
+describe('current scoped account publication', () => {
+  it.each(['account-b', 'account-a'])('rechecks a credential event during the awaited read (%s)', async (currentAccount) => {
+    getCredentialsSpy.mockReset();
+    listServerProfilesSpy.mockReturnValue([{ id: 'server-b', serverUrl: 'https://server-b.example.test' }]);
+    let release!: (value: { token: string; secret: string }) => void;
+    getCredentialsSpy.mockImplementationOnce(() => new Promise((resolve) => { release = resolve; }))
+      .mockResolvedValue({ token: tokenForSub(currentAccount), secret: 'rotated' });
+    const { runWithCurrentServerScopedSessionContext } = await import('./resolveServerScopedSessionContext');
+    const publish = vi.fn();
+    const pending = runWithCurrentServerScopedSessionContext({
+      targetServerId: 'server-b', targetServerUrl: 'https://server-b.example.test', targetAccountId: 'account-a',
+    }, publish);
+    for (const listener of credentialListeners) listener();
+    release({ token: tokenForSub('account-a'), secret: 'old' });
+    expect(await pending).toBe(currentAccount === 'account-a');
+    expect(publish).toHaveBeenCalledTimes(currentAccount === 'account-a' ? 1 : 0);
+    expect(getCredentialsSpy).toHaveBeenCalledTimes(2);
+    expect(credentialListeners.size).toBe(0);
+    getCredentialsSpy.mockReset();
   });
 });

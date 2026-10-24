@@ -6,18 +6,19 @@ export interface RollbackNewSessionArtifactsParams {
     actualPath: string;
     checkoutCreationDraft?: NewSessionCheckoutCreationDraft | null;
     serverId?: string | null;
+    accountId?: string | null;
     machineBash: (
         machineId: string,
         command: string | Readonly<{ argv: readonly string[] }>,
         cwd: string,
-        options?: Readonly<{ serverId?: string | null }>,
+        options?: Readonly<{ serverId?: string | null; accountId?: string | null }>,
     ) => Promise<{ success: boolean; stderr: string }>;
 }
 
 export async function rollbackNewSessionArtifacts(
     params: Readonly<RollbackNewSessionArtifactsParams>,
 ): Promise<void> {
-    const requestOptions = { serverId: params.serverId };
+    const requestOptions = { serverId: params.serverId, accountId: params.accountId };
     const errors: string[] = [];
 
     if (params.checkoutCreationDraft?.kind === 'git_worktree' && params.actualPath !== params.selectedPath) {

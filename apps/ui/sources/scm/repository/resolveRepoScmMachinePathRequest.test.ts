@@ -14,6 +14,17 @@ installRepositoryScmCommonModuleMocks({
 });
 
 describe('resolveRepoScmMachinePathRequest', () => {
+    it('leaves a foreign Home tilde path for daemon expansion instead of borrowing the active machine home', async () => {
+        storageGetStateMock.mockReturnValue({
+            profileScope: { serverId: 'b', accountId: 'b' },
+            machines: { same: { id: 'same', metadata: { homeDir: '/other' } } },
+        });
+        const { resolveRepoScmMachinePathRequest } = await import('./resolveRepoScmMachinePathRequest');
+        expect(resolveRepoScmMachinePathRequest({ machineId: 'same', path: '~/repo', scope: { serverId: 'a', accountId: 'a' } })).toEqual({
+            machineId: 'same', resolvedPath: '~/repo', repoIdentityKey: 'same:~/repo',
+        });
+    });
+
     afterEach(() => {
         vi.restoreAllMocks();
     });

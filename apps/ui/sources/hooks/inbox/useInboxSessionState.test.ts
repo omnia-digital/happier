@@ -1,4 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
+import { act } from 'react-test-renderer';
+import { renderHook } from '@/dev/testkit/hooks/renderHook';
+import { storage } from '@/sync/domains/state/storageStore';
+import { upsertServerProfile, setActiveServerId } from '@/sync/domains/server/serverProfiles';
 
 import { createSessionFixture } from '@/dev/testkit/fixtures/sessionFixtures';
 import type { StorageState } from '@/sync/store/types';
@@ -7,6 +11,7 @@ import { buildInboxSessionSummary } from './buildInboxSessionState';
 import {
     buildInboxSessionSourceSignature,
     createInboxSessionSummarySelector,
+    useInboxSessionState,
 } from './useInboxSessionState';
 
 describe('buildInboxSessionSourceSignature', () => {
@@ -367,5 +372,51 @@ describe('createInboxSessionSummarySelector', () => {
         } as StorageState);
 
         expect(next.hasContent).toBe(true);
+    });
+});
+
+
+describe('mounted Inbox request freshness', () => {
+    it('updates from a newer list request while open, then retires it when hydrated revision alone advances', async () => {
+        const previous = storage.getState();
+        vi.stubEnv('EXPO_PUBLIC_HAPPY_STORAGE_SCOPE', `inbox-current-${Math.random()}`);
+        const profile = upsertServerProfile({ serverUrl: 'https://inbox-current.example.test' });
+        setActiveServerId(profile.id, { scope: 'device' });
+        storage.setState(storage.getInitialState(), true);
+        const now = Date.now();
+        const session = createSessionFixture({ id: 'live-request', serverId: profile.id, active: true, activeAt: now,
+            agentStateVersion: 1, agentState: null, latestTurnStatus: null,
+        });
+        storage.getState().applySessions([session]);
+        const harness = await renderHook(() => useInboxSessionState());
+        try {
+            expect(harness.getCurrent().sessionsNeedingAttention).toEqual([]);
+            const beforeUnrelated = harness.getCurrent();
+            await act(async () => {
+                storage.setState(state => ({ sessionListRenderables: { ...state.sessionListRenderables,
+                    'outside-inbox-list': { ...state.sessionListRenderables[session.id], id: 'outside-inbox-list', seq: 99 },
+                } }));
+            });
+            expect(harness.getCurrent()).toBe(beforeUnrelated);
+            await act(async () => {
+                storage.getState().applySessionListRenderablePatches([{ sessionId: session.id, patch: {
+                    agentStateVersion: 2, hasPendingPermissionRequests: true, hasPendingUserActionRequests: false,
+                    pendingRequestObservedAt: now,
+                } }]);
+            });
+            expect(storage.getState().sessionListRenderables[session.id]).toMatchObject({ agentStateVersion: 2, hasPendingPermissionRequests: true });
+            expect(storage.getState().sessionListViewDataByServerId[profile.id]?.filter(item => item.type === 'session').map(item => item.session.agentStateVersion)).toEqual([1]);
+            expect(harness.getCurrent().sessionsNeedingAttention.map(entry => entry.reason)).toEqual(['permission_required']);
+            // Hydration may catch up with a null agent state after the request was cleared.
+            // Its revision changes the winning source even when the payload is unchanged.
+            await act(async () => {
+                storage.setState({ sessions: { [session.id]: { ...storage.getState().sessions[session.id], agentStateVersion: 3 } } });
+            });
+            expect(harness.getCurrent().sessionsNeedingAttention).toEqual([]);
+        } finally {
+            await harness.unmount();
+            storage.setState(previous, true);
+            vi.unstubAllEnvs();
+        }
     });
 });

@@ -2,7 +2,7 @@ import * as React from 'react';
 import { Platform } from 'react-native';
 import { useShallow } from 'zustand/react/shallow';
 
-import { Modal } from '@/modal';
+import { Modal, useOptionalModal } from '@/modal';
 import { storage } from '@/sync/domains/state/storage';
 import { t } from '@/text';
 import {
@@ -18,14 +18,30 @@ import {
 } from './runtime';
 import type { KeyboardCommandId, KeybindingRule } from './types';
 import { FocusReturnProvider } from './focusReturn';
+import { ESCAPE_LAYER_PRIORITIES, getMaxEscapeKeyBlockerPriority, subscribeEscapeLayerChanges } from './escape';
 import { subscribeToNativeHardwareKeyboardEvents } from '@/components/sessions/agentInput/subscribeToIosHardwareShiftEnter';
 
+function isPopoverOrHigherEscapeLayerActive(): boolean {
+    return getMaxEscapeKeyBlockerPriority() >= ESCAPE_LAYER_PRIORITIES.popover;
+}
+
 type KeyboardShortcutRegistrationContextValue = Readonly<{
-    registerHandlers: (handlers: KeyboardShortcutHandlers) => () => void;
+    registerHandlers: (
+        handlers: KeyboardShortcutHandlers,
+        onCommandHeldChange?: (held: boolean) => void,
+        isOwnedSessionRowMenuActive?: () => boolean,
+    ) => () => void;
     executeCommand: (commandId: KeyboardCommandId) => boolean;
 }>;
 
+type ScopedHandlerEntry = Readonly<{
+    handlers: KeyboardShortcutHandlers;
+    onCommandHeldChange?: (held: boolean) => void;
+    isOwnedSessionRowMenuActive?: () => boolean;
+}>;
+
 const KeyboardShortcutRegistrationContext = React.createContext<KeyboardShortcutRegistrationContextValue | null>(null);
+const KeyboardShortcutLabelsContext = React.createContext<Partial<Record<KeyboardCommandId, string>>>({});
 const HANDLER_KEY_SIGNATURE_SEPARATOR = '\u0000';
 
 function buildHandlerKeySignature(handlers: KeyboardShortcutHandlers): string {
@@ -46,10 +62,21 @@ function buildNativeHardwareAllowlistSignature(allowlist: NativeHardwareKeyboard
         .join(HANDLER_KEY_SIGNATURE_SEPARATOR);
 }
 
-export function useKeyboardShortcutHandlers(handlers: KeyboardShortcutHandlers): boolean {
+export function useKeyboardShortcutHandlers(
+    handlers: KeyboardShortcutHandlers,
+    options?: Readonly<{
+        onCommandHeldChange?: (held: boolean) => void;
+        isOwnedSessionRowMenuActive?: () => boolean;
+    }>,
+): boolean {
     const registration = React.useContext(KeyboardShortcutRegistrationContext);
     const latestHandlersRef = React.useRef(handlers);
     latestHandlersRef.current = handlers;
+    const latestCommandHeldChangeRef = React.useRef(options?.onCommandHeldChange);
+    latestCommandHeldChangeRef.current = options?.onCommandHeldChange;
+    const latestOwnedSessionRowMenuRef = React.useRef(options?.isOwnedSessionRowMenuActive);
+    latestOwnedSessionRowMenuRef.current = options?.isOwnedSessionRowMenuActive;
+    const wantsCommandHeldChange = options?.onCommandHeldChange != null;
     const handlerKeySignature = buildHandlerKeySignature(handlers);
     const registeredHandlers = React.useMemo<KeyboardShortcutHandlers>(() => {
         if (!handlerKeySignature) return {};
@@ -57,7 +84,7 @@ export function useKeyboardShortcutHandlers(handlers: KeyboardShortcutHandlers):
         const keys = handlerKeySignature.split(HANDLER_KEY_SIGNATURE_SEPARATOR) as KeyboardCommandId[];
         for (const key of keys) {
             next[key] = () => {
-                latestHandlersRef.current[key]?.();
+                return latestHandlersRef.current[key]?.();
             };
         }
         return next;
@@ -65,9 +92,13 @@ export function useKeyboardShortcutHandlers(handlers: KeyboardShortcutHandlers):
 
     React.useEffect(() => {
         if (!registration) return;
-        if (!handlerKeySignature) return;
-        return registration.registerHandlers(registeredHandlers);
-    }, [handlerKeySignature, registeredHandlers, registration]);
+        if (!handlerKeySignature && !wantsCommandHeldChange) return;
+        return registration.registerHandlers(
+            registeredHandlers,
+            wantsCommandHeldChange ? (held) => latestCommandHeldChangeRef.current?.(held) : undefined,
+            () => latestOwnedSessionRowMenuRef.current?.() === true,
+        );
+    }, [handlerKeySignature, registeredHandlers, registration, wantsCommandHeldChange]);
 
     return registration != null;
 }
@@ -78,7 +109,17 @@ export function useKeyboardCommand(): (commandId: KeyboardCommandId) => boolean 
     return React.useCallback((commandId: KeyboardCommandId) => registration?.executeCommand(commandId) ?? false, [registration]);
 }
 
+export function useKeyboardShortcutLabel(commandId: KeyboardCommandId): string | undefined {
+    return React.useContext(KeyboardShortcutLabelsContext)[commandId];
+}
+
+export function useKeyboardShortcutLabels(): Partial<Record<KeyboardCommandId, string>> {
+    return React.useContext(KeyboardShortcutLabelsContext);
+}
+
 function buildHelpBody(shortcutLabels: Partial<Record<string, string>>): string {
+    const numberedLabels = Array.from({ length: 9 }, (_, index) => shortcutLabels[`session.number.${index + 1}`])
+        .filter((label): label is string => label != null);
     const lines = [
         shortcutLabels['commandPalette.open']
             ? `${t('commandPalette.shortcutsHelpCommandPalette')}: ${shortcutLabels['commandPalette.open']}`
@@ -89,6 +130,12 @@ function buildHelpBody(shortcutLabels: Partial<Record<string, string>>): string 
         shortcutLabels['session.new']
             ? `${t('commandPalette.shortcutsHelpNewSession')}: ${shortcutLabels['session.new']}`
             : null,
+        numberedLabels.length > 0
+            ? `${t('commandPalette.shortcutsHelpVisibleSessions')}: ${numberedLabels.join(', ')}`
+            : null,
+        shortcutLabels['session.hovered.archive']
+            ? `${t('sessionInfo.archiveSession')}: ${shortcutLabels['session.hovered.archive']}`
+            : null,
     ].filter((line): line is string => Boolean(line));
     if (lines.length === 0) return t('commandPalette.shortcutsHelpEmpty');
     return t('commandPalette.shortcutsHelpBody', { shortcuts: lines.join('\n') });
@@ -98,18 +145,36 @@ export function KeyboardShortcutProvider(props: React.PropsWithChildren<Readonly
     handlers: KeyboardShortcutHandlers;
     enabledWhenDisabledCommandIds?: readonly KeyboardCommandId[];
 }>>) {
+    const modal = useOptionalModal();
+    const isModalActive = modal?.isKeyboardLiftSuppressedByModal === true;
     const nextScopedHandlerIdRef = React.useRef(1);
-    const [scopedHandlerEntries, setScopedHandlerEntries] = React.useState<ReadonlyMap<number, KeyboardShortcutHandlers>>(
+    const commandHeldRef = React.useRef(false);
+    const [scopedHandlerEntries, setScopedHandlerEntries] = React.useState<ReadonlyMap<number, ScopedHandlerEntry>>(
         () => new Map(),
     );
-    const registerHandlers = React.useCallback((handlers: KeyboardShortcutHandlers) => {
+    const commandHeldListenersRef = React.useRef<readonly ((held: boolean) => void)[]>([]);
+    commandHeldListenersRef.current = Array.from(scopedHandlerEntries.values())
+        .map((entry) => entry.onCommandHeldChange)
+        .filter((listener): listener is (held: boolean) => void => listener != null);
+    const hasCommandHeldListener = commandHeldListenersRef.current.length > 0;
+    const setCommandHeld = React.useCallback((held: boolean) => {
+        if (commandHeldRef.current === held) return;
+        commandHeldRef.current = held;
+        for (const listener of commandHeldListenersRef.current) listener(held);
+    }, []);
+    const registerHandlers = React.useCallback((
+        handlers: KeyboardShortcutHandlers,
+        onCommandHeldChange?: (held: boolean) => void,
+        isOwnedSessionRowMenuActive?: () => boolean,
+    ) => {
         const id = nextScopedHandlerIdRef.current;
         nextScopedHandlerIdRef.current += 1;
         setScopedHandlerEntries((current) => {
             const next = new Map(current);
-            next.set(id, handlers);
+            next.set(id, { handlers, onCommandHeldChange, isOwnedSessionRowMenuActive });
             return next;
         });
+        if (commandHeldRef.current) onCommandHeldChange?.(true);
         return () => {
             setScopedHandlerEntries((current) => {
                 if (!current.has(id)) return current;
@@ -121,11 +186,13 @@ export function KeyboardShortcutProvider(props: React.PropsWithChildren<Readonly
     }, []);
     const scopedHandlers = React.useMemo<KeyboardShortcutHandlers>(() => {
         const next: KeyboardShortcutHandlers = {};
-        for (const handlers of scopedHandlerEntries.values()) {
-            Object.assign(next, handlers);
+        for (const entry of scopedHandlerEntries.values()) {
+            Object.assign(next, entry.handlers);
         }
         return next;
     }, [scopedHandlerEntries]);
+    const scopedEntriesRef = React.useRef(scopedHandlerEntries);
+    scopedEntriesRef.current = scopedHandlerEntries;
     const rootHandlers = React.useMemo<KeyboardShortcutHandlers>(() => ({
         ...props.handlers,
         ...scopedHandlers,
@@ -191,11 +258,24 @@ export function KeyboardShortcutProvider(props: React.PropsWithChildren<Readonly
         keyboardShortcutOverridesV1,
         handlers,
     };
+    const isModalActiveRef = React.useRef(isModalActive);
+    isModalActiveRef.current = isModalActive;
+    React.useEffect(() => {
+        if (isModalActive) setCommandHeld(false);
+    }, [isModalActive, setCommandHeld]);
+    React.useEffect(() => {
+        if (keyboardShortcutsV2Enabled !== true) setCommandHeld(false);
+    }, [keyboardShortcutsV2Enabled, setCommandHeld]);
+    React.useEffect(() => {
+        if (Platform.OS !== 'web' || !hasCommandHeldListener) return;
+        return subscribeEscapeLayerChanges(() => {
+            if (isPopoverOrHigherEscapeLayerActive()) setCommandHeld(false);
+        });
+    }, [hasCommandHeldListener, setCommandHeld]);
     const executeCommand = React.useCallback((commandId: KeyboardCommandId): boolean => {
         const handler = latestShortcutRuntimeRef.current?.handlers[commandId];
         if (!handler) return false;
-        handler();
-        return true;
+        return handler() !== false;
     }, []);
     const registrationContextValue = React.useMemo<KeyboardShortcutRegistrationContextValue>(
         () => ({ registerHandlers, executeCommand }),
@@ -236,6 +316,17 @@ export function KeyboardShortcutProvider(props: React.PropsWithChildren<Readonly
         if (Platform.OS !== 'web') return;
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.defaultPrevented === true) return;
+            if (platform === 'macos') {
+                const context = readKeyboardContextFromEventTarget(event.target);
+                const canShowHints = event.metaKey
+                    && !event.altKey && !event.ctrlKey && !event.shiftKey
+                    && !event.isComposing
+                    && !context.isEditableTarget && !context.isOverlayActive
+                    && !isPopoverOrHigherEscapeLayerActive()
+                    && !isModalActiveRef.current
+                    && latestShortcutRuntimeRef.current?.keyboardShortcutsV2Enabled === true;
+                setCommandHeld(canShowHints);
+            }
             const latestShortcutRuntime = latestShortcutRuntimeRef.current;
             if (!latestShortcutRuntime) return;
             const dispatcher = createKeyboardShortcutDispatcher({
@@ -247,10 +338,21 @@ export function KeyboardShortcutProvider(props: React.PropsWithChildren<Readonly
                 disabledCommandIds: latestShortcutRuntime.keyboardShortcutDisabledCommandIdsV1 ?? [],
                 overrides: latestShortcutRuntime.keyboardShortcutOverridesV1 ?? {},
                 handlers: latestShortcutRuntime.handlers,
-                getContext: () => ({
-                    ...readKeyboardContextFromEventTarget(event.target),
-                    isComposing: event.isComposing === true,
-                }),
+                getContext: () => {
+                    const context = readKeyboardContextFromEventTarget(event.target);
+                    const highestEscapeLayer = getMaxEscapeKeyBlockerPriority();
+                    const ownedSessionRowMenuActive = !isModalActiveRef.current
+                        && highestEscapeLayer <= ESCAPE_LAYER_PRIORITIES.popover
+                        && Array.from(scopedEntriesRef.current.values()).some((entry) => entry.isOwnedSessionRowMenuActive?.() === true);
+                    return {
+                        ...context,
+                        isComposing: event.isComposing === true,
+                        isOverlayActive: isModalActiveRef.current
+                            || context.isOverlayActive
+                            || highestEscapeLayer >= ESCAPE_LAYER_PRIORITIES.popover,
+                        isOwnedSessionRowMenuActive: ownedSessionRowMenuActive,
+                    };
+                },
             });
             if (!dispatcher(normalizeKeyboardEvent(event))) return;
             event.preventDefault();
@@ -260,8 +362,39 @@ export function KeyboardShortcutProvider(props: React.PropsWithChildren<Readonly
         window.addEventListener('keydown', handleKeyDown);
         return () => {
             window.removeEventListener('keydown', handleKeyDown);
+            setCommandHeld(false);
         };
-    }, [platform, surface]);
+    }, [platform, setCommandHeld, surface]);
+
+    React.useEffect(() => {
+        if (Platform.OS !== 'web' || !hasCommandHeldListener) return;
+        const handleKeyUp = (event: KeyboardEvent) => {
+            if (!event.metaKey || event.key === 'Meta') setCommandHeld(false);
+        };
+        const clearCommandHeld = () => setCommandHeld(false);
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'hidden') clearCommandHeld();
+        };
+        const handleFocusIn = (event: FocusEvent) => {
+            const context = readKeyboardContextFromEventTarget(event.target);
+            if (context.isEditableTarget || context.isOverlayActive) clearCommandHeld();
+        };
+        window.addEventListener('keyup', handleKeyUp);
+        window.addEventListener('blur', clearCommandHeld);
+        if (typeof document !== 'undefined') {
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+            document.addEventListener('focusin', handleFocusIn);
+        }
+        return () => {
+            window.removeEventListener('keyup', handleKeyUp);
+            window.removeEventListener('blur', clearCommandHeld);
+            if (typeof document !== 'undefined') {
+                document.removeEventListener('visibilitychange', handleVisibilityChange);
+                document.removeEventListener('focusin', handleFocusIn);
+            }
+            clearCommandHeld();
+        };
+    }, [hasCommandHeldListener, setCommandHeld]);
 
     React.useEffect(() => {
         if (Platform.OS === 'web') return;
@@ -300,7 +433,9 @@ export function KeyboardShortcutProvider(props: React.PropsWithChildren<Readonly
 
     return (
         <KeyboardShortcutRegistrationContext.Provider value={registrationContextValue}>
-            <FocusReturnProvider>{props.children}</FocusReturnProvider>
+            <KeyboardShortcutLabelsContext.Provider value={shortcutLabels}>
+                <FocusReturnProvider>{props.children}</FocusReturnProvider>
+            </KeyboardShortcutLabelsContext.Provider>
         </KeyboardShortcutRegistrationContext.Provider>
     );
 }

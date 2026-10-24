@@ -1,8 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
+import { encodePlainMachineStoredContent, MACHINE_PLAIN_DATA_KEY_MARKER } from '@happier-dev/protocol';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
-import { upsertPlainAccountSettingsV2 } from '../../src/testkit/accountSettings';
+import { patchPlainAccountSettingsV2, upsertPlainAccountSettingsV2 } from '../../src/testkit/accountSettings';
 import { createTestAuthMtls } from '../../src/testkit/auth';
 import { registerMachineIdentity } from '../../src/testkit/machineIdentity';
 import { repoRootDir } from '../../src/testkit/paths';
@@ -11,6 +12,7 @@ import { resolveUiWebBeforeAllTimeoutMs, startUiWeb, type StartedUiWeb } from '.
 import { createRunDirs } from '../../src/testkit/runDir';
 import { startForwardedHeaderProxy } from '../../src/testkit/uiE2e/forwardedHeaderProxy';
 import { gotoDomContentLoadedWithRetries, normalizeLoopbackBaseUrl } from '../../src/testkit/uiE2e/pageNavigation';
+import { mutateUiE2eLocalSettings, readUiE2eLocalSettings } from '../../src/testkit/uiE2e/localSettingsStorage';
 import {
   createPlainSession,
   readSessionFolderDragSettings,
@@ -21,6 +23,7 @@ import {
 import {
   buildSessionOrganizationImportRequestFromFolderSettings,
   importSessionOrganization,
+  setSessionOrganizationPin,
 } from '../../src/testkit/uiE2e/sessionOrganization';
 import { waitForInitialAppUi } from '../../src/testkit/uiE2e/waitForInitialAppUi';
 
@@ -214,6 +217,59 @@ test.describe('ui e2e: session list ordering mode', () => {
     await server?.stop().catch(() => {});
   });
 
+  test('removes an empty date header when its last session is pinned and restores it when unpinned', async ({ page }) => {
+    test.setTimeout(240_000);
+    if (!server || !uiBaseUrl || !token) throw new Error('missing server/ui fixtures');
+
+    await patchPlainAccountSettingsV2({
+      baseUrl: server.baseUrl,
+      token,
+      settingsPatch: { sessionListInactiveGroupingV1: 'date' },
+    });
+    const sessionId = await createPlainSession({
+      baseUrl: server.baseUrl,
+      token,
+      title: `last session in date ${run.runId}`,
+      rootPath: repoRootDir(),
+      machineId: SEEDED_MACHINE_ID,
+      tagPrefix: 'session-list-date-visibility',
+    });
+
+    const dateHeaders = page.locator('[data-testid^="session-list-header:server:"][data-testid*="day:"]');
+    const sessionRow = page.getByTestId(`session-list-item-${sessionId}`);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 300_000);
+    await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+    await expect(sessionRow).toHaveCount(1, { timeout: 120_000 });
+    await expect(dateHeaders).toHaveCount(1);
+
+    await setSessionOrganizationPin({
+      baseUrl: server.baseUrl,
+      token,
+      sessionId,
+      pinned: true,
+    });
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+    await expect(page.getByTestId('session-list-header:pinned-v1')).toHaveCount(1, { timeout: 120_000 });
+    await expect(sessionRow).toHaveCount(1);
+    await expect(dateHeaders).toHaveCount(0);
+
+    await setSessionOrganizationPin({
+      baseUrl: server.baseUrl,
+      token,
+      sessionId,
+      pinned: false,
+    });
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+    await expect(dateHeaders).toHaveCount(1, { timeout: 120_000 });
+    await expect(sessionRow).toHaveCount(1);
+    await patchPlainAccountSettingsV2({
+      baseUrl: server.baseUrl,
+      token,
+      settingsPatch: { sessionListInactiveGroupingV1: 'project' },
+    });
+  });
+
   test('switches updated and custom modes without mutating dormant custom order', async ({ page }) => {
     test.setTimeout(180_000);
     if (!server || !uiBaseUrl || !token || !uiServerUrl) throw new Error('missing server/ui fixtures');
@@ -303,5 +359,422 @@ test.describe('ui e2e: session list ordering mode', () => {
     await selectOrderingMode(page, 'custom');
     await expectVisibleSessionOrder(page, customOrder);
     expect((await readSessionFolderDragSettings(organizationRouteParams)).sessionListGroupOrderV1).toEqual(customOrderSnapshot);
+  });
+
+  test('keeps the agent logo before the chosen machine icon on pinned and ordinary cards when labels are hidden', async ({ page }) => {
+    test.setTimeout(180_000);
+    if (!server || !uiBaseUrl || !token || !uiServerUrl) throw new Error('missing server/ui fixtures');
+
+    const machineId = `session-card-machine-${run.runId}`;
+    const machineLabel = 'OH54 Studio';
+    const registration = await registerMachineIdentity({
+      baseUrl: server.baseUrl,
+      token,
+      machineId,
+      metadata: encodePlainMachineStoredContent({
+        host: machineLabel,
+        platform: 'darwin',
+        happyCliVersion: '0.2.16',
+        happyHomeDir: cliHomeDir,
+        homeDir: resolve(suiteDir),
+      }),
+      dataEncryptionKey: MACHINE_PLAIN_DATA_KEY_MARKER,
+    });
+    expect(registration.status).toBe(200);
+    await patchPlainAccountSettingsV2({
+      baseUrl: server.baseUrl,
+      token,
+      settingsPatch: { sessionListIdentityDisplay: 'agentLogo' },
+    });
+
+    const sessionParams = {
+      baseUrl: server.baseUrl,
+      token,
+      rootPath: repoRootDir(),
+      machineId,
+      tagPrefix: 'session-card-identity',
+    };
+    const pinnedSessionId = await createPlainSession({ ...sessionParams, title: `card pinned ${run.runId}` });
+    const ordinarySessionId = await createPlainSession({ ...sessionParams, title: `card ordinary ${run.runId}` });
+    await importSessionOrganization({
+      baseUrl: server.baseUrl,
+      token,
+      request: {
+        pins: [{ sessionId: pinnedSessionId, sortKey: '00000001' }],
+        folders: [],
+        tags: [],
+        tagAssignments: [],
+        orderEntries: [],
+        labels: [],
+      },
+    });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 300_000);
+    await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+    await expect(page.getByTestId('session-list-header:pinned-v1')).toHaveCount(1, { timeout: 120_000 });
+
+    async function expectCardIdentityOrder(sessionId: string): Promise<void> {
+      const rightIdentity = page.getByTestId(`session-list-right-identity-${sessionId}`);
+      const logo = rightIdentity.getByTestId(`session-list-agent-logo-${sessionId}`);
+      const machine = rightIdentity.getByTestId(`session-list-machine-identity-${sessionId}`);
+      await expect(page.getByTestId(`session-list-agent-logo-${sessionId}`)).toHaveCount(1);
+      await expect(logo).toHaveCount(1);
+      await expect(machine).toHaveCount(1);
+      const logoBox = await logo.boundingBox();
+      const machineBox = await machine.boundingBox();
+      expect(logoBox && machineBox && logoBox.x < machineBox.x).toBe(true);
+    }
+
+    for (const sessionId of [pinnedSessionId, ordinarySessionId]) {
+      await expect(page.getByTestId(`session-list-item-${sessionId}`)).toHaveCount(1, { timeout: 120_000 });
+      await expectCardIdentityOrder(sessionId);
+      await expect(page.getByTestId(`session-list-machine-identity-${sessionId}`)).toContainText(machineLabel);
+    }
+    const machineIdentity = page.getByTestId(`session-list-machine-identity-${ordinarySessionId}`);
+    const defaultGlyph = await machineIdentity.locator('svg').first().evaluate((svg) => svg.innerHTML);
+
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/machine/${machineId}?happier_hmr=0`, 180_000);
+    await page.getByTestId('machine-display-icon').click();
+    await page.getByTestId('dropdown-option-laptop').click();
+    const iconPreferenceKey = JSON.stringify([await resolveCanonicalServerIdForUi(uiServerUrl), machineId]);
+    await expect.poll(async () => {
+      const settings = await readUiE2eLocalSettings({ page });
+      return (settings.machineDisplayIconByMachineV1 as Record<string, unknown> | undefined)?.[iconPreferenceKey];
+    }).toBe('laptop');
+
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/settings/session?happier_hmr=0`, 180_000);
+    const labelToggle = page.getByTestId('settings-session-machineLabel-toggle');
+    await expect(labelToggle).toHaveAttribute('aria-checked', 'true');
+    await page.getByTestId('settings-session-machineLabel-item').click();
+    await expect.poll(async () => (await readUiE2eLocalSettings({ page })).sessionListShowMachineLabel).toBe(false);
+
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+    for (const sessionId of [pinnedSessionId, ordinarySessionId]) {
+      await expectCardIdentityOrder(sessionId);
+      const identity = page.getByTestId(`session-list-machine-identity-${sessionId}`);
+      await expect(identity).toHaveAttribute('aria-label', machineLabel);
+      await expect(identity).not.toContainText(machineLabel);
+    }
+    const chosenGlyph = await machineIdentity.locator('svg').first().evaluate((svg) => svg.innerHTML);
+    expect(chosenGlyph).not.toBe(defaultGlyph);
+    await expect(page.getByTestId(`session-list-machine-identity-${pinnedSessionId}`).locator('svg').first())
+      .toHaveJSProperty('innerHTML', chosenGlyph);
+    await machineIdentity.focus();
+    await expect(page.getByTestId(`session-list-machine-identity-${ordinarySessionId}-tooltip`)).toContainText(machineLabel);
+
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+    await expect(machineIdentity).not.toContainText(machineLabel);
+    await expect(machineIdentity.locator('svg').first()).toHaveJSProperty('innerHTML', chosenGlyph);
+    await expect(page.getByTestId(`session-list-machine-identity-${pinnedSessionId}`).locator('svg').first())
+      .toHaveJSProperty('innerHTML', chosenGlyph);
+    expect((await readUiE2eLocalSettings({ page })).sessionListShowMachineLabel).toBe(false);
+  });
+
+  test('opens a blank Same Setup draft for the clicked row from plus, right-click, and three-dot', async ({ page }) => {
+    test.setTimeout(180_000);
+    if (!server || !uiBaseUrl || !token) throw new Error('missing server/ui fixtures');
+
+    const machineId = `same-setup-machine-${run.runId}`;
+    const rootPath = repoRootDir();
+    const registration = await registerMachineIdentity({
+      baseUrl: server.baseUrl,
+      token,
+      machineId,
+      metadata: encodePlainMachineStoredContent({
+        host: 'same-setup.local',
+        platform: 'darwin',
+        happyCliVersion: '0.2.16',
+        happyHomeDir: cliHomeDir,
+        homeDir: resolve(suiteDir),
+      }),
+      dataEncryptionKey: MACHINE_PLAIN_DATA_KEY_MARKER,
+    });
+    expect(registration.status).toBe(200);
+    const sessionParams = { baseUrl: server.baseUrl, token, rootPath, machineId, tagPrefix: 'same-setup' };
+    const selectedSessionId = await createPlainSession({ ...sessionParams, title: `selected ${run.runId}` });
+    const clickedSessionId = await createPlainSession({ ...sessionParams, title: `clicked ${run.runId}` });
+    const mutatingSessionRequests: string[] = [];
+    page.on('request', (request) => {
+      const url = new URL(request.url());
+      if (/\/v[12]\/sessions(?:\/|$)/.test(url.pathname) && request.method() !== 'GET') {
+        mutatingSessionRequests.push(`${request.method()} ${url.pathname}`);
+      }
+    });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 300_000);
+    await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+    const selectedRow = page.getByTestId(`session-list-item-${selectedSessionId}`);
+    const clickedRow = page.getByTestId(`session-list-item-${clickedSessionId}`);
+    await expect(selectedRow).toHaveCount(1, { timeout: 120_000 });
+    await expect(clickedRow).toHaveCount(1, { timeout: 120_000 });
+    await selectedRow.click();
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 90_000 }).toBe(`/session/${selectedSessionId}`);
+    await page.getByTestId(`session-list-machine-identity-${selectedSessionId}`).hover();
+    await expect(page.getByTestId(`session-list-machine-identity-${selectedSessionId}-tooltip`)).toBeVisible();
+
+    async function expectBlankDraftAndCancel(): Promise<void> {
+      await page.waitForURL((url) => url.pathname.endsWith('/new'), { timeout: 60_000 });
+      const route = new URL(page.url());
+      expect(route.searchParams.get('machineId')).toBe(machineId);
+      expect(route.searchParams.get('directory')).toBe(rootPath);
+      expect(route.searchParams.get('dataId')).toEqual(expect.any(String));
+      await expect(page.getByTestId('new-session-composer-input')).toHaveValue('', { timeout: 60_000 });
+      await page.keyboard.press('Escape');
+      await page.waitForURL((url) => !url.pathname.endsWith('/new'), { timeout: 60_000 });
+      await expect(clickedRow).toHaveCount(1, { timeout: 60_000 });
+      expect(mutatingSessionRequests).toEqual([]);
+    }
+
+    const clickedRect = await clickedRow.boundingBox();
+    if (!clickedRect) throw new Error('clicked row has no bounds');
+    const hitTargetBelongsToClickedRow = await page.evaluate(({ x, y, rowTestId }) => {
+      const target = document.elementFromPoint(x, y);
+      return target instanceof HTMLElement
+        && target.closest(`[data-testid="${rowTestId}"]`) != null;
+    }, {
+      x: clickedRect.x + clickedRect.width / 2,
+      y: clickedRect.y + clickedRect.height / 2,
+      rowTestId: `session-list-item-${clickedSessionId}`,
+    });
+    expect(hitTargetBelongsToClickedRow).toBe(true);
+    await clickedRow.hover();
+    await clickedRow.getByTestId('session-item-same-setup-action').click();
+    await expectBlankDraftAndCancel();
+    await expect(page.getByTestId('session-item-same-setup-action-tooltip')).toBeVisible();
+
+    await clickedRow.click({ button: 'right' });
+    await page.getByTestId('dropdown-option-session_sameSetup').click();
+    await expectBlankDraftAndCancel();
+
+    await clickedRow.hover();
+    await clickedRow.getByTestId('session-item-more-menu').click();
+    await page.getByTestId('dropdown-option-session_sameSetup').click();
+    await expectBlankDraftAndCancel();
+  });
+
+  test('keeps the route-selected row visible across pinned and ordinary rows, themes, hover, and narrow density', async ({ page }, testInfo) => {
+    test.setTimeout(240_000);
+    if (!server || !uiBaseUrl || !token) throw new Error('missing server/ui fixtures');
+
+    const pinnedTitle = `OH63 pinned selected session ${run.runId}`;
+    const ordinaryTitle = `OH63 ordinary session with a deliberately long title to check that the sidebar still retains it ${run.runId}`;
+    const sessionParams = {
+      baseUrl: server.baseUrl,
+      token,
+      rootPath: repoRootDir(),
+      machineId: SEEDED_MACHINE_ID,
+      tagPrefix: 'oh63-selected-session',
+    };
+    const pinnedSessionId = await createPlainSession({ ...sessionParams, title: pinnedTitle });
+    const ordinarySessionId = await createPlainSession({ ...sessionParams, title: ordinaryTitle });
+    await setSessionOrganizationPin({ baseUrl: server.baseUrl, token, sessionId: pinnedSessionId, pinned: true });
+    await patchPlainAccountSettingsV2({
+      baseUrl: server.baseUrl,
+      token,
+      settingsPatch: { sessionListDensity: 'detailed' },
+    });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 300_000);
+    await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+    await mutateUiE2eLocalSettings({ page, settingsPatch: { themePreference: 'light' } });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+
+    const pinnedRow = page.getByTestId(`session-list-item-${pinnedSessionId}`);
+    const ordinaryRow = page.getByTestId(`session-list-item-${ordinarySessionId}`);
+    const indicator = (sessionId: string) => page.getByTestId(`session-item-current-indicator-${sessionId}`);
+    const captureSidebarState = async (name: string) => {
+      await mkdir(testInfo.outputDir, { recursive: true });
+      await page.screenshot({ path: resolve(join(testInfo.outputDir, name)), fullPage: false });
+    };
+    const expectOnlyCurrentRow = async (currentSessionId: string, otherSessionId: string) => {
+      await expect(indicator(currentSessionId)).toBeVisible();
+      await expect(indicator(otherSessionId)).toHaveCount(0);
+      const currentRow = page.getByTestId(`session-list-item-${currentSessionId}`);
+      await expect(currentRow).toContainText(currentSessionId === pinnedSessionId ? pinnedTitle : ordinaryTitle);
+      await expect(currentRow.getByTestId('session-item-right-area')).toBeVisible();
+    };
+
+    await expect(page.getByTestId('session-list-header:pinned-v1')).toBeVisible({ timeout: 120_000 });
+    await expect(pinnedRow).toContainText(pinnedTitle);
+    await expect(ordinaryRow).toContainText(ordinaryTitle);
+    await expect(indicator(pinnedSessionId)).toHaveCount(0);
+    await expect(indicator(ordinarySessionId)).toHaveCount(0);
+    const ordinaryDetailedBounds = await ordinaryRow.boundingBox();
+    if (!ordinaryDetailedBounds) throw new Error('ordinary row has no detailed-density bounds');
+
+    // Use the real row click so route selection is established by the existing navigation owner.
+    await pinnedRow.click();
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 90_000 }).toBe(`/session/${pinnedSessionId}`);
+    await expectOnlyCurrentRow(pinnedSessionId, ordinarySessionId);
+    await captureSidebarState('oh63-light-pinned-selected.png');
+
+    const ordinaryBeforeInteraction = await ordinaryRow.boundingBox();
+    if (!ordinaryBeforeInteraction) throw new Error('ordinary row has no bounds');
+    await ordinaryRow.hover();
+    await ordinaryRow.focus();
+    await ordinaryRow.click({ button: 'right' });
+    await expect(page.getByTestId('dropdown-option-ui_session_rename')).toBeVisible();
+    await expect.poll(() => new URL(page.url()).pathname).toBe(`/session/${pinnedSessionId}`);
+    await expectOnlyCurrentRow(pinnedSessionId, ordinarySessionId);
+    const ordinaryAfterInteraction = await ordinaryRow.boundingBox();
+    expect(ordinaryAfterInteraction).toEqual(ordinaryBeforeInteraction);
+    await captureSidebarState('oh63-light-other-row-hovered-menu.png');
+    await page.keyboard.press('Escape');
+
+    // Modifier selection keeps the separate multi-select state from replacing the routed row.
+    await ordinaryRow.click({ modifiers: [process.platform === 'darwin' ? 'Meta' : 'Control'] });
+    await expect(page.getByTestId('session-list-selection-action-bar')).toBeVisible();
+    await expect.poll(() => new URL(page.url()).pathname).toBe(`/session/${pinnedSessionId}`);
+    await expectOnlyCurrentRow(pinnedSessionId, ordinarySessionId);
+    await ordinaryRow.click({ modifiers: [process.platform === 'darwin' ? 'Meta' : 'Control'] });
+    await expect(page.getByTestId('session-list-selection-action-bar')).toHaveCount(0);
+
+    await ordinaryRow.click();
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 90_000 }).toBe(`/session/${ordinarySessionId}`);
+    await expectOnlyCurrentRow(ordinarySessionId, pinnedSessionId);
+    await captureSidebarState('oh63-light-ordinary-selected.png');
+
+    await mutateUiE2eLocalSettings({ page, settingsPatch: { themePreference: 'dark' } });
+    await patchPlainAccountSettingsV2({ baseUrl: server.baseUrl, token, settingsPatch: { sessionListDensity: 'narrow' } });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 90_000 }).toBe(`/session/${ordinarySessionId}`);
+    await expectOnlyCurrentRow(ordinarySessionId, pinnedSessionId);
+    const narrowOrdinaryBounds = await ordinaryRow.boundingBox();
+    expect(narrowOrdinaryBounds).not.toBeNull();
+    expect(narrowOrdinaryBounds!.height).toBeLessThan(ordinaryDetailedBounds.height);
+    await captureSidebarState('oh63-dark-narrow-ordinary-selected.png');
+
+    const pinnedBeforeDarkInteraction = await pinnedRow.boundingBox();
+    if (!pinnedBeforeDarkInteraction) throw new Error('pinned row has no bounds');
+    await pinnedRow.hover();
+    await pinnedRow.focus();
+    await pinnedRow.click({ button: 'right' });
+    await expect(page.getByTestId('dropdown-option-ui_session_rename')).toBeVisible();
+    await expect.poll(() => new URL(page.url()).pathname).toBe(`/session/${ordinarySessionId}`);
+    await expectOnlyCurrentRow(ordinarySessionId, pinnedSessionId);
+    expect(await pinnedRow.boundingBox()).toEqual(pinnedBeforeDarkInteraction);
+    await captureSidebarState('oh63-dark-narrow-other-row-hovered-menu.png');
+    await page.keyboard.press('Escape');
+  });
+
+  test('dispatches labeled menu hotkeys on the clicked row and reaches a saved reminder choice', async ({ page }, testInfo) => {
+    test.setTimeout(240_000);
+    if (!server || !uiBaseUrl || !token) throw new Error('missing server/ui fixtures');
+
+    const selectedTitle = `hotkey selected ${run.runId}`;
+    const clickedTitle = `hotkey clicked ${run.runId}`;
+    const selectedSessionId = await createPlainSession({
+      baseUrl: server.baseUrl, token, title: selectedTitle, rootPath: repoRootDir(),
+      machineId: SEEDED_MACHINE_ID, tagPrefix: 'session-menu-hotkey',
+    });
+    const clickedSessionId = await createPlainSession({
+      baseUrl: server.baseUrl, token, title: clickedTitle, rootPath: repoRootDir(),
+      machineId: SEEDED_MACHINE_ID, tagPrefix: 'session-menu-hotkey',
+    });
+    await patchPlainAccountSettingsV2({
+      baseUrl: server.baseUrl,
+      token,
+      settingsPatch: {
+        keyboardShortcutsV2Enabled: true,
+        keyboardSingleKeyShortcutsEnabled: false,
+        sessionListAttentionPromotionModeV1: 'global',
+        sessionReminderPresetsV1: [{ rule: { kind: 'relative_day', daysAhead: 1, minuteOfDay: 14 * 60 } }],
+      },
+    });
+
+    const sessionCreateRequests: string[] = [];
+    page.on('request', (request) => {
+      const path = new URL(request.url()).pathname;
+      if (/\/v[12]\/sessions(?:\/|$)/.test(path) && request.method() === 'POST') {
+        sessionCreateRequests.push(path);
+      }
+    });
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 300_000);
+    await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+    const selectedRow = page.getByTestId(`session-list-item-${selectedSessionId}`);
+    const clickedRow = page.getByTestId(`session-list-item-${clickedSessionId}`);
+    await expect(selectedRow).toHaveCount(1, { timeout: 120_000 });
+    await expect(clickedRow).toHaveCount(1, { timeout: 120_000 });
+    await selectedRow.click();
+    await expect.poll(() => new URL(page.url()).pathname, { timeout: 90_000 }).toBe(`/session/${selectedSessionId}`);
+
+    await clickedRow.click({ button: 'right' });
+    const rename = page.getByTestId('dropdown-option-ui_session_rename');
+    await expect(rename).toBeVisible();
+    await expect(rename).toContainText('Option+Shift+E');
+    await expect.poll(() => rename.getByText('Rename Session', { exact: true }).evaluate(element =>
+      element.scrollWidth <= element.clientWidth,
+    ), { message: 'The context menu must show the action label beside its shortcut without clipping' }).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath('oh50-menu-labels-desktop.png') });
+    await page.keyboard.press('Alt+Shift+E');
+    await expect(page.getByTestId('web-prompt-input')).toHaveValue(clickedTitle);
+    await page.getByTestId('web-prompt-cancel').click();
+    await expect.poll(() => new URL(page.url()).pathname).toBe(`/session/${selectedSessionId}`);
+
+    await clickedRow.click({ button: 'right' });
+    await expect(page.getByTestId('dropdown-option-attention-reminder')).toContainText('Option+Shift+D');
+    await page.keyboard.press('Alt+Shift+D');
+    const savedReminder = page.getByTestId('dropdown-option-attention-reminder_preset_relative_day_1_840');
+    await expect(savedReminder).toBeVisible();
+    await expect(savedReminder).toContainText('↑↓ Enter');
+    for (let index = 0; index < 4; index += 1) await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId(`session-list-reminder-indicator:${clickedSessionId}`)).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByTestId(`session-list-reminder-indicator:${selectedSessionId}`)).toHaveCount(0);
+
+    await clickedRow.hover();
+    await clickedRow.getByTestId('session-item-more-menu').click();
+    const sameSetup = page.getByTestId('dropdown-option-session_sameSetup');
+    await expect(sameSetup).toContainText('Option+Shift+N');
+    await expect.poll(() => sameSetup.getByText('New session with same setup', { exact: true }).evaluate(element =>
+      element.scrollWidth <= element.clientWidth,
+    ), { message: 'The three-dot menu must show the full action label beside its shortcut' }).toBe(true);
+    await page.keyboard.press('Alt+Shift+N');
+    await page.waitForURL((url) => url.pathname.endsWith('/new'), { timeout: 60_000 });
+    await expect(page.getByTestId('new-session-composer-input')).toHaveValue('', { timeout: 60_000 });
+    expect(sessionCreateRequests).toEqual([]);
+    await page.keyboard.press('Escape');
+    await page.waitForURL((url) => !url.pathname.endsWith('/new'), { timeout: 60_000 });
+    expect(sessionCreateRequests).toEqual([]);
+
+    // Exercise the real font preference and a smaller desktop viewport, not injected CSS.
+    await mutateUiE2eLocalSettings({ page, settingsPatch: { uiFontScale: 2 } });
+    await page.setViewportSize({ width: 1000, height: 900 });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+    await clickedRow.click({ button: 'right' });
+    const scaledRenameLabel = rename.getByText('Rename Session', { exact: true });
+    await expect(scaledRenameLabel).toHaveCSS('font-size', '30px');
+    for (const [item, labelText, hintText] of [
+      [rename, 'Rename Session', 'Option+Shift+E'],
+      [sameSetup, 'New session with same setup', 'Option+Shift+N'],
+    ] as const) {
+      await item.scrollIntoViewIfNeeded();
+      await expect(item.getByText(hintText, { exact: true })).toBeVisible();
+      await expect.poll(() => item.getByText(labelText, { exact: true }).evaluate(element =>
+        element.scrollWidth <= element.clientWidth && element.scrollHeight <= element.clientHeight,
+      ), { message: 'Full menu labels remain readable at 200% text size' }).toBe(true);
+      await expect.poll(() => item.getByText(labelText, { exact: true }).evaluate(element => {
+        const style = getComputedStyle(element);
+        const context = document.createElement('canvas').getContext('2d');
+        if (!context) throw new Error('Text measurement is unavailable');
+        context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+        const longestWord = Math.max(...(element.textContent ?? '').trim().split(/\s+/).map(word => context.measureText(word).width));
+        return element.clientWidth >= longestWord;
+      }), { message: 'Menu labels must retain enough width for whole words at 200% text size' }).toBe(true);
+      const bounds = await item.boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(1000);
+    }
+    await page.screenshot({ path: testInfo.outputPath('oh50-menu-labels-large-text.png') });
+    await page.keyboard.press('Escape');
   });
 });

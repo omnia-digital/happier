@@ -66,14 +66,35 @@ test('apps/ui Tauri channel configs use the expected desktop product names', asy
   const preview = JSON.parse(previewRaw);
   const publicDev = JSON.parse(publicDevRaw);
 
-  assert.equal(stable?.productName, 'Happier');
-  assert.equal(stable?.app?.windows?.[0]?.title, 'Happier');
+  assert.equal(stable?.productName, 'Omnia Happier');
+  assert.equal(stable?.app?.windows?.[0]?.title, 'Omnia Happier');
 
-  assert.equal(preview?.productName, 'Happier (preview)');
-  assert.equal(preview?.app?.windows?.[0]?.title, 'Happier (preview)');
+  assert.equal(preview?.productName, '(Dev) Omnia - Happier (preview)');
+  assert.equal(preview?.app?.windows?.[0]?.title, '(Dev) Omnia - Happier');
 
-  assert.equal(publicDev?.productName, 'Happier (dev)');
-  assert.equal(publicDev?.app?.windows?.[0]?.title, 'Happier (dev)');
+  assert.equal(publicDev?.productName, '(Dev) Omnia - Happier');
+  assert.equal(publicDev?.app?.windows?.[0]?.title, '(Dev) Omnia - Happier');
+  assert.deepEqual(publicDev?.bundle?.icon, [
+    'icons/dev/32x32.png',
+    'icons/dev/128x128.png',
+    'icons/dev/128x128@2x.png',
+    'icons/dev/AppIcon.icon',
+    'icons/dev/icon.icns',
+    'icons/dev/icon.ico',
+  ]);
+  assert.deepEqual(preview?.bundle?.icon, publicDev?.bundle?.icon);
+  assert.notDeepEqual(stable?.bundle?.icon, publicDev?.bundle?.icon);
+  assert.notEqual(stable?.identifier, publicDev?.identifier);
+  for (const testingConfig of [publicDev, preview]) {
+    assert.equal(testingConfig?.bundle?.macOS?.infoPlist, 'Info.dev.plist');
+    for (const iconPath of testingConfig.bundle.icon) {
+      const icon = await readFile(join(packageRoot, 'src-tauri', iconPath, iconPath.endsWith('.icon') ? 'icon.json' : ''));
+      assert.ok(icon.byteLength > 0, `${iconPath} should be a build input`);
+    }
+  }
+  const devPlist = await readFile(join(packageRoot, 'src-tauri', 'Info.dev.plist'), 'utf-8');
+  assert.match(devPlist, /<key>CFBundleDisplayName<\/key>\s*<string>\(Dev\) Omnia - Happier<\/string>/);
+  assert.match(devPlist, /<key>CFBundleName<\/key>\s*<string>\(Dev\) Omnia - Happier<\/string>/);
 
   // Linux installs executables and icons in shared directories. Distinct bundle
   // identifiers alone do not prevent channels (or the Happier CLI) colliding.

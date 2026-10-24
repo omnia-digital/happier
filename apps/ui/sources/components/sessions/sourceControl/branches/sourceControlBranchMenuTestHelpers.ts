@@ -184,10 +184,11 @@ export function installSourceControlBranchMenuCommonModuleMocks(
             return await activeOptions.storage(importOriginal);
         }
 
-        const { createStorageModuleStub } = await import('@/dev/testkit/mocks/storage');
-        return createStorageModuleStub({
+        const actual = await importOriginal<typeof import('@/sync/domains/state/storage')>();
+        return {
+            ...actual,
             useSetting: (key: string) => sourceControlBranchMenuModuleState.useSettingMock(key),
-        });
+        };
     });
 
     vi.mock('@/sync/ops', () => ({

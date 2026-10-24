@@ -9,6 +9,11 @@ import { isActionEnabledInState } from '@/sync/domains/settings/actionsSettings'
 import { buildExecutionRunActionDraftInputForUi } from '@/sync/domains/actions/buildExecutionRunActionDraftInputForUi';
 import { resolveSessionActionDefaultBackend } from '@/sync/domains/session/resolveSessionActionDefaultBackend';
 import { t } from '@/text';
+import type { NavigateToSessionOptions } from '@/hooks/session/useNavigateToSession';
+import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
+import { getSessionDisplayTitle } from '@/utils/sessions/sessionUtils';
+
+export type CommandPaletteSearchSessionItem = Extract<SessionListViewItem, { type: 'session' }>;
 
 function normalizeId(value: unknown): string {
   return String(value ?? '').trim();
@@ -24,11 +29,55 @@ function extractRecentSessionIds(sessionsById: Record<string, any>): string[] {
 }
 
 function readSessionLabel(session: any): Readonly<{ title: string; subtitle: string }> {
-  const name = typeof session?.metadata?.name === 'string' ? session.metadata.name.trim() : '';
+  const name = getSessionDisplayTitle(session);
   const title = name || t('commandPalette.commands.sessionFallbackTitle', { id: String(session?.id ?? '').slice(0, 6) });
   const path = typeof session?.metadata?.path === 'string' ? session.metadata.path.trim() : '';
   const subtitle = path || t('commandPalette.commands.sessionFallbackSubtitle');
   return { title, subtitle };
+}
+
+/** Search the same scoped, unarchived rows consumed by the session list. */
+export function buildCommandPaletteSessionSearchCommands(
+  items: ReadonlyArray<CommandPaletteSearchSessionItem>,
+  query: string,
+  activeServerId: string,
+  navigateToSession: (sessionId: string, options?: NavigateToSessionOptions) => void | Promise<void>,
+): Command[] {
+  const tokens = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return [];
+
+  const matches: Array<{ item: CommandPaletteSearchSessionItem; label: ReturnType<typeof readSessionLabel> }> = [];
+  const seen = new Set<string>();
+  for (const item of items) {
+    const sessionId = normalizeId(item.session.id);
+    const serverId = normalizeId(item.serverId) || normalizeId(activeServerId);
+    if (!sessionId || !serverId || item.session.metadata == null) continue;
+    const label = readSessionLabel(item.session);
+    const title = label.title.toLocaleLowerCase();
+    if (!tokens.every((token) => title.includes(token))) continue;
+    const key = `${serverId}\u0000${sessionId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    matches.push({ item, label });
+  }
+  matches.sort((a, b) => b.item.session.updatedAt - a.item.session.updatedAt);
+
+  return matches.map(({ item, label }) => {
+    const sessionId = normalizeId(item.session.id);
+    const serverId = normalizeId(item.serverId) || normalizeId(activeServerId);
+    const metadata = item.session.metadata;
+    const context = [metadata?.path, metadata?.host || metadata?.machineId, item.serverName || serverId]
+      .map((part) => String(part ?? '').trim())
+      .filter(Boolean);
+    return {
+      id: `session-${serverId}:${sessionId}`,
+      title: label.title,
+      subtitle: [...new Set(context)].join(' · ') || label.subtitle,
+      icon: 'chats-circle',
+      category: t('commandPalette.commands.sessionsCategory'),
+      action: () => navigateToSession(sessionId, { serverId }),
+    };
+  });
 }
 
 async function requireSession(

@@ -14,8 +14,11 @@ export async function resolveCustomHappierToolsContext(params: Readonly<{
   machineId: string;
   directory: string;
   processEnv?: NodeJS.ProcessEnv;
+  /** A consumed domain operation may materialize only the configured source it needs. */
+  serverIds?: readonly string[];
 }>): Promise<Awaited<ReturnType<typeof materializeMcpServerConfigRecord>>> {
-  const settings = readMcpServersSettingsFromAccountSettings(params.accountSettings);
+  const configured = readMcpServersSettingsFromAccountSettings(params.accountSettings);
+  const settings = params.serverIds ? { ...configured, servers: configured.servers.filter((server) => params.serverIds!.includes(server.id)) } : configured;
   const resolved = resolveEffectiveMcpServersForDirectory({
     settings,
     machineId: params.machineId,

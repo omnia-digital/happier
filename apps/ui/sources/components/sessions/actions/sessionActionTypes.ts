@@ -115,5 +115,6 @@ export type SessionActionExecutionOperations = Readonly<{
 
 export type SessionActionExecutionContext = Readonly<{
     hideInactiveSessions?: boolean;
+    forceArchiveConfirmation?: boolean;
     operations?: SessionActionExecutionOperations;
 }>;

@@ -1,4 +1,9 @@
-import type { KeyboardCommand, KeyboardCommandId, KeybindingRule } from './types';
+import type { KeyboardCommand, KeyboardCommandId, KeyboardContext, KeybindingRule } from './types';
+
+function whenSessionRowActionAllowed(context: KeyboardContext): boolean {
+    return !context.isEditableTarget
+        && (!context.isOverlayActive || context.isOwnedSessionRowMenuActive === true);
+}
 
 export const defaultKeyboardCommands: readonly KeyboardCommand[] = [
     {
@@ -57,6 +62,133 @@ export const defaultKeyboardCommands: readonly KeyboardCommand[] = [
         settingsTitleKey: 'settingsKeyboard.commands.sessionNew',
         when: (context) => !context.isEditableTarget,
     },
+    {
+        id: 'session.hovered.archive',
+        defaultBinding: { binding: 'A' },
+        allowWhenSingleKeyShortcutsDisabled: true,
+        settingsTitleKey: 'sessionInfo.archiveSession',
+        when: whenSessionRowActionAllowed,
+    },
+    {
+        id: 'session.menu.select',
+        defaultBinding: { binding: 'Alt+Shift+T' },
+        settingsTitleKey: 'sessionsList.selectionSelectAction',
+        when: whenSessionRowActionAllowed,
+    },
+    {
+        id: 'session.menu.rename',
+        defaultBinding: { binding: 'Alt+Shift+E' },
+        settingsTitleKey: 'sessionInfo.renameSession',
+        when: whenSessionRowActionAllowed,
+    },
+    {
+        id: 'session.menu.readState',
+        defaultBinding: { binding: 'Alt+Shift+U' },
+        settingsTitleKey: 'sessionInfo.markSessionUnread',
+        when: whenSessionRowActionAllowed,
+    },
+    {
+        id: 'session.menu.attentionStanding',
+        defaultBinding: { binding: 'Alt+Shift+K' },
+        settingsTitleKey: 'sessionInfo.keepInAttention',
+        when: whenSessionRowActionAllowed,
+    },
+    {
+        id: 'session.menu.reminder',
+        defaultBinding: { binding: 'Alt+Shift+D' },
+        settingsTitleKey: 'sessionsList.reminders.title',
+        when: whenSessionRowActionAllowed,
+    },
+    {
+        id: 'session.menu.reminderOneHour',
+        defaultBinding: { binding: 'Alt+Shift+1' },
+        settingsTitleKey: 'sessionsList.reminders.inOneHour',
+        when: whenSessionRowActionAllowed,
+    },
+    {
+        id: 'session.menu.reminderThreeHours',
+        defaultBinding: { binding: 'Alt+Shift+2' },
+        settingsTitleKey: 'sessionsList.reminders.inThreeHours',
+        when: whenSessionRowActionAllowed,
+    },
+    {
+        id: 'session.menu.reminderTomorrow',
+        defaultBinding: { binding: 'Alt+Shift+3' },
+        settingsTitleKey: 'sessionsList.reminders.tomorrowMorning',
+        when: whenSessionRowActionAllowed,
+    },
+    {
+        id: 'session.menu.reminderNextWeek',
+        defaultBinding: { binding: 'Alt+Shift+4' },
+        settingsTitleKey: 'sessionsList.reminders.nextWeek',
+        when: whenSessionRowActionAllowed,
+    },
+    {
+        id: 'session.menu.reminderCustom',
+        defaultBinding: { binding: 'Alt+Shift+5' },
+        settingsTitleKey: 'sessionsList.reminders.custom',
+        when: whenSessionRowActionAllowed,
+    },
+    {
+        id: 'session.menu.reminderManage',
+        defaultBinding: { binding: 'Alt+Shift+6' },
+        settingsTitleKey: 'sessionsList.reminders.managePresets',
+        when: whenSessionRowActionAllowed,
+    },
+    {
+        id: 'session.menu.reminderRemove',
+        defaultBinding: { binding: 'Alt+Shift+7' },
+        settingsTitleKey: 'sessionsList.reminders.remove',
+        when: whenSessionRowActionAllowed,
+    },
+    {
+        id: 'session.menu.sameSetup',
+        defaultBinding: { binding: 'Alt+Shift+N' },
+        settingsTitleKey: 'sessionInfo.newSessionSameSetup',
+        when: whenSessionRowActionAllowed,
+    },
+    {
+        id: 'session.menu.deleteDraft',
+        defaultBinding: { binding: 'Alt+Shift+Y' },
+        settingsTitleKey: 'sessionDrafts.delete.action',
+        when: whenSessionRowActionAllowed,
+    },
+    {
+        id: 'session.menu.copyInformation',
+        defaultBinding: { binding: 'Alt+Shift+I' },
+        settingsTitleKey: 'sessionInfo.copyDebugInformation',
+        when: whenSessionRowActionAllowed,
+    },
+    {
+        id: 'session.menu.fork',
+        defaultBinding: { binding: 'Alt+Shift+B' },
+        settingsTitleKey: 'sessionInfo.forkSession',
+        when: whenSessionRowActionAllowed,
+    },
+    {
+        id: 'session.menu.stop',
+        defaultBinding: { binding: 'Alt+Shift+X' },
+        settingsTitleKey: 'sessionInfo.stopSession',
+        when: whenSessionRowActionAllowed,
+    },
+    {
+        id: 'session.menu.tags',
+        defaultBinding: { binding: 'Alt+Shift+G' },
+        settingsTitleKey: 'sessionTags.editTagsLabel',
+        when: whenSessionRowActionAllowed,
+    },
+    {
+        id: 'session.menu.pinState',
+        defaultBinding: { binding: 'Alt+Shift+P' },
+        settingsTitleKey: 'sessionInfo.pinSession',
+        when: whenSessionRowActionAllowed,
+    },
+    ...([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((number): KeyboardCommand => ({
+        id: `session.number.${number}`,
+        settingsTitleKey: `settingsKeyboard.commands.sessionNumber${number}`,
+        defaultBinding: { binding: `Mod+${number}`, platforms: ['macos'] },
+        when: (context) => !context.isEditableTarget && !context.isOverlayActive,
+    })),
     {
         id: 'session.mru.next',
         defaultBindings: [

@@ -12,6 +12,7 @@ installDropdownCommonModuleMocks();
 const useSelectableMenuSpy = vi.fn();
 const handleSelectableKeyPressSpy = vi.fn();
 let uiItemDensitySetting: 'comfortable' | 'cozy' | 'compact' = 'comfortable';
+let uiFontScaleSetting = 1;
 
 vi.mock('@expo/vector-icons', () => ({
     Ionicons: (props: any) => {
@@ -58,6 +59,7 @@ vi.mock('@/components/ui/forms/dropdown/useSelectableMenu', () => ({
         };
     },
     CREATE_ITEM_ID: '__create__',
+    selectableMenuKeyboardKeys: { previous: 'ArrowUp', next: 'ArrowDown', activate: 'Enter', close: 'Escape' },
 }));
 
 vi.mock('@/components/ui/forms/dropdown/SelectableMenuResults', () => ({
@@ -70,7 +72,7 @@ vi.mock('@/components/ui/forms/dropdown/SelectableMenuResults', () => ({
 vi.mock('@/sync/store/hooks', () => ({
     useLocalSetting: (key: string) => {
         if (key === 'uiItemDensity') return uiItemDensitySetting;
-        if (key === 'uiFontScale') return 1;
+        if (key === 'uiFontScale') return uiFontScaleSetting;
         return null;
     },
 }));
@@ -101,10 +103,55 @@ describe('DropdownMenu', () => {
         useSelectableMenuSpy.mockReset();
         handleSelectableKeyPressSpy.mockReset();
         uiItemDensitySetting = 'comfortable';
+        uiFontScaleSetting = 1;
     });
 
     afterEach(() => {
         vi.unstubAllGlobals();
+    });
+
+    it('gives enlarged menu text proportional space while preserving caller width constraints', async () => {
+        const { DropdownMenu } = await import('./DropdownMenu');
+        uiFontScaleSetting = 2;
+        const baseProps = {
+            open: true, onOpenChange: vi.fn(), onSelect: vi.fn(),
+            items: [{ id: 'rename', title: 'Rename Session', shortcut: 'Option+Shift+E' }],
+            matchTriggerWidth: false,
+        };
+        const screen = await renderScreen(React.createElement(DropdownMenu, baseProps));
+        expect(screen.findByType('Popover' as any)?.props.maxWidthCap).toBe(640);
+        await screen.update(React.createElement(DropdownMenu, { ...baseProps, maxWidthCap: 280 }));
+        expect(screen.findByType('Popover' as any)?.props.maxWidthCap).toBe(280);
+        await screen.update(React.createElement(DropdownMenu, { ...baseProps, matchTriggerWidth: true }));
+        expect(screen.findByType('Popover' as any)?.props.maxWidthCap).toBe(1024);
+    });
+
+    it('opens a requested submenu through its registered menu row anchor', async () => {
+        const { DropdownMenu } = await import('./DropdownMenu');
+        const onSelect = vi.fn();
+        const items = [{ id: 'reminder', title: 'Remind me', submenu: { items: [{ id: 'tomorrow', title: 'Tomorrow' }] } }];
+        const baseProps = { open: true, onOpenChange: vi.fn(), items, onSelect, trigger: React.createElement('View') };
+        const screen = await renderScreen(React.createElement(DropdownMenu, { ...baseProps, openSubmenuId: null }));
+        const results = screen.findByType('SelectableMenuResults' as any);
+        act(() => results?.props?.onRegisterSubmenuAnchor?.('reminder', {
+            current: { getBoundingClientRect: () => ({ width: 20, height: 20 }) },
+        }));
+        await act(async () => {
+            screen.tree.update(React.createElement(DropdownMenu, { ...baseProps, openSubmenuId: 'reminder' }));
+        });
+        expect(screen.findAllByType('Popover' as any)).toHaveLength(2);
+        const nestedMenu = screen.findAllByType(DropdownMenu)[1];
+        await act(async () => nestedMenu?.props.onOpenChange(false));
+        expect(screen.findAllByType('Popover' as any)).toHaveLength(1);
+        await act(async () => {
+            screen.tree.update(React.createElement(DropdownMenu, {
+                ...baseProps,
+                items: [...items],
+                openSubmenuId: 'reminder',
+            }));
+        });
+        expect(screen.findAllByType('Popover' as any)).toHaveLength(1);
+        expect(onSelect).not.toHaveBeenCalled();
     });
 
     it('provides a toggle handler to the trigger and uses it to open/close', async () => {
@@ -248,6 +295,75 @@ describe('DropdownMenu', () => {
         expect(events).toEqual(['close']);
         act(() => scheduled.shift()?.(0));
         expect(events).toEqual(['close', 'select']);
+    });
+
+    it('routes Arrow and Enter through the existing selectable-menu owner without requiring search', async () => {
+        const { DropdownMenu } = await import('./DropdownMenu');
+        const screen = await renderScreen(React.createElement(DropdownMenu, {
+            open: true,
+            onOpenChange: vi.fn(),
+            items: [{ id: 'saved-preset', title: 'Saved preset' }],
+            onSelect: vi.fn(),
+            trigger: React.createElement('View'),
+        }));
+        const event = {
+            nativeEvent: { key: 'ArrowDown' },
+            preventDefault: vi.fn(),
+            stopPropagation: vi.fn(),
+        };
+        act(() => screen.findByType('View' as any)?.props?.onKeyDown?.(event));
+        expect(handleSelectableKeyPressSpy).toHaveBeenCalledWith('ArrowDown', expect.any(Function));
+        expect(event.preventDefault).toHaveBeenCalledOnce();
+    });
+
+    it('yields menu navigation to a terminal owner or a higher modal layer', async () => {
+        const listeners = new Set<(event: any) => void>();
+        vi.stubGlobal('window', {
+            addEventListener: (_type: string, listener: (event: any) => void) => listeners.add(listener),
+            removeEventListener: (_type: string, listener: (event: any) => void) => listeners.delete(listener),
+        });
+        const { DropdownMenu } = await import('./DropdownMenu');
+        const { ESCAPE_LAYER_PRIORITIES, registerEscapeKeyBlocker } = await import('@/keyboard/escape');
+        const screen = await renderScreen(React.createElement(DropdownMenu, {
+            open: true, onOpenChange: vi.fn(), items: [{ id: 'a', title: 'A' }], onSelect: vi.fn(),
+            trigger: React.createElement('View'),
+        }));
+        const event = (ownedByTerminal: boolean) => ({
+            key: 'ArrowDown', defaultPrevented: false,
+            target: { isContentEditable: false, closest: (selector: string) =>
+                ownedByTerminal && selector.includes('data-keyboard-shortcuts-owned') ? {} : null },
+            preventDefault: vi.fn(), stopPropagation: vi.fn(),
+        });
+        const terminalEvent = event(true);
+        act(() => { for (const listener of listeners) listener(terminalEvent); });
+        expect(terminalEvent.preventDefault).not.toHaveBeenCalled();
+
+        const releaseModal = registerEscapeKeyBlocker(ESCAPE_LAYER_PRIORITIES.modal);
+        try {
+            const modalEvent = event(false);
+            act(() => { for (const listener of listeners) listener(modalEvent); });
+            expect(modalEvent.preventDefault).not.toHaveBeenCalled();
+        } finally {
+            releaseModal();
+        }
+        const menuEvent = event(false);
+        act(() => { for (const listener of listeners) listener(menuEvent); });
+        expect(menuEvent.preventDefault).toHaveBeenCalledOnce();
+        await act(async () => screen.tree.unmount());
+    });
+
+    it('keeps shortcut hints visible beside submenu and checked-state adornments', async () => {
+        const { DropdownMenu } = await import('./DropdownMenu');
+        await renderScreen(React.createElement(DropdownMenu, {
+            open: true, onOpenChange: vi.fn(), onSelect: vi.fn(), trigger: React.createElement('View'),
+            items: [
+                { id: 'remind', title: 'Remind me', shortcut: '⌥⇧D', submenu: { items: [{ id: 'one-hour', title: 'One hour' }] } },
+                { id: 'checked', title: 'Checked', shortcut: '⌥⇧1', rightElement: React.createElement('Check') },
+            ],
+        }));
+        const items = useSelectableMenuSpy.mock.lastCall?.[0]?.items ?? [];
+        expect(React.Children.count(items[0]?.right?.props?.children)).toBe(2);
+        expect(React.Children.count(items[1]?.right?.props?.children)).toBe(2);
     });
 
     it('still commits a closing selection when requestAnimationFrame does not run', async () => {

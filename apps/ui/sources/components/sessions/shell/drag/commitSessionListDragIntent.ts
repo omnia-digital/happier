@@ -87,6 +87,7 @@ export type CommitSessionListDragIntentContext = Readonly<{
     folderSortMode?: SessionListFolderSortMode;
     sessionListOrderingModeV1?: SessionListOrderingModeV1;
     sessionListSectionModeV1?: SessionListOrderingSectionMode;
+    structuralWritesEnabled?: boolean;
     setSessionFoldersV1: (next: SessionFoldersV1) => void;
     setSessionListGroupOrderV1: (next: Record<string, string[]>) => void;
     setSessionWorkspaceOrderV1?: (next: Record<string, string[]>) => void;
@@ -372,6 +373,7 @@ export async function commitSessionListDragIntent(params: Readonly<{
         folderSortMode: context.folderSortMode,
         sessionListOrderingModeV1: context.sessionListOrderingModeV1,
         sessionListSectionModeV1: context.sessionListSectionModeV1,
+        structuralWritesEnabled: context.structuralWritesEnabled,
         setSessionFoldersV1: context.setSessionFoldersV1,
         setSessionListGroupOrderV1: context.setSessionListGroupOrderV1,
         setSessionWorkspaceOrderV1: context.setSessionWorkspaceOrderV1,

@@ -28,6 +28,11 @@ function isPrimarySectionHeader(item: Extract<SessionListIndexItem, { type: 'hea
     return item.headerKind === 'active' || item.headerKind === 'inactive' || item.headerKind === 'sessions';
 }
 
+function discardPendingOrphanDateHeaders(headerState: VisibleSessionListHeaderState): void {
+    if (!headerState.pendingGroupHeaders.some((item) => item.headerKind === 'date')) return;
+    headerState.pendingGroupHeaders = headerState.pendingGroupHeaders.filter((item) => item.headerKind !== 'date');
+}
+
 function flushPendingFolderHeaders(params: Readonly<{
     out: SessionListIndexItem[];
     headerState: VisibleSessionListHeaderState;
@@ -104,6 +109,7 @@ export function pruneOrphanSessionListIndexHeaders(items: ReadonlyArray<SessionL
 
     for (const item of items) {
         if (item.type === 'header') {
+            discardPendingOrphanDateHeaders(headerState);
             flushPendingFolderHeaders({ out, headerState });
             if (isPrimarySectionHeader(item)) {
                 headerState.pendingSectionHeader = item;
@@ -137,6 +143,7 @@ export function filterHiddenInactiveSessionListIndexItems(
 
     for (const item of items) {
         if (item.type === 'header') {
+            discardPendingOrphanDateHeaders(headerState);
             flushPendingFolderHeaders({ out, headerState });
             if (isPrimarySectionHeader(item)) {
                 headerState.pendingSectionHeader = item;

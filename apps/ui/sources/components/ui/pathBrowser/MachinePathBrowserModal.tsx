@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { TokenStorage } from '@/auth/storage/tokenStorage';
 import { FlatList, Platform, Pressable, View, useWindowDimensions, type GestureResponderEvent } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 
@@ -12,6 +13,8 @@ import { Text } from '@/components/ui/text/Text';
 import { Typography } from '@/constants/Typography';
 import { shadowLevelStyle } from '@/shadowElevation';
 import { useLazyDirectoryTree } from '@/hooks/ui/filesystem/useLazyDirectoryTree';
+import { useActiveServerAccountScope } from '@/sync/domains/state/storage';
+import { areServerAccountScopesEqual } from '@/sync/domains/scope/serverAccountScope';
 import type { LazyDirectoryTreeLoadResult } from '@/hooks/ui/filesystem/lazyDirectoryTreeTypes';
 import {
     clearCachedMachineFileBrowserEntries,
@@ -23,6 +26,7 @@ import {
     listMachineFileBrowserRoots,
     warmMachineFileBrowserDirectoryCache,
     warmMachineFileBrowserRoots,
+    type MachineFileBrowserIdentity,
 } from '@/sync/domains/input/machineFileBrowser';
 import { machineCreateDirectory } from '@/sync/ops/machines';
 import { machineRipgrep } from '@/sync/ops/machineRipgrep';
@@ -43,6 +47,8 @@ import {
 export type MachinePathBrowserModalProps = CustomModalInjectedProps & Readonly<{
     machineId: string;
     serverId?: string | null;
+    targetScopeKey?: string | null;
+    browserIdentity?: MachineFileBrowserIdentity | null;
     title?: string;
     initialPath?: string | null;
     includeFiles?: boolean;
@@ -53,6 +59,8 @@ export type MachinePathBrowserModalProps = CustomModalInjectedProps & Readonly<{
 export type MachinePathBrowserViewProps = Readonly<{
     machineId: string;
     serverId?: string | null;
+    targetScopeKey?: string | null;
+    browserIdentity?: MachineFileBrowserIdentity | null;
     /**
      * When set, the browser is scoped to this absolute directory and will not list machine roots.
      */
@@ -327,8 +335,8 @@ function buildInitialPathPreviewEntries(params: Readonly<{
     }];
 }
 
-function toRootEntries(machineId: string, serverId?: string | null) {
-    return (getCachedMachineFileBrowserRoots({ machineId, serverId }) ?? []).map((root) => ({
+function toRootEntries(machineId: string, serverId?: string | null, targetScopeKey?: string | null, browserIdentity?: MachineFileBrowserIdentity | null) {
+    return (getCachedMachineFileBrowserRoots({ machineId, serverId, targetScopeKey, browserIdentity }) ?? []).map((root) => ({
         name: root.label,
         path: root.path,
         type: 'directory' as const,
@@ -403,12 +411,14 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
                 return previewEntries;
             }
             if (directoryPath === '') {
-                return toRootEntries(props.machineId, props.serverId);
+                return toRootEntries(props.machineId, props.serverId, props.targetScopeKey, props.browserIdentity);
             }
         }
         return getCachedMachineFileBrowserEntries({
             machineId: props.machineId,
             serverId: props.serverId,
+            targetScopeKey: props.targetScopeKey,
+            browserIdentity: props.browserIdentity,
             directoryPath,
             includeFiles,
         })?.map((entry) => ({
@@ -418,7 +428,7 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
             sizeBytes: entry.sizeBytes,
             modifiedMs: entry.modifiedMs,
         })) ?? null;
-    }, [includeFiles, initialExpandedPaths, props.machineId, props.serverId, usesRootsListing]);
+    }, [includeFiles, initialExpandedPaths, props.machineId, props.serverId, props.targetScopeKey, props.browserIdentity, usesRootsListing]);
 
     const getCachedDirectoryMetadata = React.useCallback((directoryPath: string) => {
         if (usesRootsListing && directoryPath === '') {
@@ -427,14 +437,16 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
         return getCachedMachineFileBrowserDirectoryMetadata({
             machineId: props.machineId,
             serverId: props.serverId,
+            targetScopeKey: props.targetScopeKey,
+            browserIdentity: props.browserIdentity,
             directoryPath,
             includeFiles,
         });
-    }, [includeFiles, props.machineId, props.serverId, usesRootsListing]);
+    }, [includeFiles, props.machineId, props.serverId, props.targetScopeKey, props.browserIdentity, usesRootsListing]);
 
     const loadDirectoryEntries = React.useCallback(async (directoryPath: string): Promise<LazyDirectoryTreeLoadResult> => {
         if (usesRootsListing && directoryPath === '') {
-            const result = await listMachineFileBrowserRoots({ machineId: props.machineId, serverId: props.serverId });
+            const result = await listMachineFileBrowserRoots({ machineId: props.machineId, serverId: props.serverId, targetScopeKey: props.targetScopeKey, browserIdentity: props.browserIdentity });
             if (!result.ok) return result;
             return {
                 ok: true,
@@ -451,6 +463,8 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
             directoryPath,
             includeFiles,
             serverId: props.serverId,
+            targetScopeKey: props.targetScopeKey,
+            browserIdentity: props.browserIdentity,
         });
         if (!result.ok) return result;
         return {
@@ -465,11 +479,11 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
             })),
             truncated: result.truncated,
         };
-    }, [includeFiles, props.machineId, props.serverId, usesRootsListing]);
+    }, [includeFiles, props.machineId, props.serverId, props.targetScopeKey, props.browserIdentity, usesRootsListing]);
 
     const warmDirectoryEntries = React.useCallback(async (directoryPath: string): Promise<LazyDirectoryTreeLoadResult> => {
         if (usesRootsListing && directoryPath === '') {
-            const result = await warmMachineFileBrowserRoots({ machineId: props.machineId, serverId: props.serverId });
+            const result = await warmMachineFileBrowserRoots({ machineId: props.machineId, serverId: props.serverId, targetScopeKey: props.targetScopeKey, browserIdentity: props.browserIdentity });
             if (!result.ok) return result;
             return {
                 ok: true,
@@ -486,6 +500,8 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
             directoryPath,
             includeFiles,
             serverId: props.serverId,
+            targetScopeKey: props.targetScopeKey,
+            browserIdentity: props.browserIdentity,
         });
         if (!result.ok) return result;
         return {
@@ -500,7 +516,7 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
             })),
             truncated: result.truncated,
         };
-    }, [includeFiles, props.machineId, props.serverId, usesRootsListing]);
+    }, [includeFiles, props.machineId, props.serverId, props.targetScopeKey, props.browserIdentity, usesRootsListing]);
 
     const {
         nodes: rawNodes,
@@ -510,7 +526,7 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
         retryDirectory,
         toggleDirectory,
     } = useLazyDirectoryTree({
-        scopeKey: `${props.machineId}:${props.serverId ?? ''}:${includeFiles ? 'all' : 'dirs'}:${rootDirectoryPath}`,
+        scopeKey: `${props.machineId}:${props.serverId ?? ''}:${props.targetScopeKey ?? ''}:${props.browserIdentity?.viewerScope.accountId ?? ''}:${includeFiles ? 'all' : 'dirs'}:${rootDirectoryPath}`,
         enabled: true,
         rootDirectoryPath: usesRootsListing ? '' : rootDirectoryPath,
         expandedPaths,
@@ -720,12 +736,12 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
     }, [deepSearchEnabled, deepSearchNodes, isHiddenByAncestors, nodesByPath, rawNodes, searchQuery, showHidden]);
 
     const refresh = React.useCallback(() => {
-        clearCachedMachineFileBrowserRoots({ machineId: props.machineId, serverId: props.serverId });
-        clearCachedMachineFileBrowserEntries({ machineId: props.machineId, serverId: props.serverId });
+        clearCachedMachineFileBrowserRoots({ machineId: props.machineId, serverId: props.serverId, targetScopeKey: props.targetScopeKey, browserIdentity: props.browserIdentity });
+        clearCachedMachineFileBrowserEntries({ machineId: props.machineId, serverId: props.serverId, targetScopeKey: props.targetScopeKey, browserIdentity: props.browserIdentity });
         setTreeReloadNonce((n) => n + 1);
         setDeepSearchReloadNonce((n) => n + 1);
         void retryRoot();
-    }, [props.machineId, props.serverId, retryRoot]);
+    }, [props.machineId, props.serverId, props.targetScopeKey, props.browserIdentity, retryRoot]);
 
     const collapseAll = React.useCallback(() => {
         setExpandedPaths([]);
@@ -880,8 +896,8 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
             }
 
             setExpandedPaths((prev) => prev.includes(directoryPath) ? prev : [...prev, directoryPath]);
-            clearCachedMachineFileBrowserEntries({ machineId: props.machineId, directoryPath, serverId: props.serverId });
-            clearCachedMachineFileBrowserEntries({ machineId: props.machineId, directoryPath: nextDirectoryPath, serverId: props.serverId });
+            clearCachedMachineFileBrowserEntries({ machineId: props.machineId, directoryPath, serverId: props.serverId, targetScopeKey: props.targetScopeKey, browserIdentity: props.browserIdentity });
+            clearCachedMachineFileBrowserEntries({ machineId: props.machineId, directoryPath: nextDirectoryPath, serverId: props.serverId, targetScopeKey: props.targetScopeKey, browserIdentity: props.browserIdentity });
             void retryDirectory(directoryPath);
 
             shouldAutoSelectInitialPathRef.current = false;
@@ -894,7 +910,7 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
         } finally {
             setIsCreatingFolder(false);
         }
-    }, [closeContextMenu, enableContextMenu, isCreatingFolder, props.machineId, props.serverId, retryDirectory]);
+    }, [closeContextMenu, enableContextMenu, isCreatingFolder, props.machineId, props.serverId, props.targetScopeKey, props.browserIdentity, retryDirectory]);
     const createFolderInDirectoryRef = React.useRef(createFolderInDirectory);
     createFolderInDirectoryRef.current = createFolderInDirectory;
     const handleCreateFolderAction = React.useCallback(() => {
@@ -1313,7 +1329,22 @@ export function MachinePathBrowserView(props: MachinePathBrowserViewProps): Reac
     );
 }
 
-export function MachinePathBrowserModal(props: MachinePathBrowserModalProps): React.ReactElement {
+export function MachinePathBrowserModal(props: MachinePathBrowserModalProps): React.ReactElement | null {
+    const viewerScope = useActiveServerAccountScope();
+    const [credentialsChanged, setCredentialsChanged] = React.useState(false);
+    React.useEffect(() => {
+        if (!props.browserIdentity) return;
+        return TokenStorage.subscribeCredentialChanges(() => setCredentialsChanged(true));
+    }, [props.browserIdentity]);
+    const currentViewer = !props.browserIdentity
+        || areServerAccountScopesEqual(props.browserIdentity.viewerScope, viewerScope);
+    const currentIdentity = currentViewer && !credentialsChanged;
+    React.useEffect(() => {
+        if (!currentIdentity) {
+            props.onResolve(null);
+            props.onClose();
+        }
+    }, [currentIdentity, props.onClose, props.onResolve]);
     const handlePickPath = React.useCallback((path: string) => {
         props.onResolve(path);
         props.onClose();
@@ -1324,10 +1355,13 @@ export function MachinePathBrowserModal(props: MachinePathBrowserModalProps): Re
         props.onClose();
     }, [props.onClose, props.onResolve]);
 
+    if (!currentIdentity) return null;
     return (
         <MachinePathBrowserView
             machineId={props.machineId}
             serverId={props.serverId}
+            targetScopeKey={props.targetScopeKey}
+            browserIdentity={props.browserIdentity}
             title={props.title}
             initialPath={props.initialPath}
             includeFiles={props.includeFiles}

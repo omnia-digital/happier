@@ -14,10 +14,10 @@ const sharp = createRequire(path.join(repoRoot, 'package.json'))('sharp');
 // its artwork has to carry that padding itself or it reads larger than every other Dock icon.
 const MACOS_ICON_TILE_FRACTION = 824 / 1024;
 
-async function readEmbeddedDockIconPath() {
+async function readEmbeddedDockIconPath(name = 'DOCK_ICON_PNG') {
   const source = await readFile(path.join(srcTauriDir, 'src', 'dock_icon.rs'), 'utf8');
-  const match = source.match(/const DOCK_ICON_PNG: &\[u8\] = include_bytes!\("([^"]+)"\);/u);
-  assert.ok(match, 'dock_icon.rs should embed its PNG with include_bytes!');
+  const match = source.match(new RegExp(`const ${name}: &\\[u8\\] = include_bytes!\\("([^"]+)"\\);`, 'u'));
+  assert.ok(match, `dock_icon.rs should embed ${name} with include_bytes!`);
   return path.join(srcTauriDir, 'src', match[1]);
 }
 
@@ -41,17 +41,22 @@ function solidBounds({ data, info }) {
 }
 
 test('the running-app Dock icon sits in the macOS icon grid, not full bleed', async () => {
-  const raster = await sharp(await readEmbeddedDockIconPath()).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
-  assert.equal(raster.info.width, raster.info.height, 'the Dock image should be square');
+  for (const name of ['DOCK_ICON_PNG', 'DEV_DOCK_ICON_PNG']) {
+    const raster = await sharp(await readEmbeddedDockIconPath(name)).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    assert.equal(raster.info.width, raster.info.height, `${name} should be square`);
 
-  const cell = raster.info.width;
-  const bounds = solidBounds(raster);
-  const expected = cell * MACOS_ICON_TILE_FRACTION;
-  const tolerance = cell / 256;
+    const cell = raster.info.width;
+    const bounds = solidBounds(raster);
+    const expected = cell * MACOS_ICON_TILE_FRACTION;
+    const tolerance = cell / 256;
 
-  assert.ok(Math.abs(bounds.width - expected) <= tolerance, `tile width ${bounds.width}px, expected ≈${expected}px of ${cell}px`);
-  assert.ok(Math.abs(bounds.height - expected) <= tolerance, `tile height ${bounds.height}px, expected ≈${expected}px of ${cell}px`);
-  const margin = (cell - expected) / 2;
-  assert.ok(Math.abs(bounds.left - margin) <= tolerance, `tile left edge ${bounds.left}px, expected ≈${margin}px`);
-  assert.ok(Math.abs(bounds.top - margin) <= tolerance, `tile top edge ${bounds.top}px, expected ≈${margin}px`);
+    assert.ok(Math.abs(bounds.width - expected) <= tolerance, `tile width ${bounds.width}px, expected ≈${expected}px of ${cell}px`);
+    assert.ok(Math.abs(bounds.height - expected) <= tolerance, `tile height ${bounds.height}px, expected ≈${expected}px of ${cell}px`);
+    const margin = (cell - expected) / 2;
+    assert.ok(Math.abs(bounds.left - margin) <= tolerance, `tile left edge ${bounds.left}px, expected ≈${margin}px`);
+    assert.ok(Math.abs(bounds.top - margin) <= tolerance, `tile top edge ${bounds.top}px, expected ≈${margin}px`);
+  }
+  const stable = await sharp(await readEmbeddedDockIconPath()).resize(64).ensureAlpha().raw().toBuffer();
+  const dev = await sharp(await readEmbeddedDockIconPath('DEV_DOCK_ICON_PNG')).resize(64).ensureAlpha().raw().toBuffer();
+  assert.notDeepEqual(dev, stable, 'the two running Dock icons should differ at normal Dock size');
 });

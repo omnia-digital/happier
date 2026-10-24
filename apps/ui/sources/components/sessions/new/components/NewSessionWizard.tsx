@@ -1,3 +1,4 @@
+import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import * as React from 'react';
 import { Platform, ScrollView, View, useWindowDimensions, type View as RNView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -142,6 +143,9 @@ export interface NewSessionWizardAgentProps {
 export interface NewSessionWizardMachineProps {
     machines: ReadonlyArray<Machine>;
     serverId?: string | null;
+    scmScope?: ServerAccountScope | null;
+    targetScopeKey?: string | null;
+    browserIdentity?: import('@/sync/domains/input/machineFileBrowser').MachineFileBrowserIdentity | null;
     selectedMachine: Machine | null;
     recentMachines: ReadonlyArray<Machine>;
     favoriteMachineItems: ReadonlyArray<Machine>;
@@ -158,6 +162,8 @@ export interface NewSessionWizardMachineProps {
     usePathPickerSearch: boolean;
     favoriteDirectories: ReadonlyArray<string>;
     setFavoriteDirectories: (dirs: string[]) => void;
+    unassignedFavorites?: ReadonlyArray<string>;
+    onAssignUnassignedFavorite?: (path: string) => void;
 }
 
 export interface NewSessionWizardFooterProps {
@@ -303,6 +309,7 @@ export const NewSessionWizard = React.memo(function NewSessionWizard(props: NewS
         handleCreateSession: props.footer.handleCreateSession,
         selectedProfileId: props.profiles.selectedProfileId,
         targetServerId: props.machine.serverId,
+        scmScope: props.machine.scmScope,
         selectedMachineId: props.machine.selectedMachine?.id ?? null,
         selectedMachineHomeDir: props.machine.selectedMachine?.metadata?.homeDir ?? null,
         selectedPath: props.machine.selectedPath,
@@ -398,6 +405,8 @@ export const NewSessionWizard = React.memo(function NewSessionWizard(props: NewS
         usePathPickerSearch,
         favoriteDirectories,
         setFavoriteDirectories,
+        unassignedFavorites,
+        onAssignUnassignedFavorite,
     } = props.machine;
     const selectedMachineIsOffline = React.useMemo(() => {
         if (!selectedMachine) return false;
@@ -1004,10 +1013,14 @@ export const NewSessionWizard = React.memo(function NewSessionWizard(props: NewS
                                             <PathSelectionList
                                                 initialValue={selectedPath}
                                                 favorites={favoriteDirectories.map((p) => ({ path: p }))}
+                                                unassignedFavorites={unassignedFavorites}
+                                                onAssignUnassignedFavorite={onAssignUnassignedFavorite}
                                                 recents={recentPaths.map((p, index) => ({ path: p, lastUsedAt: Date.now() - index }))}
                                                 machineHomeDir={selectedMachine?.metadata?.homeDir || '/home'}
                                                 machineId={selectedMachine?.id ?? null}
                                                 serverId={serverId ?? null}
+                                                targetScopeKey={props.machine.targetScopeKey}
+                                                browserIdentity={props.machine.browserIdentity}
                                                 machinePlatform={machineMetadataPlatformToTarget(selectedMachine?.metadata?.platform)}
                                                 onCommit={(nextPath) => {
                                                     setSelectedPath(nextPath);

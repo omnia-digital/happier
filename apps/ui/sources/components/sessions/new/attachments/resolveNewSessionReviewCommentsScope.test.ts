@@ -25,6 +25,7 @@ describe('resolveNewSessionReviewCommentsScope', () => {
 
         expect(resolveNewSessionReviewCommentsScope({
             targetServerId: 'server-a',
+            scmScope: { serverId: 'server-a', accountId: 'account-a' },
             selectedMachineId: 'machine-1',
             selectedPath: '/repo/subdir',
         })).toEqual({
@@ -39,6 +40,7 @@ describe('resolveNewSessionReviewCommentsScope', () => {
 
         expect(resolveNewSessionReviewCommentsScope({
             targetServerId: 'server-a',
+            scmScope: { serverId: 'server-a', accountId: 'account-a' },
             selectedMachineId: 'machine-1',
             selectedPath: '/repo/subdir',
         })).toEqual({

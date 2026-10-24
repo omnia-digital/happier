@@ -34,12 +34,14 @@ import {
     resolveSessionReminderPresetRule,
     sessionReminderPresetRuleKey,
 } from '@/sync/domains/session/organization/sessionReminderPreset';
+import { withSessionRowMenuShortcutLabels } from './sessionRowMenuKeyboard';
 
 function createReminderPresetItem(
     iconColor: string,
     presets: SessionRowMoreMenuBuildParams['reminderPresets'],
     reminder: SessionRowMoreMenuBuildParams['reminder'],
     nowMs: number,
+    choiceKeyboardHint?: string,
 ): DropdownMenuItem {
     const selectedAt = reminder?.remindAt ?? null;
     const check = <Icon name="check" size={16} color={iconColor} />;
@@ -59,6 +61,7 @@ function createReminderPresetItem(
         return {
             id,
             title: preset.label ?? formatSessionReminderPresetRuleLabel(preset.rule),
+            ...(choiceKeyboardHint ? { shortcut: choiceKeyboardHint } : {}),
             ...(resolveSessionReminderPresetRule(preset.rule, nowMs) === selectedAt ? { rightElement: check } : {}),
         };
     });
@@ -67,6 +70,7 @@ function createReminderPresetItem(
         id: SESSION_ATTENTION_REMINDER_CURRENT_ID,
         title: formatSessionAttentionReminderDateTime(reminder.remindAt, nowMs),
         rightElement: check,
+        disabled: true,
     }] : [];
     return {
         id: SESSION_ATTENTION_REMINDER_MENU_ID,
@@ -133,16 +137,17 @@ export function buildSessionRowMoreMenuItems(params: SessionRowMoreMenuBuildPara
         return priority(left.id) - priority(right.id);
     });
 
-    return [
+    return withSessionRowMenuShortcutLabels([
         ...primaryItems,
         ...(params.target.attentionStandingAction.visible ? [createReminderPresetItem(
             params.iconColor,
             params.reminderPresets,
             params.reminder,
             params.reminderNowMs ?? Date.now(),
+            params.reminderChoiceKeyboardHint,
         )] : []),
         ...(params.leadingItems ?? []),
         ...remainingItems,
         ...(moveToFolderItem ? [moveToFolderItem] : []),
-    ];
+    ], params.shortcutLabels ?? {});
 }

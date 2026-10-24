@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Happier",
+  "productName": "Omnia Happier",
   "mainBinaryName": "happier-desktop",
   "version": "0.2.18",
   "identifier": "dev.happier.app",
@@ -23,7 +23,7 @@
       {
         "label": "main",
         "create": false,
-        "title": "Happier",
+        "title": "Omnia Happier",
         "width": 800,
         "height": 600,
         "visible": false,

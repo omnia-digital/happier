@@ -41,6 +41,7 @@ export function useNewSessionMachineRefreshState(params: Readonly<{
     selectedMachineId: string | null;
     machines: ReadonlyArray<Machine>;
     recentMachinePaths: ReadonlyArray<RecentMachinePath>;
+    pathRecentMachinePaths?: ReadonlyArray<RecentMachinePath>;
     sessions?: ReadonlyArray<Session | string> | null | undefined;
     favoriteMachines: ReadonlyArray<string>;
     useEnhancedSessionWizard: boolean;
@@ -112,7 +113,7 @@ export function useNewSessionMachineRefreshState(params: Readonly<{
 
     const recentPaths = useStableRecentPathsForMachine({
         machineId: params.selectedMachineId,
-        recentMachinePaths: params.recentMachinePaths,
+        recentMachinePaths: params.pathRecentMachinePaths ?? params.recentMachinePaths,
         sessions: params.sessions,
         cacheScopeKey: params.capabilityServerId,
     });

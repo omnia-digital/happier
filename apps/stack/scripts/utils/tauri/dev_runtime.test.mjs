@@ -1,7 +1,29 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 
-import { buildStackTauriDevConfig, resolveStackTauriDevUrl } from './dev_runtime.mjs';
+import { buildStackTauriBundleConfig, buildStackTauriDevConfig, resolveStackTauriDevUrl } from './dev_runtime.mjs';
+
+test('stack desktop dev and bundled builds consume the same dev artwork and macOS display metadata', async () => {
+  const baseConfig = JSON.parse(await readFile(new URL('../../../../ui/src-tauri/tauri.conf.json', import.meta.url), 'utf8'));
+  const overlayConfig = JSON.parse(await readFile(new URL('../../../../ui/src-tauri/tauri.publicdev.conf.json', import.meta.url), 'utf8'));
+  const env = { HAPPIER_STACK_STACK: 'qa' };
+  const dev = buildStackTauriDevConfig({ baseConfig, overlayConfig, devUrl: 'http://localhost:18081', env });
+  const bundle = buildStackTauriBundleConfig({ baseConfig, overlayConfig, frontendDist: '../dist', env });
+
+  for (const config of [dev, bundle]) {
+    assert.equal(config.identifier, 'com.happier.stack.qa');
+    assert.equal(config.bundle.macOS.infoPlist, 'Info.dev.plist');
+    assert.deepEqual(config.bundle.icon, overlayConfig.bundle.icon);
+    assert.equal(config.app.windows[0].title, config.productName);
+  }
+  assert.equal(dev.productName, '(Dev) Omnia - Happier');
+  assert.equal(bundle.productName, '(Dev) Omnia - Happier (qa)');
+  assert.equal(bundle.build.frontendDist, '../dist');
+  assert.equal(bundle.build.beforeBuildCommand, null);
+  const plist = await readFile(new URL('../../../../ui/src-tauri/Info.dev.plist', import.meta.url), 'utf8');
+  assert.match(plist, /<key>CFBundleDisplayName<\/key>\s*<string>\(Dev\) Omnia - Happier<\/string>/);
+});
 
 test('resolveStackTauriDevUrl prefers the stack expo web port', () => {
   assert.equal(

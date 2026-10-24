@@ -10,7 +10,8 @@ import { t } from '@/text';
 import { MachineCliGlyphs } from '@/components/sessions/new/components/MachineCliGlyphs';
 import { resolveMachinePickerPresence } from './resolveMachinePickerPresence';
 import { buildMachineSelectionBuckets } from './machineSelection/buildMachineSelectionBuckets';
-import { Icon, type IconName } from '@/components/ui/icons/Icon';
+import { Icon } from '@/components/ui/icons/Icon';
+import { MachineDisplayGlyph } from '@/components/sessions/SessionMachineIdentity';
 
 export interface MachineSelectorProps {
     machines: ReadonlyArray<Machine>;
@@ -156,7 +157,7 @@ export function MachineSelector({
         );
     }, [onToggleFavorite, showFavorites, theme.colors.button.primary.background, theme.colors.text.primary, theme.colors.text.secondary, theme.dark]);
 
-    const toDropdownItem = React.useCallback((machine: Machine, category: string, isFavorite: boolean, iconName: IconName): DropdownMenuItem => {
+    const toDropdownItem = React.useCallback((machine: Machine, category: string, isFavorite: boolean): DropdownMenuItem => {
         const presence = resolveMachinePickerPresence(machine);
         const unavailable = !presence.selectable;
         return {
@@ -167,15 +168,16 @@ export function MachineSelector({
             category,
             disabled: disableOfflineMachines && unavailable,
             icon: (
-                <Icon
-                    name={iconName}
+                <MachineDisplayGlyph
+                    serverId={serverId}
+                    machineId={machine.id}
                     size={20}
                     color={theme.colors.text.secondary}
                 />
             ),
             rightElement: renderFavoriteToggle(machine, isFavorite),
         };
-    }, [disableOfflineMachines, getMachineOptionTestID, renderFavoriteToggle, theme.colors.text.secondary]);
+    }, [disableOfflineMachines, getMachineOptionTestID, renderFavoriteToggle, serverId, theme.colors.text.secondary]);
 
     const dropdownItems = React.useMemo(() => {
         const favoriteItems = showFavorites
@@ -183,7 +185,6 @@ export function MachineSelector({
                 machine,
                 favoritesSectionTitle,
                 true,
-                'desktop',
             ))
             : [];
         const recentItems = showRecent
@@ -191,14 +192,12 @@ export function MachineSelector({
                 machine,
                 recentSectionTitle,
                 favoriteMachineIdSet.has(machine.id),
-                'clock',
             ))
             : [];
         const allItems = visibleAllMachines.map((machine) => toDropdownItem(
             machine,
             allSectionTitle,
             favoriteMachineIdSet.has(machine.id),
-            'desktop',
         ));
 
         return favoriteGroupPlacement === 'beforeRecent'
@@ -246,11 +245,12 @@ export function MachineSelector({
                         showSelectedDetail: false,
                         showSelectedSubtitle: false,
                         icon: (
-                            <Icon
-                                name="desktop"
+                            selectedMachine ? <MachineDisplayGlyph
+                                serverId={serverId}
+                                machineId={selectedMachine.id}
                                 size={24}
                                 color={theme.colors.text.secondary}
-                            />
+                            /> : <Icon name="desktop" size={24} color={theme.colors.text.secondary} />
                         ),
                         itemProps: { testID: dropdownTestID },
                     }}
@@ -265,16 +265,18 @@ export function MachineSelector({
                 getItemId: (machine) => machine.id,
                 getItemTitle: (machine) => machine.metadata?.displayName || machine.metadata?.host || machine.id,
                 getItemSubtitle: undefined,
-                getItemIcon: () => (
-                    <Icon
-                        name="desktop"
+                getItemIcon: (machine) => (
+                    <MachineDisplayGlyph
+                        serverId={serverId}
+                        machineId={machine.id}
                         size={24}
                         color={theme.colors.text.secondary}
                     />
                 ),
-                getRecentItemIcon: () => (
-                    <Icon
-                        name="clock"
+                getRecentItemIcon: (machine) => (
+                    <MachineDisplayGlyph
+                        serverId={serverId}
+                        machineId={machine.id}
                         size={24}
                         color={theme.colors.text.secondary}
                     />

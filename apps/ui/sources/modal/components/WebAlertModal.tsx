@@ -124,6 +124,20 @@ export function WebAlertModal({ config, onClose, onConfirm, showBackdrop = true,
             closeOnBackdrop={false}
             showBackdrop={showBackdrop}
             zIndexBase={zIndexBase}
+            onWebOpenAutoFocus={isConfirm && config.confirmOnEnter ? (event) => {
+                const confirmButton = (event.currentTarget as HTMLElement | null)
+                    ?.querySelector<HTMLElement>('[data-testid="web-modal-confirm"]');
+                if (!confirmButton) return;
+                event.preventDefault();
+                confirmButton.focus();
+            } : undefined}
+            onWebKeyDownCapture={isConfirm && config.confirmOnEnter ? (event) => {
+                if (event.key !== 'Enter' || event.repeat || event.nativeEvent?.isComposing || event.defaultPrevented) return;
+                if ((event.target as Element | null)?.closest?.('[data-testid="web-modal-cancel"]')) return;
+                event.preventDefault();
+                event.stopPropagation();
+                handleButtonPress(1);
+            } : undefined}
         >
             <ModalCardFrame dimensions={{ width: 270, maxHeightRatio: 0.48 }}>
                 <View style={styles.content}>

@@ -3692,3 +3692,24 @@ export {
 } from './machines/machineContentKeyTransitionV1.js';
 
 export { assertAccountKeyProvisioningAllowed, AccountKeyProvisioningUnavailableError, verifyAccountContentPublicKeyBinding, createAccountContentPublicKeyBindingMessage } from './auth/accountKeyProvisioning.js';
+export {
+  TICKET_READER_CAPABILITY_ID,
+  SessionTicketProviderSchema,
+  SessionTicketIdentityV1Schema,
+  SessionTicketReaderV1Schema,
+  SessionTicketAssociationV1Schema,
+  SessionTicketSnapshotV1Schema,
+  TicketReaderSourcesRequestSchema,
+  TicketReaderReadRequestSchema,
+  TicketReaderSourcesResponseSchema,
+  TicketReaderErrorCodeSchema,
+  parseSessionTicketUrl,
+  readSessionTicketAssociation,
+  withSessionTicketAssociation,
+  type SessionTicketProvider,
+  type ParsedSessionTicketUrl,
+  type SessionTicketIdentityV1,
+  type SessionTicketAssociationV1,
+  type SessionTicketSnapshotV1,
+  type TicketReaderErrorCode,
+} from './sessionMetadata/sessionTicketV1.js';

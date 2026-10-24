@@ -5,6 +5,10 @@ const voiceTargetState = {
     primaryActionSessionId: null as string | null,
     lastFocusedSessionId: null as string | null,
 };
+let activeScope = { serverId: 'server-a', accountId: 'account-a' };
+vi.mock('@/sync/domains/scope/activeServerAccountScope', () => ({
+    getActiveServerAccountScope: () => activeScope,
+}));
 
 const state: any = {
     sessions: {
@@ -58,6 +62,7 @@ vi.mock('@/voice/runtime/voiceTargetStore', () => ({
 
 describe('listRecentPathsForVoiceTool', () => {
     beforeEach(() => {
+        activeScope = { serverId: 'server-a', accountId: 'account-a' };
         voiceTargetState.primaryActionSessionId = null;
         voiceTargetState.lastFocusedSessionId = null;
         state.sessions = {
@@ -81,7 +86,24 @@ describe('listRecentPathsForVoiceTool', () => {
         state.settings.voice.privacy.shareDeviceInventory = true;
         state.settings.voice.privacy.shareFilePaths = false;
         state.settings.recentMachinePaths = [{ machineId: 'm1', path: '/Users/leeroy/projects/happier' }];
+        state.settings.machinePathPreferencesByTargetV1 = {
+            [JSON.stringify(['server-a', 'account-a', 'm1'])]: {
+                favorites: [], recentPaths: ['/Users/leeroy/projects/happier'],
+            },
+        };
         state.getProjectForSession = () => null;
+    });
+
+    it('does not suggest a legacy or another account path for the selected machine', async () => {
+        state.sessions = {};
+        state.settings.recentMachinePaths = [{ machineId: 'm1', path: '/legacy/unassigned' }];
+        state.settings.machinePathPreferencesByTargetV1 = {
+            [JSON.stringify(['server-a', 'account-a', 'm1'])]: { favorites: [], recentPaths: ['/owned/a'] },
+            [JSON.stringify(['server-a', 'account-b', 'm1'])]: { favorites: [], recentPaths: ['/other/b'] },
+        };
+        const { listRecentPathsForVoiceTool } = await import('./pathsListRecent');
+        const result: any = await listRecentPathsForVoiceTool({ machineId: 'm1' });
+        expect(result.items.map((item: any) => item.label)).toEqual(['a — Leeroy MacBook Pro']);
     });
 
     it('returns redacted labels without workspace handles when file paths are hidden', async () => {
@@ -195,6 +217,7 @@ describe('listRecentPathsForVoiceTool', () => {
             },
         };
         state.settings.recentMachinePaths = [];
+        state.settings.machinePathPreferencesByTargetV1 = {};
         state.getProjectForSession = (sessionId: string) =>
             sessionId === 's1'
                 ? {
@@ -247,6 +270,11 @@ describe('listRecentPathsForVoiceTool', () => {
         state.settings.recentMachinePaths = [
             { machineId: 'm-old', path: '/Users/leeroy/projects/happier' },
         ];
+        state.settings.machinePathPreferencesByTargetV1 = {
+            [JSON.stringify(['server-a', 'account-a', 'm-old'])]: {
+                favorites: [], recentPaths: ['/Users/leeroy/projects/happier'],
+            },
+        };
 
         const { listRecentPathsForVoiceTool } = await import('./pathsListRecent');
 

@@ -228,4 +228,20 @@ describe('resolveRepoScmSessionRequest', () => {
             repoIdentityKey: 'machine-a:C:\\Users\\tester\\repo\\subdir',
         });
     });
+    it('does not borrow the active account machine home or project when resolving another Home', async () => {
+        storageGetStateMock.mockReturnValue({
+            profileScope: { serverId: 'home-b', accountId: 'account-b' },
+            sessions: { session_1: { id: 'session_1', active: false, metadata: {
+                machineId: 'machine-a', path: '~/repo', homeDir: '/home/owner',
+            } } },
+            machines: { 'machine-a': { id: 'machine-a', active: true, metadata: { homeDir: '/home/other' } } },
+            getProjectForSession: () => ({ key: { machineId: 'machine-a', path: '/home/other/project' } }),
+        });
+        const { resolveRepoScmSessionRequest } = await import('./resolveRepoScmSessionRequest');
+        expect(resolveRepoScmSessionRequest({ sessionId: 'session_1', scope: { serverId: 'home-a', accountId: 'account-a' } })).toEqual({
+            sessionId: 'session_1', machineId: 'machine-a', resolvedPath: '/home/owner/repo',
+            repoIdentityKey: 'machine-a:/home/owner/repo',
+        });
+    });
+
 });

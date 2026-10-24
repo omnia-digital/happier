@@ -1,5 +1,7 @@
 import { machineSpawnNewSessionUntilResolved } from '@/sync/ops/machines';
 import { storage } from '@/sync/domains/state/storage';
+import { getActiveServerAccountScope } from '@/sync/domains/scope/activeServerAccountScope';
+import { recentMachinePathsForScope } from '@/sync/domains/settings/machinePathPreferences';
 import { getActiveServerSnapshot } from '@/sync/domains/server/serverRuntime';
 import { useVoiceTargetStore } from '@/voice/runtime/voiceTargetStore';
 import { resolveEffectiveWindowsRemoteSessionLaunchMode } from '@/sync/domains/session/spawn/windowsRemoteSessionLaunchMode';
@@ -71,7 +73,7 @@ function resolveSpawnTarget(state: StorageState): VoiceSpawnTarget | null {
     if (machineId && directory) return canonicalizeSpawnTarget({ machineId, directory }, machines);
   }
 
-  const recent = state?.settings?.recentMachinePaths?.[0] ?? null;
+  const recent = recentMachinePathsForScope(state?.settings?.machinePathPreferencesByTargetV1 ?? {}, getActiveServerAccountScope())[0] ?? null;
   const machineId = normalizeNonEmptyString(recent?.machineId);
   const directory = normalizeNonEmptyString(recent?.path);
   if (machineId && directory) return canonicalizeSpawnTarget({ machineId, directory }, machines);
@@ -137,9 +139,14 @@ export async function spawnSessionForVoiceTool(params: SessionSpawnNewActionInpu
     }
   }
 
+  const selectedMachineRecent = machineId
+    ? recentMachinePathsForScope(state?.settings?.machinePathPreferencesByTargetV1 ?? {}, getActiveServerAccountScope())
+      .find((entry) => canonicalizeSpawnTarget({ machineId: entry.machineId, directory: entry.path }, machines)?.machineId === machineId)
+    : null;
   const directory = normalizeNonEmptyString(params.directory)
     ?? normalizeNonEmptyString(params.path)
-    ?? fallbackTarget?.directory
+    ?? (fallbackTarget?.machineId === machineId ? fallbackTarget.directory : null)
+    ?? selectedMachineRecent?.path
     ?? null;
   if (!machineId || !directory) {
     return { type: 'error', errorCode: 'spawn_target_missing', errorMessage: 'spawn_target_missing' };

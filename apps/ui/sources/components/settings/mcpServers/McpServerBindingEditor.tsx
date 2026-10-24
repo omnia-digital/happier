@@ -7,7 +7,6 @@ import { ItemGroup } from '@/components/ui/lists/ItemGroup';
 import { Switch } from '@/components/ui/forms/Switch';
 import { Text } from '@/components/ui/text/Text';
 import { Modal } from '@/modal';
-import { useSettingMutable } from '@/sync/domains/state/storage';
 import { t } from '@/text';
 import { Typography } from '@/constants/Typography';
 import type { Machine } from '@/sync/domains/state/storageTypes';
@@ -58,8 +57,6 @@ export const McpServerBindingEditor = React.memo(function McpServerBindingEditor
 }>) {
     const { theme } = useUnistyles();
     const styles = stylesheet;
-    const [favoriteDirectoriesRaw, setFavoriteDirectoriesRaw] = useSettingMutable('favoriteDirectories');
-    const favoriteDirectories = Array.isArray(favoriteDirectoriesRaw) ? favoriteDirectoriesRaw : [];
     const selectedTargetSummary = React.useMemo(
         () => describeBindingTarget(props.binding.target, props.machines),
         [props.binding.target, props.machines],
@@ -114,8 +111,6 @@ export const McpServerBindingEditor = React.memo(function McpServerBindingEditor
                 machinePlatform: machine?.metadata?.platform ?? null,
                 selectedPath: target.workspaceRoot,
                 onSelectPath: setWorkspaceRoot,
-                favoriteDirectories,
-                onChangeFavoriteDirectories: setFavoriteDirectoriesRaw,
             },
             chrome: {
                 kind: 'card',
@@ -124,7 +119,7 @@ export const McpServerBindingEditor = React.memo(function McpServerBindingEditor
             },
             closeOnBackdrop: true,
         });
-    }, [favoriteDirectories, props.binding.target, props.machines, setFavoriteDirectoriesRaw, setWorkspaceRoot]);
+    }, [props.binding.target, props.machines, setWorkspaceRoot]);
 
     const openOverrides = React.useCallback(() => {
         Modal.show({
