@@ -82,7 +82,7 @@ describe('BasePermissionHandler push notifications', () => {
     expect(sendToAllDevicesAsync).toHaveBeenCalledWith(
       'Fix checkout bug',
       expect.stringContaining('OpenAI Codex CLI asks permission to use Write'),
-      expect.objectContaining({ sessionId: 'session-test', requestId: 'perm-1' }),
+      expect.objectContaining({ sessionId: 'session-test', requestId: 'perm-1', occurrenceId: expect.any(String) }),
     );
 
     // Resolve to avoid dangling pending promises.

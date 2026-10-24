@@ -19,6 +19,7 @@ const runtime = vi.hoisted(() => ({
 const ops = vi.hoisted(() => ({
     sessionDeny: vi.fn(async (..._args: unknown[]) => {}),
     sessionAbort: vi.fn(async (..._args: unknown[]) => {}),
+    sessionRespondToPermission: vi.fn(async (..._args: unknown[]) => ({ ok: true })),
 }));
 
 const sessionStore = vi.hoisted(() => ({
@@ -48,6 +49,7 @@ vi.mock('@/sync/ops', () => ({
     sessionAllowWithPermissionUpdates: vi.fn(async () => {}),
     sessionDeny: ops.sessionDeny,
     sessionAbort: ops.sessionAbort,
+    sessionRespondToPermission: ops.sessionRespondToPermission,
 }));
 
 vi.mock('@/sync/sync', () => ({
@@ -80,6 +82,26 @@ vi.mock('@/agents/catalog/permissionUiCopy', () => ({
 }));
 
 describe('PermissionFooter stop action', () => {
+    it('routes a Stop decision and abort through one account-capturing operation', async () => {
+        runtime.setProtocol('claude', 'claude');
+        ops.sessionRespondToPermission.mockClear();
+        ops.sessionDeny.mockClear();
+        ops.sessionAbort.mockClear();
+
+        const { PermissionFooter } = await import('../permissions/PermissionFooter');
+        const screen = await renderScreen(React.createElement(PermissionFooter, {
+            permission: { id: 'p-original-account', status: 'pending' },
+            sessionId: 's1', toolName: 'Read', toolInput: { filepath: '/etc/hosts' }, metadata: { flavor: 'claude' },
+        }));
+        await pressTestInstanceAsync(screen.findByProps({ testID: 'permission-footer.stop' }), 'stop button');
+
+        expect(ops.sessionRespondToPermission).toHaveBeenCalledWith({
+            sessionId: 's1', request: { id: 'p-original-account', approved: false, decision: 'abort' },
+            permissionModeAfterStop: 'read-only',
+        });
+        expect(ops.sessionDeny).not.toHaveBeenCalled();
+        expect(ops.sessionAbort).not.toHaveBeenCalled();
+    });
     it.each([
         {
             name: 'codex decision protocol',
@@ -127,6 +149,7 @@ describe('PermissionFooter stop action', () => {
         runtime.setProtocol(protocol, flavor);
         ops.sessionDeny.mockClear();
         ops.sessionAbort.mockClear();
+        ops.sessionRespondToPermission.mockClear();
         syncMock.sendMessage.mockClear();
         sessionStore.updateSessionPermissionMode.mockClear();
 
@@ -145,19 +168,19 @@ describe('PermissionFooter stop action', () => {
 
         await pressTestInstanceAsync(stopButton, 'stop button');
 
-        expect(ops.sessionDeny).toHaveBeenCalledTimes(1);
-        expect(ops.sessionDeny.mock.calls[0]?.[4]).toBe(expectedDecision);
         if (shouldAbortRun) {
-            expect(ops.sessionAbort).toHaveBeenCalledTimes(1);
+            expect(ops.sessionRespondToPermission).toHaveBeenCalledWith({
+                sessionId: 's1', request: { id: 'p1', approved: false, decision: expectedDecision },
+                ...(shouldSetReadOnlyMode ? { permissionModeAfterStop: 'read-only' } : {}),
+            });
+            expect(ops.sessionDeny).not.toHaveBeenCalled();
         } else {
-            expect(ops.sessionAbort).not.toHaveBeenCalled();
+            expect(ops.sessionDeny).toHaveBeenCalledTimes(1);
+            expect(ops.sessionDeny.mock.calls[0]?.[4]).toBe(expectedDecision);
+            expect(ops.sessionRespondToPermission).not.toHaveBeenCalled();
         }
-        if (shouldSetReadOnlyMode) {
-            expect(sessionStore.updateSessionPermissionMode).toHaveBeenCalledTimes(1);
-            expect(sessionStore.updateSessionPermissionMode).toHaveBeenCalledWith('s1', 'read-only');
-        } else {
-            expect(sessionStore.updateSessionPermissionMode).not.toHaveBeenCalled();
-        }
+        expect(ops.sessionAbort).not.toHaveBeenCalled();
+        expect(sessionStore.updateSessionPermissionMode).not.toHaveBeenCalled();
         if (shouldSendFollowupPrompt) {
             expect(syncMock.sendMessage).toHaveBeenCalledTimes(1);
             if (shouldSetReadOnlyMode) {
@@ -176,6 +199,7 @@ describe('PermissionFooter stop action', () => {
         runtime.setProtocol('codexDecision', 'opencode');
         ops.sessionDeny.mockClear();
         ops.sessionAbort.mockClear();
+        ops.sessionRespondToPermission.mockClear();
 
         const { PermissionFooter } = await import('../permissions/PermissionFooter');
         const screen = await renderScreen(React.createElement(PermissionFooter, {
@@ -191,7 +215,8 @@ describe('PermissionFooter stop action', () => {
             await Promise.all([stop.props.onPress(), stop.props.onPress()]);
         });
 
-        expect(ops.sessionDeny).toHaveBeenCalledTimes(1);
-        expect(ops.sessionAbort).toHaveBeenCalledTimes(1);
+        expect(ops.sessionRespondToPermission).toHaveBeenCalledTimes(1);
+        expect(ops.sessionDeny).not.toHaveBeenCalled();
+        expect(ops.sessionAbort).not.toHaveBeenCalled();
     });
 });

@@ -16,5 +16,14 @@ describe('AgentStateSchema', () => {
         if (!parsed.success) return;
         expect(parsed.data.controlledByUser).toBe(true);
     });
+
+    it('retains a permission request occurrence identity from the CLI projection', () => {
+        const parsed = AgentStateSchema.parse({
+            requests: {
+                reused: { tool: 'Write', arguments: { path: '/file' }, createdAt: 10, occurrenceId: 'occurrence-2' },
+            },
+        });
+        expect(parsed.requests?.reused?.occurrenceId).toBe('occurrence-2');
+    });
 });
 

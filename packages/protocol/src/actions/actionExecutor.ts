@@ -55,6 +55,7 @@ import {
   type SpawnConfigOptionValue,
 } from './sessionSpawnConfigOptions.js';
 import { EXECUTION_RUN_ACTION_PERMISSION_MODES } from './executionRunActionPermissionMode.js';
+import { isRpcError, readRpcErrorCode } from '../rpcErrors.js';
 
 /**
  * Resolve the canonical run-start model + config-option selection from an agent-facing action
@@ -1229,6 +1230,15 @@ function normalizeActionExecutorThrownError(error: unknown): Readonly<{ errorCod
         : typeof anyErr?.message === 'string'
           ? String(anyErr.message)
         : '';
+
+  const rpcErrorCode = isRpcError(error) ? readRpcErrorCode(error)?.trim() : undefined;
+  if (rpcErrorCode) {
+    return {
+      errorCode: rpcErrorCode,
+      error: message || rpcErrorCode,
+      ...(details !== undefined ? { details } : {}),
+    };
+  }
 
   if (rawCode && SessionControlErrorCodeSchema.safeParse(rawCode).success) {
     return {

@@ -5,7 +5,9 @@ import {
     readSessionOrganizationTagLabel,
 } from '@/sync/domains/session/organization';
 import { getStorage } from '@/sync/domains/state/storageStore';
+import { createSessionOrganizationMutationPublisher } from '@/sync/domains/session/organization/mutationScope';
 import type { SessionOrganizationTag } from '@happier-dev/protocol';
+import { t } from '@/text';
 
 import { setSessionTagAssignments } from './setSessionTagAssignments';
 import { fetchAndApplySessionOrganizationSnapshot } from './fetchSessionOrganizationSnapshot';
@@ -71,10 +73,18 @@ export async function setSessionTagLabels(params: Readonly<{
         return;
     }
 
-    let currentTags = readCurrentServerTags(params.serverId);
+    const withCurrentAccount = createSessionOrganizationMutationPublisher(params);
+    let currentTags: SessionOrganizationTag[] = [];
+    const readCurrentTags = async () => {
+        const current = await withCurrentAccount(() => {
+            currentTags = readCurrentServerTags(params.serverId);
+        });
+        if (!current) throw new Error(t('errors.operationFailed'));
+    };
+    await readCurrentTags();
     const firstResolution = resolveExistingTagsByLabel({ labels, tags: currentTags });
     if (firstResolution.missingLabels.length > 0) {
-        await fetchAndApplySessionOrganizationSnapshot({
+        const refreshed = await fetchAndApplySessionOrganizationSnapshot({
             credentials: params.credentials,
             serverId: params.serverId,
             serverUrl: params.serverUrl,
@@ -84,7 +94,8 @@ export async function setSessionTagLabels(params: Readonly<{
                 includeLabels: false,
             },
         });
-        currentTags = readCurrentServerTags(params.serverId);
+        if (!refreshed) throw new Error(t('errors.operationFailed'));
+        await readCurrentTags();
     }
 
     const usedIds = new Set(currentTags.map((tag) => tag.tagId));

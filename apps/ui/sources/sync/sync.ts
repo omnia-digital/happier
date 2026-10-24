@@ -4166,8 +4166,8 @@ class Sync {
         if (organizationSnapshotRefresh) {
             if (hasLastKnownOrganizationSnapshot) {
                 void organizationSnapshotRefresh
-                    .then(() => {
-                        if (!shouldContinue()) return;
+                    .then((applied) => {
+                        if (!applied || !shouldContinue()) return;
                         persistSessionOrganizationWarmCache(
                             activeServerId,
                             warmCacheAccountId,
