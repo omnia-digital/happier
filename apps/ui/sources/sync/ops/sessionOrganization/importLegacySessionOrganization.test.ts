@@ -1,4 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { TokenStorage } from '@/auth/storage/tokenStorage';
+import { setServerProfileIdentityForUrl, upsertServerProfile } from '@/sync/domains/server/serverProfiles';
+
+const serverId = 'srv_legacy_import';
+const serverUrl = 'https://server-a.example';
+const credentials = { token: `header.${Buffer.from(JSON.stringify({ sub: 'account-a' })).toString('base64')}.signature`, secret: 'secret-a' };
 
 const apiMocks = vi.hoisted(() => ({
     fetchAccountEncryptionMode: vi.fn(),
@@ -23,14 +29,18 @@ vi.mock('@/sync/api/session/sessionOrganizationApi', async (importOriginal) => {
 
 describe('importLegacySessionOrganization op', () => {
     beforeEach(async () => {
+        upsertServerProfile({ serverUrl });
+        setServerProfileIdentityForUrl(serverUrl, serverId);
+        vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue(credentials);
         apiMocks.fetchAccountEncryptionMode.mockReset();
         apiMocks.fetchAccountEncryptionMode.mockResolvedValue({ mode: 'plain', updatedAt: 0 });
         apiMocks.fetchSessionOrganizationSnapshot.mockReset();
         apiMocks.importLegacySessionOrganization.mockReset();
         apiMocks.setSessionTagAssignments.mockReset();
         const { getStorage } = await import('@/sync/domains/state/storageStore');
-        getStorage().getState().clearSessionOrganizationForServer('server-a');
+        getStorage().getState().clearSessionOrganizationForServer(serverId);
     });
+    afterEach(() => vi.restoreAllMocks());
 
     it('imports the legacy batch with tag assignments atomically and refreshes organization state', async () => {
         const { getStorage } = await import('@/sync/domains/state/storageStore');
@@ -68,9 +78,9 @@ describe('importLegacySessionOrganization op', () => {
         });
 
         await importLegacySessionOrganization({
-            credentials: { token: 'token-a', secret: 'secret-a' },
-            serverId: 'server-a',
-            serverUrl: 'https://server-a.example',
+            credentials,
+            serverId,
+            serverUrl,
             request: {
                 pins: [{ sessionId: 's1', sortKey: '00000001' }],
                 folders: [],
@@ -87,7 +97,7 @@ describe('importLegacySessionOrganization op', () => {
         });
 
         expect(apiMocks.importLegacySessionOrganization).toHaveBeenCalledWith(expect.objectContaining({
-            serverUrl: 'https://server-a.example',
+            serverUrl,
             request: expect.objectContaining({
                 pins: [{ sessionId: 's1', sortKey: '00000001' }],
                 tagAssignments: [{ sessionId: 's1', tagIds: ['tag-a'] }],
@@ -101,7 +111,7 @@ describe('importLegacySessionOrganization op', () => {
         }));
 
         const state = getStorage().getState();
-        expect(state.sessionOrganizationPinsBySessionKey['server-a:s1']?.sortKey).toBe('00000001');
-        expect(state.sessionOrganizationTagAssignmentsBySessionKey['server-a:s1']).toEqual(['tag-a']);
+        expect(state.sessionOrganizationPinsBySessionKey[`${serverId}:s1`]?.sortKey).toBe('00000001');
+        expect(state.sessionOrganizationTagAssignmentsBySessionKey[`${serverId}:s1`]).toEqual(['tag-a']);
     });
 });

@@ -11,6 +11,8 @@ export async function setSessionAttentionStanding(params: Readonly<{
     sessionId: string;
     standing?: boolean | null;
     remindAt?: number | null;
+    /** Recheck a caller-owned precondition after the publisher's credential read. */
+    precondition?: () => boolean;
 }>): Promise<void> {
     const publish = createSessionOrganizationMutationPublisher(params);
     const previousStanding = getStorage().getState().sessionOrganizationAttentionStandingsBySessionKey[`${params.serverId}:${params.sessionId}`];
@@ -24,9 +26,15 @@ export async function setSessionAttentionStanding(params: Readonly<{
                     ? null
                     : { sessionId: params.sessionId, standing: previousStanding.standing, updatedAt: Date.now() };
     let recordId: string | null = null;
+    let shouldSend = true;
     await publish(() => {
+        if (params.precondition && !params.precondition()) {
+            shouldSend = false;
+            return;
+        }
         recordId = getStorage().getState().setSessionAttentionStandingOptimistic(params.serverId, params.sessionId, optimisticStanding);
     });
+    if (!shouldSend) return;
     try {
         const response = await setSessionAttentionStandingApi({
             credentials: params.credentials,

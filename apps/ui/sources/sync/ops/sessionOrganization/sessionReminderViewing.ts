@@ -29,16 +29,22 @@ export function beginSessionReminderViewing(
         fireAndForget((async () => {
             const resolved = await resolveSessionOrganizationMutationScope(serverId);
             if (!resolved.ok) throw new Error(`Cannot clear due session reminder: missing ${resolved.reason}`);
-            // Credential lookup yields: preserve replacements and another pane's acknowledgement,
-            // but accept an unchanged reminder whose object was refreshed by a server snapshot.
-            const current = store.getState();
-            const latestRecord = current.sessionOrganizationAttentionStandingsBySessionKey[sessionKey];
-            if (current.settings.sessionReminderAutoClearOnOpen === false
-                || !latestRecord
-                || latestRecord.remindAt !== record.remindAt
-                || latestRecord.standing !== record.standing
-                || latestRecord.updatedAt !== record.updatedAt) return;
-            await setSessionAttentionStanding({ ...resolved.scope, sessionId, remindAt: null });
+            // Both scope lookup and publication yield. Compare the opened reminder at the
+            // publication point so a replacement or another pane's clear cannot trigger a write.
+            await setSessionAttentionStanding({
+                ...resolved.scope,
+                sessionId,
+                remindAt: null,
+                precondition: () => {
+                    const current = store.getState();
+                    const latestRecord = current.sessionOrganizationAttentionStandingsBySessionKey[sessionKey];
+                    return current.settings.sessionReminderAutoClearOnOpen !== false
+                        && latestRecord !== undefined
+                        && latestRecord.remindAt === record.remindAt
+                        && latestRecord.standing === record.standing
+                        && latestRecord.updatedAt === record.updatedAt;
+                },
+            });
         })(), { tag: 'sessionReminderViewing.clearDueReminder' });
     };
 
