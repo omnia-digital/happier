@@ -200,7 +200,7 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             // Keyboard navigation follows the new visible row order after the selected row moves.
             const ordered = await visibleIds(); const next = ordered[ordered.indexOf(idle) + 1];
             if (!next) throw new Error('Expected a next visible fixture session');
-            await page.getByTestId('session-ticket-open').focus();
+            await page.getByTestId('sessions-list-keyboard-zone').first().focus();
             await page.keyboard.press('Alt+ArrowDown');
             await expect(page).toHaveURL(new RegExp('/session/' + next));
             await row(idle).click();
