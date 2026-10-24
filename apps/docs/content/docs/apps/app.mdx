@@ -47,7 +47,7 @@ For detailed Relay profile, switching, and multi-daemon guidance, see [Features 
 ## Session sidebar views
 
 <Callout type="info">
-  These list views and repository associations are available in the unreleased
+  These list views, status organization and repository associations are available in the unreleased
   Omnia development fork. They are not a stable-release announcement. Isolated
   browser checks pass; native two-machine and restart acceptance is still pending.
 </Callout>
@@ -87,6 +87,19 @@ Agent that only reports connectivity can remain idle after a turn. Unread state,
 the selected session and machine identity keep their separate indicators. These
 status and appearance changes have isolated browser coverage; native visual and
 restart acceptance is still pending.
+
+The **View options** menu also offers **Sort by Agent Status** and **Sort by
+Ticket Status**, independently of **Group by Agent Status** and **Group by Ticket
+Status**. For example, group by ticket status while placing working sessions first
+inside each group. Ticket groups keep custom workflow names and use reported
+workflow order when available; distinct workspaces and workflows stay separate.
+
+Pinned stays separate, and folders contain their own status groups. Status
+grouping replaces machine or repository headings while preserving the saved
+layout and manual order. Choose **Use saved layout** and **Custom order** to
+return to manual dragging. Confirmed unlinked sessions appear under **No ticket**.
+Loading, stale and unavailable ticket reads keep explicit states. Ticket
+organization needs the configured reader described below.
 
 ## Session ticket links
 
