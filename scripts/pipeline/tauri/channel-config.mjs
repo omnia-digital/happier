@@ -4,9 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizePublicReleaseChannel } from '../release/lib/public-release-rings.mjs';
-import { DEFAULT_MINISIGN_PUBLIC_KEY, UPSTREAM_TAURI_UPDATER_PUBLIC_KEY, getMinisignPublicKeyIdentity } from '@happier-dev/release-runtime/minisign';
+import { DEFAULT_MINISIGN_PUBLIC_KEY, FIRST_PARTY_RELEASE_REPOSITORY, UPSTREAM_TAURI_UPDATER_PUBLIC_KEY, getMinisignPublicKeyIdentity } from '@happier-dev/release-runtime/minisign';
 
-export const FORK_RELEASE_REPOSITORY = 'omnia-digital/happier';
+export const FORK_RELEASE_REPOSITORY = FIRST_PARTY_RELEASE_REPOSITORY;
 /**
  * Validate the effective Tauri release config, after the channel overlay. This
  * is source preparation only: Apple registration and ownership of the signing
