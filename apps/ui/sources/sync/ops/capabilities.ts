@@ -57,7 +57,7 @@ export type MachineCapabilitiesDetectResult =
 export async function machineCapabilitiesDetect(
     machineId: string,
     request: CapabilitiesDetectRequest,
-    options?: { timeoutMs?: number; serverId?: string | null },
+    options?: { timeoutMs?: number; serverId?: string | null; accountId?: string | null },
 ): Promise<MachineCapabilitiesDetectResult> {
     try {
         const timeoutMs = typeof options?.timeoutMs === 'number' ? options.timeoutMs : 2500;
@@ -67,6 +67,7 @@ export async function machineCapabilitiesDetect(
                 method: RPC_METHODS.CAPABILITIES_DETECT,
                 payload: request,
                 serverId: options?.serverId,
+                accountId: options?.accountId,
                 timeoutMs,
             }),
             new Promise<{ error: string }>((resolve) => {

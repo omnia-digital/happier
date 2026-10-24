@@ -255,6 +255,8 @@ import { resolveConnectedServiceProjectionSignature } from '@/sync/domains/conne
 import { resolveConnectedServiceQuotaProfileRefForSession } from './resolveConnectedServiceQuotaProfileRefForSession';
 import { usePathname, useRouter } from 'expo-router';
 import * as React from 'react';
+import { SessionTicketHeader } from '@/components/sessions/tickets/SessionTicketHeader';
+import { readSessionTicketAssociation } from '@happier-dev/protocol';
 import { useMemo } from 'react';
 import { Keyboard, Platform, Pressable, View, type LayoutChangeEvent, useWindowDimensions } from 'react-native';
 import { ActivitySpinner, HERO_SPINNER_SIZE } from '@/components/ui/feedback/ActivitySpinner';
@@ -1828,6 +1830,9 @@ export const SessionView = React.memo((props: SessionViewProps) => {
         );
         return {
             title: getSessionName(headerSession),
+            ticketElement: headerSession.metadata && (hasSessionWriteAccess(headerSession.accessLevel) || readSessionTicketAssociation(headerSession.metadata))
+                ? <SessionTicketHeader sessionId={sessionId} metadata={headerSession.metadata} accessLevel={headerSession.accessLevel} serverId={currentSessionRouteServerId} />
+                : undefined,
             subtitle: sessionWorkspacePresentation?.displayTitle || undefined,
             machineLabel: sessionWorkspacePresentation?.machineLabel ?? null,
             machineId: sessionWorkspacePresentation?.machineId ?? null,
@@ -1944,7 +1949,7 @@ export const SessionView = React.memo((props: SessionViewProps) => {
             )}
 
             {/* Content based on state */}
-            <View style={{ flex: 1, paddingTop: showTopHeader ? safeAreaTopInset + headerHeight : 0 }}>
+            <View style={{ flex: 1, paddingTop: showTopHeader ? safeAreaTopInset + headerHeight + (headerProps.ticketElement ? 32 : 0) : 0 }}>
                 {!session && authSurfaceState ? (
                     <SessionAuthRecoveryFallback message={authSurfaceState.message} />
                 ) : routeHydrationRetrying ? (
