@@ -105,6 +105,33 @@ Sol/high passes7focused and UI types. Root now records real computed heading met
 screenshots because the existing web font-scaling stylesheet uses important rules; the next Chrome
 run must establish actual consumed styling. Retain1parentvisualiteration,0Solimplementationfailures.
 
+The final large/dark/narrow Chrome assertion exposed actual double scaling:14px became23.7px at
+130%, instead of18.2px. `a86ab0609a` fixes the canonical Text/TextInput web path: Unistyles compiles
+both plain and registered styles into CSS classes, so their metrics stay at base size and the root
+CSS owner scales once. Native and direct-DOM textarea/markdown consumers retain JavaScript scaling.
+The owner case is RED before correction and19focused checks plus UI types pass afterward. Exact
+Chrome now passes1/1 in37.8s (`oh66-appearance-scaling-fixed-chrome.log`); all3headings measure18.2px,
+weight500, rgb(239,239,239) in the dark1000px view. Root inspects both final screenshots; the original
+sidebar density, larger text, reload, minimal-row bounds and real navigation assertions also pass.
+Retain1failedSol implementation review cycle and1parentvisualiteration for this refinement.
+
+The adjacent text/forms/editor run first reports435pass/1fail because the native input assertion
+uses a suite-wide web Platform mock. `834b90950c` scopes that assertion to native and restores the
+mock, retaining its20px expectation. Root reruns the entire same lane:46files/436tests pass
+(`oh66-text-owner-final-broader.log`). Independent source review finds no new scaling regression;
+the web opt-out prop's global-CSS limitation predates this change and remains a separate gap.
+No settings/persistence owner or reader/writer changed. Independent per-area overrides still await
+the pending choice; native acceptance remains open. Both optional0.3siblings are absent, so the
+grouping/semantics/localization and single-scaling intents have a blocked destination disposition;
+no0.3port is claimed and no checkout, aliases or release artifacts were created.
+
+The final affected list/Appearance/Inbox rerun also passes126files/687tests in122.72s
+(`oh66-appearance-final-broader.log`) after the shared Text change. This supersedes the preceding
+680-test gate for the current source; the older whole-root success remains evidence for its prior
+batch rather than a new whole-root result. Published docs content/type checks and47tests pass for
+the unchanged App guide. The current preview is pushed; OH-66 remains In Progress for the open
+product choice and native gate, with only its0.3port blocked on the missing checkout.
+
 Actual routed Luna/high is implementing the existing issue under project-wide completion authorization. Discovery found that shared `Text` already consumes the app's `uiFontScale`, while fixed sidebar session heights ignore `uiItemDensity`. Reuse these existing Preferences rather than add overlapping controls. Apply spacing and larger-text geometry through the canonical row-height owner, retaining account-level detail modes and covering session drafts, section/navigation text and all group views. Preserve the selection rail, status, machine identity and actions. Mounted RED reproduces identical 84px height under comfortable and compact app density. Source implementation and isolated Chrome acceptance continue; native visual/restart acceptance remains pending. The initial accidental broad test command was canceled and reported unrelated spawn/Inbox failures; focused passes do not supersede the historical full-root failed result.
 
 Source checkpoint `089272a6f1` is pushed. Author focused checks pass 41/41 and integrated UI typecheck passes; root independently passes 25 rendered session/draft cases (`/tmp/happier-oh66-preferences-root-independent.log`). Root advisory caught draft settings wired to the readable-phone predicate instead of the height resolver; the corrected consumed-path draft case now passes. Actual Preferences-control-to-sidebar browser validation remains in progress. No new preference or persistence format was introduced.
