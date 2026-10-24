@@ -7,6 +7,13 @@ const scope = { serverId: 'home', accountId: 'account' };
 const snapshot = { ticket: association.ticket, status: { id: 'custom', name: 'Q/A - Dev', order: 4 }, fetchedAt: 1234 };
 
 describe('session ticket live projection', () => {
+    it('publishes only inside the canonical final Home credential guard', async () => {
+        const commit = vi.fn(async (_action: () => void) => false);
+        const entry = createSessionTicketStatusEntry(scope, association, async () => snapshot, () => true, commit);
+        await entry.refresh();
+        expect(commit).toHaveBeenCalledOnce();
+        expect(entry.getSnapshot().snapshot).toBeNull();
+    });
     it('shares concurrent reads and preserves custom provider status/order for both consumers', async () => {
         let complete!: (value: unknown) => void;
         const transport: TicketReaderTransport = vi.fn(() => new Promise((resolve) => { complete = resolve; }));
