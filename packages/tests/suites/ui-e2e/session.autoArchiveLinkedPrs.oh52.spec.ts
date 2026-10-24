@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
 import { delimiter, join, resolve } from 'node:path';
 
 import {
@@ -96,6 +97,7 @@ exit 1
             daemon = await authenticateAndStartDaemon({ page, testDir: suiteDir, cliHomeDir: cliHome, serverUrl: server.baseUrl, uiBaseUrl: baseUrl,
                 extraEnv: {
                     HOME: providerHome, TMPDIR: providerHome, GH_CONFIG_DIR: providerHome,
+                    COREPACK_HOME: process.env.COREPACK_HOME ?? join(homedir(), '.cache/node/corepack'),
                     PATH: `${fixtureBin}${delimiter}${process.env.PATH ?? ''}`,
                     OH52_GH_READ_LOG: ghLog,
                     HAPPIER_E2E_CLI_SNAPSHOT_NODE_MODULES_MODE: 'symlink',
