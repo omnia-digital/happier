@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { RpcError } from '@happier-dev/protocol/rpcErrors';
 import { settingsDefaults } from '@/sync/domains/settings/settings';
 import { registerStorageStateReader } from '@/sync/domains/state/storageStateReaderBridge';
 import { useVoiceActivityStore } from '@/voice/activity/voiceActivityStore';
@@ -21,7 +22,7 @@ const routerNavigate = vi.fn();
 const refreshFromActiveServer = vi.fn(async () => {});
 const applySettingsLocal = vi.fn();
 const sendSessionMessageWithServerScope = vi.fn();
-const sessionRpcWithServerScope = vi.fn();
+const sessionRpc = vi.fn();
 const teleportVoiceAgentToSessionRoot = vi.fn();
 
 function createBaseState(): any {
@@ -179,11 +180,14 @@ function createBaseState(): any {
           shareDeviceInventory: true,
         },
       },
-      recentMachinePaths: [
-        { machineId: 'm1', path: '/tmp/s1' },
-        { machineId: 'm1', path: '/tmp/s2' },
-      ],
+      machinePathPreferencesByTargetV1: {
+        [JSON.stringify(['server-a', 'account-a', 'm1'])]: {
+          favorites: [],
+          recentPaths: ['/tmp/s1', '/tmp/s2'],
+        },
+      },
     },
+    profileScope: { serverId: 'server-a', accountId: 'account-a' },
   };
 }
 
@@ -191,12 +195,12 @@ let state: any = createBaseState();
 const readMockStorageState = () => ({ ...state, applySettingsLocal });
 
 vi.mock('@/sync/domains/state/storage', async () => {
-    const { createStorageModuleStub } = await import('@/dev/testkit/mocks/storage');
-    return createStorageModuleStub({
+  const { createStorageModuleStub } = await import('@/dev/testkit/mocks/storage');
+  return createStorageModuleStub({
     storage: {
-    getState: () => ({ ...state, applySettingsLocal }),
-  },
-});
+      getState: () => ({ ...state, applySettingsLocal }),
+    },
+  });
 });
 
 vi.mock('@/sync/ops', () => ({
@@ -223,8 +227,8 @@ vi.mock('@/sync/runtime/orchestration/serverScopedRpc/serverScopedSessionSendMes
   sendSessionMessageWithServerScope: (args: any) => sendSessionMessageWithServerScope(args),
 }));
 
-vi.mock('@/sync/runtime/orchestration/serverScopedRpc/serverScopedSessionRpc', () => ({
-  sessionRpcWithServerScope: (args: any) => sessionRpcWithServerScope(args),
+vi.mock('@/sync/api/session/apiSocket', () => ({
+  apiSocket: { sessionRPC: (...args: unknown[]) => sessionRpc(...args) },
 }));
 
 vi.mock('@/voice/agent/teleportVoiceAgentToSessionRoot', () => ({
@@ -294,7 +298,7 @@ describe('voice tool handlers', () => {
     ensureSessionVisibleForMessageRoute.mockReset();
     refreshSessionMessages.mockReset();
     sendSessionMessageWithServerScope.mockReset();
-    sessionRpcWithServerScope.mockReset();
+    sessionRpc.mockReset();
     executionRunStart.mockReset();
     executionRunList.mockReset();
     executionRunGet.mockReset();
@@ -431,10 +435,12 @@ describe('voice tool handlers', () => {
   });
 
   it('disambiguates duplicate path labels with human-readable path tails', async () => {
-    state.settings.recentMachinePaths = [
-      { machineId: 'm1', path: '/Users/leeroy/workspaces/apps/leeroy' },
-      { machineId: 'm1', path: '/Users/leeroy/workspaces/docs/leeroy' },
-    ];
+    state.settings.machinePathPreferencesByTargetV1 = {
+      [JSON.stringify(['server-a', 'account-a', 'm1'])]: {
+        favorites: [],
+        recentPaths: ['/Users/leeroy/workspaces/apps/leeroy', '/Users/leeroy/workspaces/docs/leeroy'],
+      },
+    };
     state.sessions = {
       ...state.sessions,
       s3: {
@@ -470,10 +476,10 @@ describe('voice tool handlers', () => {
 
   it('lists only the requested machine paths when another machine shares the same collapsed label', async () => {
     state.settings.voice.privacy.shareDeviceInventory = true;
-    state.settings.recentMachinePaths = [
-      { machineId: 'm1', path: '/Users/leeroy' },
-      { machineId: 'm1_alias', path: '/Users/leeroy' },
-    ];
+    state.settings.machinePathPreferencesByTargetV1 = {
+      [JSON.stringify(['server-a', 'account-a', 'm1'])]: { favorites: [], recentPaths: ['/Users/leeroy'] },
+      [JSON.stringify(['server-a', 'account-a', 'm1_alias'])]: { favorites: [], recentPaths: ['/Users/leeroy'] },
+    };
     state.machines = {
       ...state.machines,
       m1_alias: { id: 'm1_alias', metadata: { host: 'a-host' } },
@@ -672,7 +678,7 @@ describe('voice tool handlers', () => {
     const result = await tools.processPermissionRequest({ decision: 'allow' });
 
     expect(JSON.parse(result)).toMatchObject({ ok: false, errorCode: 'multiple_permission_requests' });
-    expect(sessionRpcWithServerScope).not.toHaveBeenCalled();
+    expect(sessionRpc).not.toHaveBeenCalled();
   });
 
   it('targets only permission requests when a user action is also pending', async () => {
@@ -680,7 +686,7 @@ describe('voice tool handlers', () => {
       req_permission: { id: 'req_permission', tool: 'Bash', kind: 'permission' },
       req_question: { id: 'req_question', tool: 'AskUserQuestion', kind: 'user_action' },
     };
-    sessionRpcWithServerScope.mockResolvedValue({ ok: true });
+    sessionRpc.mockResolvedValue({ ok: true });
 
     const { createVoiceToolHandlers } = await import('./handlers');
     const tools = createVoiceToolHandlers({ resolveSessionId: (explicit) => (explicit ? (explicit as any) : 's1') });
@@ -688,15 +694,11 @@ describe('voice tool handlers', () => {
     const result = await tools.processPermissionRequest({ decision: 'allow' });
 
     expect(JSON.parse(result)).toMatchObject({ ok: true });
-    expect(sessionRpcWithServerScope).toHaveBeenCalledWith({
-      sessionId: 's1',
-      method: 'permission',
-      payload: { id: 'req_permission', approved: true },
-    });
+    expect(sessionRpc).toHaveBeenCalledWith('s1', 'permission', { id: 'req_permission', approved: true }, expect.any(Object));
   });
 
   it('allows explicit requestId selection', async () => {
-    sessionRpcWithServerScope.mockResolvedValue({ ok: true });
+    sessionRpc.mockResolvedValue({ ok: true });
 
     const { createVoiceToolHandlers } = await import('./handlers');
     const tools = createVoiceToolHandlers({ resolveSessionId: (explicit) => (explicit ? (explicit as any) : 's1') });
@@ -704,11 +706,7 @@ describe('voice tool handlers', () => {
     const result = await tools.processPermissionRequest({ decision: 'allow', requestId: 'req_b' });
 
     expect(JSON.parse(result)).toMatchObject({ ok: true });
-    expect(sessionRpcWithServerScope).toHaveBeenCalledWith({
-      sessionId: 's1',
-      method: 'permission',
-      payload: { id: 'req_b', approved: true },
-    });
+    expect(sessionRpc).toHaveBeenCalledWith('s1', 'permission', { id: 'req_b', approved: true }, expect.any(Object));
     expect(trackPermissionResponse).toHaveBeenCalledWith(true);
   });
 
@@ -716,14 +714,18 @@ describe('voice tool handlers', () => {
     state.sessions.s1.agentState.requests = {
       req_b: { id: 'req_b', tool: 'Bash', kind: 'permission' },
     };
-    sessionRpcWithServerScope.mockResolvedValue({ ok: false, errorCode: 'permission_request_not_found', errorMessage: 'permission_request_not_found' });
+    sessionRpc.mockRejectedValue(new RpcError('Permission request is no longer pending', 'permission_request_not_found'));
 
     const { createVoiceToolHandlers } = await import('./handlers');
     const tools = createVoiceToolHandlers({ resolveSessionId: (explicit) => (explicit ? (explicit as any) : 's1') });
 
     const result = await tools.processPermissionRequest({ decision: 'allow', requestId: 'req_b' });
 
-    expect(JSON.parse(result)).toMatchObject({ ok: false, errorCode: 'permission_request_not_found' });
+    expect(JSON.parse(result)).toMatchObject({
+      ok: false,
+      errorCode: 'permission_request_not_found',
+      errorMessage: 'Permission request is no longer pending',
+    });
     expect(trackPermissionResponse).not.toHaveBeenCalled();
   });
 
@@ -751,7 +753,7 @@ describe('voice tool handlers', () => {
         },
       },
     ];
-    sessionRpcWithServerScope.mockResolvedValue({ ok: true });
+    sessionRpc.mockResolvedValue({ ok: true });
 
     const { createVoiceToolHandlers } = await import('./handlers');
     const tools = createVoiceToolHandlers({ resolveSessionId: (explicit) => (explicit ? (explicit as any) : 's1') });
@@ -759,11 +761,9 @@ describe('voice tool handlers', () => {
     const result = await tools.processPermissionRequest({ decision: 'allow' });
 
     expect(JSON.parse(result)).toMatchObject({ ok: true, sessionId: 's1', requestId: 'req_permission' });
-    expect(sessionRpcWithServerScope).toHaveBeenCalledWith({
-      sessionId: 's1',
-      method: 'permission',
-      payload: { id: 'req_permission', approved: true },
-    });
+    expect(sessionRpc).toHaveBeenCalledWith(
+      's1', 'permission', { id: 'req_permission', approved: true }, expect.any(Object),
+    );
   });
 
   it('does not select pending requests from an inactive session', async () => {
@@ -773,7 +773,7 @@ describe('voice tool handlers', () => {
     };
     state.sessions.s2.agentState.requests = {};
     state.sessions.sys_voice.agentState.requests = {};
-    sessionRpcWithServerScope.mockResolvedValue({ ok: true });
+    sessionRpc.mockResolvedValue({ ok: true });
 
     const { createVoiceToolHandlers } = await import('./handlers');
     const tools = createVoiceToolHandlers({ resolveSessionId: (explicit) => (explicit ? (explicit as any) : 's1') });
@@ -781,7 +781,7 @@ describe('voice tool handlers', () => {
     const result = await tools.processPermissionRequest({ decision: 'allow' });
 
     expect(JSON.parse(result)).toMatchObject({ ok: false, errorCode: 'no_permission_request', sessionId: 's1' });
-    expect(sessionRpcWithServerScope).not.toHaveBeenCalled();
+    expect(sessionRpc).not.toHaveBeenCalled();
   });
 
   it('prefers the transcript-backed permission id over a matching agentState request id alias', async () => {
@@ -824,7 +824,7 @@ describe('voice tool handlers', () => {
         },
       },
     ];
-    sessionRpcWithServerScope.mockResolvedValue({ ok: true });
+    sessionRpc.mockResolvedValue({ ok: true });
 
     const { createVoiceToolHandlers } = await import('./handlers');
     const tools = createVoiceToolHandlers({ resolveSessionId: (explicit) => (explicit ? (explicit as any) : 's1') });
@@ -836,11 +836,9 @@ describe('voice tool handlers', () => {
       sessionId: 's1',
       requestId: 'acp-fs-write:64154962-012d-4d95-8211-b65855cc7476',
     });
-    expect(sessionRpcWithServerScope).toHaveBeenCalledWith({
-      sessionId: 's1',
-      method: 'permission',
-      payload: { id: 'acp-fs-write:64154962-012d-4d95-8211-b65855cc7476', approved: true },
-    });
+    expect(sessionRpc).toHaveBeenCalledWith(
+      's1', 'permission', { id: 'acp-fs-write:64154962-012d-4d95-8211-b65855cc7476', approved: true }, expect.any(Object),
+    );
   });
 
   it('hydrates the resolved target session before failing a permission response', async () => {
@@ -869,7 +867,7 @@ describe('voice tool handlers', () => {
         },
       ];
     });
-    sessionRpcWithServerScope.mockResolvedValue({ ok: true });
+    sessionRpc.mockResolvedValue({ ok: true });
 
     const { createVoiceToolHandlers } = await import('./handlers');
     const tools = createVoiceToolHandlers({ resolveSessionId: (explicit) => (explicit ? (explicit as any) : 's1') });
@@ -906,7 +904,7 @@ describe('voice tool handlers', () => {
         },
       ];
     });
-    sessionRpcWithServerScope.mockResolvedValue({ ok: true });
+    sessionRpc.mockResolvedValue({ ok: true });
 
     const { createVoiceToolHandlers } = await import('./handlers');
     const tools = createVoiceToolHandlers({ resolveSessionId: (explicit) => (explicit ? (explicit as any) : 's1') });
@@ -922,7 +920,7 @@ describe('voice tool handlers', () => {
       req_question: { id: 'req_question', tool: 'AskUserQuestion', kind: 'user_action' },
       req_permission: { id: 'req_permission', tool: 'Bash', kind: 'permission' },
     };
-    sessionRpcWithServerScope.mockResolvedValue({ ok: true });
+    sessionRpc.mockResolvedValue({ ok: true });
 
     const { createVoiceToolHandlers } = await import('./handlers');
     const tools = createVoiceToolHandlers({ resolveSessionId: (explicit) => (explicit ? (explicit as any) : 's1') });
@@ -932,11 +930,9 @@ describe('voice tool handlers', () => {
     });
 
     expect(JSON.parse(result)).toMatchObject({ ok: true });
-    expect(sessionRpcWithServerScope).toHaveBeenCalledWith({
-      sessionId: 's1',
-      method: 'permission',
-      payload: { id: 'req_question', approved: true, answers: { 'Continue?': 'Yes' } },
-    });
+    expect(sessionRpc).toHaveBeenCalledWith(
+      's1', 'permission', { id: 'req_question', approved: true, answers: { 'Continue?': 'Yes' } }, expect.any(Object),
+    );
   });
 
   it('maps allow-or-deny decisions onto AskUserQuestion option labels when no structured answers are provided', async () => {
@@ -960,7 +956,7 @@ describe('voice tool handlers', () => {
         },
       },
     };
-    sessionRpcWithServerScope.mockResolvedValue({ ok: true });
+    sessionRpc.mockResolvedValue({ ok: true });
 
     const { createVoiceToolHandlers } = await import('./handlers');
     const tools = createVoiceToolHandlers({ resolveSessionId: (explicit) => (explicit ? (explicit as any) : 's1') });
@@ -970,15 +966,13 @@ describe('voice tool handlers', () => {
     });
 
     expect(JSON.parse(result)).toMatchObject({ ok: true, sessionId: 's1', requestId: 'req_question' });
-    expect(sessionRpcWithServerScope).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sessionId: 's1',
-        method: 'session.structuredQuestion.respond.v1',
-        payload: {
-          id: 'req_question',
-          structuredAnswersV1: { 'May I create QA_DENY_PATH.txt?': [`No, don't create it`] },
-        },
-      }),
+    expect(sessionRpc).toHaveBeenCalledWith(
+      's1', 'session.structuredQuestion.respond.v1',
+      {
+        id: 'req_question',
+        structuredAnswersV1: { 'May I create QA_DENY_PATH.txt?': [`No, don't create it`] },
+      },
+      expect.any(Object),
     );
   });
 
@@ -986,7 +980,7 @@ describe('voice tool handlers', () => {
     state.sessions.s1.agentState.requests = {
       req_exit_plan: { id: 'req_exit_plan', tool: 'ExitPlanMode', kind: 'user_action' },
     };
-    sessionRpcWithServerScope.mockResolvedValue({ ok: true });
+    sessionRpc.mockResolvedValue({ ok: true });
 
     const { createVoiceToolHandlers } = await import('./handlers');
     const tools = createVoiceToolHandlers({ resolveSessionId: (explicit) => (explicit ? (explicit as any) : 's1') });
@@ -997,22 +991,21 @@ describe('voice tool handlers', () => {
     });
 
     expect(JSON.parse(result)).toMatchObject({ ok: true });
-    expect(sessionRpcWithServerScope).toHaveBeenCalledWith({
-      sessionId: 's1',
-      method: 'permission',
-      payload: {
+    expect(sessionRpc).toHaveBeenCalledWith(
+      's1', 'permission', {
         id: 'req_exit_plan',
         approved: false,
         reason: 'The plan needs another pass before exiting plan mode.',
       },
-    });
+      expect.any(Object),
+    );
   });
 
   it('surfaces a user-action response failure when the scoped RPC returns ok false', async () => {
     state.sessions.s1.agentState.requests = {
       req_question: { id: 'req_question', tool: 'AskUserQuestion', kind: 'user_action' },
     };
-    sessionRpcWithServerScope.mockResolvedValue({ ok: false, errorCode: 'permission_request_not_found', errorMessage: 'permission_request_not_found' });
+    sessionRpc.mockRejectedValue(new RpcError('Permission request is no longer pending', 'permission_request_not_found'));
 
     const { createVoiceToolHandlers } = await import('./handlers');
     const tools = createVoiceToolHandlers({ resolveSessionId: (explicit) => (explicit ? (explicit as any) : 's1') });
@@ -1021,7 +1014,11 @@ describe('voice tool handlers', () => {
       answers: [{ question: 'Continue?', answer: 'Yes' }],
     });
 
-    expect(JSON.parse(result)).toMatchObject({ ok: false, errorCode: 'permission_request_not_found' });
+    expect(JSON.parse(result)).toMatchObject({
+      ok: false,
+      errorCode: 'permission_request_not_found',
+      errorMessage: 'Permission request is no longer pending',
+    });
   });
 
   it('answers a transcript-backed user-action request in the resolved session', async () => {
@@ -1048,7 +1045,7 @@ describe('voice tool handlers', () => {
         },
       },
     ];
-    sessionRpcWithServerScope.mockResolvedValue({ ok: true });
+    sessionRpc.mockResolvedValue({ ok: true });
 
     const { createVoiceToolHandlers } = await import('./handlers');
     const tools = createVoiceToolHandlers({ resolveSessionId: (explicit) => (explicit ? (explicit as any) : 's1') });
@@ -1058,11 +1055,9 @@ describe('voice tool handlers', () => {
     });
 
     expect(JSON.parse(result)).toMatchObject({ ok: true, sessionId: 's1', requestId: 'req_question' });
-    expect(sessionRpcWithServerScope).toHaveBeenCalledWith({
-      sessionId: 's1',
-      method: 'permission',
-      payload: { id: 'req_question', approved: true, answers: { 'Continue?': 'Yes' } },
-    });
+    expect(sessionRpc).toHaveBeenCalledWith(
+      's1', 'permission', { id: 'req_question', approved: true, answers: { 'Continue?': 'Yes' } }, expect.any(Object),
+    );
   });
 
   it('refreshes the resolved target session messages before failing a user-action response', async () => {
@@ -1091,7 +1086,7 @@ describe('voice tool handlers', () => {
         },
       ];
     });
-    sessionRpcWithServerScope.mockResolvedValue({ ok: true });
+    sessionRpc.mockResolvedValue({ ok: true });
 
     const { createVoiceToolHandlers } = await import('./handlers');
     const tools = createVoiceToolHandlers({ resolveSessionId: (explicit) => (explicit ? (explicit as any) : 's1') });
@@ -1118,7 +1113,7 @@ describe('voice tool handlers', () => {
         },
       };
     });
-    sessionRpcWithServerScope.mockResolvedValue({ ok: true });
+    sessionRpc.mockResolvedValue({ ok: true });
 
     const { createVoiceToolHandlers } = await import('./handlers');
     const tools = createVoiceToolHandlers({ resolveSessionId: (explicit) => (explicit ? (explicit as any) : 's1') });
