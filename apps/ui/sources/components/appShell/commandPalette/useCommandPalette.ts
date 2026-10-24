@@ -91,13 +91,19 @@ export function useCommandPalette(
         return filteredCategories.flatMap(cat => cat.commands);
     }, [filteredCategories]);
 
+    useEffect(() => {
+        setSelectedIndex((previous) => Math.min(Math.max(previous, 0), Math.max(allCommands.length - 1, 0)));
+    }, [allCommands.length]);
+
     const handleKeyPress = useCallback((key: string) => {
         switch(key) {
             case 'Escape':
                 onClose();
                 break;
             case 'ArrowDown':
-                setSelectedIndex(prev => Math.min(prev + 1, allCommands.length - 1));
+                if (allCommands.length > 0) {
+                    setSelectedIndex(prev => Math.min(prev + 1, allCommands.length - 1));
+                }
                 break;
             case 'ArrowUp':
                 setSelectedIndex(prev => Math.max(prev - 1, 0));

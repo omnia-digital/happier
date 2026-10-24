@@ -127,4 +127,20 @@ describe('CommandPalette session search through the real scoped session-list sto
         await act(async () => { input.props.onChangeText('nothing-matches'); });
         expect(screen.findAllByType(SelectableRow)).toHaveLength(0);
     });
+
+    it('keeps Enter ready when an older match arrives after an empty result', async () => {
+        publishRows([makeRow('recent', 'Recent Work', 20)]);
+        const navigateToSession = vi.fn();
+        const { CommandPalette } = await import('./CommandPalette');
+        const screen = await renderScreen(<CommandPalette commands={[]} navigateToSession={navigateToSession} onClose={vi.fn()} />);
+        const input = screen.findByType('TextInput');
+
+        await act(async () => { input.props.onChangeText('older'); });
+        expect(screen.findAllByType(SelectableRow)).toHaveLength(0);
+        await act(async () => { input.props.onKeyPress({ nativeEvent: { key: 'ArrowDown' } }); });
+        await act(async () => { publishRows([makeRow('older', 'Older Research', 1)]); });
+        expect(screen.findAllByType(SelectableRow).map((row) => row.props.title)).toEqual(['Older Research']);
+        await act(async () => { input.props.onKeyPress({ nativeEvent: { key: 'Enter' } }); });
+        expect(navigateToSession).toHaveBeenCalledWith('older', { serverId: activeServerId });
+    });
 });
