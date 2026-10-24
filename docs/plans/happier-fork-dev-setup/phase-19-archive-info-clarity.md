@@ -11,3 +11,7 @@ Accepted isolated Chrome r5 shows an archived session with a gray `online` detai
 - [ ] 🔴 Run affected checks/types and the canonical isolated Chrome workflow, inspect final captures, then commit/push exact source/test/plan paths for root review.
 
 Use actual Astra/high, retaining cumulative OH-52 2failedSol/0Astra. No daily app, hosted account, real provider, native hotkey or cleanup action. Root owns Linear/tasks/phase9; worker owns this phase and coordinated UI/fixture source. Phase17 source and r5 evidence stay preserved.
+
+## Execution evidence
+
+The real info header now has a stable test ID, with no behavior change yet. Existing composed Chrome fixture asserts header suppression after archive and reload, retained status for inactive unarchived/unknown sessions, and actual subtitle scroll dimensions so hidden older-host guidance cannot pass merely by existing in DOM text. Soft presentation assertions allow both regressions to be observed in one run while preserving every prior archive/history/owner/preference assertion. Packages/tests typecheck passed before the RED run; production behavior correction is pending.

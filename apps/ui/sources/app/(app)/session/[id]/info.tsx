@@ -1015,7 +1015,7 @@ function SessionInfoContent({ session, sessionServerId, sourceMachineIdForHandof
                         }}>
                             {sessionName}
                         </Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+                        <View testID="session-info-header-status" style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
                             <StatusDot
                                 color={sessionStatus.statusDotColor}
                                 isPulsing={sessionStatus.isPulsing}
