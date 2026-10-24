@@ -1237,6 +1237,9 @@ const SessionItemContent = React.memo(
                 else setMoreMenuOpen(true);
                 return;
             }
+            setShortcutSubmenuId(null);
+            if (isNativeMobile) setContextMenuOpen(false);
+            else setMoreMenuOpen(false);
             await (isNativeMobile ? handleContextMenuSelect : handleMoreMenuSelect)(itemId, options);
         }, [handleContextMenuSelect, handleMoreMenuSelect, isNativeMobile, setContextMenuOpen]);
         React.useEffect(() => {
