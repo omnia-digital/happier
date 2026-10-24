@@ -7865,6 +7865,14 @@ export const de: TranslationStructure = {
     },
 
 settingsSession: {
+    archiveAutomation: {
+        title: 'Automatische Archivierung',
+        footer: 'Diese Optionen werden mit diesem Home-Konto synchronisiert. Die automatische Prüfung läuft, solange Happier geöffnet ist. Lokale Bereinigung benötigt Host-Unterstützung; Remote-Branches bleiben erhalten. Beim Wiederherstellen des Archivs werden entfernte lokale Ressourcen nicht wiederhergestellt.',
+        autoArchiveTitle: 'Nach Zusammenführung verknüpfter PRs archivieren',
+        autoArchiveSubtitle: 'Archiviert inaktive Sitzungen nur, wenn alle verknüpften PRs aktuell als zusammengeführt bestätigt sind.',
+        cleanupTitle: 'Lokale Ressourcen nach Archivierung bereinigen',
+        cleanupSubtitle: 'Speichere deine Auswahl für eine sichere Bereinigung auf dem zuständigen Rechner. In dieser Version ist die Bereinigung noch nicht verfügbar.',
+    },
     terminalHostTitle: 'Terminal-Host für neue Sitzungen',
     terminalHostNone: 'Kein Terminal-Host',
     newSessionDraftEntry: {

@@ -8298,6 +8298,14 @@ export const es: TranslationStructure = {
     },
 
 settingsSession: {
+    archiveAutomation: {
+        title: 'Archivo automático',
+        footer: 'Estas opciones se sincronizan con esta cuenta Home. La comprobación automática funciona mientras Happier está abierto. La limpieza local requiere compatibilidad del equipo; las ramas remotas permanecen. Desarchivar no restaura los recursos locales eliminados.',
+        autoArchiveTitle: 'Archivar al fusionarse las PR vinculadas',
+        autoArchiveSubtitle: 'Archiva sesiones inactivas solo cuando se verifica que todas las PR vinculadas están fusionadas.',
+        cleanupTitle: 'Limpiar recursos locales tras archivar',
+        cleanupSubtitle: 'Guarda tu elección para una limpieza segura en el equipo propietario. La limpieza aún no está disponible en esta versión.',
+    },
     terminalHostTitle: 'Terminal para nuevas sesiones',
     terminalHostNone: 'Sin terminal',
     newSessionDraftEntry: {

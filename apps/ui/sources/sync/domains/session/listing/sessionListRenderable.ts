@@ -273,7 +273,7 @@ export function buildSessionListRenderableMetadata(metadata: Metadata | null | u
     })();
     return {
         sessionTicketV1: readSessionTicketAssociation(metadata),
-        sessionPullRequestsV1: pullRequestLinks.length > 0 ? { v: 1, links: pullRequestLinks } : null,
+        sessionPullRequestsV1: pullRequestLinks.length > 0 ? { v: 1, links: [...pullRequestLinks] } : null,
         name: typeof metadata.name === 'string' ? metadata.name : undefined,
         summaryText: typeof metadata.summary?.text === 'string' ? metadata.summary.text : null,
         path: typeof metadata.path === 'string' ? metadata.path : '',
