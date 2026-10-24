@@ -18,7 +18,7 @@ Discover the smallest host-owned safe cleanup implementation for phase10 slice3 
 
 - [x] 🟢 Source corridor, ownership inventory and reachable gaps (source-only, 2026-10-23).
 - [x] 🟢 Concrete implementation seams and deciding test recipe, with source references.
-- [ ] 🔴 Independent root review and integration with slice2 constraints.
+- [x] 🟢 Independent root source-map review accepts the corrected child/server boundary at `6700744af1`; phase14 owns custody implementation and slice2 retains the confirmed-archive scheduling seam. This acceptance does not establish actual custody, exhaustive process visibility or safe deletion.
 
 Routing selected actual Sol/high, zero failed cycles. Root owns Linear, tasks and phase9; the bounded worker owns this report. Full OH-52 remains In Progress.
 
