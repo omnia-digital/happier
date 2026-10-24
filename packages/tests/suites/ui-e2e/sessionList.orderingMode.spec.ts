@@ -572,8 +572,10 @@ test.describe('ui e2e: session list ordering mode', () => {
     await setSessionOrganizationPin({ baseUrl: server.baseUrl, token, sessionId: pinnedSessionId, pinned: true });
 
     await page.setViewportSize({ width: 1440, height: 900 });
-    await mutateUiE2eLocalSettings({ page, settingsPatch: { themePreference: 'light' } });
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 300_000);
+    await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+    await mutateUiE2eLocalSettings({ page, settingsPatch: { themePreference: 'light' } });
+    await page.reload({ waitUntil: 'domcontentloaded' });
     await waitForInitialAppUi({ page, timeoutMs: 180_000 });
 
     const pinnedRow = page.getByTestId(`session-list-item-${pinnedSessionId}`);
