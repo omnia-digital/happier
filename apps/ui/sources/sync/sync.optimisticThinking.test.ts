@@ -491,7 +491,7 @@ describe('sync.sendMessage optimistic thinking', () => {
         expect(user?.createdAt).toBe(storedCreatedAt);
     });
 
-    it('keeps an accepted outgoing row unconfirmed when old-server history is unavailable', async () => {
+    it.each(['unavailable', 'wrong-message', 'invalid-time'] as const)('keeps an accepted outgoing row unconfirmed when old-server history is %s', async (failure) => {
         const sessionId = 's_old_ack_history_unavailable';
         const localId = 'local-history-unavailable';
         storage.getState().applySessions([createSession({ sessionId })]);
@@ -501,8 +501,19 @@ describe('sync.sendMessage optimistic thinking', () => {
         const { sync } = await import('./sync');
         sync.encryption = encryption;
         vi.spyOn(apiSocket, 'sessionRPC').mockRejectedValue(createRpcMethodNotAvailableError());
-        vi.spyOn(apiSocket, 'request').mockRejectedValue(new Error('history unavailable'));
         const ack: MessageAckResponse = { ok: true, id: 'm-history-unavailable', seq: 1, localId, didWrite: true };
+        if (failure === 'unavailable') {
+            vi.spyOn(apiSocket, 'request').mockRejectedValue(new Error('history unavailable'));
+        } else {
+            mockStoredLookupResponse(Response.json({
+                message: {
+                    id: ack.id,
+                    seq: ack.seq,
+                    localId: failure === 'wrong-message' ? 'another-local-id' : localId,
+                    createdAt: failure === 'invalid-time' ? -1 : Date.now() - 120_000,
+                },
+            }));
+        }
         // The generic socket boundary returns the older server's ACK shape.
         const emitWithAck: SyncMessageTransport['emitWithAck'] = async <T>() => ack as T;
         sync.setMessageTransport({ emitWithAck, send: vi.fn() });
