@@ -580,6 +580,10 @@ request occurrence and a matching saved server/account credential. The settlemen
 the occurrence and returns an application acknowledgement. Missing identity, mismatched accounts,
 stale occurrences or an unsupported method never downgrade to request-id-only approval: the user
 opens the app to review. Existing UI-local alerts omit these identities and remain review-only.
+The cached response returned at app startup is also review-only, even when both identities are
+present. Only a fresh foreground callback can submit a decision. The installed Expo Notifications
+0.32.16 async getter wraps a synchronous native snapshot; the hook classifies that snapshot before
+subscribing, ignores late callbacks after disposal, and reports read/clear failures by default.
 Delayed denial recovery checks the original occurrence before changing local request state, and
 Stop retains its captured account scope.
 

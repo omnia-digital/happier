@@ -57,6 +57,10 @@ receiving account and the specific pending request. Happier checks both before r
 notifications and local alerts without those details open the app for review; a replaced request or
 changed account cannot be approved through the old notification.
 
+A saved notification response restored when the app starts always opens the request for review.
+It cannot resend an earlier approval or denial. A fresh foreground action can still respond when
+the account and pending request match.
+
 If an older relay cannot route a notification response for a shared session, review the request in
 the app instead. Ordinary in-app permission controls remain available with older CLIs. These checks
 do not add app-closed background actions; native delivery and action callbacks still need acceptance
