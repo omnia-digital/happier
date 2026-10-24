@@ -214,7 +214,7 @@ intended handler before relying on external login/deep links in the fork app.
 The follow-up desktop integration includes committed product work through
 `e658d2b024`: indexed palette content search, ticket linking/status, machine
 monitoring, independent status grouping/sorting, and session PR links. The
-source is assembled in a temporary worktree owned by `happier-dev` and reaches
+source is assembled in a temporary worktree owned by the local `happier-dev` clone and reaches
 `dev` through its pull request. Uncommitted work in the old checkout is not part
 of this build. Follow-up product corrections `e48cf42d9b`, `f8b50926ef`,
 and `9ce7947ee6` are included for offscreen metadata demand, GitHub PR identity
