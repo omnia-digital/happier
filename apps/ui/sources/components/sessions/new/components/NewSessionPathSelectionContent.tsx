@@ -59,8 +59,9 @@ export type NewSessionPathSelectionContentProps = Readonly<{
     /**
      * RUX-3: when provided, every path row (favorites, recents, in-folder)
      * exposes a star-toggle button that flips its membership in
-     * `favoriteDirectories`. Receives the absolute path. The orchestrator is
-     * responsible for persisting via `useSettingMutable('favoriteDirectories')`.
+     * `favoriteDirectories`. Receives the absolute path; the orchestrator
+     * persists it for the verified selected machine through the scoped
+     * machine-path preference owner.
      */
     onToggleFavoriteDirectory?: (absolutePath: string) => void;
     /**
