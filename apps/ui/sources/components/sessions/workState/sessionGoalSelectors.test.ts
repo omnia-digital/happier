@@ -83,6 +83,16 @@ describe('resolveSidebarGoalItem', () => {
         expect(resolveSidebarGoalItem(snapshot([item({ id: 'goal:cleared', kind: 'goal', status: 'cancelled' })]))).toBeNull();
         expect(resolveSidebarGoalItem(snapshot([item({ id: 'todo:1', kind: 'todo', status: 'active' })]))).toBeNull();
     });
+
+    it('shows the actual active goal when a retained terminal goal is still the edit target', () => {
+        const active = item({ id: 'goal:active', kind: 'goal', status: 'active', backendId: 'codex' });
+        for (const status of ['complete', 'cancelled'] as const) {
+            const retained = item({ id: 'goal:retained', kind: 'goal', status, backendId: 'claude' });
+            const state = snapshot([retained, active], retained.id);
+            expect(resolveCurrentGoalItem(state)).toEqual(active);
+            expect(resolveSidebarGoalItem(state)).toEqual(active);
+        }
+    });
 });
 
 describe('goal control visibility', () => {
