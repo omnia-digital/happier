@@ -408,7 +408,13 @@ export class ApiMachineClient {
         registerScmHandlers(this.rpcHandlerManager, machineRpcWorkingDirectory, {
             accessPolicy: filesystemAccessPolicy,
             connectedAccounts: deps?.connectedAccounts,
+            getCreationCustodyScope: () => this.getWorktreeCreationOwnerScope(),
         });
+    }
+
+    async getWorktreeCreationOwnerScope(): Promise<{ homeDir: string; accountId: string; machineId: string } | null> {
+        const accountId = await this.getAccountId();
+        return accountId ? { homeDir: configuration.happyHomeDir, accountId, machineId: this.machine.id } : null;
     }
 
     setRPCHandlers({

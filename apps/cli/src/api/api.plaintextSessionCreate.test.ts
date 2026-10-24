@@ -72,6 +72,7 @@ describe('ApiClient.getOrCreateSession (plaintext sessions)', () => {
 
       return {
         data: {
+          resolution: 'created',
           session: {
             id: 'session-plain',
             seq: 1,
@@ -104,6 +105,7 @@ describe('ApiClient.getOrCreateSession (plaintext sessions)', () => {
 
     expect(session).not.toBeNull();
     expect(session?.metadata.path).toBe('/tmp');
+    expect(session?.creationResolution).toBe('created');
   });
 
   it('uses account mode to decide plaintext session creation when policy is optional', async () => {

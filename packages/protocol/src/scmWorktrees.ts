@@ -18,6 +18,7 @@ export const ScmWorktreeCreateRequestSchema = ScmRequestBaseSchema.extend({
   displayName: z.string().min(1).optional(),
   baseRef: z.string().min(1).optional(),
   branchMode: z.enum(['new', 'existing']).optional(),
+  launchNonce: z.string().trim().min(1).optional(),
 });
 export type ScmWorktreeCreateRequest = z.infer<typeof ScmWorktreeCreateRequestSchema>;
 

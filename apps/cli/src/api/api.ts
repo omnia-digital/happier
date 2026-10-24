@@ -492,6 +492,8 @@ export class ApiClient {
 
         logger.debug(`Session created/loaded: ${response.data.session.id} (tag: ${opts.tag})`)
         let raw = response.data.session;
+        const creationResolution = response.data.resolution === 'created' || response.data.resolution === 'existing'
+          ? response.data.resolution : undefined;
 
       const sessionEncryptionMode: 'e2ee' | 'plain' =
         (raw as any)?.encryptionMode === 'plain' ? 'plain' : 'e2ee';
@@ -535,6 +537,7 @@ export class ApiClient {
 	      if (sessionEncryptionMode === 'plain') {
 	        return {
 	          id: raw.id,
+	          ...(creationResolution ? { creationResolution } : {}),
 	          seq: raw.seq,
 	          ...readSessionRuntimeActivityProjectionBoundary(raw),
 	          encryptionMode: 'plain' as const,
@@ -548,6 +551,7 @@ export class ApiClient {
 	      if (!sessionEncryptionKey || !encryptionVariant) throw new Error('Session encryption material is unavailable');
 	      return {
 	        id: raw.id,
+	        ...(creationResolution ? { creationResolution } : {}),
 	        seq: raw.seq,
 	        ...readSessionRuntimeActivityProjectionBoundary(raw),
 	        encryptionMode: 'e2ee' as const,

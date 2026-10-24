@@ -114,6 +114,7 @@ describe('materializeNewSessionCheckout', () => {
             machineId: 'machine-1',
             scope: { serverId: 'home', accountId: 'account' },
             selectedPath: '/repo/packages/app',
+            launchNonce: 'launch-attempt-1',
             checkoutCreationDraft: {
                 kind: 'git_worktree',
                 displayName: 'feature/auth',
@@ -126,6 +127,7 @@ describe('materializeNewSessionCheckout', () => {
             machineId: 'machine-1',
             scope: { serverId: 'home', accountId: 'account' },
             path: '/repo/packages/app',
+            launchNonce: 'launch-attempt-1',
             displayName: 'feature/auth',
             baseRef: null,
             branchMode: 'existing',

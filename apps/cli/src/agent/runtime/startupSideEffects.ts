@@ -21,6 +21,7 @@ type DaemonReportDeps = {
 
 type InFlightDaemonSessionReport = {
     latestMetadata: Metadata;
+    creationResolution?: 'created' | 'existing';
     revision: number;
     requireDaemonAck: boolean;
     onReportedCallbacks: Set<NonNullable<DaemonReportDeps['onReported']>>;
@@ -175,6 +176,7 @@ async function runDaemonSessionReport(
                 sessionId,
                 metadata,
                 { timeoutMs: boundedAttemptTimeoutMs },
+                state.creationResolution,
             );
             if (!result?.error) {
                 if (state.revision !== revision) continue;
@@ -217,12 +219,14 @@ async function runDaemonSessionReport(
 export function reportSessionToDaemonIfRunning(opts: {
     sessionId: string;
     metadata: Metadata;
+    creationResolution?: 'created' | 'existing';
     requireDaemonAck?: boolean;
 }, deps: DaemonReportDeps = {}): Promise<void> {
     const sessionId = opts.sessionId.trim();
     const existing = inFlightDaemonSessionReports.get(sessionId);
     if (existing) {
         existing.latestMetadata = opts.metadata;
+        if (!existing.creationResolution) existing.creationResolution = opts.creationResolution;
         existing.revision += 1;
         existing.requireDaemonAck ||= opts.requireDaemonAck === true;
         if (deps.onReported) existing.onReportedCallbacks.add(deps.onReported);
@@ -231,6 +235,7 @@ export function reportSessionToDaemonIfRunning(opts: {
 
     const state: InFlightDaemonSessionReport = {
         latestMetadata: opts.metadata,
+        creationResolution: opts.creationResolution,
         revision: 0,
         requireDaemonAck: opts.requireDaemonAck === true,
         onReportedCallbacks: new Set(deps.onReported ? [deps.onReported] : []),

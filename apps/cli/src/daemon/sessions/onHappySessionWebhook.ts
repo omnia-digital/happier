@@ -174,7 +174,11 @@ export function createOnHappySessionWebhook(params: Readonly<{
   readCredentialsFn?: typeof readCredentials;
   onTrackedSessionReady?: (tracked: TrackedSession) => Promise<void> | void;
   onTrackedSessionReported?: (tracked: TrackedSession) => Promise<void> | void;
-}>): (sessionId: string, sessionMetadata: Metadata) => Promise<void> {
+  onTrackedSessionCreationReported?: (tracked: TrackedSession, report: Readonly<{
+    sessionId: string;
+    serverResolution?: 'created' | 'existing';
+  }>) => Promise<void> | void;
+}>): (sessionId: string, sessionMetadata: Metadata, serverResolution?: 'created' | 'existing') => Promise<void> {
   const {
     pidToTrackedSession,
     pidToAwaiter,
@@ -184,12 +188,13 @@ export function createOnHappySessionWebhook(params: Readonly<{
     readCredentialsFn = readCredentials,
     onTrackedSessionReady,
     onTrackedSessionReported,
+    onTrackedSessionCreationReported,
   } = params;
 
   const correlateTrackedReport = (pid: number, metadata: Metadata): TrackedSession | null =>
     correlateTrackedSessionReport({ pidToTrackedSession, pidToAwaiter, pid, metadata, getParentPidFn });
 
-  return async (sessionId: string, sessionMetadata: Metadata) => {
+  return async (sessionId: string, sessionMetadata: Metadata, serverResolution?: 'created' | 'existing') => {
     const normalizedPath = expandHomeDirPath(sessionMetadata.path, process.env);
     const normalizedMetadata =
       normalizedPath === sessionMetadata.path ? sessionMetadata : { ...sessionMetadata, path: normalizedPath };
@@ -267,6 +272,15 @@ export function createOnHappySessionWebhook(params: Readonly<{
         }
       }
       if (!isPlaceholderSessionId) {
+        if (trackedForPid.startedBy === 'daemon' && normalizedMetadata.startedBy === 'daemon'
+          && trackedForPid.happySessionId === sessionId) {
+          try {
+            void Promise.resolve(onTrackedSessionCreationReported?.(trackedForPid, { sessionId, serverResolution }))
+              .catch((error) => logger.debug('[DAEMON RUN] Worktree creation custody report failed', error));
+          } catch (error) {
+            logger.debug('[DAEMON RUN] Worktree creation custody report failed', error);
+          }
+        }
         // Best-effort report observers must not wait on strict startup reconciliation:
         // terminal-host serviceability is produced by this exact report and is independently useful.
         const reportObserverFailure = (error: unknown): void => {

@@ -73,6 +73,7 @@ export class RepoScmWorktreeService {
         displayName?: string | null;
         baseRef?: string | null;
         branchMode?: 'new' | 'existing';
+        launchNonce?: string;
     }>): Promise<ScmWorktreeCreateResponse> {
         const request = resolveRepoScmMachinePathRequest({ machineId: input.machineId, path: input.path, scope: input.scope });
         if (!request) {
@@ -90,6 +91,7 @@ export class RepoScmWorktreeService {
             displayName: input.displayName?.trim() || generateWorktreeName(),
             baseRef: input.baseRef?.trim() || undefined,
             branchMode: input.branchMode ?? 'new',
+            ...(input.launchNonce ? { launchNonce: input.launchNonce } : {}),
         }, input.scope);
     }
 

@@ -555,11 +555,12 @@ describe('initializeBackendRunSession', () => {
     const swappedSession = createSessionStub()
 
     const api = {
-      getOrCreateSession: async () => createSessionResponse('new-session', metadata, state),
+      getOrCreateSession: async () => ({ ...createSessionResponse('new-session', metadata, state), creationResolution: 'created' as const }),
       sessionSyncClient: () => initialSession,
     }
 
     const daemonReports: string[] = []
+    const creationResolutions: Array<string | undefined> = []
     const persisted: string[] = []
     let fallbackCount = 0
     let onSessionSwapCount = 0
@@ -592,6 +593,7 @@ describe('initializeBackendRunSession', () => {
         primeAgentStateForUiFn: () => {},
         reportSessionToDaemonIfRunningFn: async (opts) => {
           daemonReports.push(opts.sessionId)
+          creationResolutions.push(opts.creationResolution)
         },
         persistTerminalAttachmentInfoIfNeededFn: async (opts) => {
           persisted.push(opts.sessionId)
@@ -606,6 +608,7 @@ describe('initializeBackendRunSession', () => {
     expect(result.reportedSessionId).toBe('new-session')
     expect(result.session).toBe(initialSession)
     expect(daemonReports).toEqual(['new-session'])
+    expect(creationResolutions).toEqual(['created'])
     expect(persisted).toEqual(['new-session'])
     expect(fallbackCount).toBe(1)
     expect(onSessionSwapCount).toBe(0)
