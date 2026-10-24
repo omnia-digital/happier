@@ -231,11 +231,13 @@ test.describe('ui e2e: session action rail', () => {
         expect(assistantTimestampBox?.width).toBeGreaterThan(0);
         expect(assistantTimestampBox?.height).toBeGreaterThan(0);
         await testInfo.attach('stored-message-timestamps', {
-          body: JSON.stringify({ userTimestampText, assistantTimestampText, localMessageId: userMessageId, viewport: { width: 390, height: 844 }, uiFontScale: 1.5 }),
+          body: JSON.stringify({ userTimestampText, assistantTimestampText, transcriptRowId: userMessageId, viewport: { width: 390, height: 844 }, uiFontScale: 1.5 }),
           contentType: 'application/json',
         });
 
+        await userTimestamp.blur();
         await page.mouse.move(0, 0);
+        await page.screenshot({ path: testInfo.outputPath('message-timestamps-compact-large-text.png') });
         const storedMessagesResponse = page.waitForResponse((response) => {
           const url = new URL(response.url());
           return response.request().method() === 'GET'
