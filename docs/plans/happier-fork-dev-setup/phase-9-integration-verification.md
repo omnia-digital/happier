@@ -163,6 +163,23 @@ configured successor are still required; no full-suite green or stable-release v
 
 ### Earlier selective adoption evidence
 
+Pinned configured run6240 finishes exit1, preserving its complete durable log
+`oh4-root-unit-pinned-current.log`. Shared packages, all CLI shards/import-cycle checks and server
+pass. UI has one MCP picker fixture failure (missing captured settingsScope); Stack has13 failures
+among2075total,2059pass and3skip. Pushed fixture-only corrections retain the current owners: MCP
+`ac85bbbd02` passes7 with real home-aware preference assertions; Stack `8ff1f75fd5` passes18/3LinuxSkip
+by comparing physical paths and running VM broker cases only where that route exists; Stack
+`58dfb66f40` passes15 with explicit fake npm ownership, local-source default and fail-closed invalid
+owner. No updater/registry/provider write or production guard change occurred. Linux broker execution
+remains unvalidated here. The Stack worker disclosed using a forbidden hook-disabling commit option;
+inspection found no active hook, and all subsequent commands must remain plain. No history rewrite
+or test bypass was used to remedy that command-policy error.
+
+Root inspects the current exact diffs and continues the final whole-root gate. The local routing
+assessment remains RETRY Sol/high because that integrated evidence is still missing, not because
+the focused checks failed. Prior blocked OH69 counters are unaffected. Complete current typecheck
+evidence remains applicable except for the one newly typed UI fixture, whose UI lane is rerun.
+
 Whole-root typecheck now finishes exit0 at source59b801280d with the durable log above. The original
 unit process71413 finishes exit1. Fresh server Sharp reproduction fails under default Bun1.2.17;
 all4 cases pass under CI-pinned private Bun1.4.2, including a second run with inherited default
