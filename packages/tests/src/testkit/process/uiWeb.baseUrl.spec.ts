@@ -1,9 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { EventEmitter } from 'node:events';
 import { existsSync, unlinkSync, writeFileSync } from 'node:fs';
+
+const fixtureRepoRoot = vi.hoisted(() => ({ current: '' }));
+vi.mock('../paths', () => ({ repoRootDir: () => fixtureRepoRoot.current }));
 
 import { repoRootDir } from '../paths';
 
@@ -173,7 +176,10 @@ async function removePathWithRetries(path: string, options?: { timeoutMs?: numbe
 }
 
 describe('startUiWeb baseUrl resolution', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    fixtureRepoRoot.current = await mkdtemp(join(tmpdir(), 'happier-uiweb-repo-'));
+    await mkdir(join(fixtureRepoRoot.current, 'apps/ui/sources'), { recursive: true });
+    await writeFile(join(fixtureRepoRoot.current, 'apps/ui/sources/index.ts'), 'export const app = 1;\n', 'utf8');
     vi.resetModules();
     vi.useRealTimers();
     lastSpawnArgs = null;
@@ -184,6 +190,11 @@ describe('startUiWeb baseUrl resolution', () => {
     spawnStdoutText = null;
     spawnStderrText = null;
     spawnExitImmediately = false;
+  });
+
+  afterEach(async () => {
+    await removePathWithRetries(fixtureRepoRoot.current);
+    fixtureRepoRoot.current = '';
   });
 
   it('uses a shared export root directory by default', async () => {
@@ -369,11 +380,8 @@ describe('startUiWeb baseUrl resolution', () => {
   });
 
   it('rebuilds the exported web bundle when UI source files change under the same env', async () => {
-    const fixtureRoot = await mkdtemp(join(tmpdir(), 'happier-uiweb-source-root-'));
-    const markerPath = join(fixtureRoot, 'apps/ui/sources/marker.ts');
-    await mkdir(dirname(markerPath), { recursive: true });
+    const markerPath = join(repoRootDir(), 'apps/ui/sources/marker.ts');
     await writeFile(markerPath, 'export const marker = 1;\n', 'utf8');
-    vi.doMock('../paths', () => ({ repoRootDir: () => fixtureRoot }));
     const stops: Array<() => Promise<void>> = [];
     try {
       vi.resetModules();
@@ -404,9 +412,6 @@ describe('startUiWeb baseUrl resolution', () => {
       expect(runLoggedCalls).toHaveLength(2);
     } finally {
       for (const stop of stops) await stop();
-      vi.doUnmock('../paths');
-      vi.resetModules();
-      await rm(fixtureRoot, { recursive: true, force: true });
     }
   });
 
