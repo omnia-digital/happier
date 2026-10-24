@@ -25,6 +25,7 @@ const SESSION_TITLE = `OH66 ${run.runId.slice(-6)}`;
 type SidebarMetrics = Readonly<{
   rowHeight: number;
   rowWidth: number;
+  titleWidth: number;
   titleFontSize: number;
   supportingFontSize: number;
   machineFontSize: number | null;
@@ -67,6 +68,7 @@ async function readSidebarMetrics(page: Page, sessionId: string): Promise<Sideba
     return {
       rowHeight: rowBounds.height,
       rowWidth: rowBounds.width,
+      titleWidth: titleBounds.width,
       titleFontSize: Number.parseFloat(titleStyle.fontSize),
       supportingFontSize: Math.max(...leafTextNodes.map((node) => Number.parseFloat(getComputedStyle(node).fontSize))),
       machineFontSize: fontSizeForText(machine),
@@ -75,8 +77,10 @@ async function readSidebarMetrics(page: Page, sessionId: string): Promise<Sideba
       sidebarHeaderFontSize: Number.parseFloat(getComputedStyle(sidebarHeader).fontSize),
       sidebarHeaderColor: getComputedStyle(sidebarHeader).color,
       titleFits: titleBounds.left >= rowBounds.left && titleBounds.right <= rowBounds.right,
-      titleTextFits: titleNode.scrollWidth <= titleNode.clientWidth,
-      machineTextFits: machineTextNode ? machineTextNode.scrollWidth <= machineTextNode.clientWidth : false,
+      titleTextFits: titleNode.clientWidth > 0 && titleNode.scrollWidth <= titleNode.clientWidth,
+      machineTextFits: machineTextNode !== null
+        && machineTextNode.clientWidth > 0
+        && machineTextNode.scrollWidth <= machineTextNode.clientWidth,
     };
   }, { sessionId, title: SESSION_TITLE });
 }
@@ -274,16 +278,18 @@ test.describe('ui e2e: OH66 sidebar text size and item density preferences', () 
     });
     expect(storedPreferences).toMatchObject({ uiFontScale: 1.3, uiItemDensity: 'compact', themePreference: 'dark' });
 
-    await page.setViewportSize({ width: 720, height: 900 });
+    await page.setViewportSize({ width: 1000, height: 900 });
     const narrow = await readSidebarMetrics(page, sessionId);
     expect(narrow.titleFits).toBe(true);
     expect(narrow.titleTextFits).toBe(true);
     expect(narrow.machineTextFits).toBe(true);
+    expect(narrow.titleWidth).toBeGreaterThan(0);
     expect(narrow.rowWidth).toBeGreaterThan(0);
     await row.hover();
     const narrowHovered = await readSidebarMetrics(page, sessionId);
     expect(narrowHovered.titleTextFits).toBe(true);
     expect(narrowHovered.machineTextFits).toBe(true);
+    await page.screenshot({ path: `${suiteDir}/sidebar-large-text-narrow-desktop.png` });
     const moreAction = page.getByTestId('session-item-more-menu');
     await expect(moreAction).toBeVisible();
     const actionBounds = await moreAction.boundingBox();

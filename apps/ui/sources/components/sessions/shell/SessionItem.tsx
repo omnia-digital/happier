@@ -452,6 +452,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     sessionTitleRow: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         alignItems: 'center',
         marginBottom: 1,
         gap: 6,
@@ -478,6 +479,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     sessionTitle: {
         ...SESSION_LIST_ROW_TITLE_TEXT_METRICS.default,
         flex: 1,
+        minWidth: 96,
         ...Typography.default(),
         color: theme.colors.text.secondary,
     },
