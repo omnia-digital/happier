@@ -83,15 +83,37 @@ export async function resolveServerScopedSessionContext(params: Readonly<{
   });
 }
 
-/** Revalidate the captured Home/account before publishing an awaited scoped response. */
-export async function isServerScopedSessionContextCurrent(
-  context: Pick<Extract<ResolvedServerSessionRpcContext, { scope: 'scoped' }>,
-    'targetServerId' | 'targetServerUrl' | 'targetAccountId'>,
+type CapturedServerAccountContext = Pick<Extract<ResolvedServerSessionRpcContext, { scope: 'scoped' }>,
+  'targetServerId' | 'targetServerUrl' | 'targetAccountId'>;
+
+/** Revalidate the captured Home/account after awaited work. */
+export function isServerScopedSessionContextCurrent(context: CapturedServerAccountContext): Promise<boolean> {
+  return runWithCurrentServerScopedSessionContext(context, () => {});
+}
+
+/** Publish or emit synchronously with the final credential check, without another await gap. */
+export async function runWithCurrentServerScopedSessionContext(
+  context: CapturedServerAccountContext,
+  action: () => void,
 ): Promise<boolean> {
-  const credentials = await TokenStorage.getCredentialsForServerUrl(context.targetServerUrl, {
-    serverId: context.targetServerId,
-  });
-  const profile = getServerProfileById(context.targetServerId);
-  return !!profile && profile.serverUrl === context.targetServerUrl
-    && !!credentials && parseToken(credentials.token) === context.targetAccountId;
+  let credentialsChanged = false;
+  const unsubscribe = TokenStorage.subscribeCredentialChanges(() => { credentialsChanged = true; });
+  try {
+    let credentials;
+    do {
+      credentialsChanged = false;
+      credentials = await TokenStorage.getCredentialsForServerUrl(context.targetServerUrl, {
+        serverId: context.targetServerId,
+      });
+      // An in-flight storage read can return the preceding credentials. The credential
+      // owner tells us when to re-read; same-account token rotation remains valid.
+    } while (credentialsChanged);
+    const profile = getServerProfileById(context.targetServerId);
+    if (!profile || profile.serverUrl !== context.targetServerUrl
+      || !credentials || parseToken(credentials.token) !== context.targetAccountId) return false;
+    action();
+    return true;
+  } finally {
+    unsubscribe();
+  }
 }

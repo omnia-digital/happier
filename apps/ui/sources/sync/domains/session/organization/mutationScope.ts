@@ -1,5 +1,5 @@
 import { getStorage } from '@/sync/domains/state/storageStore';
-import { isServerScopedSessionContextCurrent } from '@/sync/runtime/orchestration/serverScopedRpc/resolveServerScopedSessionContext';
+import { runWithCurrentServerScopedSessionContext } from '@/sync/runtime/orchestration/serverScopedRpc/resolveServerScopedSessionContext';
 import { parseToken } from '@/utils/auth/parseToken';
 import { TokenStorage, type AuthCredentials } from '@/auth/storage/tokenStorage';
 import { areServerProfileIdentifiersEquivalent, getServerProfileById, resolveServerProfileScopeId } from '@/sync/domains/server/serverProfiles';
@@ -62,28 +62,18 @@ export function createSessionOrganizationMutationPublisher(params: Readonly<{
     const targetAccountId = parseToken(params.credentials.token);
     return async (publish) => {
         if (!targetServerUrl) return false;
-        let credentialsChanged = false;
-        const unsubscribe = TokenStorage.subscribeCredentialChanges(() => { credentialsChanged = true; });
-        try {
-            let current: boolean;
-            do {
-                credentialsChanged = false;
-                current = await isServerScopedSessionContextCurrent({
-                    targetServerId: params.serverId,
-                    targetServerUrl,
-                    targetAccountId,
-                });
-                // A storage read already in flight may return the preceding credentials.
-                // Re-read only when the canonical owner reported a change during that read.
-            } while (credentialsChanged);
-            if (!current) return false;
+        let published = false;
+        await runWithCurrentServerScopedSessionContext({
+            targetServerId: params.serverId,
+            targetServerUrl,
+            targetAccountId,
+        }, () => {
             const activeScope = getStorage().getState().profileScope;
             if (activeScope && areServerProfileIdentifiersEquivalent(activeScope.serverId, params.serverId)
-                && activeScope.accountId !== targetAccountId) return false;
+                && activeScope.accountId !== targetAccountId) return;
             publish();
-            return true;
-        } finally {
-            unsubscribe();
-        }
+            published = true;
+        });
+        return published;
     };
 }
