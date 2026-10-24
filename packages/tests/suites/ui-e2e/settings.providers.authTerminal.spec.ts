@@ -133,6 +133,25 @@ test.describe('ui e2e: provider settings auth status', () => {
       scriptPath: fakeCodexPath,
     });
 
+    const isolatedCliEnv: NodeJS.ProcessEnv = {
+      ...process.env,
+      CI: '1',
+      HOME: cliHomeDir,
+      USERPROFILE: cliHomeDir,
+      HAPPIER_HOME_DIR: cliHomeDir,
+      HAPPIER_DAEMON_SERVICE_USER_HOME_DIR: cliHomeDir,
+      HAPPIER_DAEMON_SERVICE_HAPPIER_HOME_DIR: cliHomeDir,
+      HAPPIER_CLI_DAEMON_INTEGRATION_BOOTSTRAP_AUTH: '0',
+      HAPPIER_DISABLE_CAFFEINATE: '1',
+      HAPPIER_VARIANT: 'dev',
+      HAPPIER_CODEX_PATH: fakeCodexExecutablePath,
+      HAPPIER_E2E_PROVIDER_USE_CLI_SOURCE_ENTRYPOINT: '1',
+    };
+    // Keep Codex auth and installed-service discovery inside this disposable CLI home.
+    for (const key of ['CODEX_HOME', 'CODEX_SQLITE_HOME', 'OPENAI_API_KEY', 'CODEX_API_KEY'] as const) {
+      delete isolatedCliEnv[key];
+    }
+
     let cliLogin: StartedCliTerminalConnect | null = null;
     try {
       await gotoDomContentLoadedWithRetries(page, uiBaseUrl);
@@ -143,13 +162,7 @@ test.describe('ui e2e: provider settings auth status', () => {
         cliHomeDir,
         serverUrl: server.baseUrl,
         webappUrl: uiBaseUrl,
-        env: {
-          ...process.env,
-          CI: '1',
-          HAPPIER_DISABLE_CAFFEINATE: '1',
-          HAPPIER_VARIANT: 'dev',
-          HAPPIER_E2E_PROVIDER_USE_CLI_SOURCE_ENTRYPOINT: '1',
-        },
+        env: isolatedCliEnv,
       });
 
       await page.goto(cliLogin.connectUrl, { waitUntil: 'domcontentloaded' });
@@ -161,16 +174,9 @@ test.describe('ui e2e: provider settings auth status', () => {
         testDir,
         happyHomeDir: cliHomeDir,
         env: {
-          ...process.env,
-          CI: '1',
-          HOME: cliHomeDir,
-          HAPPIER_HOME_DIR: cliHomeDir,
+          ...isolatedCliEnv,
           HAPPIER_SERVER_URL: server.baseUrl,
           HAPPIER_WEBAPP_URL: uiBaseUrl,
-          HAPPIER_DISABLE_CAFFEINATE: '1',
-          HAPPIER_VARIANT: 'dev',
-          HAPPIER_CODEX_PATH: fakeCodexExecutablePath,
-          HAPPIER_E2E_PROVIDER_USE_CLI_SOURCE_ENTRYPOINT: '1',
         },
       });
 
