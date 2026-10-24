@@ -41,6 +41,7 @@ function createReminderPresetItem(
     presets: SessionRowMoreMenuBuildParams['reminderPresets'],
     reminder: SessionRowMoreMenuBuildParams['reminder'],
     nowMs: number,
+    choiceKeyboardHint?: string,
 ): DropdownMenuItem {
     const selectedAt = reminder?.remindAt ?? null;
     const check = <Icon name="check" size={16} color={iconColor} />;
@@ -60,7 +61,7 @@ function createReminderPresetItem(
         return {
             id,
             title: preset.label ?? formatSessionReminderPresetRuleLabel(preset.rule),
-            shortcut: '↑↓ Enter',
+            ...(choiceKeyboardHint ? { shortcut: choiceKeyboardHint } : {}),
             ...(resolveSessionReminderPresetRule(preset.rule, nowMs) === selectedAt ? { rightElement: check } : {}),
         };
     });
@@ -143,6 +144,7 @@ export function buildSessionRowMoreMenuItems(params: SessionRowMoreMenuBuildPara
             params.reminderPresets,
             params.reminder,
             params.reminderNowMs ?? Date.now(),
+            params.reminderChoiceKeyboardHint,
         )] : []),
         ...(params.leadingItems ?? []),
         ...remainingItems,

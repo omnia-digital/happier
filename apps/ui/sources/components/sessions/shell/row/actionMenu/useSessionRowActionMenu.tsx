@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { Platform } from 'react-native';
 
 import { Modal } from '@/modal';
 import { t } from '@/text';
@@ -47,6 +48,7 @@ import {
 import { showSessionReminderDateTimeModal, showSessionReminderPresetManagerModal } from './sessionReminderModals';
 import { useKeyboardShortcutLabels } from '@/keyboard/KeyboardShortcutProvider';
 import { SESSION_ROW_MENU_SELECT_ID, withSessionRowMenuShortcutLabels } from './sessionRowMenuKeyboard';
+import { getSelectableMenuChoiceKeyboardHint } from '@/components/ui/forms/dropdown/useSelectableMenu';
 
 function showActionError(error: unknown) {
     if (error instanceof HappyError) {
@@ -235,6 +237,7 @@ export function useSessionRowActionMenu(params: Readonly<{
             reminder: params.reminder,
             reminderNowMs: Date.now(),
             shortcutLabels,
+            reminderChoiceKeyboardHint: getSelectableMenuChoiceKeyboardHint(Platform.OS === 'web' ? 'web' : 'native'),
         });
         if (
             !params.isNativeMobile

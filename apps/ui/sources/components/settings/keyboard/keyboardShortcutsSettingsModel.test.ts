@@ -42,6 +42,10 @@ describe('keyboardShortcutsSettingsModel', () => {
         expect(model.commandRows.find((row) => row.commandId === 'composer.sendPending')?.defaultLabel).toBe('Cmd+Shift+Enter');
         expect(model.commandRows.find((row) => row.commandId === 'commandPalette.open')?.defaultLabel).toBe('Cmd+K');
         expect(model.commandRows.find((row) => row.commandId === 'settings.open')?.defaultLabel).toBeNull();
+        expect(model.commandRows.find((row) => row.commandId === 'session.menu.copyInformation')).toMatchObject({
+            titleKey: 'sessionInfo.copyDebugInformation',
+            defaultLabel: 'Option+Shift+I',
+        });
     });
 
     it('lists all numbered session shortcuts with distinct titles and editable defaults', () => {

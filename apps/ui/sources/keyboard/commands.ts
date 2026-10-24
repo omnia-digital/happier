@@ -20,7 +20,7 @@ const sessionRowMenuCommands: readonly KeyboardCommand[] = ([
     ['session.menu.reminderRemove', 'Alt+Shift+7', 'sessionsList.reminders.remove'],
     ['session.menu.sameSetup', 'Alt+Shift+N', 'sessionInfo.newSessionSameSetup'],
     ['session.menu.deleteDraft', 'Alt+Shift+Y', 'sessionDrafts.delete.action'],
-    ['session.menu.copyInformation', 'Alt+Shift+I', undefined],
+    ['session.menu.copyInformation', 'Alt+Shift+I', 'sessionInfo.copyDebugInformation'],
     ['session.menu.fork', 'Alt+Shift+B', 'sessionInfo.forkSession'],
     ['session.menu.stop', 'Alt+Shift+X', 'sessionInfo.stopSession'],
     ['session.menu.tags', 'Alt+Shift+G', 'sessionTags.editTagsLabel'],

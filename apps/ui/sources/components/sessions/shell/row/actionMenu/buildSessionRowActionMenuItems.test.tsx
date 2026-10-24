@@ -12,6 +12,7 @@ import {
 } from '@/components/sessions/actions/sessionActionIds';
 
 import { buildSessionRowMoreMenuItems } from './buildSessionRowActionMenuItems';
+import { getSelectableMenuChoiceKeyboardHint } from '@/components/ui/forms/dropdown/useSelectableMenu';
 
 describe('buildSessionRowMoreMenuItems', () => {
     it('allows an on-demand move picker without precomputed destination menu items', () => {
@@ -174,6 +175,7 @@ describe('buildSessionRowMoreMenuItems', () => {
             'attention-reminder:custom',
             'attention-reminder:manage-presets',
         ]);
+        expect(reminder?.submenu?.items.find((item) => item.id.startsWith('attention-reminder:preset:'))?.shortcut).toBeUndefined();
     });
 
     it('shows an existing reminder in the parent, checks the exact choice, and offers removal', () => {
@@ -240,6 +242,7 @@ describe('buildSessionRowMoreMenuItems', () => {
             target, iconColor: '#999', canMoveToFolder: true,
             leadingItems: [{ id: 'session.fork', title: 'Fork session' }],
             reminderPresets: [{ rule: { kind: 'relative_day', daysAhead: 1, minuteOfDay: 14 * 60 } }],
+            reminderChoiceKeyboardHint: getSelectableMenuChoiceKeyboardHint('web'),
             shortcutLabels: {
                 'session.menu.rename': '⌥⇧E',
                 'session.menu.readState': '⌥⇧U',

@@ -58,6 +58,7 @@ vi.mock('@/components/ui/forms/dropdown/useSelectableMenu', () => ({
         };
     },
     CREATE_ITEM_ID: '__create__',
+    selectableMenuKeyboardKeys: { previous: 'ArrowUp', next: 'ArrowDown', activate: 'Enter', close: 'Escape' },
 }));
 
 vi.mock('@/components/ui/forms/dropdown/SelectableMenuResults', () => ({
@@ -121,6 +122,17 @@ describe('DropdownMenu', () => {
             screen.tree.update(React.createElement(DropdownMenu, { ...baseProps, openSubmenuId: 'reminder' }));
         });
         expect(screen.findAllByType('Popover' as any)).toHaveLength(2);
+        const nestedMenu = screen.findAllByType(DropdownMenu)[1];
+        await act(async () => nestedMenu?.props.onOpenChange(false));
+        expect(screen.findAllByType('Popover' as any)).toHaveLength(1);
+        await act(async () => {
+            screen.tree.update(React.createElement(DropdownMenu, {
+                ...baseProps,
+                items: [...items],
+                openSubmenuId: 'reminder',
+            }));
+        });
+        expect(screen.findAllByType('Popover' as any)).toHaveLength(1);
         expect(onSelect).not.toHaveBeenCalled();
     });
 
@@ -284,6 +296,42 @@ describe('DropdownMenu', () => {
         act(() => screen.findByType('View' as any)?.props?.onKeyDown?.(event));
         expect(handleSelectableKeyPressSpy).toHaveBeenCalledWith('ArrowDown', expect.any(Function));
         expect(event.preventDefault).toHaveBeenCalledOnce();
+    });
+
+    it('yields menu navigation to a terminal owner or a higher modal layer', async () => {
+        const listeners = new Set<(event: any) => void>();
+        vi.stubGlobal('window', {
+            addEventListener: (_type: string, listener: (event: any) => void) => listeners.add(listener),
+            removeEventListener: (_type: string, listener: (event: any) => void) => listeners.delete(listener),
+        });
+        const { DropdownMenu } = await import('./DropdownMenu');
+        const { ESCAPE_LAYER_PRIORITIES, registerEscapeKeyBlocker } = await import('@/keyboard/escape');
+        const screen = await renderScreen(React.createElement(DropdownMenu, {
+            open: true, onOpenChange: vi.fn(), items: [{ id: 'a', title: 'A' }], onSelect: vi.fn(),
+            trigger: React.createElement('View'),
+        }));
+        const event = (ownedByTerminal: boolean) => ({
+            key: 'ArrowDown', defaultPrevented: false,
+            target: { isContentEditable: false, closest: (selector: string) =>
+                ownedByTerminal && selector.includes('data-keyboard-shortcuts-owned') ? {} : null },
+            preventDefault: vi.fn(), stopPropagation: vi.fn(),
+        });
+        const terminalEvent = event(true);
+        act(() => { for (const listener of listeners) listener(terminalEvent); });
+        expect(terminalEvent.preventDefault).not.toHaveBeenCalled();
+
+        const releaseModal = registerEscapeKeyBlocker(ESCAPE_LAYER_PRIORITIES.modal);
+        try {
+            const modalEvent = event(false);
+            act(() => { for (const listener of listeners) listener(modalEvent); });
+            expect(modalEvent.preventDefault).not.toHaveBeenCalled();
+        } finally {
+            releaseModal();
+        }
+        const menuEvent = event(false);
+        act(() => { for (const listener of listeners) listener(menuEvent); });
+        expect(menuEvent.preventDefault).toHaveBeenCalledOnce();
+        await act(async () => screen.tree.unmount());
     });
 
     it('keeps shortcut hints visible beside submenu and checked-state adornments', async () => {

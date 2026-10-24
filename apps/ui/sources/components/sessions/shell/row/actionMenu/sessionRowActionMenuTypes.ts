@@ -13,6 +13,7 @@ export type SessionRowMoreMenuBuildParams = Readonly<{
     reminder?: SessionReminderPresentation | null;
     reminderNowMs?: number;
     shortcutLabels?: Partial<Record<KeyboardCommandId, string>>;
+    reminderChoiceKeyboardHint?: string;
 }>;
 
 export type SessionRowActionMenuState = Readonly<{

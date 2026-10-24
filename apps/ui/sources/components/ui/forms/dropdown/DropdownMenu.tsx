@@ -8,7 +8,7 @@ import { t } from '@/text';
 import type { SelectableRowVariant } from '@/components/ui/lists/SelectableRow';
 import { SelectableMenuResults } from '@/components/ui/forms/dropdown/SelectableMenuResults';
 import type { SelectableMenuItem } from '@/components/ui/forms/dropdown/selectableMenuTypes';
-import { useSelectableMenu, CREATE_ITEM_ID } from '@/components/ui/forms/dropdown/useSelectableMenu';
+import { useSelectableMenu, CREATE_ITEM_ID, selectableMenuKeyboardKeys } from '@/components/ui/forms/dropdown/useSelectableMenu';
 import { Item, type ItemProps } from '@/components/ui/lists/Item';
 import { useResolvedItemDensity } from '@/components/ui/lists/useResolvedItemDensity';
 import { normalizeNodeForView } from '@/components/ui/rendering/normalizeNodeForView';
@@ -17,6 +17,7 @@ import { renderDropdownItemTriggerRightElement } from '@/components/ui/forms/dro
 import { KeyHint } from '@/components/ui/keyboard/KeyHint';
 import { useScrollRectIntoViewRegistry } from '@/components/ui/scroll/useScrollRectIntoView';
 import { Icon } from '@/components/ui/icons/Icon';
+import { ESCAPE_LAYER_PRIORITIES, getMaxEscapeKeyBlockerPriority } from '@/keyboard/escape';
 
 const DROPDOWN_ACTION_FRAME_FALLBACK_MS = 100;
 
@@ -428,6 +429,7 @@ export function DropdownMenu(props: DropdownMenuProps) {
     }, [closeOnSelect, props, schedule]);
 
     const submenuAnchorRefs = React.useRef(new Map<string, React.RefObject<unknown>>());
+    const openedSubmenuRequestRef = React.useRef<string | null>(null);
     const handleOpenSubmenu = React.useCallback((itemId: string, itemAnchorRef: React.RefObject<unknown>) => {
         const item = props.items.find((candidate) => candidate.id === itemId);
         if (!item?.submenu || item.disabled) return;
@@ -453,15 +455,22 @@ export function DropdownMenu(props: DropdownMenuProps) {
         retryWhenAnchorSettles(0);
     }, [props.items]);
     React.useEffect(() => {
-        if (!props.open || !props.openSubmenuId) return;
+        if (!props.open || !props.openSubmenuId) {
+            openedSubmenuRequestRef.current = null;
+            return;
+        }
+        if (openedSubmenuRequestRef.current === props.openSubmenuId) return;
         const anchorRef = submenuAnchorRefs.current.get(props.openSubmenuId);
-        if (anchorRef) handleOpenSubmenu(props.openSubmenuId, anchorRef);
+        if (anchorRef) {
+            openedSubmenuRequestRef.current = props.openSubmenuId;
+            handleOpenSubmenu(props.openSubmenuId, anchorRef);
+        }
     }, [handleOpenSubmenu, props.open, props.openSubmenuId]);
     const handleKeyDown = React.useCallback((e: any) => {
         if (Platform.OS !== 'web' || activeSubmenu || e?.defaultPrevented === true) return;
         const key = e?.nativeEvent?.key ?? e?.key;
         if (typeof key !== 'string') return;
-        if (!['ArrowDown', 'ArrowUp', 'Enter', 'Escape'].includes(key)) return;
+        if (!Object.values(selectableMenuKeyboardKeys).includes(key as typeof selectableMenuKeyboardKeys[keyof typeof selectableMenuKeyboardKeys])) return;
         if (e?.nativeEvent?.isComposing === true || e?.isComposing === true) return;
         e.preventDefault?.();
         e.stopPropagation?.();
@@ -482,7 +491,8 @@ export function DropdownMenu(props: DropdownMenuProps) {
         if (Platform.OS !== 'web' || !props.open || typeof window === 'undefined') return;
         const onWindowKeyDown = (event: KeyboardEvent) => {
             const target = event.target as HTMLElement | null;
-            if (target?.isContentEditable || target?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+            if (getMaxEscapeKeyBlockerPriority() > ESCAPE_LAYER_PRIORITIES.popover) return;
+            if (target?.isContentEditable || target?.closest?.('input, textarea, select, [contenteditable="true"], [data-keyboard-shortcuts-owned="true"]')) return;
             handleKeyDown(event);
         };
         window.addEventListener('keydown', onWindowKeyDown, true);

@@ -24,6 +24,20 @@ function groupByCategory(items: ReadonlyArray<SelectableMenuItem>, defaultCatego
 
 export const CREATE_ITEM_ID = '__create__';
 
+export const selectableMenuKeyboardKeys = {
+    previous: 'ArrowUp',
+    next: 'ArrowDown',
+    activate: 'Enter',
+    close: 'Escape',
+} as const;
+
+export function getSelectableMenuChoiceKeyboardHint(surface: 'web' | 'native'): string | undefined {
+    if (surface !== 'web') return undefined;
+    const arrowLabel = (key: typeof selectableMenuKeyboardKeys.previous | typeof selectableMenuKeyboardKeys.next) =>
+        key === 'ArrowUp' ? '↑' : '↓';
+    return `${arrowLabel(selectableMenuKeyboardKeys.previous)}${arrowLabel(selectableMenuKeyboardKeys.next)} ${selectableMenuKeyboardKeys.activate}`;
+}
+
 export function useSelectableMenu(params: {
     items: ReadonlyArray<SelectableMenuItem>;
     onRequestClose: () => void;
@@ -138,16 +152,16 @@ export function useSelectableMenu(params: {
 
     const handleKeyPress = useCallback((key: string, onActivate: (item: SelectableMenuItem) => void) => {
         switch (key) {
-            case 'Escape':
+            case selectableMenuKeyboardKeys.close:
                 params.onRequestClose();
                 break;
-            case 'ArrowDown':
+            case selectableMenuKeyboardKeys.next:
                 moveSelection(1);
                 break;
-            case 'ArrowUp':
+            case selectableMenuKeyboardKeys.previous:
                 moveSelection(-1);
                 break;
-            case 'Enter':
+            case selectableMenuKeyboardKeys.activate:
                 if (selectedIndex >= 0 && isEnabledIndex(selectedIndex) && allItems[selectedIndex]) {
                     onActivate(allItems[selectedIndex]!);
                 }
