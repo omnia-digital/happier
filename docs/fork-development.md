@@ -367,6 +367,31 @@ The pinned-toolchain successor now passes as recorded in the current validation 
 Earlier `/tmp` log pathnames disappeared
 during the original run; new logs use ignored repo `.project/logs/tests`.
 
+Integration has additional prerequisites. UI integration passes205tests with2skipped across its web,
+Legend native and Fabric host harnesses; those are not physical-device checks. Server's disposable
+SQLite harness is safe with REDIS_URL unset. Two stale exact ACK expectations were corrected in
+`06a8c5db33` to include the producer's stored creation time (5focused+41adjacent pass; final server
+typecheck passes). The complete server integration recheck remains pending.
+
+CLI integration reads `apps/cli/.env.integration-test` after the inherited environment, so verify
+its effective HOME and server before dispatch. Current inspection finds dedicated `/tmp/happier-dev-test`,
+loopback port3005 and no settings/key/credential files. Use task-local
+`HAPPIER_CLI_DAEMON_INTEGRATION_BOOTSTRAP_AUTH=0` to keep its missing-credential preflight from
+registering an account; server-backed daemon cases then skip, while isolated process tests still run.
+Keep real provider/terminal opt-ins and HAPPIER_OPENCODE_SERVER_STATE_PATH unset. Tests invoking
+bare `bun` also need the private1.4.2 directory prepended to PATH; HAPPIER_BUN_PATH alone does not
+select those subprocesses. Four WebSocket/compiled-module probes pass under that supported toolchain
+without source changes. Do not replace global Bun or copy daily credentials for this lane.
+
+Full Stack integration is blocked on release-owned artifacts: its ordinary `release_binary_smoke`
+and `self_host_binary_smoke` tests would build archives in `dist/release-assets`, which is absent.
+AGENTS.md's validation rule reserves release representation production to explicitly dispatched
+release automation. No archive was created. The existing prepared-artifact flag is not permission
+to rebuild missing archives. Keep HAPPIER_STACK_RUN_REAL_INTEGRATION_TESTS disabled; those four
+real files can install OS services. The remaining35regular source cases can use the existing
+collector/environment/process helpers, serially, after shared build outputs are idle. Report that
+selection separately; it cannot supply a full root integration verdict.
+
 The installer failure is now corrected at `packages/cli-common/src/providers/install.ts`. The vendor recipe records CLI presence using the same execution environment before the entire command sequence. A nonzero command can recover only when the CLI was absent before that sequence and is available afterward. A previously installed CLI no longer masks a failed forced reinstall. Successful forced installs, default already-installed skipping, consent, timeout handling and newly-available recovery are retained.
 
 The new filesystem regression reproduced RED for an existing CLI, then passed after the correction. The coordinator independently verified all 32 tests across the new regression and existing installer gating, update, promotion and provider-update suites; package typecheck passed. Logs: `/tmp/happier-oh-6-installer-verified.log` and `/tmp/happier-oh-6-installer-typecheck.log`. No existing test was changed and no real vendor installer ran. The actual installer consumer is the CLI/daemon, not the native hsetup helper; compiled-runtime preparation is recorded below. Live installation behavior is not claimed verified. This correction also awaits the required Git signer before it can be checkpointed to origin.
