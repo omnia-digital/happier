@@ -31,15 +31,15 @@ function extractServerUrlFromNotificationData(data: unknown): string | null {
     return normalized ? normalized : null;
 }
 
-function toRoute(data: unknown): string | null {
-    if (!isRecord(data)) return null;
+function toRoute(data: unknown): Readonly<{ route: string | null; routeSessionId: string | null }> {
+    if (!isRecord(data)) return { route: null, routeSessionId: null };
     if (typeof data.url === 'string' && data.url.trim()) {
-        return coerceRelativeRoute(data.url);
+        return { route: coerceRelativeRoute(data.url), routeSessionId: null };
     }
     if (typeof data.sessionId === 'string' && data.sessionId.trim()) {
-        return `/session/${encodeURIComponent(data.sessionId)}`;
+        return { route: `/session/${encodeURIComponent(data.sessionId)}`, routeSessionId: data.sessionId };
     }
-    return null;
+    return { route: null, routeSessionId: null };
 }
 
 function readSessionIdFromNotificationData(data: unknown): string {
@@ -79,8 +79,13 @@ function readNotificationId(params: Readonly<{ response: unknown }>): string | n
 
 function readNotificationData(params: Readonly<{ response: unknown }>): unknown {
     if (!isRecord(params.response)) return null;
-    const notification = (params.response as any).notification;
-    return notification?.request?.content?.data;
+    const notification = params.response.notification;
+    if (!isRecord(notification) || !isRecord(notification.request) || !isRecord(notification.request.content)) return null;
+    const content = notification.request.content;
+    if (typeof content.dataString === 'string') {
+        try { return JSON.parse(content.dataString); } catch { return null; }
+    }
+    return content.data;
 }
 
 export type ParsedNotificationTap = Readonly<{
@@ -89,8 +94,10 @@ export type ParsedNotificationTap = Readonly<{
     isDefaultTap: boolean;
     isOpenAction: boolean;
     route: string | null;
+    routeSessionId: string | null;
     serverUrl: string | null;
-    permissionAction: Readonly<{ action: 'allow' | 'deny'; sessionId: string; requestId: string }> | null;
+    accountId: string | null;
+    permissionAction: Readonly<{ action: 'allow' | 'deny'; sessionId: string; requestId: string; occurrenceId?: string }> | null;
 }>;
 
 export function parseNotificationTap(params: Readonly<{
@@ -111,14 +118,15 @@ export function parseNotificationTap(params: Readonly<{
     if (!isKnownActionIdentifier) return null;
 
     const data = readNotificationData({ response: params.response });
-    const route = toRoute(data);
+    const { route, routeSessionId } = toRoute(data);
     const serverUrl = extractServerUrlFromNotificationData(data);
 
     const sessionId = readSessionIdFromNotificationData(data);
     const requestId = readRequestIdFromNotificationData(data);
+    const occurrenceId = isRecord(data) && typeof data.occurrenceId === 'string' ? data.occurrenceId.trim() : '';
     const resolvedPermissionAction =
         permissionAction && sessionId && requestId
-            ? { action: permissionAction, sessionId, requestId }
+            ? { action: permissionAction, sessionId, requestId, ...(occurrenceId ? { occurrenceId } : {}) }
             : null;
 
     const notificationId = readNotificationId({ response: params.response });
@@ -130,7 +138,9 @@ export function parseNotificationTap(params: Readonly<{
         isDefaultTap,
         isOpenAction,
         route,
+        routeSessionId,
         serverUrl,
+        accountId: isRecord(data) && typeof data.accountId === 'string' ? data.accountId.trim() : null,
         permissionAction: resolvedPermissionAction,
     };
 }
