@@ -17,11 +17,16 @@ test('standalone installers refuse unconfigured fork trust and comment-edited up
   const home = await mkdtemp(join(tmpdir(), 'fork-installer-trust-'));
   t.after(() => rm(home, { recursive: true, force: true }));
   const upstreamKey = (await readFile(publicKeyPath, 'utf8')).trim();
+  const upstreamPayload = upstreamKey.split('\n').at(-1);
+  const alteredKeyIdBytes = Buffer.from(upstreamPayload, 'base64');
+  alteredKeyIdBytes[2] ^= 1;
   const tauriConfig = JSON.parse(await readFile(join(repoRoot, 'apps/ui/src-tauri/tauri.conf.json'), 'utf8'));
   const upstreamTauriKey = Buffer.from(tauriConfig.plugins.updater.pubkey, 'base64').toString('utf8').trim();
   for (const [label, key, repo] of [
     ['missing', '', ''],
     ['edited comment', upstreamKey.replace('minisign public key ', 'minisign public key fork '), ''],
+    ['payload whitespace', upstreamKey.replace(upstreamPayload, `${upstreamPayload.slice(0, 10)} ${upstreamPayload.slice(10)}`), ''],
+    ['altered key id', upstreamKey.replace(upstreamPayload, alteredKeyIdBytes.toString('base64')), ''],
     ['case-variant fork', upstreamKey.replace('minisign public key ', 'minisign public key fork '), 'Omnia-Digital/Happier'],
     ['upstream Tauri verifier', upstreamTauriKey.replace('minisign public key: ', 'minisign public key: fork '), ''],
   ]) {
@@ -32,7 +37,7 @@ test('standalone installers refuse unconfigured fork trust and comment-edited up
       if (result.error?.code === 'ENOENT' && command === 'pwsh') continue;
       assert.ifError(result.error);
       assert.notEqual(result.status, 0, `${command}: ${label}`);
-      assert.match(result.stderr + result.stdout, /fork release (?:is unconfigured|cannot use the upstream minisign public key)/i);
+      assert.match(result.stderr + result.stdout, /fork release (?:is unconfigured|cannot use the upstream minisign public key|has an invalid minisign public key)/i);
       assert.doesNotMatch(result.stderr + result.stdout, /Fetching .*release metadata/i);
     }
   }

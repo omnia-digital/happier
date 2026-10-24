@@ -24,6 +24,19 @@ GITHUB_REPO="${HAPPIER_GITHUB_REPO:-omnia-digital/happier}"
 GITHUB_REPO_ID="$(printf '%s' "${GITHUB_REPO}" | tr '[:upper:]' '[:lower:]')"
 GITHUB_TOKEN="${HAPPIER_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}"
 RELEASE_ASSETS_DIR="${HAPPIER_RELEASE_ASSETS_DIR:-}"
+decode_minisign_key_payload() {
+  if printf '%s' "$1" | base64 -d 2>/dev/null; then return 0; fi
+  printf '%s' "$1" | base64 -D 2>/dev/null
+}
+minisign_verifier_identity() {
+  local payload="$1" decoded_hex
+  [[ "${payload}" =~ ^[A-Za-z0-9+/]{56}$ ]] || return 1
+  decoded_hex="$(decode_minisign_key_payload "${payload}" | od -An -tx1 -v | tr -d '[:space:]')" || return 1
+  [[ "${#decoded_hex}" -eq 84 && "${decoded_hex:0:4}" == "4564" ]] || return 1
+  printf '%s' "${decoded_hex:20}"
+}
+UPSTREAM_ARCHIVE_KEY_IDENTITY="$(minisign_verifier_identity 'RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t')"
+UPSTREAM_TAURI_KEY_IDENTITY="$(minisign_verifier_identity 'RWTv8bDzGGLpq1HR3/oQAmnG9AXJGyhiGkm81fnFNtzAyYVPuMfVDVZy')"
 DEFAULT_MINISIGN_PUBKEY="$(cat <<'EOF'
 untrusted comment: minisign public key 91AE28177BF6E43C
 RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t
@@ -37,9 +50,12 @@ else
   MINISIGN_PUBKEY_URL="${HAPPIER_MINISIGN_PUBKEY_URL:-}"
   # Minisign ignores the untrusted comment; compare the verifier payload.
   configured_key_line="$(printf '%s\n' "${MINISIGN_PUBKEY}" | awk 'NF { key=$0 } END { gsub(/^[[:space:]]+|[[:space:]]+$/, "", key); print key }')"
-  if [[ "${configured_key_line}" == "RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t" || "${configured_key_line}" == "RWTv8bDzGGLpq1HR3/oQAmnG9AXJGyhiGkm81fnFNtzAyYVPuMfVDVZy" ]]; then
-    echo "Fork release cannot use the upstream minisign public key." >&2
-    exit 1
+  if [[ -n "${configured_key_line}" ]]; then
+    configured_key_identity="$(minisign_verifier_identity "${configured_key_line}")" || { echo "Fork release has an invalid minisign public key." >&2; exit 1; }
+    if [[ "${configured_key_identity}" == "${UPSTREAM_ARCHIVE_KEY_IDENTITY}" || "${configured_key_identity}" == "${UPSTREAM_TAURI_KEY_IDENTITY}" ]]; then
+      echo "Fork release cannot use the upstream minisign public key." >&2
+      exit 1
+    fi
   fi
 fi
 MINISIGN_BIN="minisign"
@@ -2427,7 +2443,9 @@ write_minisign_public_key() {
   if [[ "${GITHUB_REPO_ID}" != "happier-dev/happier" ]]; then
     local key_line
     key_line="$(awk 'NF { key=$0 } END { gsub(/^[[:space:]]+|[[:space:]]+$/, "", key); print key }' "${target_path}")"
-    if [[ "${key_line}" == "RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t" || "${key_line}" == "RWTv8bDzGGLpq1HR3/oQAmnG9AXJGyhiGkm81fnFNtzAyYVPuMfVDVZy" ]]; then
+    local key_identity
+    key_identity="$(minisign_verifier_identity "${key_line}")" || { echo "Fork release has an invalid minisign public key." >&2; return 1; }
+    if [[ "${key_identity}" == "${UPSTREAM_ARCHIVE_KEY_IDENTITY}" || "${key_identity}" == "${UPSTREAM_TAURI_KEY_IDENTITY}" ]]; then
       echo "Fork release cannot use the upstream minisign public key." >&2
       return 1
     fi
