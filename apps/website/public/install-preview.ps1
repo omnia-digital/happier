@@ -116,7 +116,7 @@ if ($Repo -eq "happier-dev/happier") {
   $MinisignPubKeyUrl = if ($env:HAPPIER_MINISIGN_PUBKEY_URL) { $env:HAPPIER_MINISIGN_PUBKEY_URL } else { "" }
   if ($MinisignPubKey) {
     $configuredKeyLine = @($MinisignPubKey -split '\r?\n' | Where-Object { $_.Trim() })[-1].Trim()
-    if ($configuredKeyLine -eq "RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t") {
+    if ($configuredKeyLine -eq "RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t" -or $configuredKeyLine -eq "RWTv8bDzGGLpq1HR3/oQAmnG9AXJGyhiGkm81fnFNtzAyYVPuMfVDVZy") {
       throw "Fork release cannot use the upstream minisign public key."
     }
   }
@@ -2506,7 +2506,7 @@ function Resolve-MinisignPublicKey {
   }
   if ($Repo -ne "happier-dev/happier") {
     $keyLine = @([IO.File]::ReadAllText($TargetPath) -split '\r?\n' | Where-Object { $_.Trim() })[-1].Trim()
-    if ($keyLine -eq "RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t") {
+    if ($keyLine -eq "RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t" -or $keyLine -eq "RWTv8bDzGGLpq1HR3/oQAmnG9AXJGyhiGkm81fnFNtzAyYVPuMfVDVZy") {
       throw "Fork release cannot use the upstream minisign public key."
     }
   }

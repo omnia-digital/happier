@@ -118,6 +118,20 @@ describe('desktop app updater (one owner for every surface)', () => {
         expect(dev.getCurrent()?.phase).toBe('idle');
     });
 
+    it('surfaces a native source refusal when update checks are explicitly enabled in development', async () => {
+        (globalThis as { __DEV__?: boolean }).__DEV__ = true;
+        const invoke = vi.fn(async () => {
+            throw new Error('Desktop updates are unavailable in development builds');
+        });
+        installDesktop(invoke);
+        store = createDesktopUpdaterStore();
+        const hook = await renderHook(() => useDesktopUpdater(store));
+        await settle();
+
+        expect(invoke).toHaveBeenCalledWith('desktop_fetch_update', undefined);
+        expect(hook.getCurrent()).toMatchObject({ phase: 'failed', failure: 'check' });
+    });
+
     it('never checks from the pet overlay webview: the main window owns the one pending update', async () => {
         const invoke = vi.fn(async () => offer('1.2.0'));
         installDesktop(invoke);

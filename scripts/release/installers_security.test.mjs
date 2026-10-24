@@ -17,10 +17,13 @@ test('standalone installers refuse unconfigured fork trust and comment-edited up
   const home = await mkdtemp(join(tmpdir(), 'fork-installer-trust-'));
   t.after(() => rm(home, { recursive: true, force: true }));
   const upstreamKey = (await readFile(publicKeyPath, 'utf8')).trim();
+  const tauriConfig = JSON.parse(await readFile(join(repoRoot, 'apps/ui/src-tauri/tauri.conf.json'), 'utf8'));
+  const upstreamTauriKey = Buffer.from(tauriConfig.plugins.updater.pubkey, 'base64').toString('utf8').trim();
   for (const [label, key, repo] of [
     ['missing', '', ''],
     ['edited comment', upstreamKey.replace('minisign public key ', 'minisign public key fork '), ''],
     ['case-variant fork', upstreamKey.replace('minisign public key ', 'minisign public key fork '), 'Omnia-Digital/Happier'],
+    ['upstream Tauri verifier', upstreamTauriKey.replace('minisign public key: ', 'minisign public key: fork '), ''],
   ]) {
     const env = { ...process.env, USERPROFILE: home, HOME: home, HAPPIER_INSTALL_DIR: join(home, 'install'),
       HAPPIER_GITHUB_REPO: repo, HAPPIER_MINISIGN_PUBKEY: key, HAPPIER_MINISIGN_PUBKEY_URL: '', HAPPIER_RELEASE_ASSETS_DIR: '' };

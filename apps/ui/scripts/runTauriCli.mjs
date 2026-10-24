@@ -1,6 +1,7 @@
 // @ts-check
 
 import { createRequire } from 'node:module';
+import { join } from 'node:path';
 import { createTauriActoolEnvironment } from './tauriActoolEnvironment.mjs';
 import { assertForkDesktopReleaseOwnership } from '../../../scripts/pipeline/tauri/channel-config.mjs';
 
@@ -13,7 +14,7 @@ if (args[0] === 'build') {
   const configIndex = args.indexOf('--config');
   const config = configIndex >= 0 ? String(args[configIndex + 1] ?? '') : '';
   const environment = config.includes('publicdev') ? 'publicdev' : config.includes('preview') ? 'preview' : 'production';
-  assertForkDesktopReleaseOwnership({ environment });
+  assertForkDesktopReleaseOwnership({ environment, tauriDir: join(process.cwd(), 'src-tauri') });
 }
 const actool = args.includes('--no-bundle') ? null : createTauriActoolEnvironment();
 const previousPath = process.env.PATH;

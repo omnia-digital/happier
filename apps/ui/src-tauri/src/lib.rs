@@ -259,6 +259,15 @@ mod app_updates {
         "PendingUpdate poisoned".to_string()
     }
 
+    // The source development overlay inherits the upstream updater feed and public key. Enabling
+    // checks in its webview is not consent to fetch or install an upstream release.
+    fn ensure_release_update_source() -> Result<(), String> {
+        if cfg!(debug_assertions) {
+            return Err("Desktop updates are unavailable in development builds until a fork-owned updater source is configured for a distributable build".to_string());
+        }
+        Ok(())
+    }
+
     /// Whole percent of `downloaded` out of `total`, `None` when the length is unknown.
     pub(crate) fn whole_percent(downloaded: u64, total: Option<u64>) -> Option<u64> {
         match total {
@@ -272,6 +281,7 @@ mod app_updates {
         app: AppHandle,
         pending_update: State<'_, PendingUpdate>,
     ) -> Result<Option<UpdateMetadata>, String> {
+        ensure_release_update_source()?;
         let update = app
             .updater()
             .map_err(|e| e.to_string())?
@@ -306,6 +316,7 @@ mod app_updates {
         app: AppHandle,
         pending_update: State<'_, PendingUpdate>,
     ) -> Result<bool, String> {
+        ensure_release_update_source()?;
         let update = {
             let state = pending_update.0.lock().map_err(|_| poisoned())?;
             if let Some((downloaded, _)) = &state.downloaded {
@@ -360,6 +371,7 @@ mod app_updates {
         app: AppHandle,
         pending_update: State<'_, PendingUpdate>,
     ) -> Result<bool, String> {
+        ensure_release_update_source()?;
         let downloaded = pending_update
             .0
             .lock()
@@ -395,7 +407,13 @@ mod app_updates {
 
     #[cfg(test)]
     mod tests {
-        use super::whole_percent;
+        use super::{ensure_release_update_source, whole_percent};
+
+        #[cfg(debug_assertions)]
+        #[test]
+        fn development_builds_refuse_update_actions_even_when_web_checks_are_enabled() {
+            assert!(ensure_release_update_source().is_err());
+        }
 
         #[test]
         fn download_progress_is_a_whole_percent_only_when_the_length_is_known() {

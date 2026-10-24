@@ -6,6 +6,11 @@ export const DEFAULT_MINISIGN_PUBLIC_KEY = `untrusted comment: minisign public k
 RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t
 `;
 
+/** Upstream Tauri updater trust is separate from upstream release-archive trust. */
+export const UPSTREAM_TAURI_UPDATER_PUBLIC_KEY = `untrusted comment: minisign public key: ABE96218F3B0F1EF
+RWTv8bDzGGLpq1HR3/oQAmnG9AXJGyhiGkm81fnFNtzAyYVPuMfVDVZy
+`;
+
 export const FIRST_PARTY_RELEASE_REPOSITORY = 'omnia-digital/happier';
 
 /** Identity is the Ed25519 verifier material, independent of minisign comments or key-id text. */
@@ -27,7 +32,8 @@ export function resolveFirstPartyReleasePublicKey(params: Readonly<{
   const configured = String(params.configuredPublicKey ?? '').trim();
   if (configured) {
     const configuredIdentity = getMinisignPublicKeyIdentity(configured);
-    if (repoIdentity === FIRST_PARTY_RELEASE_REPOSITORY && configuredIdentity === getMinisignPublicKeyIdentity(DEFAULT_MINISIGN_PUBLIC_KEY)) {
+    if (repoIdentity === FIRST_PARTY_RELEASE_REPOSITORY && [DEFAULT_MINISIGN_PUBLIC_KEY, UPSTREAM_TAURI_UPDATER_PUBLIC_KEY]
+      .some((upstreamKey) => configuredIdentity === getMinisignPublicKeyIdentity(upstreamKey))) {
       throw new Error('[fork release] upstream minisign public key cannot verify Omnia fork releases');
     }
     return configured;

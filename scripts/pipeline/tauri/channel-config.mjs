@@ -4,16 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizePublicReleaseChannel } from '../release/lib/public-release-rings.mjs';
-import { DEFAULT_MINISIGN_PUBLIC_KEY, getMinisignPublicKeyIdentity } from '@happier-dev/release-runtime/minisign';
+import { DEFAULT_MINISIGN_PUBLIC_KEY, UPSTREAM_TAURI_UPDATER_PUBLIC_KEY, getMinisignPublicKeyIdentity } from '@happier-dev/release-runtime/minisign';
 
 export const FORK_RELEASE_REPOSITORY = 'omnia-digital/happier';
-// The committed Happier Tauri updater key differs from the archive minisign key.
-// Retain its verifier material here so editing its untrusted comment cannot make
-// the same upstream signer look like a fork-owned updater signer.
-const UPSTREAM_TAURI_UPDATER_PUBLIC_KEY = `untrusted comment: minisign public key: ABE96218F3B0F1EF
-RWTv8bDzGGLpq1HR3/oQAmnG9AXJGyhiGkm81fnFNtzAyYVPuMfVDVZy
-`;
-
 /**
  * Validate the effective Tauri release config, after the channel overlay. This
  * is source preparation only: Apple registration and ownership of the signing

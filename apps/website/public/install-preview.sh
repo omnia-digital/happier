@@ -37,7 +37,7 @@ else
   MINISIGN_PUBKEY_URL="${HAPPIER_MINISIGN_PUBKEY_URL:-}"
   # Minisign ignores the untrusted comment; compare the verifier payload.
   configured_key_line="$(printf '%s\n' "${MINISIGN_PUBKEY}" | awk 'NF { key=$0 } END { gsub(/^[[:space:]]+|[[:space:]]+$/, "", key); print key }')"
-  if [[ "${configured_key_line}" == "RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t" ]]; then
+  if [[ "${configured_key_line}" == "RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t" || "${configured_key_line}" == "RWTv8bDzGGLpq1HR3/oQAmnG9AXJGyhiGkm81fnFNtzAyYVPuMfVDVZy" ]]; then
     echo "Fork release cannot use the upstream minisign public key." >&2
     exit 1
   fi
@@ -2427,7 +2427,7 @@ write_minisign_public_key() {
   if [[ "${GITHUB_REPO_ID}" != "happier-dev/happier" ]]; then
     local key_line
     key_line="$(awk 'NF { key=$0 } END { gsub(/^[[:space:]]+|[[:space:]]+$/, "", key); print key }' "${target_path}")"
-    if [[ "${key_line}" == "RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t" ]]; then
+    if [[ "${key_line}" == "RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t" || "${key_line}" == "RWTv8bDzGGLpq1HR3/oQAmnG9AXJGyhiGkm81fnFNtzAyYVPuMfVDVZy" ]]; then
       echo "Fork release cannot use the upstream minisign public key." >&2
       return 1
     fi
