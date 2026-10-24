@@ -1,9 +1,9 @@
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
 import type { SessionListVisualStatus } from '@/sync/domains/session/listing/deriveSessionListActivity';
-import { deriveSessionListVisualStatus } from '@/sync/domains/session/listing/deriveSessionListActivity';
-import { getSessionStatus } from '@/utils/sessions/sessionUtils';
+import { resolveSessionListRowStatus } from '../row/buildSessionListRowModel';
 import { resolveSessionRowStatusLabel } from '../row/SessionRowStatusBadge';
 import type { SessionTicketStatus } from '@/sync/domains/session/tickets/sessionTicketStatus';
+import type { SessionTicketAssociationV1 } from '@happier-dev/protocol';
 import { resolveSessionTicketStatusLabel } from '@/sync/domains/session/tickets/sessionTicketStatusLabel';
 import { t } from '@/text';
 
@@ -16,15 +16,13 @@ const BANDS = new Set(['server', 'active', 'inactive', 'sessions', 'pinned', 'at
 const LOADING: SessionTicketStatus = { phase: 'loading', snapshot: null, error: null };
 export function sessionListStatusRowKey(row: Row): string { return `${row.serverId ?? ''}:${row.session.id}`; }
 
-function agentKey(row: Row, nowMs: number): StatusKey {
-    const session = row.session;
-    const status = deriveSessionListVisualStatus({ sessionState: getSessionStatus(session, nowMs).state, latestTurnStatus: session.latestTurnStatus,
-        latestTurnStatusObservedAt: session.latestTurnStatusObservedAt, meaningfulActivityAt: session.meaningfulActivityAt,
-        pendingCount: session.pendingCount, pendingBlockedCount: session.pendingBlockedCount });
+function agentKey(row: Row, nowMs: number, liveStatuses?: ReadonlyMap<string, SessionListVisualStatus>): StatusKey {
+    const status = liveStatuses?.get(sessionListStatusRowKey(row)) ?? resolveSessionListRowStatus({ session: row.session, nowMs }).visualStatus;
     return { identity: status, title: resolveSessionRowStatusLabel(status), scope: [], order: SESSION_LIST_AGENT_STATUS_ORDER.indexOf(status), name: '', freshness: 0 };
 }
-function ticketKey(row: Row, states: ReadonlyMap<string, SessionTicketStatus>): StatusKey {
-    const association = row.session.metadata?.sessionTicketV1;
+function ticketKey(row: Row, states: ReadonlyMap<string, SessionTicketStatus>, associations?: ReadonlyMap<string, SessionTicketAssociationV1 | null>): StatusKey {
+    const rowKey = sessionListStatusRowKey(row);
+    const association = associations?.has(rowKey) ? associations.get(rowKey) : row.session.metadata?.sessionTicketV1;
     if (!association) return { identity: 'unlinked', title: t('sessionsList.statusOrganization.noTicket'), scope: ['2'], order: 0, name: '', freshness: 0 };
     const state = states.get(sessionListStatusRowKey(row)) ?? LOADING;
     const snapshot = state.snapshot;
@@ -47,12 +45,14 @@ function compare(left: StatusKey, right: StatusKey): number {
 export function projectSessionListStatusView(input: Readonly<{
     items: readonly SessionListViewItem[]; grouping: SessionListStatusMode; sorting: SessionListStatusMode;
     ticketStatuses: ReadonlyMap<string, SessionTicketStatus>; nowMs: number;
+    agentStatuses?: ReadonlyMap<string, SessionListVisualStatus>;
+    ticketAssociations?: ReadonlyMap<string, SessionTicketAssociationV1 | null>;
 }>): SessionListViewItem[] {
     if (input.grouping === 'none' && input.sorting === 'none') return input.items as SessionListViewItem[];
     const agentKeys = new Map<Row, StatusKey>(); const ticketKeys = new Map<Row, StatusKey>();
     const keyFor = (row: Row, mode: Exclude<SessionListStatusMode, 'none'>) => {
         const keys = mode === 'agent' ? agentKeys : ticketKeys;
-        let key = keys.get(row); if (!key) { key = mode === 'agent' ? agentKey(row, input.nowMs) : ticketKey(row, input.ticketStatuses); keys.set(row, key); }
+        let key = keys.get(row); if (!key) { key = mode === 'agent' ? agentKey(row, input.nowMs, input.agentStatuses) : ticketKey(row, input.ticketStatuses, input.ticketAssociations); keys.set(row, key); }
         return key;
     };
     // Stable array sorting keeps saved/manual sibling order when statuses tie.
@@ -68,12 +68,12 @@ export function projectSessionListStatusView(input: Readonly<{
     const flushBand = () => {
         if (band) output.push(band);
         const bandKey = JSON.stringify([band?.headerKind ?? '', band?.serverId ?? '', band?.groupKey ?? '']);
-        const emitGroups = (rows: Row[], container: string) => {
+        const emitGroups = (rows: Row[], container: string, folderId?: string) => {
             const groups = new Map<string, { key: StatusKey; rows: Row[] }>();
             for (const row of rows) { const key = keyFor(row, input.grouping as 'agent' | 'ticket'); const group = groups.get(key.identity) ?? { key, rows: [] }; group.rows.push(row); groups.set(key.identity, group); }
             for (const { key, rows: members } of [...groups.values()].sort((a, b) => compare(a.key, b.key))) {
                 const groupKey = `status-view:${JSON.stringify([bandKey, container, input.grouping, key.identity])}`;
-                output.push({ type: 'header', headerKind: 'status', title: key.title, groupKey, subtitle: input.grouping === 'ticket' && key.scope[0] === '0' ? key.scope.slice(1).filter(Boolean).join(' · ') : undefined });
+                output.push({ type: 'header', headerKind: 'status', title: key.title, groupKey, folderId, subtitle: input.grouping === 'ticket' && key.scope[0] === '0' ? key.scope.slice(1).filter(Boolean).join(' · ') : undefined });
                 output.push(...sortRows(members).map(row => ({ ...row, groupKey })));
             }
         };
@@ -82,7 +82,7 @@ export function projectSessionListStatusView(input: Readonly<{
         for (const item of body) if (item.type === 'session') {
             if (item.folderId) { const rows = members.get(item.folderId) ?? []; rows.push(item); members.set(item.folderId, rows); } else loose.push(item);
         }
-        for (const folder of folders) { output.push(folder); emitGroups(members.get(folder.folderId ?? '') ?? [], folder.groupKey ?? folder.folderId ?? ''); members.delete(folder.folderId ?? ''); }
+        for (const folder of folders) { output.push(folder); emitGroups(members.get(folder.folderId ?? '') ?? [], folder.groupKey ?? folder.folderId ?? '', folder.folderId); members.delete(folder.folderId ?? ''); }
         // A filtered source may omit an ancestor header; preserve its rows rather than dropping them.
         for (const [folderId, rows] of members) emitGroups(rows, folderId);
         emitGroups(loose, 'unfiled');

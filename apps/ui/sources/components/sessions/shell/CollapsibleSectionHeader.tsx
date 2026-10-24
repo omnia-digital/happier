@@ -7,6 +7,7 @@ import type { SessionListViewItem } from '@/sync/domains/state/storage';
 import { isSessionListPrimaryHeaderKind } from './sessionListPrimaryHeader';
 import { Icon } from '@/components/ui/icons/Icon';
 import { MachineDisplayGlyph } from '@/components/sessions/SessionMachineIdentity';
+import { Text } from '@/components/ui/text/Text';
 
 const stylesheet = StyleSheet.create((theme) => ({
     headerSection: {
@@ -66,6 +67,7 @@ const stylesheet = StyleSheet.create((theme) => ({
 
 export const CollapsibleSectionHeader = React.memo(function CollapsibleSectionHeader(props: Readonly<{
     title: string;
+    subtitle?: string;
     headerKind?: Extract<SessionListViewItem, { type: 'header' }>['headerKind'];
     machineId?: string | null;
     serverId?: string | null;
@@ -119,6 +121,7 @@ export const CollapsibleSectionHeader = React.memo(function CollapsibleSectionHe
                     </View>
                 ) : null}
             </View>
+            {props.subtitle ? <Text numberOfLines={1} accessibilityLabel={props.subtitle} style={{ fontSize: 11, color: theme.colors.text.tertiary }}>{props.subtitle}</Text> : null}
         </Pressable>
     );
 });

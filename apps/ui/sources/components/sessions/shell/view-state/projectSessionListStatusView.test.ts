@@ -12,7 +12,7 @@ type Row = Extract<SessionListViewItem, { type: 'session' }>;
 const now = 100_000;
 function row(id: string, options: Partial<Row['session']> = {}, fields: Partial<Row> = {}): Row {
     return { type: 'session', serverId: 'home', groupKey: 'project:old', groupKind: 'project',
-        session: { ...buildSessionListRenderableFromSession(createSessionFixture({ id, active: true, activeAt: now, presence: 'online', metadata: { path: '/repo', machineId: 'mac' } })), ...options }, ...fields };
+        session: { ...buildSessionListRenderableFromSession(createSessionFixture({ id, active: true, activeAt: now, presence: 'online', metadata: { path: '/repo', machineId: 'mac', host: 'fixture' } })), ...options }, ...fields };
 }
 function header(title: string, headerKind: Extract<SessionListViewItem, { type: 'header' }>['headerKind'] = 'project'): SessionListViewItem {
     return { type: 'header', headerKind, title, groupKey: title };

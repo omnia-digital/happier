@@ -73,6 +73,10 @@ export function filterCollapsedSessionListItems(
                 ensureResult(index);
                 continue;
             }
+            if (kind === 'status' && item.folderId && collapsedFolderIds.has(item.folderId)) {
+                ensureResult(index);
+                continue;
+            }
             if (kind === 'machine') {
                 skipUntilNextMachine = Boolean(item.groupKey && keys[item.groupKey]);
                 collapsedFolderIds.clear();

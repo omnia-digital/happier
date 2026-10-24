@@ -7,6 +7,7 @@ import { t } from '@/text';
 import type { SessionFolderViewModeV1 } from './sessionFolderShellTypes';
 import type { SessionListFolderSortModeV1 } from '@/sync/domains/session/listing/sessionListFolderSortMode';
 import { Icon, ICON_SIZE } from '@/components/ui/icons/Icon';
+import type { SessionListStatusMode } from './view-state/projectSessionListStatusView';
 import {
     SESSION_LIST_ORDERING_MODES_V1,
     resolveEffectiveSessionListFolderSortMode,
@@ -40,6 +41,10 @@ export function SessionListViewMenuButton(props: Readonly<{
     onFolderViewModeChange: (mode: SessionFolderViewModeV1) => void;
     orderingMode: SessionListOrderingModeV1;
     onOrderingModeChange: (mode: SessionListOrderingModeV1) => void;
+    statusGrouping: SessionListStatusMode;
+    statusSorting: SessionListStatusMode;
+    onStatusGroupingChange: (mode: SessionListStatusMode) => void;
+    onStatusSortingChange: (mode: SessionListStatusMode) => void;
     folderSortMode: SessionListFolderSortModeV1;
     onFolderSortModeChange: (mode: SessionListFolderSortModeV1) => void;
     hideInactiveSessions: boolean;
@@ -63,7 +68,7 @@ export function SessionListViewMenuButton(props: Readonly<{
             category: t('sessionsList.viewOptions'),
             title: t('sessionsList.machineViewOriginal'),
             icon: <Icon name="list" size={ICON_SIZE.sm} color={iconColor} />,
-            rightElement: props.machineViewMode === 'original'
+            rightElement: props.statusGrouping === 'none' && props.machineViewMode === 'original'
                 ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} /> : null,
         },
         {
@@ -72,7 +77,7 @@ export function SessionListViewMenuButton(props: Readonly<{
             category: t('sessionsList.viewOptions'),
             title: t('sessionsList.machineViewGrouped'),
             icon: <Icon name="desktop" size={ICON_SIZE.sm} color={iconColor} />,
-            rightElement: props.machineViewMode === 'machine'
+            rightElement: props.statusGrouping === 'none' && props.machineViewMode === 'machine'
                 ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} /> : null,
         },
         {
@@ -81,7 +86,7 @@ export function SessionListViewMenuButton(props: Readonly<{
             category: t('sessionsList.viewOptions'),
             title: t('sessionsList.repositoryView'),
             icon: <Icon name="git-branch" size={ICON_SIZE.sm} color={iconColor} />,
-            rightElement: props.machineViewMode === 'repository'
+            rightElement: props.statusGrouping === 'none' && props.machineViewMode === 'repository'
                 ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} /> : null,
         },
         ...(props.machineViewMode === 'repository' ? [{
@@ -92,6 +97,21 @@ export function SessionListViewMenuButton(props: Readonly<{
             icon: <Icon name="arrow-clockwise" size={ICON_SIZE.sm} color={iconColor} />,
             disabled: props.repositoryRefreshing,
         }] : []),
+        ...(['none', 'agent', 'ticket'] as const).map((mode): DropdownMenuItem => ({
+            id: `status-group:${mode}`,
+            testID: `session-list-status-group-${mode}`,
+            category: t('sessionsList.statusOrganization.groupTitle'),
+            title: mode === 'none' ? t('sessionsList.statusOrganization.restoreGrouping') : mode === 'agent' ? t('sessionsList.statusOrganization.agentGroup') : t('sessionsList.statusOrganization.ticketGroup'),
+            subtitle: mode === 'none' ? undefined : t('sessionsList.statusOrganization.description'),
+            rightElement: props.statusGrouping === mode ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} /> : null,
+        })),
+        ...(['agent', 'ticket'] as const).map((mode): DropdownMenuItem => ({
+            id: `status-sort:${mode}`,
+            testID: `session-list-status-sort-${mode}`,
+            category: t('sessionsList.orderingMode.title'),
+            title: mode === 'agent' ? t('sessionsList.statusOrganization.agentSort') : t('sessionsList.statusOrganization.ticketSort'),
+            rightElement: props.statusSorting === mode ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} /> : null,
+        })),
         ...SESSION_LIST_ORDERING_MODES_V1.map((mode): DropdownMenuItem => ({
             id: mode,
             testID: `session-list-ordering-mode-${mode}`,
@@ -104,7 +124,7 @@ export function SessionListViewMenuButton(props: Readonly<{
                     color={iconColor}
                 />
             ),
-            rightElement: props.orderingMode === mode
+            rightElement: props.statusSorting === 'none' && props.orderingMode === mode
                 ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} />
                 : null,
         })),
@@ -166,18 +186,30 @@ export function SessionListViewMenuButton(props: Readonly<{
         props.machineViewMode,
         props.repositoryRefreshing,
         props.orderingMode,
+        props.statusGrouping,
+        props.statusSorting,
         selectedIconColor,
     ]);
 
     const handleSelect = React.useCallback((itemId: string) => {
-        if (itemId === 'session-view-repository') { props.onMachineViewModeChange('repository'); return; }
+        if (itemId.startsWith('status-group:')) {
+            const mode = itemId.slice('status-group:'.length); if (mode === 'none' || mode === 'agent' || mode === 'ticket') props.onStatusGroupingChange(mode);
+            return;
+        }
+        if (itemId.startsWith('status-sort:')) {
+            const mode = itemId.slice('status-sort:'.length); if (mode === 'agent' || mode === 'ticket') props.onStatusSortingChange(mode);
+            return;
+        }
+        if (itemId === 'session-view-repository') { props.onStatusGroupingChange('none'); props.onMachineViewModeChange('repository'); return; }
         if (itemId === 'session-repository-refresh') { if (!props.repositoryRefreshing) props.onRepositoryRefresh?.(); return; }
         if (itemId === 'session-view-original' || itemId === 'session-view-machine') {
+            props.onStatusGroupingChange('none');
             props.onMachineViewModeChange(itemId === 'session-view-machine' ? 'machine' : 'original');
             return;
         }
         const orderingMode = resolveOrderingModeAction(itemId);
         if (orderingMode) {
+            props.onStatusSortingChange('none');
             props.onOrderingModeChange(orderingMode);
             return;
         }

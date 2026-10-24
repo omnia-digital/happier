@@ -71,6 +71,9 @@ import { persistSessionListFolders } from '../commit/persistSessionListFolders';
 import { persistSessionListGroupOrder } from '../commit/persistSessionListGroupOrder';
 import { projectSessionListMachineView } from './projectSessionListMachineView';
 import { useSessionRepositoryView, type SessionListViewMode } from './useSessionRepositoryView';
+import { projectSessionListStatusView, sessionListStatusRowKey, type SessionListStatusMode } from './projectSessionListStatusView';
+import { useSessionTicketStatuses } from '@/hooks/session/useSessionTicketStatus';
+import { useSessionListStatusInputs } from './useSessionListStatusInputs';
 
 const EMPTY_SESSION_KEYS: ReadonlyArray<string> = Object.freeze([]);
 const EMPTY_SESSION_LIST_GROUP_ORDER: Readonly<Record<string, ReadonlyArray<string> | undefined>> = Object.freeze({});
@@ -147,6 +150,11 @@ export function useSessionListViewState({
     const [sessionListFolderSortModeRaw, setSessionListFolderSortModeV1] = useLocalSettingMutable('sessionListFolderSortModeV1');
     const [sessionListMachineViewRaw, persistSessionListMachineViewV1] = useLocalSettingMutable('sessionListMachineViewV1');
     const [sessionListOrderingModeRaw, setSessionListOrderingModeV1] = useSettingMutable('sessionListOrderingModeV1');
+    const [sessionListStatusSortingRaw, setSessionListStatusSorting] = useSettingMutable('sessionListStatusSortV1');
+    const [sessionListStatusGroupingRaw, setSessionListStatusGrouping] = useLocalSettingMutable('sessionListStatusGroupingV1');
+    const sessionListStatusSorting: SessionListStatusMode = sessionListStatusSortingRaw === 'agent' || sessionListStatusSortingRaw === 'ticket' ? sessionListStatusSortingRaw : 'none';
+    const sessionListStatusGrouping: SessionListStatusMode = sessionListStatusGroupingRaw === 'agent' || sessionListStatusGroupingRaw === 'ticket' ? sessionListStatusGroupingRaw : 'none';
+    const statusOrganizationActive = sessionListStatusGrouping !== 'none' || sessionListStatusSorting !== 'none';
     const [sessionFolderViewModeRaw, setSessionFolderViewModeV1] = useSessionFolderViewModeMutable('sessionFolderViewModeV1');
     const sessionTagsEnabled = useSetting('sessionTagsEnabled');
     const [hideInactiveSessionsSetting, setHideInactiveSessions] = useSettingMutable('hideInactiveSessions');
@@ -332,9 +340,9 @@ export function useSessionListViewState({
     }, [getOrganizationMutationContext, runOrganizationMutation, workspaceLabelsV1]);
 
     const machinePresentedData = React.useMemo(() => {
-        if (!data || sessionListMachineViewMode !== 'machine') return data;
+        if (!data || sessionListMachineViewMode !== 'machine' || sessionListStatusGrouping !== 'none') return data;
         return projectSessionListMachineView(data, renderMachineDisplayById, workspaceLabelsV1);
-    }, [data, renderMachineDisplayById, sessionListMachineViewMode, workspaceLabelsV1]);
+    }, [data, renderMachineDisplayById, sessionListMachineViewMode, sessionListStatusGrouping, workspaceLabelsV1]);
 
     const physicalFolderPresentedData = React.useMemo(() => {
         if (!machinePresentedData || !folderViewEnabled) return machinePresentedData;
@@ -350,7 +358,7 @@ export function useSessionListViewState({
     }, []);
     const repositoryView = useSessionRepositoryView({
         items: physicalFolderPresentedData,
-        mode: sessionListMachineViewMode,
+        mode: sessionListStatusGrouping === 'none' ? sessionListMachineViewMode : 'original',
         setMode: persistSessionListMachineViewV1,
         onFailure: reportRepositoryDiscoveryFailure,
         groupOrder: activeGroupOrderMap,
@@ -376,11 +384,11 @@ export function useSessionListViewState({
             folderPresentedData,
             () => ({ collapsedGroups: countCollapsedSessionListGroups(collapsedGroupKeysV1) }),
             () => {
-                if (!folderPresentedData || headerFiltersActive) return folderPresentedData;
+                if (!folderPresentedData || headerFiltersActive || sessionListStatusGrouping !== 'none') return folderPresentedData;
                 return filterCollapsedSessionListItems(folderPresentedData, collapsedGroupKeysV1);
             },
         );
-    }, [folderPresentedData, headerFiltersActive, collapsedGroupKeysV1]);
+    }, [folderPresentedData, headerFiltersActive, collapsedGroupKeysV1, sessionListStatusGrouping]);
 
     const focusedFolderState = useSessionListFocusedFolderState({
         canInvalidateFocusedFolder: sessionListSurfaceDataActive,
@@ -414,6 +422,31 @@ export function useSessionListViewState({
         });
     }, [focusedListItems, headerFilters, sessionTagsV1]);
 
+    // Loaded, filtered candidates create ticket demand before row visibility or generated collapse.
+    const agentStatusActive = sessionListStatusGrouping === 'agent' || sessionListStatusSorting === 'agent';
+    const statusInputs = useSessionListStatusInputs(selectionScopeListItems, selection.activeServerId,
+        sessionListSurfaceDataActive && statusOrganizationActive, agentStatusActive);
+    const runtimeNowMs = statusInputs.runtimeNowMs;
+    const ticketDemands = React.useMemo(() => (selectionScopeListItems ?? []).flatMap(item => {
+        if (item.type !== 'session') return [];
+        const key = sessionListStatusRowKey(item); const association = statusInputs.ticketAssociations.get(key);
+        return association ? [{ key, serverId: item.serverId, association }] : [];
+    }), [selectionScopeListItems, statusInputs.ticketAssociations]);
+    const ticketProjection = useSessionTicketStatuses(ticketDemands,
+        sessionListSurfaceDataActive && (sessionListStatusGrouping === 'ticket' || sessionListStatusSorting === 'ticket'));
+    const statusPresentedItems = React.useMemo(() => {
+        if (!filteredListItems) return filteredListItems;
+        const projected = projectSessionListStatusView({ items: filteredListItems, grouping: sessionListStatusGrouping,
+            sorting: sessionListStatusSorting, ticketStatuses: ticketProjection.states, nowMs: runtimeNowMs,
+            agentStatuses: statusInputs.agentStatuses, ticketAssociations: statusInputs.ticketAssociations });
+        return sessionListStatusGrouping === 'none' || headerFiltersActive ? projected : filterCollapsedSessionListItems(projected, collapsedGroupKeysV1);
+    }, [filteredListItems, sessionListStatusGrouping, sessionListStatusSorting, ticketProjection.states, runtimeNowMs, headerFiltersActive, collapsedGroupKeysV1, statusInputs.agentStatuses, statusInputs.ticketAssociations]);
+    const statusSelectionScopeListItems = React.useMemo(() => selectionScopeListItems && statusOrganizationActive
+        ? projectSessionListStatusView({ items: selectionScopeListItems, grouping: sessionListStatusGrouping,
+            sorting: sessionListStatusSorting, ticketStatuses: ticketProjection.states, nowMs: runtimeNowMs,
+            agentStatuses: statusInputs.agentStatuses, ticketAssociations: statusInputs.ticketAssociations }) : selectionScopeListItems,
+    [selectionScopeListItems, statusOrganizationActive, sessionListStatusGrouping, sessionListStatusSorting, ticketProjection.states, runtimeNowMs, statusInputs.agentStatuses, statusInputs.ticketAssociations]);
+
     const folderBreadcrumbRootTitle = React.useMemo(() => {
         if (focusedFolderState.folderBreadcrumbs.length === 0 || !filteredListItems) return null;
         const projectHeader = filteredListItems.find((item): item is Extract<SessionListViewItem, { type: 'header' }> =>
@@ -426,35 +459,35 @@ export function useSessionListViewState({
     const reachabilityModels = React.useMemo(() => {
         return measureSessionListRenderDerivation(
             'ui.sessionsList.render.reachabilityDisplayMap',
-            filteredListItems,
+            statusPresentedItems,
             () => ({
-                sessions: countSessionListItems(filteredListItems),
-                displayRows: countSessionListItems(filteredListItems),
+                sessions: countSessionListItems(statusPresentedItems),
+                displayRows: countSessionListItems(statusPresentedItems),
                 machines: Object.keys(renderMachineDisplayById).length,
             }),
             () => buildSessionListReachabilityModels({
                 cache: reachabilityModelsCacheRef.current,
-                items: filteredListItems,
+                items: statusPresentedItems,
                 machinesById: renderMachineDisplayById,
                 workspaceLabelsV1,
             }),
         );
-    }, [filteredListItems, renderMachineDisplayById, workspaceLabelsV1]);
+    }, [statusPresentedItems, renderMachineDisplayById, workspaceLabelsV1]);
 
     const selectedItemsRef = React.useRef<ReadonlyArray<SessionListSelectedItem> | null>(null);
     const visibleListItems = React.useMemo(() => {
         return measureSessionListRenderDerivation(
             'ui.sessionsList.render.selectedMapping',
-            filteredListItems,
+            statusPresentedItems,
             () => ({ selectable: selectable ? 1 : 0 }),
             () => buildSessionListSelectedItems({
-                items: filteredListItems,
+                items: statusPresentedItems,
                 pathname,
                 selectable,
                 previousItems: selectedItemsRef.current,
             }),
         );
-    }, [filteredListItems, pathname, selectable]);
+    }, [statusPresentedItems, pathname, selectable]);
     selectedItemsRef.current = visibleListItems ?? null;
 
     const sessionListIndexRef = React.useRef<ReadonlyArray<SessionListIndexItem>>([]);
@@ -483,6 +516,11 @@ export function useSessionListViewState({
         sessionFolderViewMode,
         setSessionFolderViewModeV1,
         sessionListOrderingMode,
+        sessionListStatusGrouping,
+        sessionListStatusSorting,
+        setSessionListStatusGrouping,
+        setSessionListStatusSorting,
+        statusOrganizationActive,
         sessionListMachineViewMode,
         refreshSessionRepositories: repositoryView.refresh,
         getRepositoryAssociationChoices: repositoryView.getAssociationChoices,
@@ -519,7 +557,7 @@ export function useSessionListViewState({
         allKnownTags,
         folderPresentedData,
         collapsedListItems,
-        selectionScopeListItems,
+        selectionScopeListItems: statusSelectionScopeListItems,
         focusedListItems: filteredListItems,
         visibleListItems,
         listItems: (visibleListItems ?? []) as Array<SessionListViewItem | (Extract<SessionListViewItem, { type: 'session' }> & { selected?: boolean })>,
