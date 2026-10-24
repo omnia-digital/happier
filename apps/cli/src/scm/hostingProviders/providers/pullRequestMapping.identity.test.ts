@@ -14,7 +14,10 @@ describe('pull request provider field mapping', () => {
         expect(mapGithubPullRequest(github, rest)).toMatchObject({ state: 'merged', draft: true, headSha: sha, headRepository: 'fork/repo' });
         const gh = { number: 3, title: 'PR', url: rest.html_url, state: 'OPEN', baseRefName: 'main', headRefName: 'topic', isDraft: false, headRefOid: sha, headRepository: { nameWithOwner: 'owner/repo' } };
         expect(mapGithubPullRequest(github, gh)).toMatchObject({ state: 'open', draft: false, headSha: sha, headRepository: 'owner/repo' });
-        expect(mapGithubPullRequest(github, { ...gh, isDraft: undefined, headRefOid: undefined, headRepository: null })).not.toHaveProperty('headRepository');
+        const absentFields = mapGithubPullRequest(github, { ...gh, isDraft: undefined, headRefOid: undefined, headRepository: null });
+        expect(absentFields).not.toHaveProperty('draft');
+        expect(absentFields).not.toHaveProperty('headSha');
+        expect(absentFields).not.toHaveProperty('headRepository');
     });
 
     it('preserves GitLab MR draft and head SHA only when supplied by glab', () => {
