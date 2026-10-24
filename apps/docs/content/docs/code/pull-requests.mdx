@@ -8,7 +8,7 @@ publish the branch and open or reuse the request without you switching to a
 browser or a terminal.
 
 <Callout type="warn">
-  Pull-request actions are Git write operations, so they need
+  Creating or checking out pull requests uses Git write operations, so it needs
   **Settings → Features → Source control operations**, which is experimental and
   **off by default**.
 </Callout>
@@ -93,6 +93,45 @@ Use this when:
 - you want to review a request without disturbing your current branch
 - you want to test someone else's branch in isolation
 - you want to keep your current worktree clean while opening an external PR/MR
+
+## Linked requests in the Omnia development fork
+
+<Callout type="info">
+  Session PR links and archive automation are unreleased Omnia development
+  features. Installed native and real-provider acceptance is still pending.
+</Callout>
+
+On an owned session, open **Info → Linked pull requests → Link pull request**
+and paste a canonical GitHub PR or GitLab merge request URL. A session can link
+several requests, including requests in different repositories. **Change link**
+corrects an association, **Remove link** removes it, and **Refresh status** reads
+its current provider state. These actions do not merge or edit the provider request.
+
+Status reads need a connected fork CLI with the qualified-request reader and
+working provider authentication. Updating the app alone does not add that reader
+to an older CLI. An unavailable read remains explicit; a saved link is not proof
+that a request has merged.
+
+### Automatic archive
+
+In **Settings → Sessions → Archive automation**, enable **Archive after linked
+PRs merge** to opt in. It starts off and syncs with the current Home account.
+Checks run about every five minutes while the app is visible and active.
+
+A session needs at least one linked request, and every request must be freshly
+verified merged and not a draft. The session must also be inactive, idle, and
+have no pending work or live subagents. Missing host signals, inaccessible
+requests, and open, closed or unknown states leave it unarchived. Older hosts
+can lack the required signals; the session's linked-request section explains
+when its work state cannot be verified.
+
+After a confirmed automatic archive, **Archived automatically** shows the linked
+requests that qualified. Archive can succeed before its reason is saved;
+interrupted recording may leave this history incomplete.
+
+**Clean up local resources after archive** is an independent, initially off
+preference. This build saves that choice but does not remove local resources.
+Remote branches stay in place.
 
 ## Related
 
