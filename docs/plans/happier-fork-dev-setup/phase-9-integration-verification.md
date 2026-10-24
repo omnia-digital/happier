@@ -13,6 +13,10 @@ Josh explicitly chose **Keep native QA deferred** on October 24. This supersedes
 
 ## OH-59 machine monitoring
 
+### Current refinement: one line per machine
+
+Josh explicitly requests each machine's specifications on one line, expandable on click. Refine the existing row disclosure in `MachineMonitoringSection`: collapsed machine identity and compact metric summary, with full readings, metric definitions, unavailable/stale/offline explanations, storage volume and GPU identities when expanded. Preserve all five metrics, chosen machine identity, scoped polling and section-collapse behavior. Narrow and large-text summaries must stay on one line; truncated information remains reachable through expansion and accessibility. Click/keyboard activation toggles each machine independently. Owner RED→GREEN, package checks and targeted real-Chrome geometry/keyboard/state evidence are required for this source refinement. Native QA remains deferred. This UI request does not approve the earlier daily cloud-service trial.
+
 ### Installed-host gap: October 24 follow-up
 
 Josh reports all online machines show dashes and “This machine CLI does not support host metrics.” Read-only daemon-state and live-process checks now establish this Mac's cloud/local daemons run0.2.17, Cassian's cloud daemon0.2.12, and Josh-PC's cloud daemon0.2.16. Installed entry points resolve to those versions. Immutable CLI tags0.2.12 (`a357c65536`),0.2.16 (`b8d1c449c4`) and0.2.17 (`a2c45c8680`) contain neither `tool.machineMetrics` nor `collectHostMetrics`. Their missing producer explains the displayed unsupported state; an ordinary update to the verified0.2.17 release would not add it.
