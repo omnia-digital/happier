@@ -21,6 +21,7 @@ Implement the existing OH-52 request under the project goal: independent opt-in 
 - [x] 🟢 Discover actual PR discovery/get/cache/auth, association metadata, archive entry points, host ownership/process knowledge, worktree/branch removal and settings/lifecycle owners. Gaps recorded below.
 - [x] 🟢 Split implementation into source slices with concrete acceptance, file ownership and checks. Safety-sensitive implementation remains pending below.
 - [ ] 🔴 RED/GREEN independent preferences, multiple/cross-repository PRs and partial/unavailable merge states, active-session handling and canonical manual/automatic archive.
+- [ ] 🟡 Slice 2 TDD: account-scoped false defaults and four combinations; catalog-only candidate projection; foreground metadata-only hydration and exact fresh provider reads; current-scope/inactivity/pending rechecks; confirmed-archive seam and persisted automatic reason. No host resource mutation in this slice.
 - [ ] 🔴 Disposable Git proof for dirty, untracked, ignored, unpushed, later commits, squash/rebase, protected/main/shared resources, offline/failure/retry and immediate pre-delete revalidation.
 - [ ] 🔴 Composed isolated Preferences → merge-state read → archive → safe host cleanup, plus relevant macOS/Windows/Linux evidence and explicit unavailable platform gaps.
 - [ ] 🔴 Independent source review, required types/adjacent tests and rendered UI checks. No stable/native/production completion claim from source fixtures alone.
