@@ -44,6 +44,24 @@ describe('TokenStorage (web) server-scoped credentials', () => {
         await expect(TokenStorage.getCredentials()).resolves.toEqual({ token: 'token-b', secret: 'secret-b' });
     });
 
+    it('notifies live credential readers when scoped credentials change and stops after unsubscribe', async () => {
+        restoreLocalStorage = installLocalStorageMock().restore;
+        const { setServerUrl } = await import('@/sync/domains/server/serverConfig');
+        const { TokenStorage } = await import('./tokenStorage');
+        const onChange = vi.fn();
+        const unsubscribe = TokenStorage.subscribeCredentialChanges(onChange);
+
+        setServerUrl('https://server-a.example.test');
+        await expect(TokenStorage.setCredentials({ token: 'token-a', secret: 'secret-a' })).resolves.toBe(true);
+        expect(onChange).toHaveBeenCalledTimes(1);
+        await expect(TokenStorage.removeCredentialsForServerUrl('https://server-a.example.test')).resolves.toBe(true);
+        expect(onChange).toHaveBeenCalledTimes(2);
+
+        unsubscribe();
+        await TokenStorage.setCredentials({ token: 'token-b', secret: 'secret-b' });
+        expect(onChange).toHaveBeenCalledTimes(2);
+    });
+
     it('can read and clear credentials for a specific server URL (without switching active server)', async () => {
         restoreLocalStorage = installLocalStorageMock().restore;
 

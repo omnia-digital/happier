@@ -3,7 +3,9 @@ import {
     machineFilesystemListRoots,
 } from '@/sync/ops/machineFileBrowser';
 import { getActiveServerAccountScope } from '@/sync/domains/scope/activeServerAccountScope';
+import { areServerAccountScopesEqual, type ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import { areServerProfileIdentifiersEquivalent } from '@/sync/domains/server/serverProfiles';
+import { machinePathTargetKey, type MachinePathTarget } from '@/sync/domains/settings/machinePathPreferences';
 
 import { sortDirectoryEntries } from './sortDirectoryEntries';
 import { warmInFlight } from './warmInFlight';
@@ -40,9 +42,34 @@ const directoryEntriesCache = new Map<string, CachedDirectoryEntries>();
 const rootsWarmInFlight = new Map<string, Promise<ListMachineFileBrowserRootsResult>>();
 const directoryWarmInFlight = new Map<string, Promise<ListMachineFileBrowserDirectoryEntriesResult>>();
 
-type CacheScope = Readonly<{ serverId?: string | null; targetScopeKey?: string | null }>;
+export type MachineFileBrowserIdentity = Readonly<{
+    target: MachinePathTarget;
+    viewerScope: ServerAccountScope;
+}>;
 
-function resolveCacheScopeKey(input: CacheScope): string | null {
+type CacheScope = Readonly<{
+    serverId?: string | null;
+    targetScopeKey?: string | null;
+    browserIdentity?: MachineFileBrowserIdentity | null;
+}>;
+
+function isBrowserIdentityCurrent(machineId: string, input: CacheScope): boolean {
+    const identity = input.browserIdentity;
+    if (!identity) return true;
+    const active = getActiveServerAccountScope();
+    const requestedServerId = input.serverId || active?.serverId;
+    return identity.target.machineId === machineId
+        && !!requestedServerId
+        && areServerProfileIdentifiersEquivalent(identity.target.serverId, requestedServerId)
+        && areServerAccountScopesEqual(identity.viewerScope, active);
+}
+
+function resolveCacheScopeKey(machineId: string, input: CacheScope): string | null {
+    if (input.browserIdentity) {
+        return isBrowserIdentityCurrent(machineId, input)
+            ? machinePathTargetKey(input.browserIdentity.target)
+            : null;
+    }
     if (typeof input.targetScopeKey === 'string' && input.targetScopeKey.length > 0) return input.targetScopeKey;
     const active = getActiveServerAccountScope();
     if (!active || (input.serverId && !areServerProfileIdentifiersEquivalent(input.serverId, active.serverId))) return null;
@@ -50,7 +77,7 @@ function resolveCacheScopeKey(input: CacheScope): string | null {
 }
 
 function getRootsCacheKey(machineId: string, input: CacheScope): string | null {
-    const scope = resolveCacheScopeKey(input);
+    const scope = resolveCacheScopeKey(machineId, input);
     return scope ? `${scope}\u0000${input.serverId ?? ''}\u0000${machineId}` : null;
 }
 
@@ -67,13 +94,13 @@ function readMachineIdFromDirectoryCacheKey(key: string): string {
     return readMachineIdFromRootsCacheKey(key);
 }
 
-export function getCachedMachineFileBrowserRoots(input: { machineId: string; serverId?: string | null; targetScopeKey?: string | null }): MachineFileBrowserRoot[] | null {
+export function getCachedMachineFileBrowserRoots(input: { machineId: string; serverId?: string | null; targetScopeKey?: string | null; browserIdentity?: MachineFileBrowserIdentity | null }): MachineFileBrowserRoot[] | null {
     const key = getRootsCacheKey(input.machineId, input);
     const cached = key ? rootsCache.get(key) : null;
     return cached ? cached.slice() : null;
 }
 
-export function clearCachedMachineFileBrowserRoots(input: { machineId: string; serverId?: string | null; targetScopeKey?: string | null }): void {
+export function clearCachedMachineFileBrowserRoots(input: { machineId: string; serverId?: string | null; targetScopeKey?: string | null; browserIdentity?: MachineFileBrowserIdentity | null }): void {
     if (typeof input.serverId === 'string' || input.serverId === null) {
         const key = getRootsCacheKey(input.machineId, input);
         if (key) {
@@ -100,6 +127,7 @@ export function getCachedMachineFileBrowserEntries(input: {
     includeFiles?: boolean;
     serverId?: string | null;
     targetScopeKey?: string | null;
+    browserIdentity?: MachineFileBrowserIdentity | null;
 }): MachineFileBrowserEntry[] | null {
     const key = getDirectoryCacheKey(input.machineId, input.directoryPath, input.includeFiles !== false, input);
     const cached = key ? directoryEntriesCache.get(key) : null;
@@ -112,6 +140,7 @@ export function getCachedMachineFileBrowserDirectoryMetadata(input: {
     includeFiles?: boolean;
     serverId?: string | null;
     targetScopeKey?: string | null;
+    browserIdentity?: MachineFileBrowserIdentity | null;
 }): Readonly<{ truncated: boolean }> | null {
     const key = getDirectoryCacheKey(input.machineId, input.directoryPath, input.includeFiles !== false, input);
     const cached = key ? directoryEntriesCache.get(key) : null;
@@ -123,6 +152,7 @@ export function clearCachedMachineFileBrowserEntries(input: {
     directoryPath?: string | null;
     serverId?: string | null;
     targetScopeKey?: string | null;
+    browserIdentity?: MachineFileBrowserIdentity | null;
 }): void {
     const rootKey = getRootsCacheKey(input.machineId, input);
     const serverPrefix = rootKey ? `${rootKey}\u0000` : null;
@@ -156,6 +186,7 @@ function setCachedMachineFileBrowserRoots(input: {
     machineId: string;
     serverId?: string | null;
     targetScopeKey?: string | null;
+    browserIdentity?: MachineFileBrowserIdentity | null;
     roots: MachineFileBrowserRoot[];
 }): void {
     const key = getRootsCacheKey(input.machineId, input);
@@ -168,6 +199,7 @@ function setCachedMachineFileBrowserEntries(input: {
     includeFiles: boolean;
     serverId?: string | null;
     targetScopeKey?: string | null;
+    browserIdentity?: MachineFileBrowserIdentity | null;
     entries: MachineFileBrowserEntry[];
     truncated: boolean;
 }): void {
@@ -186,8 +218,14 @@ export async function listMachineFileBrowserRoots(input: {
     machineId: string;
     serverId?: string | null;
     targetScopeKey?: string | null;
+    browserIdentity?: MachineFileBrowserIdentity | null;
 }): Promise<ListMachineFileBrowserRootsResult> {
-    const response = await machineFilesystemListRoots(input.machineId, { serverId: input.serverId });
+    if (!isBrowserIdentityCurrent(input.machineId, input)) return { ok: false, error: 'account_scope_changed' };
+    const response = await machineFilesystemListRoots(input.machineId, {
+        serverId: input.serverId,
+        accountId: input.browserIdentity?.target.accountId,
+    });
+    if (!isBrowserIdentityCurrent(input.machineId, input)) return { ok: false, error: 'account_scope_changed' };
     if (!response.ok) {
         const error = typeof response.error === 'string' ? response.error.trim() : '';
         return { ok: false, error: error || 'unknown_error' };
@@ -209,7 +247,7 @@ export async function listMachineFileBrowserRoots(input: {
             path: root.path.trim(),
         }));
 
-    setCachedMachineFileBrowserRoots({ machineId: input.machineId, serverId: input.serverId, targetScopeKey: input.targetScopeKey, roots });
+    setCachedMachineFileBrowserRoots({ ...input, roots });
     return { ok: true, roots };
 }
 
@@ -217,6 +255,7 @@ export async function warmMachineFileBrowserRoots(input: {
     machineId: string;
     serverId?: string | null;
     targetScopeKey?: string | null;
+    browserIdentity?: MachineFileBrowserIdentity | null;
 }): Promise<ListMachineFileBrowserRootsResult> {
     const cached = getCachedMachineFileBrowserRoots(input);
     if (cached) return { ok: true, roots: cached };
@@ -232,11 +271,17 @@ export async function listMachineFileBrowserDirectoryEntries(input: {
         includeFiles: boolean;
         serverId?: string | null;
         targetScopeKey?: string | null;
+        browserIdentity?: MachineFileBrowserIdentity | null;
 }): Promise<ListMachineFileBrowserDirectoryEntriesResult> {
+    if (!isBrowserIdentityCurrent(input.machineId, input)) return { ok: false, error: 'account_scope_changed' };
     const response = await machineFilesystemListDirectory(input.machineId, {
         path: input.directoryPath,
         includeFiles: input.includeFiles,
-    }, { serverId: input.serverId });
+    }, {
+        serverId: input.serverId,
+        accountId: input.browserIdentity?.target.accountId,
+    });
+    if (!isBrowserIdentityCurrent(input.machineId, input)) return { ok: false, error: 'account_scope_changed' };
 
     if (!response.ok) {
         const error = typeof response.error === 'string' ? response.error.trim() : '';
@@ -259,11 +304,7 @@ export async function listMachineFileBrowserDirectoryEntries(input: {
     }));
 
     setCachedMachineFileBrowserEntries({
-        machineId: input.machineId,
-        serverId: input.serverId,
-        targetScopeKey: input.targetScopeKey,
-        directoryPath: input.directoryPath,
-        includeFiles: input.includeFiles,
+        ...input,
         entries,
         truncated: response.truncated === true,
     });
@@ -276,6 +317,7 @@ export async function warmMachineFileBrowserDirectoryCache(input: {
     includeFiles: boolean;
     serverId?: string | null;
     targetScopeKey?: string | null;
+    browserIdentity?: MachineFileBrowserIdentity | null;
 }): Promise<ListMachineFileBrowserDirectoryEntriesResult> {
     const cachedEntries = getCachedMachineFileBrowserEntries(input);
     const cachedMetadata = getCachedMachineFileBrowserDirectoryMetadata(input);

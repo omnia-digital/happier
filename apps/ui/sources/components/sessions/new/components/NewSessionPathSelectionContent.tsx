@@ -15,6 +15,7 @@
  */
 
 import * as React from 'react';
+import type { MachineFileBrowserIdentity } from '@/sync/domains/input/machineFileBrowser';
 import { View, type ViewStyle } from 'react-native';
 
 import { layout } from '@/components/ui/layout/layout';
@@ -50,6 +51,7 @@ export type NewSessionPathSelectionContentProps = Readonly<{
     machineId: string | null;
     serverId?: string | null;
     targetScopeKey?: string | null;
+    browserIdentity?: MachineFileBrowserIdentity | null;
     /** Machine platform (NEVER `navigator.platform`). Defaults to 'auto'. */
     machinePlatform?: PathTargetPlatform;
     onRequestClose?: () => void;
@@ -173,6 +175,7 @@ export function NewSessionPathSelectionContent(props: NewSessionPathSelectionCon
                 machineId={props.machineId}
                 serverId={props.serverId ?? null}
                 targetScopeKey={props.targetScopeKey}
+                browserIdentity={props.browserIdentity}
                 machinePlatform={props.machinePlatform ?? 'auto'}
                 onCommit={props.onCommit}
                 onChangeDraftPath={props.onChangeDraftSelectedPath}

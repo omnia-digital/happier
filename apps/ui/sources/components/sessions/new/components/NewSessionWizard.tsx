@@ -145,6 +145,7 @@ export interface NewSessionWizardMachineProps {
     serverId?: string | null;
     scmScope?: ServerAccountScope | null;
     targetScopeKey?: string | null;
+    browserIdentity?: import('@/sync/domains/input/machineFileBrowser').MachineFileBrowserIdentity | null;
     selectedMachine: Machine | null;
     recentMachines: ReadonlyArray<Machine>;
     favoriteMachineItems: ReadonlyArray<Machine>;
@@ -1019,6 +1020,7 @@ export const NewSessionWizard = React.memo(function NewSessionWizard(props: NewS
                                                 machineId={selectedMachine?.id ?? null}
                                                 serverId={serverId ?? null}
                                                 targetScopeKey={props.machine.targetScopeKey}
+                                                browserIdentity={props.machine.browserIdentity}
                                                 machinePlatform={machineMetadataPlatformToTarget(selectedMachine?.metadata?.platform)}
                                                 onCommit={(nextPath) => {
                                                     setSelectedPath(nextPath);

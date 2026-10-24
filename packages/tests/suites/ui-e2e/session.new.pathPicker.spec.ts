@@ -150,7 +150,7 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         await activePopover.getByTestId('path-selection-list:header:input').fill(`${suiteDir}/`);
         const directoryRow = activePopover.getByTestId(`path-selection-list:path-root:option:in-folder:${favoriteDir}`);
         await expect(directoryRow).toBeVisible({ timeout: 60_000 });
-        await activePopover.getByTestId(`path-selection-list:path-root:option:in-folder:${favoriteDir}:favorite-toggle`).click();
+        await directoryRow.getByRole('button', { name: 'Add to favorites' }).click();
         await expect(activePopover.getByTestId(`path-selection-list:path-root:option:favorite:${favoriteDir}`)).toBeVisible({ timeout: 60_000 });
 
         await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/new?happier_hmr=0`, 60_000);

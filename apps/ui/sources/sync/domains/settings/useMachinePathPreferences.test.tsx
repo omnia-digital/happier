@@ -7,6 +7,7 @@ import { renderScreen } from '@/dev/testkit';
 let viewerScope = { serverId: 'viewer-server', accountId: 'viewer-a' };
 let settingsScope = viewerScope;
 const credentialsForTarget = vi.fn();
+const credentialListeners = new Set<() => void>();
 const createEncryption = vi.fn(async (_credentials: unknown) => ({}));
 const tokenForSub = (sub: string) => `e30.${globalThis.btoa(JSON.stringify({ sub })).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')}.signature`;
 const settingsState: Record<string, any> = {
@@ -50,7 +51,13 @@ vi.mock('@/sync/domains/server/serverRuntime', () => ({
     getActiveServerSnapshot: () => ({ serverId: 'viewer-server', serverUrl: 'https://viewer.example.test' }),
 }));
 vi.mock('@/auth/storage/tokenStorage', () => ({
-    TokenStorage: { getCredentialsForServerUrl: (...args: unknown[]) => credentialsForTarget(...args) },
+    TokenStorage: {
+        getCredentialsForServerUrl: (...args: unknown[]) => credentialsForTarget(...args),
+        subscribeCredentialChanges: (listener: () => void) => {
+            credentialListeners.add(listener);
+            return () => { credentialListeners.delete(listener); };
+        },
+    },
 }));
 vi.mock('@/auth/encryption/createEncryptionFromAuthCredentials', () => ({
     createEncryptionFromAuthCredentials: (credentials: unknown) => createEncryption(credentials),
@@ -95,6 +102,32 @@ describe('useMachinePathTargetScope', () => {
         await act(async () => { await Promise.resolve(); });
         expect(targetServerId).toBe('target-server');
         act(() => screen.tree.unmount());
+    });
+
+    it('clears and rebinds a foreign target when its stored Account changes without a viewer switch', async () => {
+        viewerScope = { serverId: 'viewer-server', accountId: 'viewer-a' };
+        settingsScope = viewerScope;
+        credentialsForTarget.mockReset().mockResolvedValue({ token: tokenForSub('target-a'), secret: 'secret' });
+        const { useMachinePathTargetScope } = await import('./useMachinePathPreferences');
+        let targetAccountId: string | null = null;
+        const renderedAccounts: Array<string | null> = [];
+        const Probe = () => {
+            targetAccountId = useMachinePathTargetScope('target-server')?.scope.accountId ?? null;
+            renderedAccounts.push(targetAccountId);
+            return null;
+        };
+        const screen = await renderScreen(<Probe />);
+        await act(async () => { await Promise.resolve(); });
+        expect(targetAccountId).toBe('target-a');
+        expect(credentialListeners.size).toBe(1);
+
+        const rendersBeforeChange = renderedAccounts.length;
+        credentialsForTarget.mockResolvedValue({ token: tokenForSub('target-b'), secret: 'secret' });
+        await act(async () => { for (const listener of credentialListeners) listener(); });
+        expect(renderedAccounts.slice(rendersBeforeChange)).toContain(null);
+        expect(targetAccountId).toBe('target-b');
+        act(() => screen.tree.unmount());
+        expect(credentialListeners.size).toBe(0);
     });
 
     it('rejects a saved favorite handler from an earlier viewer account after rebinding', async () => {

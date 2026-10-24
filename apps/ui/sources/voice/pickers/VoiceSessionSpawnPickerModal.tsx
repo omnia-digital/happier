@@ -254,6 +254,7 @@ export function VoiceSessionSpawnPickerModal(props: Props) {
               machineId={selectedMachine?.id ?? null}
               serverId={null}
               targetScopeKey={pathPreferences.targetKey}
+              browserIdentity={pathPreferences.browserIdentity}
               machinePlatform={machineMetadataPlatformToTarget(selectedMachine?.metadata?.platform)}
               onCommit={setSelectedPath}
               onChangeDraftPath={setSelectedPath}

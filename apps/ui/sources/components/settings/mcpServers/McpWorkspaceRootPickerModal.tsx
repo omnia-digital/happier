@@ -76,6 +76,7 @@ export function McpWorkspaceRootPickerModal(props: McpWorkspaceRootPickerModalPr
                     machineId={props.machineId ?? null}
                     serverId={props.serverId ?? null}
                     targetScopeKey={pathPreferences.targetKey}
+                    browserIdentity={pathPreferences.browserIdentity}
                     machinePlatform={resolvedPlatform}
                     onCommit={(next) => {
                         props.onSelectPath(next);

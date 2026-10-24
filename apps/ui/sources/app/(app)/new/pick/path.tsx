@@ -199,6 +199,7 @@ export default React.memo(function PathPickerScreen() {
                 machineId={machine.id}
                 serverId={typeof params.spawnServerId === 'string' && params.spawnServerId.length > 0 ? params.spawnServerId : null}
                 targetScopeKey={pathPreferences.targetKey}
+                browserIdentity={pathPreferences.browserIdentity}
                 machinePlatform={machineMetadataPlatformToTarget(machine.metadata?.platform)}
             />
         </NewSessionScreenPortalScope>

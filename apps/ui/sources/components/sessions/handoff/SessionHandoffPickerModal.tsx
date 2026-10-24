@@ -375,6 +375,7 @@ export function SessionHandoffPickerModal({ onClose, setChrome, onResolve, sessi
                             machineId={selectedMachineId}
                             serverId={normalizeId(serverId) || null}
                             targetScopeKey={pathPreferences.targetKey}
+                            browserIdentity={pathPreferences.browserIdentity}
                             machinePlatform={machineMetadataPlatformToTarget(selectedMachine?.metadata?.platform)}
                             onCommit={handleTargetPathChange}
                             onChangeDraftPath={handleTargetPathChange}

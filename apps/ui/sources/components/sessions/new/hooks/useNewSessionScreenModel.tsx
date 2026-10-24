@@ -1275,6 +1275,8 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         selectedMachinePlatform: selectedMachine?.metadata?.platform ?? null,
         selectedPath,
         targetServerId: targetServerId ?? null,
+        targetScopeKey: pathPreferences.targetKey,
+        viewerAccountId: pathPreferences.browserIdentity?.viewerScope.accountId ?? null,
     }), [
         favoriteDirectories,
         pathPreferences.unassignedFavorites,
@@ -1284,6 +1286,8 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         selectedMachine?.metadata?.platform,
         selectedPath,
         targetServerId,
+        pathPreferences.targetKey,
+        pathPreferences.browserIdentity?.viewerScope.accountId,
     ]);
 
     const pathPopover = React.useMemo<AgentInputContentPopoverConfig>(() => ({
@@ -1305,6 +1309,7 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
                 machineId={selectedMachine?.id ?? null}
                 serverId={targetServerId ?? null}
                 targetScopeKey={pathPreferences.targetKey}
+                browserIdentity={pathPreferences.browserIdentity}
                 machinePlatform={machineMetadataPlatformToTarget(selectedMachine?.metadata?.platform)}
                 onRequestClose={requestClose}
                 // FR3-10: do NOT pass requestClose as onBeforeBrowseMachinePath.
@@ -1328,6 +1333,7 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         keyboardShouldPersistTaps: 'handled',
     }), [
         pathPopoverSignature,
+        pathPreferences.browserIdentity,
         assignUnassignedFavorite,
         handleToggleFavoriteDirectory,
         setDraftSelectedPath,
@@ -2090,6 +2096,7 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         favoriteDirectories,
         setFavoriteDirectories,
         targetScopeKey: pathPreferences.targetKey,
+        browserIdentity: pathPreferences.browserIdentity,
         unassignedFavorites: pathPreferences.unassignedFavorites,
         onAssignUnassignedFavorite: assignUnassignedFavorite,
 

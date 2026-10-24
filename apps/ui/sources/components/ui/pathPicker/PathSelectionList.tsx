@@ -39,7 +39,7 @@ import { formatPathRelativeToHome } from '@/utils/sessions/formatPathRelativeToH
 import { resolveDirectoryFavoriteComparisonKey } from '@/components/sessions/new/hooks/favoriteDirectoriesToggle';
 import { InputBrowseButton } from '@/components/ui/buttons/InputBrowseButton';
 import { useModalPortalTarget } from '@/modal/portal/ModalPortalTarget';
-import { listMachineFileBrowserDirectoryEntries } from '@/sync/domains/input/machineFileBrowser';
+import { listMachineFileBrowserDirectoryEntries, type MachineFileBrowserIdentity } from '@/sync/domains/input/machineFileBrowser';
 import { t } from '@/text';
 import { Pressable, type GestureResponderEvent } from 'react-native';
 import { useUnistyles } from 'react-native-unistyles';
@@ -147,6 +147,7 @@ export type PathSelectionListProps = Readonly<{
     serverId?: string | null;
     /** Exact Home/account/machine identity; invalidates pending browse results after account changes. */
     targetScopeKey?: string | null;
+    browserIdentity?: MachineFileBrowserIdentity | null;
     /**
      * Target machine platform. MUST be derived from machine metadata, NEVER
      * from `navigator.platform`. Defaults to `'auto'` only when the caller has
@@ -325,11 +326,14 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
     const machineIdRef = React.useRef(machineId);
     const targetScopeKeyRef = React.useRef(props.targetScopeKey);
     targetScopeKeyRef.current = props.targetScopeKey;
+    const browserIdentityRef = React.useRef(props.browserIdentity);
+    browserIdentityRef.current = props.browserIdentity;
     const isFavoriteRef = React.useRef(isFavorite);
     const onToggleFavoriteRef = React.useRef(onToggleFavorite);
     const onChangeDraftPathRef = React.useRef(onChangeDraftPath);
     const browseIdentity = JSON.stringify([
         machineId, serverId ?? null, machineHomeDir, machinePlatform, props.targetScopeKey ?? null,
+        props.browserIdentity?.viewerScope.serverId ?? null, props.browserIdentity?.viewerScope.accountId ?? null,
     ]);
     const browseIdentityRef = React.useRef(browseIdentity);
     browseIdentityRef.current = browseIdentity;
@@ -443,6 +447,7 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
             machineId,
             serverId: serverId ?? null,
             targetScopeKey: props.targetScopeKey ?? null,
+            browserIdentity: props.browserIdentity,
             initialPath,
             webPortalTarget: modalPortalTarget,
         });
@@ -461,6 +466,7 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
         onBeforeBrowseMachinePath,
         serverId,
         props.targetScopeKey,
+        props.browserIdentity,
     ]);
 
     // R16a: a stable resolver closure that reads volatile dependencies (machine
@@ -489,6 +495,7 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
                 machineId: currentMachineId,
                 serverId: currentServerId ?? null,
                 targetScopeKey: targetScopeKeyRef.current ?? null,
+                browserIdentity: browserIdentityRef.current,
                 directoryPath,
                 includeFiles: false,
             });
@@ -605,6 +612,7 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
                     `platform:${machinePlatform}`,
                     `server:${serverId ?? ''}`,
                     `target:${props.targetScopeKey ?? ''}`,
+                    `viewer:${props.browserIdentity?.viewerScope.serverId ?? ''}:${props.browserIdentity?.viewerScope.accountId ?? ''}`,
                 ].join('::'),
                 // Only show when the input shape suggests a path AND a machine
                 // is bound. NEVER infer the target platform from the local
@@ -695,6 +703,7 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
         // current render, so make memoization depend on it too.
         serverId,
         props.targetScopeKey,
+        props.browserIdentity,
     ]);
 
     const inputSuffix = (

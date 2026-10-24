@@ -1,8 +1,10 @@
 import * as React from 'react';
 
+import { TokenStorage } from '@/auth/storage/tokenStorage';
 import { useActiveServerAccountScope, useSetting } from '@/sync/domains/state/storage';
 import { storage } from '@/sync/domains/state/storage';
 import { getActiveServerAccountScope } from '@/sync/domains/scope/activeServerAccountScope';
+import type { MachineFileBrowserIdentity } from '@/sync/domains/input/machineFileBrowser';
 import { areServerAccountScopesEqual, type ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import { areServerProfileIdentifiersEquivalent } from '@/sync/domains/server/serverProfiles';
 import { resolveCanonicalMachineId, type MachineReplacementRecord } from '@/sync/domains/machines/identity/resolveCanonicalMachineId';
@@ -44,25 +46,29 @@ export function useMachinePathTargetScope(serverIdInput?: string | null): Target
             return;
         }
         let cancelled = false;
-        setForeignBinding(null);
-        void (async () => {
-            try {
-                const context = await resolveServerScopedSessionContext({ serverId, preferScoped: true });
-                if (context.scope !== 'scoped'
-                    || !areServerProfileIdentifiersEquivalent(context.targetServerId, serverId)
-                    || !await isServerScopedSessionContextCurrent(context)
-                    || cancelled
-                    || !areServerAccountScopesEqual(viewerScope, getActiveServerAccountScope())) return;
-                setForeignBinding({
-                    scope: { serverId: context.targetServerId, accountId: context.targetAccountId },
-                    viewerScope,
-                    context,
-                });
-            } catch {
-                // A signed-out or unavailable target has no identifiable preference owner.
-            }
-        })();
-        return () => { cancelled = true; };
+        const refreshForeignBinding = () => {
+            setForeignBinding(null);
+            void (async () => {
+                try {
+                    const context = await resolveServerScopedSessionContext({ serverId, preferScoped: true });
+                    if (context.scope !== 'scoped'
+                        || !areServerProfileIdentifiersEquivalent(context.targetServerId, serverId)
+                        || !await isServerScopedSessionContextCurrent(context)
+                        || cancelled
+                        || !areServerAccountScopesEqual(viewerScope, getActiveServerAccountScope())) return;
+                    setForeignBinding({
+                        scope: { serverId: context.targetServerId, accountId: context.targetAccountId },
+                        viewerScope,
+                        context,
+                    });
+                } catch {
+                    // A signed-out or unavailable target has no identifiable preference owner.
+                }
+            })();
+        };
+        const unsubscribe = TokenStorage.subscribeCredentialChanges(refreshForeignBinding);
+        refreshForeignBinding();
+        return () => { cancelled = true; unsubscribe(); };
     }, [serverId, targetsActive, viewerScope?.accountId, viewerScope?.serverId]);
 
     return activeBinding ?? (!targetsActive && foreignBinding
@@ -95,6 +101,10 @@ export function useMachinePathPreferences(params: Readonly<{
         ? { binding: scopeBinding, target }
         : null,
     [scopeBinding?.context, scopeBinding?.viewerScope.accountId, scopeBinding?.viewerScope.serverId, target]);
+    const browserIdentity = React.useMemo<MachineFileBrowserIdentity | null>(() => capturedBinding
+        ? { target: capturedBinding.target, viewerScope: capturedBinding.binding.viewerScope }
+        : null,
+    [capturedBinding]);
     const bindingRef = React.useRef<typeof capturedBinding>(null);
     bindingRef.current = capturedBinding;
 
@@ -147,6 +157,7 @@ export function useMachinePathPreferences(params: Readonly<{
     return {
         target,
         targetKey,
+        browserIdentity,
         favorites: favoritePathsForTarget(preferences, target),
         recents: recentPathsForTarget(preferences, target),
         unassignedFavorites: unassignedLegacyFavoritesForTarget(legacyFavorites, preferences, target, params.machineHomeDir),

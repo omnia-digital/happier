@@ -10,6 +10,12 @@ import {
     warmMachineFileBrowserDirectoryCache,
 } from './machineFileBrowser';
 
+let activeScope = { serverId: 'server-1', accountId: 'account-a' };
+
+vi.mock('@/sync/domains/scope/activeServerAccountScope', () => ({
+    getActiveServerAccountScope: () => activeScope,
+}));
+
 vi.mock('@/sync/ops/machineFileBrowser', () => ({
     machineFilesystemListRoots: vi.fn(),
     machineFilesystemListDirectory: vi.fn(),
@@ -178,6 +184,43 @@ describe('machineFileBrowser domain', () => {
         })).toEqual([{ name: 'private', path: '/repo/private', type: 'directory' }]);
         expect(getCachedMachineFileBrowserEntries({
             machineId: 'machine-1', serverId: 'server-1', targetScopeKey: 'account-b',
+            directoryPath: '/repo', includeFiles: false,
+        })).toBeNull();
+    });
+
+    it('rejects a late directory result after the viewer Account changes', async () => {
+        activeScope = { serverId: 'server-1', accountId: 'account-a' };
+        const ops = await import('@/sync/ops/machineFileBrowser');
+        (ops.machineFilesystemListDirectory as any).mockReset();
+        clearCachedMachineFileBrowserEntries({ machineId: 'machine-1' });
+        let finish!: (value: unknown) => void;
+        (ops.machineFilesystemListDirectory as any).mockReturnValueOnce(new Promise((resolve) => { finish = resolve; }));
+
+        const identity = {
+            viewerScope: { serverId: 'server-1', accountId: 'account-a' },
+            target: { serverId: 'server-1', accountId: 'account-a', machineId: 'machine-1' },
+        };
+        const pending = listMachineFileBrowserDirectoryEntries({
+            machineId: 'machine-1', serverId: 'server-1', browserIdentity: identity,
+            directoryPath: '/repo', includeFiles: false,
+        });
+        expect(ops.machineFilesystemListDirectory).toHaveBeenCalledWith(
+            'machine-1', { path: '/repo', includeFiles: false },
+            { serverId: 'server-1', accountId: 'account-a' },
+        );
+        activeScope = { serverId: 'server-1', accountId: 'account-b' };
+        finish({
+            ok: true, path: '/repo', truncated: false,
+            entries: [{ name: 'private', path: '/repo/private', type: 'directory' }],
+        });
+        expect(await pending).toMatchObject({ ok: false });
+        expect(getCachedMachineFileBrowserEntries({
+            machineId: 'machine-1', serverId: 'server-1', browserIdentity: identity,
+            directoryPath: '/repo', includeFiles: false,
+        })).toBeNull();
+        activeScope = { serverId: 'server-1', accountId: 'account-a' };
+        expect(getCachedMachineFileBrowserEntries({
+            machineId: 'machine-1', serverId: 'server-1', browserIdentity: identity,
             directoryPath: '/repo', includeFiles: false,
         })).toBeNull();
     });

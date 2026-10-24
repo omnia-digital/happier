@@ -11,6 +11,7 @@ import { getRequiredSecretEnvVarNames } from '@/sync/domains/profiles/profileSec
 import type { AIBackendProfile } from '@/sync/domains/profiles/profileCompatibility';
 import type { SavedSecret } from '@/sync/domains/settings/savedSecretTypes';
 import type { Machine } from '@/sync/domains/state/storageTypes';
+import type { MachineFileBrowserIdentity } from '@/sync/domains/input/machineFileBrowser';
 import type { PermissionMode, ModelMode } from '@/sync/domains/permissions/permissionTypes';
 import type { CLIAvailability } from '@/hooks/auth/useCLIDetection';
 import type { UseMachineEnvPresenceResult } from '@/hooks/machine/useMachineEnvPresence';
@@ -143,6 +144,7 @@ export function useNewSessionWizardProps(params: Readonly<{
     targetServerId?: string | null;
     scmScope?: ServerAccountScope | null;
     targetScopeKey?: string | null;
+    browserIdentity?: MachineFileBrowserIdentity | null;
     selectedMachine: Machine | null;
     recentMachines: ReadonlyArray<Machine>;
     favoriteMachineItems: ReadonlyArray<Machine>;
@@ -439,6 +441,8 @@ export function useNewSessionWizardProps(params: Readonly<{
             machines: params.machines,
             serverId: params.targetServerId,
             scmScope: params.scmScope,
+            targetScopeKey: params.targetScopeKey,
+            browserIdentity: params.browserIdentity,
             selectedMachine: params.selectedMachine || null,
             recentMachines: params.recentMachines,
             favoriteMachineItems: params.favoriteMachineItems,
@@ -470,6 +474,7 @@ export function useNewSessionWizardProps(params: Readonly<{
         params.targetServerId,
         params.scmScope,
         params.targetScopeKey,
+        params.browserIdentity,
         params.recentMachines,
         params.recentPaths,
         params.refreshMachineData,
