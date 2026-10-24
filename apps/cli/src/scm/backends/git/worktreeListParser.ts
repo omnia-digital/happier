@@ -51,6 +51,8 @@ export function parseGitWorktreeListPorcelain(input: {
 
     let activePath: string | null = null;
     let activeBranch: string | null = null;
+    let activeLocked = false;
+    let activePrunable = false;
 
     const flush = () => {
         const path = normalizeGitPathToken(activePath);
@@ -60,9 +62,13 @@ export function parseGitWorktreeListPorcelain(input: {
             branch: normalizeBranchRef(activeBranch),
             isCurrent: currentPath === path,
             isMain: mainPath === path,
+            ...(activeLocked ? { isLocked: true } : {}),
+            ...(activePrunable ? { isPrunable: true } : {}),
         });
         activePath = null;
         activeBranch = null;
+        activeLocked = false;
+        activePrunable = false;
     };
 
     for (let i = 0; i < tokens.length; i += 1) {
@@ -94,7 +100,15 @@ export function parseGitWorktreeListPorcelain(input: {
             activeBranch = token.slice('branch '.length);
             continue;
         }
-        // Other keys (HEAD, bare, detached, locked, prunable) are ignored for the
+        if (token === 'locked' || token.startsWith('locked ')) {
+            activeLocked = true;
+            continue;
+        }
+        if (token === 'prunable' || token.startsWith('prunable ')) {
+            activePrunable = true;
+            continue;
+        }
+        // Other keys (HEAD, bare, detached) are ignored for the
         // purpose of producing the ScmWorktree shape.
     }
 

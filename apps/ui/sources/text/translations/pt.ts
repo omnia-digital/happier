@@ -690,6 +690,9 @@ export const pt: TranslationStructure = {
         checking: 'Verificando…',
         checked: 'Verificado agora',
         stale: 'Desatualizado',
+        autoArchiveWorkUnverified: 'O arquivamento automático aguarda a confirmação de que a sessão está inativa, ociosa e sem trabalho pendente. Máquinas antigas podem não informar esses sinais.',
+        autoArchived: 'Arquivada automaticamente',
+        autoArchivedReason: 'Todas as PRs vinculadas foram verificadas como mescladas',
     },
     sessionTickets: {
         link: "Vincular tarefa",
@@ -8428,6 +8431,14 @@ export const pt: TranslationStructure = {
     },
 
 settingsSession: {
+    archiveAutomation: {
+        title: 'Arquivamento automático',
+        footer: 'Estas opções são sincronizadas com esta conta Home. Enquanto o Happier está aberto, a verificação automática ocorre aproximadamente a cada 5 minutos. A limpeza local precisa de suporte da máquina; as branches remotas permanecem. Desarquivar não restaura os recursos locais removidos.',
+        autoArchiveTitle: 'Arquivar após a fusão das PRs vinculadas',
+        autoArchiveSubtitle: 'Arquiva sessões inativas somente quando todas as PRs vinculadas são verificadas como mescladas.',
+        cleanupTitle: 'Limpar recursos locais após arquivar',
+        cleanupSubtitle: 'Salve sua escolha para uma limpeza segura na máquina responsável. A limpeza ainda não está disponível nesta versão.',
+    },
     terminalHostTitle: 'Host de terminal para novas sessões',
     terminalHostNone: 'Sem host de terminal',
     newSessionDraftEntry: {

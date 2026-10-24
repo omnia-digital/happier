@@ -254,3 +254,22 @@ describe('session record coercion carries the server-materialized unread entry f
         });
     });
 });
+
+describe('legacy session share coercion', () => {
+    it('preserves a shared view role when the older server omits approval capability', () => {
+        const parsed = parseCompatSessionByIdResponse({ session: rawSessionRow({
+            share: { accessLevel: 'view' },
+        }) });
+        expect(parsed?.session.share).toEqual({ accessLevel: 'view', canApprovePermissions: false });
+    });
+
+    it('does not invent the current-server owner sentinel for an older row without share', () => {
+        const parsed = parseCompatSessionByIdResponse({ session: rawSessionRow() });
+        expect(parsed?.session.share).toBeUndefined();
+    });
+
+    it('preserves the explicit current-server owner sentinel', () => {
+        const parsed = parseCompatSessionByIdResponse({ session: rawSessionRow({ share: null }) });
+        expect(parsed?.session.share).toBeNull();
+    });
+});

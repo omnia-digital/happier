@@ -457,6 +457,9 @@ export const de: TranslationStructure = {
         checking: 'Wird geprüft…',
         checked: 'Gerade geprüft',
         stale: 'Veraltet',
+        autoArchiveWorkUnverified: 'Die automatische Archivierung wartet, bis Inaktivität, Leerlauf und das Fehlen ausstehender Arbeit bestätigt sind. Ältere Hosts melden diese Signale möglicherweise nicht.',
+        autoArchived: 'Automatisch archiviert',
+        autoArchivedReason: 'Alle verknüpften PRs wurden als zusammengeführt bestätigt',
     },
     sessionTickets: {
         link: "Ticket verknüpfen",
@@ -7865,6 +7868,14 @@ export const de: TranslationStructure = {
     },
 
 settingsSession: {
+    archiveAutomation: {
+        title: 'Automatische Archivierung',
+        footer: 'Diese Optionen werden mit diesem Home-Konto synchronisiert. Solange Happier geöffnet ist, erfolgt die automatische Prüfung etwa alle 5 Minuten. Lokale Bereinigung benötigt Host-Unterstützung; Remote-Branches bleiben erhalten. Beim Wiederherstellen des Archivs werden entfernte lokale Ressourcen nicht wiederhergestellt.',
+        autoArchiveTitle: 'Nach Zusammenführung verknüpfter PRs archivieren',
+        autoArchiveSubtitle: 'Archiviert inaktive Sitzungen nur, wenn alle verknüpften PRs aktuell als zusammengeführt bestätigt sind.',
+        cleanupTitle: 'Lokale Ressourcen nach Archivierung bereinigen',
+        cleanupSubtitle: 'Speichere deine Auswahl für eine sichere Bereinigung auf dem zuständigen Rechner. In dieser Version ist die Bereinigung noch nicht verfügbar.',
+    },
     terminalHostTitle: 'Terminal-Host für neue Sitzungen',
     terminalHostNone: 'Kein Terminal-Host',
     newSessionDraftEntry: {

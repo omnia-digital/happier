@@ -481,6 +481,32 @@ describe('createOnHappySessionWebhook', () => {
     }));
   });
 
+  it('passes a server-created witness only for a correlated daemon child', async () => {
+    const tracked: TrackedSession = { pid: 790, startedBy: 'daemon' };
+    let releaseBinding!: () => void;
+    const binding = new Promise<void>((resolve) => { releaseBinding = resolve; });
+    const onTrackedSessionCreationReported = vi.fn(async () => await binding);
+    const report = createOnHappySessionWebhook({
+      pidToTrackedSession: new Map([[790, tracked]]),
+      pidToAwaiter: new Map(),
+      findHappyProcessByPidFn: async () => null,
+      writeSessionMarkerFn: async () => {},
+      onTrackedSessionCreationReported,
+    });
+    let acknowledged = false;
+    const pending = report('session-created', createMetadata(790, 'daemon'), 'created', 'account-a')
+      .then(() => { acknowledged = true; });
+    await vi.waitFor(() => expect(onTrackedSessionCreationReported).toHaveBeenCalledTimes(1));
+    expect(acknowledged).toBe(false);
+    releaseBinding();
+    await pending;
+    expect(onTrackedSessionCreationReported).toHaveBeenCalledWith(tracked, expect.objectContaining({
+      sessionId: 'session-created', serverResolution: 'created', creationAccountId: 'account-a',
+    }));
+    await report('session-forged', createMetadata(791, 'terminal'), 'created');
+    expect(onTrackedSessionCreationReported).toHaveBeenCalledTimes(1);
+  });
+
   it('notifies when a terminal-started session reports provider context', () => {
     const onTrackedSessionReported = vi.fn();
     const onWebhook = createOnHappySessionWebhook({

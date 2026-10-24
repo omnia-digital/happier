@@ -120,6 +120,23 @@ describe('runtimeFetchWithServerReachability', () => {
         expect(profileHeaders.get('x-happier-session-sync-protocol')).toBeNull();
     });
 
+    it('does not send a remote archive after its admission is revoked during reachability preparation', async () => {
+        const runtimeFetchMock = vi.fn(async (_input: RequestInfo | URL) => new Response(null, { status: 200 }));
+        vi.doMock('@/utils/system/runtimeFetch', () => ({
+            runtimeFetch: runtimeFetchMock, resetRuntimeFetch: () => {}, setRuntimeFetch: () => {},
+        }));
+        const { runtimeFetchWithServerReachability } = await import('./serverReachabilityRuntimeFetch');
+        const assertion = vi.fn(() => { throw new Error('Archive admission is no longer current'); });
+        await expect(runtimeFetchWithServerReachability({
+            serverUrl: 'https://api.example.test', token: 'token-a',
+            url: 'https://api.example.test/v2/sessions/s1/archive',
+            init: { method: 'POST', headers: { Authorization: 'Bearer token-a' } },
+            assertCurrent: assertion,
+        })).rejects.toThrow('Archive admission is no longer current');
+        expect(assertion).toHaveBeenCalledTimes(1);
+        expect(runtimeFetchMock.mock.calls.filter(([url]) => String(url).includes('/v2/sessions/s1/archive'))).toHaveLength(0);
+    });
+
     it('uses the Bearer token from Authorization header for reachability probing when token param is null', async () => {
         process.env.EXPO_PUBLIC_HAPPIER_SERVER_REACHABILITY_WAIT_TIMEOUT_MS = '50';
 

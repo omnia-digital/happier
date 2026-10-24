@@ -3705,6 +3705,14 @@ export {
   type SessionPullRequestLinkV1,
   type SessionPullRequestsV1,
 } from './sessionMetadata/sessionPullRequestsV1.js';
+export {
+  SessionAutoArchiveHistoryEventV1Schema,
+  SessionAutoArchiveHistoryV1Schema,
+  appendSessionAutoArchiveHistory,
+  readSessionAutoArchiveHistory,
+  type SessionAutoArchiveHistoryEventV1,
+  type SessionAutoArchiveHistoryV1,
+} from './sessionMetadata/sessionArchiveHistoryV1.js';
 
 export {
   TICKET_READER_CAPABILITY_ID,

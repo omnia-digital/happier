@@ -41,6 +41,21 @@ describe('settings', () => {
     });
 
     describe('settingsParse', () => {
+        it('keeps archive cleanup and merged-PR autoarchive independent and off by default', () => {
+            for (const cleanup of [false, true]) {
+                for (const autoArchive of [false, true]) {
+                    const parsed = settingsParse({
+                        cleanupLocalResourcesOnArchive: cleanup,
+                        autoArchiveAfterLinkedPullRequestsMerge: autoArchive,
+                    });
+                    expect(parsed.cleanupLocalResourcesOnArchive).toBe(cleanup);
+                    expect(parsed.autoArchiveAfterLinkedPullRequestsMerge).toBe(autoArchive);
+                }
+            }
+            expect(settingsParse({}).cleanupLocalResourcesOnArchive).toBe(false);
+            expect(settingsParse({}).autoArchiveAfterLinkedPullRequestsMerge).toBe(false);
+        });
+
         it('should return defaults when given invalid input', () => {
             expect(settingsParse(null)).toEqual(settingsDefaults);
             expect(settingsParse(undefined)).toEqual(settingsDefaults);

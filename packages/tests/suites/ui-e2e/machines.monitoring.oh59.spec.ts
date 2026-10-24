@@ -192,7 +192,9 @@ test.describe('OH59 actual local collector through authenticated fixture machine
                 await expect(local).toContainText(device.name);
                 await expect(local).toContainText(device.id);
                 if (device.utilization.status === 'available') {
-                    await expect(local).toContainText(`${device.name} · ${device.id} · ${Math.round(device.utilization.usagePercent)}%`);
+                    const detail = local.getByText(`${device.name} · ${device.id} · ${Math.round(device.utilization.usagePercent)}%`, { exact: true });
+                    await detail.scrollIntoViewIfNeeded();
+                    await expect(detail).toBeInViewport({ ratio: 1 });
                 }
             }
             await page.screenshot({ path: join(suiteDir, 'machine-monitoring-actual-gpu.png') });

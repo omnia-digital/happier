@@ -9,7 +9,7 @@ import { SCM_OPERATION_ERROR_CODES } from '@happier-dev/protocol';
 
 import { runScmCommand } from '../../runtime';
 import { buildGitSnapshot, resolveGitHostingProviderFromOutputs } from './statusSnapshot';
-import { inspectGitCheckoutIdentity } from './checkoutIdentity';
+import { inspectGitCheckoutIdentity, isGitLinkedWorktreeIdentity } from './checkoutIdentity';
 import { readGitBranchOperationState } from './operations/branchOperationState';
 import { defaultPrStatusCache } from '../../hostingProviders/prStatusCache';
 import { resolveHostingAuthProfileKey } from './operations/pullRequestOperationHelpers';
@@ -19,6 +19,105 @@ import { parseGitWorktreeListPorcelain } from './worktreeListParser';
 import { realpath } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { readUntrackedFileStats } from '../../readUntrackedFileStats';
+import { parseGitRemoteVerbose } from './remoteListParser';
+
+// These controls apply only to cleanup evidence, never to ordinary SCM operations.
+export const gitCleanupReadArgs = ['--no-pager', '--no-replace-objects', '--no-lazy-fetch', '--no-optional-locks',
+    '-c', 'core.fsmonitor=false', '-c', 'core.commitGraph=false'] as const;
+
+export function hasUnsafeGitCleanupEnvironment(): boolean {
+    const controlled = new Set(['GIT_PAGER', 'GIT_TERMINAL_PROMPT', 'GIT_OPTIONAL_LOCKS', 'GIT_NO_REPLACE_OBJECTS', 'GIT_NO_LAZY_FETCH']);
+    return Object.keys(process.env).some((key) => key.toUpperCase().startsWith('GIT_')
+        && process.env[key] !== undefined && !controlled.has(key.toUpperCase()));
+}
+
+export type GitWorktreeCleanupEvidence =
+    | Readonly<{ kind: 'unavailable'; reason: 'unsafe_git_environment' | 'identity_changed' | 'status_unavailable' | 'registration_unavailable' | 'registration_ambiguous' | 'remotes_unavailable' }>
+    | Readonly<{
+        kind: 'ok';
+        branchName: string;
+        headOid: string;
+        worktreeRealPath: string;
+        gitCommonDirRealPath: string;
+        status: Readonly<{ staged: readonly string[]; modified: readonly string[]; untracked: readonly string[]; ignored: readonly string[] }>;
+        registration: Readonly<{
+            isLocked: boolean;
+            isPrunable: boolean;
+            isMain: boolean;
+            otherWorktreeUsesBranch: boolean;
+        }>;
+        operationState: Awaited<ReturnType<typeof readGitBranchOperationState>>;
+        remotes: ReturnType<typeof parseGitRemoteVerbose>;
+    }>;
+
+/** Read-only Git facts for an already host-owned worktree. No fact here authorizes removal. */
+export async function readGitWorktreeCleanupEvidence(expected: Readonly<{
+    worktreeRealPath: string;
+    registeredWorktreeRealPath: string;
+    gitCommonDirRealPath: string;
+    branchName: string;
+}>): Promise<GitWorktreeCleanupEvidence> {
+    const unavailable = (reason: Extract<GitWorktreeCleanupEvidence, { kind: 'unavailable' }>['reason']) =>
+        ({ kind: 'unavailable', reason } as const);
+    if (hasUnsafeGitCleanupEnvironment()) return unavailable('unsafe_git_environment');
+    const identity = await inspectGitCheckoutIdentity({ cwd: expected.worktreeRealPath });
+    if (!identity || !isGitLinkedWorktreeIdentity(identity) || identity.branchName !== expected.branchName
+        || !identity.headRevision || !/^[0-9a-f]{40,64}$/i.test(identity.headRevision)) return unavailable('identity_changed');
+    const paths = await Promise.all([
+        expected.worktreeRealPath, expected.registeredWorktreeRealPath, expected.gitCommonDirRealPath,
+        identity.worktreePath, identity.registeredWorktreePath, identity.commonDirPath,
+    ].map((path) => realpath(path))).catch(() => null);
+    if (!paths || paths[0] !== paths[1] || paths[0] !== paths[3] || paths[1] !== paths[4] || paths[2] !== paths[5]) {
+        return unavailable('identity_changed');
+    }
+    const cwd = paths[0]!;
+    const [statusResult, worktreesResult, remotesResult] = await Promise.all([
+        runScmCommand({ bin: 'git', cwd, args: [...gitCleanupReadArgs, 'status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all', '--ignored=matching'], timeoutMs: 10_000 }),
+        runScmCommand({ bin: 'git', cwd, args: [...gitCleanupReadArgs, 'worktree', 'list', '--porcelain', '-z'], timeoutMs: 10_000 }),
+        runScmCommand({ bin: 'git', cwd, args: [...gitCleanupReadArgs, 'remote', '-v'], timeoutMs: 10_000 }),
+    ]);
+    if (!statusResult.success) return unavailable('status_unavailable');
+    if (!worktreesResult.success) return unavailable('registration_unavailable');
+    if (!remotesResult.success) return unavailable('remotes_unavailable');
+    const parsedStatus = parseGitStatusPorcelainV2Z(statusResult.stdout);
+    if (parsedStatus.branch.oid?.toLowerCase() !== identity.headRevision.toLowerCase()
+        || parsedStatus.branch.head !== expected.branchName) return unavailable('identity_changed');
+    const registrations = parseGitWorktreeListPorcelain({
+        worktreesOutput: worktreesResult.stdout,
+        currentWorktreePath: identity.worktreePath,
+        mainWorktreePath: dirname(identity.commonDirPath),
+    });
+    const canonicalRegistrations = await Promise.all(registrations.map(async (entry) => ({
+        ...entry, realPath: await realpath(entry.path).catch(() => null),
+    })));
+    const target = canonicalRegistrations.filter((entry) => entry.realPath === cwd);
+    if (target.length !== 1 || target[0]?.branch !== expected.branchName) return unavailable('registration_ambiguous');
+    const context: ScmBackendContext = {
+        cwd, projectKey: `cleanup-preflight:${cwd}`,
+        detection: { isRepo: true, rootPath: cwd, mode: '.git' },
+    };
+    return {
+        kind: 'ok',
+        branchName: expected.branchName,
+        headOid: identity.headRevision.toLowerCase(),
+        worktreeRealPath: cwd,
+        gitCommonDirRealPath: paths[2]!,
+        status: {
+            staged: parsedStatus.files.filter((entry) => entry.index !== '.' && entry.index !== ' ').map((entry) => entry.path),
+            modified: parsedStatus.files.filter((entry) => entry.workingDir !== '.' && entry.workingDir !== ' ').map((entry) => entry.path),
+            untracked: parsedStatus.notAdded,
+            ignored: parsedStatus.ignored,
+        },
+        registration: {
+            isLocked: target[0].isLocked === true,
+            isPrunable: target[0].isPrunable === true,
+            isMain: target[0].isMain === true,
+            otherWorktreeUsesBranch: canonicalRegistrations.some((entry) => entry !== target[0] && entry.branch === expected.branchName),
+        },
+        operationState: await readGitBranchOperationState(context),
+        remotes: parseGitRemoteVerbose(remotesResult.stdout),
+    };
+}
 
 function resolveMainWorktreePathFromCheckoutIdentity(
     checkoutIdentity: Awaited<ReturnType<typeof inspectGitCheckoutIdentity>>,

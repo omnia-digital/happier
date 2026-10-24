@@ -641,6 +641,9 @@ export const es: TranslationStructure = {
         checking: 'Comprobando…',
         checked: 'Comprobado ahora',
         stale: 'Desactualizado',
+        autoArchiveWorkUnverified: 'El archivo automático espera hasta poder verificar que la sesión está inactiva, en reposo y sin trabajo pendiente. Es posible que los equipos antiguos no informen estas señales.',
+        autoArchived: 'Archivada automáticamente',
+        autoArchivedReason: 'Se verificó que todas las PR vinculadas estaban fusionadas',
     },
     sessionTickets: {
         link: "Vincular ticket",
@@ -8298,6 +8301,14 @@ export const es: TranslationStructure = {
     },
 
 settingsSession: {
+    archiveAutomation: {
+        title: 'Archivo automático',
+        footer: 'Estas opciones se sincronizan con esta cuenta Home. Mientras Happier está abierto, la comprobación automática se realiza aproximadamente cada 5 minutos. La limpieza local requiere compatibilidad del equipo; las ramas remotas permanecen. Desarchivar no restaura los recursos locales eliminados.',
+        autoArchiveTitle: 'Archivar al fusionarse las PR vinculadas',
+        autoArchiveSubtitle: 'Archiva sesiones inactivas solo cuando se verifica que todas las PR vinculadas están fusionadas.',
+        cleanupTitle: 'Limpiar recursos locales tras archivar',
+        cleanupSubtitle: 'Guarda tu elección para una limpieza segura en el equipo propietario. La limpieza aún no está disponible en esta versión.',
+    },
     terminalHostTitle: 'Terminal para nuevas sesiones',
     terminalHostNone: 'Sin terminal',
     newSessionDraftEntry: {

@@ -425,12 +425,13 @@ function SessionInfoActivityGroup({
 
     return (
         <ItemGroup title={t('sessionInfo.activity')}>
-            <Item
+            {session.archivedAt == null && <Item
+                testID="session-info-activity-status"
                 title={t('sessionInfo.sessionStatus')}
                 detail={sessionStatus.statusText}
                 icon={<Icon name="pulse" size={29} color={sessionStatus.statusColor} />}
                 showChevron={false}
-            />
+            />}
             {showRawDiagnostics ? (
                 <>
                     <Item
@@ -1015,7 +1016,7 @@ function SessionInfoContent({ session, sessionServerId, sourceMachineIdForHandof
                         }}>
                             {sessionName}
                         </Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
+                        {!isArchivedSession && <View testID="session-info-header-status" style={{ flexDirection: 'row', alignItems: 'center', marginTop: 8 }}>
                             <StatusDot
                                 color={sessionStatus.statusDotColor}
                                 isPulsing={sessionStatus.isPulsing}
@@ -1030,7 +1031,7 @@ function SessionInfoContent({ session, sessionServerId, sourceMachineIdForHandof
                             }}>
                                 {sessionStatus.statusText}
                             </Text>
-                        </View>
+                        </View>}
                     </View>
                 </View>
 

@@ -20,7 +20,7 @@ let sharedExportPromise: Promise<string> | null = null;
 let sharedExportDir: string | null = null;
 let sharedExportCacheKey: string | null = null;
 const UI_WEB_EXPORT_MANIFEST_VERSION = 1;
-const UI_WEB_EXPORT_SOURCE_FINGERPRINT_VERSION = 1;
+const UI_WEB_EXPORT_SOURCE_FINGERPRINT_VERSION = 2;
 
 type UiWebRuntimeConfig = Readonly<{
   serverUrl: string;
@@ -178,34 +178,89 @@ function buildExportEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 }
 
 export function resolveUiWebExportSourceFingerprint(): string {
-  const uiWorkspaceDir = resolvePath(repoRootDir(), 'apps', 'ui');
+  const rootDir = repoRootDir();
+  const uiWorkspaceDir = resolvePath(rootDir, 'apps', 'ui');
   const roots = [
     resolvePath(uiWorkspaceDir, 'app'),
     resolvePath(uiWorkspaceDir, 'sources'),
     resolvePath(uiWorkspaceDir, 'assets'),
+    resolvePath(uiWorkspaceDir, 'public'),
+    resolvePath(uiWorkspaceDir, 'index.ts'),
+    resolvePath(uiWorkspaceDir, 'logo.png'),
+    resolvePath(uiWorkspaceDir, 'app.config.js'),
+    resolvePath(uiWorkspaceDir, 'app.local.js'),
+    resolvePath(uiWorkspaceDir, 'appProjectConfig.cjs'),
+    resolvePath(uiWorkspaceDir, 'appVariantConfig.cjs'),
     resolvePath(uiWorkspaceDir, 'app.config.ts'),
     resolvePath(uiWorkspaceDir, 'package.json'),
     resolvePath(uiWorkspaceDir, 'tsconfig.json'),
     resolvePath(uiWorkspaceDir, 'metro.config.js'),
     resolvePath(uiWorkspaceDir, 'babel.config.js'),
+    resolvePath(rootDir, 'package.json'),
+    resolvePath(rootDir, 'yarn.lock'),
+    resolvePath(rootDir, 'packages', 'release-runtime', 'releaseRings.cjs'),
   ];
-  const skipDirNames = new Set(['.expo', '.git', '.project', 'dist', 'node_modules', 'web-build']);
+  const skipDirNames = new Set(['.expo', '.git', '.project', '__tests__', 'dist', 'node_modules', 'web-build']);
+  const testFilePattern = /\.(?:test|spec)\.[cm]?[jt]sx?$/u;
   const hash = createHash('sha1');
 
+  // Metro resolves internal package exports from package/src, so follow the UI's
+  // declared workspace dependency closure rather than hashing unrelated packages.
+  const workspacePackages = new Map<string, string>();
+  const packagesDir = resolvePath(rootDir, 'packages');
+  if (existsSync(packagesDir)) {
+    for (const entry of readdirSync(packagesDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const packageDir = resolvePath(packagesDir, entry.name);
+      try {
+        const manifest = JSON.parse(readFileSync(resolvePath(packageDir, 'package.json'), 'utf8')) as { name?: unknown };
+        if (typeof manifest.name === 'string' && manifest.name.startsWith('@happier-dev/')) {
+          workspacePackages.set(manifest.name, packageDir);
+        }
+      } catch {
+        // An absent or incomplete optional package is represented by its dependency name below.
+      }
+    }
+  }
+
+  const dependencyNames = (manifestPath: string): string[] => {
+    try {
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as Record<string, unknown>;
+      return ['dependencies', 'optionalDependencies', 'peerDependencies']
+        .flatMap((field) => Object.keys((manifest[field] ?? {}) as Record<string, unknown>))
+        .filter((name) => name.startsWith('@happier-dev/'));
+    } catch {
+      return [];
+    }
+  };
+  const pending = dependencyNames(resolvePath(uiWorkspaceDir, 'package.json'));
+  const visited = new Set<string>();
+  while (pending.length > 0) {
+    const name = pending.pop()!;
+    if (visited.has(name)) continue;
+    visited.add(name);
+    const packageDir = workspacePackages.get(name);
+    if (!packageDir) continue;
+    roots.push(resolvePath(packageDir, 'package.json'), resolvePath(packageDir, 'src'));
+    pending.push(...dependencyNames(resolvePath(packageDir, 'package.json')));
+  }
+  roots.sort((left, right) => left.localeCompare(right));
+  hash.update([...visited].sort().map((name) => `workspace:${name}:${workspacePackages.has(name) ? 'present' : 'missing'}\n`).join(''));
+
   const appendPathToHash = (targetPath: string): void => {
+    const relativePath = targetPath.slice(rootDir.length + 1).replace(/\\/gu, '/');
     if (!existsSync(targetPath)) {
+      hash.update(`missing:${relativePath}\n`);
       return;
     }
 
     const stats = statSync(targetPath);
-    const relativePath = targetPath.slice(uiWorkspaceDir.length + 1);
     if (stats.isDirectory()) {
       const dirName = relativePath.split('/').pop() ?? '';
       if (skipDirNames.has(dirName)) {
         return;
       }
 
-      hash.update(`dir:${relativePath}\n`);
       const entries = readdirSync(targetPath, { withFileTypes: true })
         .sort((left, right) => left.name.localeCompare(right.name));
       for (const entry of entries) {
@@ -214,7 +269,9 @@ export function resolveUiWebExportSourceFingerprint(): string {
       return;
     }
 
-    hash.update(`file:${relativePath}:${stats.size}:${Math.trunc(stats.mtimeMs)}\n`);
+    if (testFilePattern.test(relativePath)) return;
+    hash.update(`file:${relativePath}:${stats.size}\n`);
+    hash.update(readFileSync(targetPath));
   };
 
   for (const root of roots) {

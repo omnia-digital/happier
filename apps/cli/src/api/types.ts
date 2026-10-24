@@ -300,6 +300,10 @@ export interface ClientToServerEvents {
  */
 type SessionSharedFields = Readonly<{
   id: string;
+  /** Actual create/load resolution from this request; absent with older servers or fetched sessions. */
+  creationResolution?: 'created' | 'existing';
+  /** Subject of the credential accepted by the create/load request; absent when it cannot be proven. */
+  creationAccountId?: string;
   seq: number;
   initialTranscriptAfterSeq?: number;
   metadata: Metadata;

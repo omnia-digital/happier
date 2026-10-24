@@ -312,6 +312,7 @@ import {
     type PreparedAccountSettingsForDaemonSpawn,
 } from './engine/settings/prepareAccountSettingsForDaemonSpawn';
 import { registerAccountSettingsDaemonSpawnPreparation } from './ops/accountSettingsDaemonSpawnPreparation';
+import { createSessionAutoArchiveObserver, SESSION_AUTO_ARCHIVE_CHECK_INTERVAL_MS } from './engine/sessions/sessionAutoArchiveObserver';
 import { getOfferings as getOfferingsEngine, presentPaywall as presentPaywallEngine, purchaseProduct as purchaseProductEngine, syncPurchases as syncPurchasesEngine } from './engine/purchases/syncPurchases';
 import { fetchChanges, fetchCurrentChangesCursor } from './api/session/apiChanges';
 import {
@@ -928,6 +929,7 @@ class Sync {
       private pendingOutboxRearmInFlightByScope = new Map<string, Promise<void>>();
       private readonly usesPersistentDesktopSync = isTauriDesktop();
       private isForeground = this.usesPersistentDesktopSync || AppState.currentState === 'active';
+      private sessionAutoArchiveObserver: ReturnType<typeof createSessionAutoArchiveObserver> | null = null;
       public encryptionCache = new EncryptionCache();
     private sessionsSync: InvalidateSync;
     private fetchSessionsInFlight: { generation: number; promise: Promise<void> } | null = null;
@@ -1085,6 +1087,7 @@ class Sync {
     private resumeAfterForegroundTransition(tag: string): void {
         const resume = this.resumeSync('app-foreground');
         fireAndForget(resume, { tag });
+        void resume.then(() => this.sessionAutoArchiveObserver?.recheck(), () => undefined);
         try {
             this.connectSocketWithPostSubscriptionCatchUp();
         } catch {
@@ -1177,7 +1180,9 @@ class Sync {
                 },
                 onOnline: () => {
                     queueMicrotask(() => {
-                        fireAndForget(this.resumeSync('server-reachable'), { tag: 'Sync.resumeSync.server-reachable' });
+                        const resume = this.resumeSync('server-reachable');
+                        fireAndForget(resume, { tag: 'Sync.resumeSync.server-reachable' });
+                        void resume.then(() => this.sessionAutoArchiveObserver?.recheck(), () => undefined);
                     });
                 },
             });
@@ -2161,6 +2166,22 @@ class Sync {
 
     async #init() {
 
+        if (!this.sessionAutoArchiveObserver) {
+            this.sessionAutoArchiveObserver = createSessionAutoArchiveObserver({
+                checkIntervalMs: SESSION_AUTO_ARCHIVE_CHECK_INTERVAL_MS,
+                maxConcurrentCandidates: this.syncTuning.sessionListHydrationConcurrencyLimit,
+                isForeground: () => {
+                    if (!this.isForeground || this.pauseController.isPaused() || AppState.currentState !== 'active') return false;
+                    const doc = (globalThis as { document?: { visibilityState?: string } }).document;
+                    return doc?.visibilityState !== 'hidden';
+                },
+                ensureMetadata: async (sessionId, serverId, shouldContinue, forceRefresh) => {
+                    const [result] = await this.ensureSessionListMetadata([{ sessionId, serverId, forceRefresh }], shouldContinue);
+                    return result?.kind === 'available';
+                },
+            });
+        }
+
         // Subscribe to updates
         if (!this.updatesSubscribed) {
             this.subscribeToUpdates();
@@ -2265,7 +2286,7 @@ class Sync {
 
         /** Status views need metadata before a catalog row becomes visible. Reuse the scoped shell loader. */
         public ensureSessionListMetadata = async (
-            candidates: readonly Readonly<{ sessionId: string; serverId?: string | null }>[],
+            candidates: readonly Readonly<{ sessionId: string; serverId?: string | null; forceRefresh?: boolean }>[],
             shouldContinue: () => boolean,
         ): Promise<Array<EnsureSessionVisibleForRouteResult | null>> => {
             const generation = this.serverScopeGeneration;
@@ -2275,7 +2296,10 @@ class Sync {
                 // Foreign Home lists are already fully hydrated by concurrentSessionCache. Its
                 // scoped list publication must never enter the active session/route store here.
                 if (candidate.serverId && !areServerProfileIdentifiersEquivalent(candidate.serverId, activeServerId)) return null;
-                return this.ensureSessionVisibleForMessageRoute(candidate.sessionId, { serverId: candidate.serverId ?? undefined, refreshMessages: false });
+                return this.ensureSessionVisibleForMessageRoute(candidate.sessionId, {
+                    serverId: candidate.serverId ?? undefined, refreshMessages: false,
+                    forceRefresh: candidate.forceRefresh === true,
+                });
             })));
         };
 

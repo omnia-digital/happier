@@ -1,5 +1,5 @@
 import type { Metadata, Session } from '@/sync/domains/state/storageTypes';
-import { readSessionTicketAssociation, type SessionTicketAssociationV1 } from '@happier-dev/protocol';
+import { readSessionTicketAssociation, readSessionPullRequestLinks, sessionPullRequestLinkKey, type SessionTicketAssociationV1, type SessionPullRequestsV1 } from '@happier-dev/protocol';
 import { resolveAgentIdFromSessionMetadata } from '@happier-dev/agents';
 import { computeHasUnreadActivity } from '@/sync/domains/messages/unread';
 import type {
@@ -46,6 +46,7 @@ export { derivePendingRequestFlagsFromAgentState } from '@/sync/domains/session/
 
 export interface SessionListRenderableMetadata {
     sessionTicketV1?: SessionTicketAssociationV1 | null;
+    sessionPullRequestsV1?: SessionPullRequestsV1 | null;
     name?: string;
     summaryText?: string | null;
     path: string;
@@ -236,6 +237,7 @@ export function deriveSessionListRenderableHasUnreadMessagesFromPatch(params: Re
 export function buildSessionListRenderableMetadata(metadata: Metadata | null | undefined): SessionListRenderableMetadata | null {
     if (!metadata) return null;
     const agentActivityEntries = readSessionAgentActivityEntriesFromMetadata(metadata);
+    const pullRequestLinks = readSessionPullRequestLinks(metadata);
     const directSessionV1 = (() : DirectSessionRenderableMetadata | null => {
         const candidate = metadata.directSessionV1;
         if (!candidate || typeof candidate !== 'object') return null;
@@ -271,6 +273,7 @@ export function buildSessionListRenderableMetadata(metadata: Metadata | null | u
     })();
     return {
         sessionTicketV1: readSessionTicketAssociation(metadata),
+        sessionPullRequestsV1: pullRequestLinks.length > 0 ? { v: 1, links: [...pullRequestLinks] } : null,
         name: typeof metadata.name === 'string' ? metadata.name : undefined,
         summaryText: typeof metadata.summary?.text === 'string' ? metadata.summary.text : null,
         path: typeof metadata.path === 'string' ? metadata.path : '',
@@ -517,6 +520,21 @@ function areSessionListTicketAssociationsEqual(previous: SessionTicketAssociatio
     return previous === next || JSON.stringify(previous ?? null) === JSON.stringify(next ?? null);
 }
 
+function areSessionListPullRequestsEqual(
+    previous: SessionPullRequestsV1 | null | undefined,
+    next: SessionPullRequestsV1 | null | undefined,
+): boolean {
+    if (previous === next) return true;
+    const left = previous?.links ?? [];
+    const right = next?.links ?? [];
+    return left.length === right.length && left.every((link, index) => {
+        const candidate = right[index];
+        return candidate !== undefined
+            && sessionPullRequestLinkKey(link) === sessionPullRequestLinkKey(candidate)
+            && link.url === candidate.url;
+    });
+}
+
 function areSessionListRenderableMetadataEqual(
     previous: SessionListRenderableMetadata | null | undefined,
     next: SessionListRenderableMetadata | null | undefined,
@@ -525,6 +543,7 @@ function areSessionListRenderableMetadataEqual(
     if (!previous || !next) return previous === next;
 
     return areSessionListTicketAssociationsEqual(previous.sessionTicketV1, next.sessionTicketV1)
+        && areSessionListPullRequestsEqual(previous.sessionPullRequestsV1, next.sessionPullRequestsV1)
         && (previous.name ?? null) === (next.name ?? null)
         && (previous.summaryText ?? null) === (next.summaryText ?? null)
         && previous.path === next.path
@@ -766,6 +785,7 @@ function areSessionListRenderableEmbeddedRowMetadataEqual(
     if (previous === next) return true;
     if (!previous || !next) return previous === next;
     return areSessionListTicketAssociationsEqual(previous.sessionTicketV1, next.sessionTicketV1)
+        && areSessionListPullRequestsEqual(previous.sessionPullRequestsV1, next.sessionPullRequestsV1)
         && (previous.name ?? null) === (next.name ?? null)
         && (previous.summaryText ?? null) === (next.summaryText ?? null)
         && previous.path === next.path
