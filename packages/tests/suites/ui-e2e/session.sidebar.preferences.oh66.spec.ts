@@ -217,7 +217,7 @@ test.describe('ui e2e: OH66 sidebar text size and item density preferences', () 
 
   test('updates real sidebar typography and row spacing through Preferences and persists after reload', async ({ page }) => {
     test.setTimeout(240_000);
-    if (!uiBaseUrl || !sessionId || !token) throw new Error('missing sidebar preference fixtures');
+    if (!server || !uiBaseUrl || !sessionId || !token) throw new Error('missing sidebar preference fixtures');
 
     await page.setViewportSize({ width: 1440, height: 900 });
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 300_000);
