@@ -25,7 +25,9 @@ const mockQuery = vi.hoisted(() => vi.fn());
 const mockClaudeRemote = vi.hoisted(() => vi.fn());
 const mockClaudeRemoteAgentSdk = vi.hoisted(() => vi.fn());
 const mockRunClaudeUnifiedTerminalSession = vi.hoisted(() => vi.fn());
-const notifyDaemonSessionStarted = vi.hoisted(() => vi.fn(async () => ({})));
+const notifyDaemonSessionStarted = vi.hoisted(() =>
+  vi.fn<typeof import('@/daemon/controlClient').notifyDaemonSessionStarted>(async () => ({})),
+);
 
 // Daemon HTTP boundary; keep capability reporting and launcher selection real.
 vi.mock('@/daemon/controlClient', async (importOriginal) => ({
@@ -537,9 +539,13 @@ describe.sequential('claudeRemoteLauncher legacy Runtime Activity subscriber', (
       const registration = notifyDaemonSessionStarted.mock.calls.find(
         ([sessionId]) => sessionId === 'happier-session-1',
       );
-      expect(registration?.[1]).toEqual(expect.objectContaining({
-        claudeSubscriptionAccessTokenRefreshV1: { v: 1, mode: 'unavailable' },
-      }));
+      expect(registration?.slice(0, 3)).toEqual([
+        'happier-session-1',
+        expect.objectContaining({
+          claudeSubscriptionAccessTokenRefreshV1: { v: 1, mode: 'unavailable' },
+        }),
+        expect.anything(),
+      ]);
     } finally {
       const switching = Promise.resolve(switchHandler({ to: 'local' }));
       finishProvider.resolve(undefined);
