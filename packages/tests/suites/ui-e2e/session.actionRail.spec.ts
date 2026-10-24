@@ -158,8 +158,8 @@ test.describe('ui e2e: session action rail', () => {
       // Explicit immediate-send in agent_queue mode takes the socket path for an
       // inactive session; ordinary Send intentionally queues it instead.
       expect((await fetchSessionV2(server.baseUrl, access.token, sessionId)).active).toBe(false);
-      await mutateUiE2eScopedAccountSettings({ page, settingsPatch: { sessionMessageSendMode: 'agent_queue' } });
-      await mutateUiE2eLocalSettings({ page, settingsPatch: {
+      await mutateUiE2eScopedAccountSettings({ page, settingsPatch: {
+        sessionMessageSendMode: 'agent_queue',
         keyboardShortcutsV2Enabled: true,
         keyboardShortcutOverridesV1: { 'composer.sendImmediate': [{ binding: 'Alt+Enter' }] },
       } });
