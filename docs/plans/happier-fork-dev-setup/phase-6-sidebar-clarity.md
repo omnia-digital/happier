@@ -77,6 +77,16 @@ The investigation deliverable is pushed at `0c612b512b` and OH-61 is Done. Forma
 
 ## OH-66: Sidebar typography and spacing
 
+October24 refinement continuation: the Global / Left Sidebar / Task View organization in the current
+Linear issue remains missing despite earlier sizing acceptance. The consumed grouping vertical keeps
+app-wide defaults in Global, links Left Sidebar to its existing layout settings, and places code-block
+appearance under Task View. It preserves all existing controls/help/writers and original sidebar
+sizing behavior. Independent area-size overrides are an unresolved product choice, requested
+asynchronously; no new storage fields or typography context is assumed. The existing real-Chrome
+OH66 journey gains section/control ownership and actual sidebar navigation checks before its full
+prior sizing/layout/reload assertions. RED is next, using the existing isolated harness and a stable
+export namespace, with no daily/native app or hosted-account mutation.
+
 Actual routed Luna/high is implementing the existing issue under project-wide completion authorization. Discovery found that shared `Text` already consumes the app's `uiFontScale`, while fixed sidebar session heights ignore `uiItemDensity`. Reuse these existing Preferences rather than add overlapping controls. Apply spacing and larger-text geometry through the canonical row-height owner, retaining account-level detail modes and covering session drafts, section/navigation text and all group views. Preserve the selection rail, status, machine identity and actions. Mounted RED reproduces identical 84px height under comfortable and compact app density. Source implementation and isolated Chrome acceptance continue; native visual/restart acceptance remains pending. The initial accidental broad test command was canceled and reported unrelated spawn/Inbox failures; focused passes do not supersede the historical full-root failed result.
 
 Source checkpoint `089272a6f1` is pushed. Author focused checks pass 41/41 and integrated UI typecheck passes; root independently passes 25 rendered session/draft cases (`/tmp/happier-oh66-preferences-root-independent.log`). Root advisory caught draft settings wired to the readable-phone predicate instead of the height resolver; the corrected consumed-path draft case now passes. Actual Preferences-control-to-sidebar browser validation remains in progress. No new preference or persistence format was introduced.

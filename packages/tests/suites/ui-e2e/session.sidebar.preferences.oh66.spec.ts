@@ -229,6 +229,27 @@ test.describe('ui e2e: OH66 sidebar text size and item density preferences', () 
 
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/settings/appearance?happier_hmr=0`, 180_000);
     await waitForInitialAppUi({ page, timeoutMs: 120_000 });
+    const globalAppearance = page.getByTestId('settings-appearance.section.global');
+    const sidebarAppearance = page.getByTestId('settings-appearance.section.left-sidebar');
+    const taskAppearance = page.getByTestId('settings-appearance.section.task-view');
+    await expect(globalAppearance).toBeVisible();
+    await expect(globalAppearance.getByText('Global', { exact: true })).toBeVisible();
+    await expect(globalAppearance.getByText('Text Size', { exact: true })).toHaveCount(1);
+    await expect(globalAppearance.getByText('Item Density', { exact: true })).toHaveCount(1);
+    await expect(globalAppearance.getByTestId('settings-appearance-wrapChatCodeBlocks-switch')).toHaveCount(0);
+    await expect(taskAppearance.getByText('Task View', { exact: true })).toBeVisible();
+    await expect(taskAppearance.getByTestId('settings-appearance-showChatCodeBlockWrapControls-switch')).toHaveCount(1);
+    await expect(taskAppearance.getByTestId('settings-appearance-wrapChatCodeBlocks-switch')).toHaveCount(1);
+    await page.screenshot({ path: `${suiteDir}/appearance-global-section.png` });
+    const sidebarSettings = sidebarAppearance.getByTestId('settings-appearance-sidebar-settings');
+    await sidebarSettings.scrollIntoViewIfNeeded();
+    await expect(sidebarAppearance.getByText('Left Sidebar', { exact: true })).toBeVisible();
+    await page.screenshot({ path: `${suiteDir}/appearance-sidebar-task-sections.png` });
+    await sidebarSettings.click();
+    await expect(page).toHaveURL(/\/settings\/session(?:[?#].*)?$/);
+    await expect(page.getByTestId('settings-session-machineIdentity-toggle')).toHaveCount(1);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/settings\/appearance(?:[?#].*)?$/);
     await selectMenuOption(page, 'settings-theme-selector-trigger', 'light');
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
     await expect(row).toHaveCount(1, { timeout: 120_000 });
