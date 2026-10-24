@@ -63,11 +63,10 @@ vi.mock('@/utils/system/runtimeFetch', () => ({
     runtimeFetch: runtimeFetchMock,
 }));
 
-vi.mock('@/auth/storage/tokenStorage', () => ({
-    TokenStorage: {
-        getCredentialsForServerUrl: getCredentialsForServerUrlMock,
-    },
-}));
+vi.mock('@/auth/storage/tokenStorage', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@/auth/storage/tokenStorage')>();
+    return { ...actual, TokenStorage: { ...actual.TokenStorage, getCredentialsForServerUrl: getCredentialsForServerUrlMock } };
+});
 
 vi.mock('@/auth/encryption/createEncryptionFromAuthCredentials', () => ({
     createEncryptionFromAuthCredentials: createEncryptionFromAuthCredentialsMock,
