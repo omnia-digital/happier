@@ -51,6 +51,7 @@ test.describe('ui e2e: profile environment editor', () => {
     const profilesUrl = `${uiBaseUrl}/settings/profiles?happier_hmr=0`;
     await gotoDomContentLoadedWithRetries(page, profilesUrl);
     const addProfile = page.getByTestId('profiles-list-add-profile');
+    await addProfile.or(page.getByRole('switch')).first().waitFor({ state: 'visible' });
     if (await page.getByRole('switch').count() === 1) {
       const saved = settingsWrite(page);
       await page.getByRole('switch').check();
@@ -87,7 +88,7 @@ test.describe('ui e2e: profile environment editor', () => {
     const fallback = page.getByPlaceholder('Default value', { exact: true });
     await expect(fallback).toHaveValue('final-fallback');
     await rowSwitch(page, 'Use secret vault').check();
-    await expect(fallback).toHaveValue('');
+    await expect(fallback).toHaveCount(0);
     await expect(rowSwitch(page, 'Use secret vault')).toBeChecked();
     await expect(page.getByText('Session will receive: OH12_VALUE = final-fallback', { exact: true })).toHaveCount(0);
     const vaultSave = settingsWrite(page);
@@ -96,9 +97,11 @@ test.describe('ui e2e: profile environment editor', () => {
     await gotoDomContentLoadedWithRetries(page, profilesUrl);
     await page.getByText(profileName, { exact: true }).click();
     await expect(source).toHaveValue('OH12_OTHER');
-    await expect(fallback).toHaveValue('');
+    await expect(fallback).toHaveCount(0);
     await expect(rowSwitch(page, 'Use secret vault')).toBeChecked();
     await source.scrollIntoViewIfNeeded();
     await page.screenshot({ path: join(suiteDir, 'profile-environment-vault-persisted.png'), fullPage: true });
+    await rowSwitch(page, 'Use secret vault').uncheck();
+    await expect(fallback).toHaveValue('');
   });
 });

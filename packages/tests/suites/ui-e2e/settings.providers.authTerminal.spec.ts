@@ -88,7 +88,8 @@ test.describe('ui e2e: provider settings auth status', () => {
       await gotoDomContentLoadedWithRetries(page, settingsUrl);
       const timeoutField = page.getByTestId('settings-provider-field-claudeLocalPermissionBridgeTimeoutSeconds');
       const thinkingField = page.getByTestId('settings-provider-field-claudeRemoteMaxThinkingTokens');
-      const indefiniteField = page.getByTestId('settings-provider-field-claudeLocalPermissionBridgeWaitIndefinitely').locator('input');
+      const indefiniteField = page.getByTestId('settings-provider-field-claudeLocalPermissionBridgeWaitIndefinitely')
+        .locator('xpath=ancestor-or-self::*[.//input[@type="checkbox"]][1]').locator('input[type="checkbox"]');
       await expect(indefiniteField).toBeChecked();
       await expect(timeoutField.locator('input')).toHaveValue('600');
       await expect(timeoutField).not.toContainText('Invalid number');
