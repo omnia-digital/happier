@@ -168,6 +168,7 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await page.getByTestId('session-list-search-clear').first().click();
             await expect(row(testing)).toBeVisible();
             // Keep every ticket candidate visible while exercising runtime group movement below.
+            await page.getByTestId('session-list-search-trigger').first().click();
             await page.getByTestId('session-list-search-input').first().fill('OH60');
             await page.screenshot({ path: testInfo.outputPath('oh60-ticket-groups-agent-sort.png') });
             await choose('session-list-status-group-agent');
