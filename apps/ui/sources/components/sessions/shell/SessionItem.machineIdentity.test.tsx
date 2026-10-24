@@ -190,8 +190,24 @@ describe('SessionItem machine identity', () => {
         const compactHeight = await rowHeight('compact', 1);
         const largerTextHeight = await rowHeight('compact', 1.3);
 
+        const narrowRowHeight = async (density: 'cozy' | 'compact') => {
+            localPresentationSettings.current = { uiItemDensity: density, uiFontScale: 1 };
+            const screen = await renderMachineRow(false, false, { density: 'minimal' });
+            const style = screen.findByTestId(`session-list-item-${SESSION_ID}`)?.props.style;
+            const flattened = Array.isArray(style) ? style.flat(Infinity) : [style];
+            const height = flattened.reduce((lastHeight: number | undefined, entry: any) => (
+                typeof entry?.height === 'number' ? entry.height : lastHeight
+            ), undefined);
+            await screen.unmount();
+            return height;
+        };
+        const narrowCozyHeight = await narrowRowHeight('cozy');
+        const narrowCompactHeight = await narrowRowHeight('compact');
+
         expect(comfortableHeight).toBeGreaterThan(compactHeight);
         expect(largerTextHeight).toBeGreaterThan(compactHeight);
+        expect(narrowCozyHeight).toBeGreaterThan(narrowCompactHeight);
+        expect(narrowCompactHeight).toBeGreaterThanOrEqual(34);
     });
 
     it('places one agent logo immediately before the machine glyph in the right identity group', async () => {
