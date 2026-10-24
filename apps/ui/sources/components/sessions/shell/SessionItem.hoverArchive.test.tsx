@@ -4,7 +4,7 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { createDeferred, createSessionFixture, pressTestInstanceAsync, renderScreen, standardCleanup } from '@/dev/testkit';
 import { createSessionItemTestRowModel, installSessionShellCommonModuleMocks } from './sessionShellTestHelpers';
-import { SESSION_ACTION_ARCHIVE_ID } from '@/components/sessions/actions/sessionActionIds';
+import { SESSION_ACTION_ARCHIVE_ID, SESSION_ACTION_RENAME_ID } from '@/components/sessions/actions/sessionActionIds';
 import { SESSION_ATTENTION_REMINDER_MENU_ID } from './row/actionMenu/sessionAttentionReminderAction';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -107,6 +107,27 @@ async function revealRowActions(screen: Awaited<ReturnType<typeof renderScreen>>
 }
 
 describe('SessionItem hover Archive action (web)', () => {
+    it('closes the owned context menu before a shortcut opens a modal action', async () => {
+        const onShortcutTargetChange = vi.fn();
+        const session = createSessionFixture({ id: 'sess_menu_shortcut_close', active: false, metadata: null });
+        const screen = await renderScreen(
+            <SessionItem session={session} serverId="server_menu_shortcut_close" selected={false}
+                isFirst isLast isSingle variant="default" compact={false}
+                onShortcutTargetChange={onShortcutTargetChange} />,
+        );
+        await revealRowActions(screen, session.id);
+        const { DropdownMenu } = await import('@/components/ui/forms/dropdown/DropdownMenu');
+        const menu = () => screen.findAllByType(DropdownMenu).find((item) => item.props.items
+            .some((choice: { id: string }) => choice.id === SESSION_ACTION_RENAME_ID));
+        await act(async () => menu()?.props.onOpenChange(true));
+        expect(menu()?.props.open).toBe(true);
+        const registration = onShortcutTargetChange.mock.calls
+            .map((call) => call[1])
+            .find((value) => value?.items.some((item: { id: string }) => item.id === SESSION_ACTION_RENAME_ID));
+        expect(registration).toBeTruthy();
+        await act(async () => registration.execute(SESSION_ACTION_RENAME_ID));
+        expect(menu()?.props.open).toBe(false);
+    });
     it('opens the existing reminder choices for its row shortcut', async () => {
         const onShortcutTargetChange = vi.fn();
         const session = createSessionFixture({ id: 'sess_reminder_shortcut', active: false, metadata: null });
