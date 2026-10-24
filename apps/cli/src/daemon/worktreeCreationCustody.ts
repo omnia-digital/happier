@@ -131,6 +131,8 @@ export async function bindCreatedWorktreeToTrackedSession(input: ClaimOwner & Re
   serverResolution?: 'created' | 'existing';
 }>): Promise<WorktreeCreationClaim | null> {
   if (!validOwner(input) || !input.sessionId.trim() || !Number.isSafeInteger(input.runnerPid) || input.runnerPid <= 0) return null;
+  // Normal sessions have no host-created worktree. Avoid creating claim storage for them.
+  if (!await readWorktreeCreationClaim(input)) return null;
   return await withClaimLock(input, async (path) => {
     const claim = (await readClaim(path)).claim;
     if (!claim || !belongsToOwner(claim, input)) return null;
