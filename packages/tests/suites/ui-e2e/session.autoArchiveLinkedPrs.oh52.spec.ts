@@ -22,6 +22,7 @@ import { gotoDomContentLoadedWithRetries, normalizeLoopbackBaseUrl } from '../..
 import { createSessionWithCiphertexts, fetchSessionV2 } from '../../src/testkit/sessions';
 import { encryptLegacyBase64 } from '../../src/testkit/messageCrypto';
 import { decryptDataKeyBase64, encryptDataKeyBase64 } from '../../src/testkit/rpcCrypto';
+import { unwrapSerializedJsonValue } from '../../src/testkit/unwrapSerializedJsonValue';
 import { readCliAccessKey } from '../../src/testkit/cliAccessKey';
 import { readUiE2eScopedAccountSettings } from '../../src/testkit/uiE2e/scopedAccountSettingsStorage';
 import { createMachineBoundSessionScopedSocketCollector } from '../../src/testkit/sessionSocketBinding';
@@ -207,10 +208,10 @@ exit 1
             expect(archivedAt).toEqual(expect.any(Number));
             await expect.poll(async () => {
                 const current = await fetchSessionV2(server!.baseUrl, access.token, merged);
-                const metadata = decryptDataKeyBase64(current.metadata, keys.get(merged)!) as Record<string, any>;
+                const metadata = unwrapSerializedJsonValue(decryptDataKeyBase64(current.metadata, keys.get(merged)!)) as Record<string, any>;
                 return metadata.sessionAutoArchiveHistoryV1?.events?.[0]?.archivedAt;
             }, { timeout: 120_000 }).toBe(archivedAt);
-            const mergedMetadata = decryptDataKeyBase64((await fetchSessionV2(server.baseUrl, access.token, merged)).metadata, keys.get(merged)!) as Record<string, any>;
+            const mergedMetadata = unwrapSerializedJsonValue(decryptDataKeyBase64((await fetchSessionV2(server.baseUrl, access.token, merged)).metadata, keys.get(merged)!)) as Record<string, any>;
             expect(mergedMetadata.sessionAutoArchiveHistoryV1.events[0].links).toMatchObject([link('owner/one', 7), link('owner/two', 7)]);
             expect(mergedMetadata.unknownOldCliField).toEqual({ keep: 'preserved' });
             expect(await readArchivedAt(unmerged)).toBeNull();
