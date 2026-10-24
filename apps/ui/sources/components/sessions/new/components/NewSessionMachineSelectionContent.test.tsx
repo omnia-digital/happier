@@ -156,9 +156,13 @@ function getOption(
     return option!;
 }
 
-function readIconName(option: SelectionListOption): unknown {
-    if (!React.isValidElement(option.icon)) return undefined;
-    return (option.icon.props as Readonly<{ name?: unknown }>).name;
+function readMachineGlyphProps(option: SelectionListOption): Readonly<{
+    serverId?: unknown;
+    machineId?: unknown;
+    size?: unknown;
+}> | null {
+    if (!React.isValidElement(option.icon)) return null;
+    return option.icon.props as Readonly<{ serverId?: unknown; machineId?: unknown; size?: unknown }>;
 }
 
 describe('NewSessionMachineSelectionContent', () => {
@@ -240,10 +244,18 @@ describe('NewSessionMachineSelectionContent', () => {
 
         const recentOption = getOption(recentSection, 'm-recent');
         expect(recentOption.testID).toBe('new-session-machine-option:m-recent');
-        expect(readIconName(recentOption)).toBe('clock');
+        expect(readMachineGlyphProps(recentOption)).toMatchObject({
+            serverId: 'server-a',
+            machineId: 'm-recent',
+            size: 24,
+        });
 
         const favoriteOption = getOption(favoritesSection, 'm-fav');
-        expect(readIconName(favoriteOption)).toBe('desktop');
+        expect(readMachineGlyphProps(favoriteOption)).toMatchObject({
+            serverId: 'server-a',
+            machineId: 'm-fav',
+            size: 24,
+        });
 
         const offlineOption = getOption(allSection, 'm-offline');
         expect(offlineOption.disabled).toBe(true);
