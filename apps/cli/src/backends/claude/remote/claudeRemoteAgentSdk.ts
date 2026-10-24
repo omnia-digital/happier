@@ -557,7 +557,7 @@ export async function claudeRemoteAgentSdk(opts: {
     const reportRuntimeSettingsFailure = (error: unknown, messageWasHeld: boolean): void => {
         const reason = redactBugReportSensitiveText(error instanceof Error ? error.message : String(error));
         const message = `Failed to update Claude runtime settings: ${reason}
-Current model: ${lastAppliedRuntimeSettings.model ?? 'provider default'}.${messageWasHeld ? ' Message was not sent; retry it after choosing the model or settings you want.' : ''}`;
+Model setting: ${lastAppliedRuntimeSettings.model ?? 'provider default'}.${messageWasHeld ? ' Message was not sent; retry it after choosing the model or settings you want.' : ''}`;
         logger.infoFile('[WARN] [claudeRemoteAgentSdk] Runtime settings update failed', { reason, messageWasHeld });
         opts.onCompletionEvent?.(message);
     };
