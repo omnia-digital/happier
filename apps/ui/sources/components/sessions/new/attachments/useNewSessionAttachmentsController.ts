@@ -1,3 +1,4 @@
+import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import * as React from 'react';
 
 import { useFeatureEnabled } from '@/hooks/server/useFeatureEnabled';
@@ -47,6 +48,7 @@ export function useNewSessionAttachmentsController(params: Readonly<{
     handleCreateSession: HandleCreateSession;
     selectedProfileId: string | null;
     targetServerId?: string | null;
+    scmScope?: ServerAccountScope | null;
     selectedMachineId?: string | null;
     selectedMachineHomeDir?: string | null;
     selectedPath?: string | null;
@@ -94,11 +96,12 @@ export function useNewSessionAttachmentsController(params: Readonly<{
     const discoverableReviewCommentsScope = React.useMemo<WorkspaceScopeBase | null>(() => {
         return resolveNewSessionReviewCommentsScope({
             targetServerId: params.targetServerId,
+            scmScope: params.scmScope,
             selectedMachineId: params.selectedMachineId,
             selectedMachineHomeDir: params.selectedMachineHomeDir,
             selectedPath: params.selectedPath,
         });
-    }, [params.selectedMachineHomeDir, params.selectedMachineId, params.selectedPath, params.targetServerId]);
+    }, [params.selectedMachineHomeDir, params.selectedMachineId, params.selectedPath, params.targetServerId, params.scmScope?.serverId, params.scmScope?.accountId]);
     const discoverableReviewCommentDrafts = useWorkspaceReviewCommentsDrafts(discoverableReviewCommentsScope);
     const reviewDraftHandlers = useWorkspaceReviewCommentDraftHandlers(discoverableReviewCommentsScope);
     const hasDiscoverableReviewCommentDrafts = reviewCommentsFeatureEnabled && discoverableReviewCommentDrafts.length > 0;

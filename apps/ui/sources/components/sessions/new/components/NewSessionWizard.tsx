@@ -1,3 +1,4 @@
+import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import * as React from 'react';
 import { Platform, ScrollView, View, useWindowDimensions, type View as RNView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -142,6 +143,7 @@ export interface NewSessionWizardAgentProps {
 export interface NewSessionWizardMachineProps {
     machines: ReadonlyArray<Machine>;
     serverId?: string | null;
+    scmScope?: ServerAccountScope | null;
     targetScopeKey?: string | null;
     selectedMachine: Machine | null;
     recentMachines: ReadonlyArray<Machine>;
@@ -306,6 +308,7 @@ export const NewSessionWizard = React.memo(function NewSessionWizard(props: NewS
         handleCreateSession: props.footer.handleCreateSession,
         selectedProfileId: props.profiles.selectedProfileId,
         targetServerId: props.machine.serverId,
+        scmScope: props.machine.scmScope,
         selectedMachineId: props.machine.selectedMachine?.id ?? null,
         selectedMachineHomeDir: props.machine.selectedMachine?.metadata?.homeDir ?? null,
         selectedPath: props.machine.selectedPath,

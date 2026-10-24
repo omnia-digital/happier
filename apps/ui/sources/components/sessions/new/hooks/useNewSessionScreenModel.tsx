@@ -729,6 +729,7 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
     }, [getBestPathForMachine]);
     const [pathPickerSearchQuery, setPathPickerSearchQuery] = React.useState('');
     const repoScmSnapshot = useNewSessionRepoScmSnapshot({
+        scope: pathTargetBinding?.scope ?? null,
         machineId: selectedMachineId,
         path: selectedPath,
     });
@@ -1998,6 +1999,7 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         profiles: wizardProfilesProps,
         wizardSections,
     } = useNewSessionWizardProps({
+        scmScope: pathTargetBinding?.scope ?? null,
         enabled: useEnhancedSessionWizard,
         theme,
         styles,
@@ -2128,6 +2130,7 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
     ]);
 
     const simplePanelProps = useNewSessionSimplePanelProps({
+        scmScope: pathTargetBinding?.scope ?? null,
         popoverBoundaryRef,
         headerHeight,
         safeAreaTop: safeArea.top,

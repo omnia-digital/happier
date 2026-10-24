@@ -1,3 +1,4 @@
+import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import type { ComposerSuggestionKindId } from '@/components/autocomplete/composerSuggestionKinds';
 import type { ActiveSuggestionsHandler } from '@/components/autocomplete/useActiveSuggestions';
 import * as React from 'react';
@@ -140,6 +141,7 @@ export function useNewSessionWizardProps(params: Readonly<{
     // Machine section
     machines: ReadonlyArray<Machine>;
     targetServerId?: string | null;
+    scmScope?: ServerAccountScope | null;
     targetScopeKey?: string | null;
     selectedMachine: Machine | null;
     recentMachines: ReadonlyArray<Machine>;
@@ -436,6 +438,7 @@ export function useNewSessionWizardProps(params: Readonly<{
         return {
             machines: params.machines,
             serverId: params.targetServerId,
+            scmScope: params.scmScope,
             selectedMachine: params.selectedMachine || null,
             recentMachines: params.recentMachines,
             favoriteMachineItems: params.favoriteMachineItems,
@@ -465,6 +468,7 @@ export function useNewSessionWizardProps(params: Readonly<{
         params.getBestPathForMachine,
         params.machines,
         params.targetServerId,
+        params.scmScope,
         params.targetScopeKey,
         params.recentMachines,
         params.recentPaths,

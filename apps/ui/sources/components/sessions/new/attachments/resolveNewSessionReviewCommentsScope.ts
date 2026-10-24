@@ -1,3 +1,4 @@
+import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import { scmRepositoryService } from '@/scm/scmRepositoryService';
 import { resolveAbsolutePath } from '@/utils/path/pathUtils';
 import type { WorkspaceScopeBase } from '@/sync/domains/workspaces/workspaceScope';
@@ -9,6 +10,7 @@ function normalizeText(value: unknown): string {
 
 export function resolveNewSessionReviewCommentsScope(params: Readonly<{
     targetServerId?: string | null;
+    scmScope?: ServerAccountScope | null;
     selectedMachineId?: string | null;
     selectedMachineHomeDir?: string | null;
     selectedPath?: string | null;
@@ -22,10 +24,11 @@ export function resolveNewSessionReviewCommentsScope(params: Readonly<{
 
     const homeDir = normalizeText(params.selectedMachineHomeDir);
     const resolvedSelectedPath = resolveAbsolutePath(selectedPath, homeDir || undefined);
-    const cachedSnapshot = scmRepositoryService.readCachedSnapshotForMachinePath({
+    const cachedSnapshot = params.scmScope ? scmRepositoryService.readCachedSnapshotForMachinePath({
+        scope: params.scmScope,
         machineId,
         path: resolvedSelectedPath,
-    });
+    }) : null;
     const preferredRootPath = cachedSnapshot?.repo?.isRepo === true
         ? cachedSnapshot.repo.rootPath
         : resolvedSelectedPath;

@@ -1,3 +1,4 @@
+import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import * as React from 'react';
 import type { ViewStyle } from 'react-native';
 import { Keyboard, Platform, Pressable, View, useWindowDimensions } from 'react-native';
@@ -146,6 +147,7 @@ export type NewSessionSimplePanelProps = Readonly<{
     selectedProfileId: string | null;
     profilePopover?: React.ComponentProps<typeof AgentInput>['profilePopover'];
     targetServerId?: string | null;
+    scmScope?: ServerAccountScope | null;
     attachmentFlowId?: string | null;
     resumePersistedLaunchKey?: string | null;
 }>;
@@ -327,6 +329,7 @@ export const NewSessionSimplePanel = React.memo(function NewSessionSimplePanel(p
         handleCreateSession: props.handleCreateSession,
         selectedProfileId: props.selectedProfileId,
         targetServerId: props.targetServerId,
+        scmScope: props.scmScope,
         selectedMachineId: props.selectedMachineId,
         selectedMachineHomeDir: props.selectedMachineHomeDir,
         selectedPath: props.selectedPath,
