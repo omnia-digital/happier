@@ -100,7 +100,79 @@ export function parseWindowsGpuEngineUtilization(stdout: string): Extract<Machin
     });
 }
 
+export function parseDarwinGpuUtilization(entries: readonly unknown[]): Extract<MachineMetricsSnapshot['gpu'], { status: 'available' }>['devices'] {
+    const devices = new Map<string, Extract<MachineMetricsSnapshot['gpu'], { status: 'available' }>['devices'][number]>();
+    for (const entry of entries) {
+        if (!entry || typeof entry !== 'object') continue;
+        const { IORegistryEntryID, IORegistryEntryName, model, PerformanceStatistics } = entry as Record<string, unknown>;
+        // plutil's raw integer preserves the full registry identity, including values
+        // outside JavaScript's safe integer range.
+        if (typeof IORegistryEntryID !== 'string' || !/^\d+$/.test(IORegistryEntryID)) continue;
+        const id = `ioreg:${IORegistryEntryID}`;
+        const name = (typeof model === 'string' && model.trim())
+            || (typeof IORegistryEntryName === 'string' && IORegistryEntryName.trim()) || id;
+        const statistics = PerformanceStatistics && typeof PerformanceStatistics === 'object'
+            ? PerformanceStatistics as Record<string, unknown> : {};
+        const usage = statistics['Device Utilization %'];
+        // This is a best-effort driver property observed on Apple Silicon, not a
+        // universal Apple API. Renderer/Tiler counters overlap; older scaled GPU
+        // Core Utilization fields have no established percentage contract here.
+        const utilization = !Object.hasOwn(statistics, 'Device Utilization %') ? unavailable('no-supported-gpu')
+            : typeof usage === 'number' && Number.isFinite(usage) && usage >= 0 && usage <= 100
+                ? { status: 'available' as const, usagePercent: usage } : unavailable('invalid-data');
+        const previous = devices.get(id);
+        if (!previous) devices.set(id, { id, name, utilization });
+        else if (JSON.stringify(previous.utilization) !== JSON.stringify(utilization)) {
+            devices.set(id, { ...previous, utilization: unavailable('invalid-data') });
+        }
+    }
+    return [...devices.values()];
+}
+
+async function collectDarwinGpu(signal?: AbortSignal): Promise<MachineMetricsSnapshot['gpu']> {
+    const { stdout: plist } = await execFileAsync('/usr/sbin/ioreg', ['-r', '-c', 'IOAccelerator', '-d', '1', '-a'], {
+        encoding: 'utf8', ...(signal ? { signal } : {}),
+    });
+    const plutil = async (args: string[]): Promise<string> => {
+        signal?.throwIfAborted();
+        const result = execFileAsync('/usr/bin/plutil', [...args, '-'], { encoding: 'utf8', ...(signal ? { signal } : {}) });
+        result.child.stdin?.end(plist);
+        return (await result).stdout.trim();
+    };
+    // Validate once so an absent indexed entry is distinguishable from a malformed
+    // document. Keep the registry data in memory; never log or persist its private fields.
+    await plutil(['-lint', '-s']);
+    const optional = async (args: string[]): Promise<string | null> => {
+        try { return await plutil(args); } catch (error) {
+            signal?.throwIfAborted();
+            // plutil reports missing keys and unsupported JSON value types with exit 1.
+            if ((error as { code?: unknown }).code === 1) return null;
+            throw error;
+        }
+    };
+    const entries: unknown[] = [];
+    for (let index = 0; ; index++) {
+        const type = await optional(['-type', String(index)]);
+        if (type === null) break;
+        if (type !== 'dictionary') return unavailable('invalid-data');
+        const [IORegistryEntryID, IORegistryEntryName, model, statistics] = await Promise.all([
+            optional(['-extract', `${index}.IORegistryEntryID`, 'raw', '-expect', 'integer', '-o', '-']),
+            optional(['-extract', `${index}.IORegistryEntryName`, 'raw', '-expect', 'string', '-o', '-']),
+            optional(['-extract', `${index}.model`, 'raw', '-expect', 'string', '-o', '-']),
+            // Whole-registry JSON conversion fails on unrelated CFData properties.
+            optional(['-extract', `${index}.PerformanceStatistics`, 'json', '-o', '-']),
+        ]);
+        entries.push({ IORegistryEntryID, IORegistryEntryName, model, PerformanceStatistics: statistics ? JSON.parse(statistics) : undefined });
+    }
+    const devices = parseDarwinGpuUtilization(entries);
+    return devices.length ? { status: 'available', devices } : unavailable('no-supported-gpu');
+}
+
 async function collectGpu(signal?: AbortSignal): Promise<MachineMetricsSnapshot['gpu']> {
+    if (process.platform === 'darwin') {
+        try { return await collectDarwinGpu(signal); }
+        catch (error) { signal?.throwIfAborted(); return failure(error); }
+    }
     if (process.platform !== 'linux' && process.platform !== 'win32') return unavailable('no-supported-gpu');
     if (process.platform === 'win32') {
         try {

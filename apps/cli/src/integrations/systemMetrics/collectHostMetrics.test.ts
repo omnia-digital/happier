@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CpuInfo } from 'node:os';
-import { capacityUsage, collectHostMetrics, cpuUsageFromSamples, parseNvidiaGpuUtilization, parseWindowsGpuEngineUtilization } from './collectHostMetrics';
+import { capacityUsage, collectHostMetrics, cpuUsageFromSamples, parseDarwinGpuUtilization, parseNvidiaGpuUtilization, parseWindowsGpuEngineUtilization } from './collectHostMetrics';
 
 const cpu = (user: number, idle: number): CpuInfo => ({ model: 'fixture', speed: 1, times: { user, idle, nice: 0, sys: 0, irq: 0 } });
 describe('host resource measurement definitions', () => {
@@ -22,6 +22,32 @@ describe('host resource measurement definitions', () => {
             { id: 'GPU-a', name: 'NVIDIA One', utilization: { status: 'available', usagePercent: 0 } },
             { id: 'GPU-b', name: 'NVIDIA Two', utilization: { status: 'unavailable', reason: 'invalid-data' } },
         ]);
+    });
+    it('attributes Mac accelerators by registry identity and reads only explicit device percentages, including zero', () => {
+        const first = { IORegistryEntryID: '4294969373', IORegistryEntryName: 'AGXAcceleratorG17X', model: 'Apple M5 Pro',
+            PerformanceStatistics: { 'Device Utilization %': 0, 'Renderer Utilization %': 70, 'Tiler Utilization %': 80 } };
+        expect(parseDarwinGpuUtilization([first, first, {
+            IORegistryEntryID: '18446744073709551614', IORegistryEntryName: 'SecondAccelerator', model: 'Second GPU',
+            PerformanceStatistics: { 'Device Utilization %': 32.5 },
+        }])).toEqual([
+            { id: 'ioreg:4294969373', name: 'Apple M5 Pro', utilization: { status: 'available', usagePercent: 0 } },
+            { id: 'ioreg:18446744073709551614', name: 'Second GPU', utilization: { status: 'available', usagePercent: 32.5 } },
+        ]);
+    });
+    it('keeps absent, unsupported, malformed and conflicting Mac GPU readings unavailable', () => {
+        const entry = { IORegistryEntryID: '42', IORegistryEntryName: 'AGXAccelerator' };
+        for (const PerformanceStatistics of [undefined, {}, { 'GPU Core Utilization': 9000 }]) {
+            expect(parseDarwinGpuUtilization([{ ...entry, PerformanceStatistics }])).toEqual([
+                { id: 'ioreg:42', name: 'AGXAccelerator', utilization: { status: 'unavailable', reason: 'no-supported-gpu' } },
+            ]);
+        }
+        for (const usage of [NaN, Infinity, -1, 101, null, '', '0', false]) {
+            expect(parseDarwinGpuUtilization([{ ...entry, PerformanceStatistics: { 'Device Utilization %': usage } }])[0]?.utilization)
+                .toEqual({ status: 'unavailable', reason: 'invalid-data' });
+        }
+        expect(parseDarwinGpuUtilization([1, null, {}, { ...entry, IORegistryEntryID: 'not-an-id' }])).toEqual([]);
+        expect(parseDarwinGpuUtilization([0, 20].map((usage) => ({ ...entry, PerformanceStatistics: { 'Device Utilization %': usage } })))[0]?.utilization)
+            .toEqual({ status: 'unavailable', reason: 'invalid-data' });
     });
     it('aggregates WDDM processes within each engine, then takes the busiest engine for each physical GPU', () => {
         const row = (pid: number, phys: number, engine: number, usage: number) => ({ Name: `pid_${pid}_luid_0x00000000_0x00001234_phys_${phys}_eng_${engine}_engtype_3D`, UtilizationPercentage: usage });
