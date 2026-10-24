@@ -20,6 +20,7 @@ export function assessSessionAutoArchiveCandidate(input: Readonly<{
     session: SessionListRenderableSession;
     enabled: boolean;
     archivePending: boolean;
+    accountId?: string;
 }>): SessionAutoArchiveAssessment {
     const session = input.session;
     if (!input.enabled) return skip('disabled');
@@ -27,7 +28,7 @@ export function assessSessionAutoArchiveCandidate(input: Readonly<{
     if (input.archivePending) return skip('archive_pending');
     if (session.metadataUnavailable || !session.metadata) return skip('metadata_unavailable');
     if (readSessionPullRequestLinks(session.metadata).length === 0) return skip('no_links');
-    if (session.accessLevel && session.accessLevel !== 'admin') return skip('work_unverified');
+    if (session.accessLevel !== 'admin' && (!input.accountId || session.owner !== input.accountId)) return skip('work_unverified');
     if (session.active !== false || typeof session.presence !== 'number' || !Number.isFinite(session.presence)
         || session.thinking !== false || session.pendingCount !== 0 || session.pendingBlockedCount !== 0
         || session.runtimeActivityState !== 'idle' || session.runtimeActivityActiveCount != null && session.runtimeActivityActiveCount !== 0

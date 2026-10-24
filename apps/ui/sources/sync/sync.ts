@@ -312,6 +312,7 @@ import {
     type PreparedAccountSettingsForDaemonSpawn,
 } from './engine/settings/prepareAccountSettingsForDaemonSpawn';
 import { registerAccountSettingsDaemonSpawnPreparation } from './ops/accountSettingsDaemonSpawnPreparation';
+import { createSessionAutoArchiveObserver } from './engine/sessions/sessionAutoArchiveObserver';
 import { getOfferings as getOfferingsEngine, presentPaywall as presentPaywallEngine, purchaseProduct as purchaseProductEngine, syncPurchases as syncPurchasesEngine } from './engine/purchases/syncPurchases';
 import { fetchChanges, fetchCurrentChangesCursor } from './api/session/apiChanges';
 import {
@@ -928,6 +929,7 @@ class Sync {
       private pendingOutboxRearmInFlightByScope = new Map<string, Promise<void>>();
       private readonly usesPersistentDesktopSync = isTauriDesktop();
       private isForeground = this.usesPersistentDesktopSync || AppState.currentState === 'active';
+      private sessionAutoArchiveObserver!: ReturnType<typeof createSessionAutoArchiveObserver>;
       public encryptionCache = new EncryptionCache();
     private sessionsSync: InvalidateSync;
     private fetchSessionsInFlight: { generation: number; promise: Promise<void> } | null = null;
@@ -1085,6 +1087,7 @@ class Sync {
     private resumeAfterForegroundTransition(tag: string): void {
         const resume = this.resumeSync('app-foreground');
         fireAndForget(resume, { tag });
+        void resume.then(() => this.sessionAutoArchiveObserver.recheck(), () => undefined);
         try {
             this.connectSocketWithPostSubscriptionCatchUp();
         } catch {
@@ -1125,6 +1128,17 @@ class Sync {
         installSyncReliabilityTelemetryGlobal(syncReliabilityTelemetry);
         installSessionRealtimeTranscriptSuppressionGlobal();
         registerAccountSettingsDaemonSpawnPreparation(this.prepareAccountSettingsForDaemonSpawn);
+        this.sessionAutoArchiveObserver = createSessionAutoArchiveObserver({
+            isForeground: () => {
+                if (!this.isForeground || this.pauseController.isPaused() || AppState.currentState !== 'active') return false;
+                const doc = (globalThis as { document?: { visibilityState?: string } }).document;
+                return doc?.visibilityState !== 'hidden';
+            },
+            ensureMetadata: async (sessionId, serverId, shouldContinue) => {
+                const [result] = await this.ensureSessionListMetadata([{ sessionId, serverId }], shouldContinue);
+                return result?.kind === 'available';
+            },
+        });
         this.syncJsThreadLagTelemetryRuntime();
         // Bounded transcript retention: sweep is triggered by transcript-surface
         // unmounts (registry releases) and by sessions becoming visible — never polled.
