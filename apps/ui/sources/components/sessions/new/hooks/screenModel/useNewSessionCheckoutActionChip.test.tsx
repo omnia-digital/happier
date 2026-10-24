@@ -262,6 +262,22 @@ describe('useNewSessionCheckoutActionChip', () => {
         expect(setCheckoutPickerOpen).toHaveBeenCalledWith(false);
     });
 
+    it('keeps the selected non-main checkout available when reopening Existing Worktree from a fork', async () => {
+        const chip = await renderCheckoutChip({
+            selectedPath: '/repo/.worktrees/release',
+            repoScmSnapshot: makeSnapshot([
+                { path: '/repo', branch: 'main', isMain: true, isCurrent: false },
+                { path: '/repo/.worktrees/release', branch: 'release', isCurrent: true },
+            ]),
+            checkoutChipModel: makeCheckoutChipModel([
+                { id: 'current_path', kind: 'current_path', path: '/repo' },
+                { id: 'create_git_worktree', kind: 'create_git_worktree' },
+                { id: 'checkout:/repo/.worktrees/release', kind: 'linked_checkout', path: '/repo/.worktrees/release', displayName: 'release', checkoutKind: 'git_worktree', gitBranch: 'release' },
+            ], 'checkout:/repo/.worktrees/release'),
+        });
+        expect(findCheckoutChipOptionFromChip(chip, 'worktree:existing', 'checkout:/repo/.worktrees/release')?.onSelect).toBeTypeOf('function');
+    });
+
     it.each(['/repo', '/repo/.worktrees/release'])('selects automatic fresh creation from %s without entering existing or branch choices', async (selectedPath) => {
         const setCheckoutCreationDraft = vi.fn();
         const setSelectedPath = vi.fn();
