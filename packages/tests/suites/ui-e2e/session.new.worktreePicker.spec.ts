@@ -113,6 +113,10 @@ test.describe('ui e2e: /new worktree picker (Phase 5 SelectionList migration)', 
         await enableEnhancedSessionWizard({ page, baseUrl: uiBaseUrl, timeoutMs: 180_000 });
         await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/new?happier_hmr=0`, 120_000);
         await expect(page.getByTestId('new-session-composer-input')).toBeVisible({ timeout: 60_000 });
+        // Choose the fixture backend before entering the directory: the shared
+        // agent helper dismisses an expanded path input with Escape, which is a
+        // value-field clear when a directory has already been entered.
+        await selectNewSessionAgent({ page, agentId: 'claude' });
 
         const draftText = 'worktree picker pointer smoke';
         await page.getByTestId('new-session-composer-input').fill(draftText);
@@ -169,7 +173,7 @@ test.describe('ui e2e: /new worktree picker (Phase 5 SelectionList migration)', 
         await openPicker();
         await choose('create_git_worktree');
         expect(await list()).toBe(initialWorktrees);
-        await selectNewSessionAgent({ page, agentId: 'claude' });
+        await expect(page.getByTestId('new-session-agent-dropdown-trigger')).toContainText('Claude');
         await page.getByTestId('new-session-composer-input').fill(draftText);
         await expect(page.getByTestId('new-session-composer-send')).toBeEnabled();
         await page.getByTestId('new-session-composer-send').click();
