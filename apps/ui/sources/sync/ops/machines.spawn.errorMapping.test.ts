@@ -311,13 +311,18 @@ describe('machineSpawnNewSession error mapping', () => {
       });
 
     const { machineSpawnNewSession } = await import('./machines');
-    await expect(machineSpawnNewSession({
+    const result = await machineSpawnNewSession({
       machineId: 'machine-1',
       directory: '/tmp',
       backendTarget: { kind: 'builtInAgent', agentId: 'claude' },
       serverId: 'server-b',
       userAttemptId: 'account-switch-after-issued-rpc',
-    })).resolves.toMatchObject({ type: 'error', errorCode: SPAWN_SESSION_ERROR_CODES.ACCOUNT_SCOPE_CHANGED });
+    });
+    expect(result).toMatchObject({
+      type: 'error',
+      errorCode: SPAWN_SESSION_ERROR_CODES.SESSION_WEBHOOK_TIMEOUT,
+      spawnAttemptCustody: { status: 'unresolved', userAttemptId: 'account-switch-after-issued-rpc' },
+    });
     expect(machineRpcWithServerScopeMock.mock.calls.map(([call]) => call.method)).toEqual([
       RPC_METHODS.SPAWN_HAPPY_SESSION_PROVIDER_SAFE,
       RPC_METHODS.SPAWN_HAPPY_SESSION,

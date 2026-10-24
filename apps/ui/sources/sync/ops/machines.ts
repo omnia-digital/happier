@@ -58,8 +58,7 @@ import {
     measureMachineEncryptRawAttribution,
 } from '@/sync/encryption/machineEncryption';
 import { prepareAccountSettingsForDaemonSpawnIfNeeded } from './accountSettingsDaemonSpawnPreparation';
-import { isAccountSettingsScopeChangedDuringSpawnPreparationError } from '@/sync/engine/settings/accountSettingsSpawnPreparationError';
-import { AccountSettingsScopeChangedDuringSpawnPreparationError } from '@/sync/engine/settings/accountSettingsSpawnPreparationError';
+import { AccountSettingsScopeChangedDuringSpawnPreparationError, isAccountSettingsScopeChangedDuringSpawnPreparationError } from '@/sync/engine/settings/accountSettingsSpawnPreparationError';
 import { isServerScopedSessionContextCurrent, resolveServerScopedSessionContext } from '@/sync/runtime/orchestration/serverScopedRpc/resolveServerScopedSessionContext';
 import { ScopedMachineRpcAccountChangedError } from '@/sync/runtime/orchestration/serverScopedRpc/serverScopedMachineRpc';
 import { delay } from '@/utils/timing/time';
@@ -550,11 +549,17 @@ export async function machineSpawnNewSession(options: SpawnSessionOptions): Prom
             return { type: 'error', errorCode: SPAWN_SESSION_ERROR_CODES.INVALID_REQUEST, errorMessage: error.message };
         }
         if (isAccountSettingsScopeChangedDuringSpawnPreparationError(error) || error instanceof ScopedMachineRpcAccountChangedError) {
-            if (!spawnActuallyIssued) await clearCustody();
+            if (spawnActuallyIssued && custody) {
+                // The first RPC may have started the Session before its response or
+                // legacy fallback was interrupted. Keep the original attempt and
+                // nonce in the existing pending-recovery path.
+                return buildPendingSpawnResolutionError({ status: 'pending' }, custody.record);
+            }
+            await clearCustody();
             return {
                 type: 'error',
                 errorCode: SPAWN_SESSION_ERROR_CODES.ACCOUNT_SCOPE_CHANGED,
-                errorMessage: 'Account changed while syncing settings. Please retry from the current account.',
+                errorMessage: 'Account changed during session launch. Please retry from the current account.',
             };
         }
         const rpcErrorCode = readRpcErrorCode(error);
