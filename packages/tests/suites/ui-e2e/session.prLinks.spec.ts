@@ -41,6 +41,7 @@ test.describe('session linked pull requests', () => {
         receipt('isolated UI ready');
     });
     test.afterAll(async () => {
+        test.setTimeout(120_000);
         receipt('fixture cleanup start');
         await daemon?.stop().catch(() => {});
         receipt('daemon cleanup complete');
