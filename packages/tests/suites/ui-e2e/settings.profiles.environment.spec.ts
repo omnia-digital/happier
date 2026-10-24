@@ -11,7 +11,7 @@ const run = createRunDirs({ runLabel: 'ui-e2e-profile-environment' });
 
 function rowSwitch(page: Page, label: string) {
   return page.getByText(label, { exact: true })
-    .locator('xpath=ancestor::*[.//input[@type="checkbox"]][1]').locator('input[type="checkbox"]');
+    .locator('xpath=ancestor::*[.//*[@role="switch"]][1]').getByRole('switch');
 }
 
 function settingsWrite(page: Page) {
@@ -52,10 +52,13 @@ test.describe('ui e2e: profile environment editor', () => {
     await gotoDomContentLoadedWithRetries(page, profilesUrl);
     const addProfile = page.getByTestId('profiles-list-add-profile');
     await addProfile.or(page.getByRole('switch')).first().waitFor({ state: 'visible' });
-    if (await page.getByRole('switch').count() === 1) {
+    if (!(await addProfile.isVisible())) {
+      const enableProfiles = page.getByRole('switch');
+      await expect(enableProfiles).toHaveAttribute('aria-checked', 'false');
       const saved = settingsWrite(page);
-      await page.getByRole('switch').check();
+      await enableProfiles.click();
       await saved;
+      await expect(addProfile).toBeVisible();
     }
     await addProfile.click();
     const profileName = 'OH12 Environment fixture';
@@ -78,18 +81,19 @@ test.describe('ui e2e: profile environment editor', () => {
     await page.getByText(profileName, { exact: true }).click();
     await expect(value).toHaveValue('final-fallback');
 
-    await rowSwitch(page, 'Use value from machine environment').check();
+    await rowSwitch(page, 'Use value from machine environment').click();
+    await expect(rowSwitch(page, 'Use value from machine environment')).toHaveAttribute('aria-checked', 'true');
     const source = page.getByPlaceholder('Source variable name (e.g., Z_AI_MODEL)', { exact: true });
     await source.fill('OH12_SOURCE');
     await source.fill('');
-    await expect(rowSwitch(page, 'Use value from machine environment')).toBeChecked();
+    await expect(rowSwitch(page, 'Use value from machine environment')).toHaveAttribute('aria-checked', 'true');
     await source.pressSequentially('oh12_other');
     await expect(source).toHaveValue('OH12_OTHER');
     const fallback = page.getByPlaceholder('Default value', { exact: true });
     await expect(fallback).toHaveValue('final-fallback');
-    await rowSwitch(page, 'Use secret vault').check();
+    await rowSwitch(page, 'Use secret vault').click();
     await expect(fallback).toHaveCount(0);
-    await expect(rowSwitch(page, 'Use secret vault')).toBeChecked();
+    await expect(rowSwitch(page, 'Use secret vault')).toHaveAttribute('aria-checked', 'true');
     await expect(page.getByText('Session will receive: OH12_VALUE = final-fallback', { exact: true })).toHaveCount(0);
     const vaultSave = settingsWrite(page);
     await page.getByText('Save', { exact: true }).click();
@@ -98,10 +102,11 @@ test.describe('ui e2e: profile environment editor', () => {
     await page.getByText(profileName, { exact: true }).click();
     await expect(source).toHaveValue('OH12_OTHER');
     await expect(fallback).toHaveCount(0);
-    await expect(rowSwitch(page, 'Use secret vault')).toBeChecked();
+    await expect(rowSwitch(page, 'Use secret vault')).toHaveAttribute('aria-checked', 'true');
     await source.scrollIntoViewIfNeeded();
     await page.screenshot({ path: join(suiteDir, 'profile-environment-vault-persisted.png'), fullPage: true });
-    await rowSwitch(page, 'Use secret vault').uncheck();
+    await rowSwitch(page, 'Use secret vault').click();
+    await expect(rowSwitch(page, 'Use secret vault')).toHaveAttribute('aria-checked', 'false');
     await expect(fallback).toHaveValue('');
   });
 });

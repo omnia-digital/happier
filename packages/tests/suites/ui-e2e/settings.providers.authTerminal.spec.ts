@@ -89,8 +89,8 @@ test.describe('ui e2e: provider settings auth status', () => {
       const timeoutField = page.getByTestId('settings-provider-field-claudeLocalPermissionBridgeTimeoutSeconds');
       const thinkingField = page.getByTestId('settings-provider-field-claudeRemoteMaxThinkingTokens');
       const indefiniteField = page.getByTestId('settings-provider-field-claudeLocalPermissionBridgeWaitIndefinitely')
-        .locator('xpath=ancestor-or-self::*[.//input[@type="checkbox"]][1]').locator('input[type="checkbox"]');
-      await expect(indefiniteField).toBeChecked();
+        .getByRole('switch');
+      await expect(indefiniteField).toHaveAttribute('aria-checked', 'true');
       await expect(timeoutField.locator('input')).toHaveValue('600');
       await expect(timeoutField).not.toContainText('Invalid number');
       for (const value of ['300', '900']) {
@@ -109,7 +109,7 @@ test.describe('ui e2e: provider settings auth status', () => {
       await gotoDomContentLoadedWithRetries(page, settingsUrl);
       await expect(timeoutField.locator('input')).toHaveValue('900');
       await expect(thinkingField.locator('input')).toHaveValue('1024');
-      await expect(indefiniteField).toBeChecked();
+      await expect(indefiniteField).toHaveAttribute('aria-checked', 'true');
       await page.screenshot({ path: join(suiteDir, 'claude-positive-integers-persisted.png'), fullPage: true });
     } catch (error) {
       throw appendBrowserDiagnostics(error, browserDiagnostics());
