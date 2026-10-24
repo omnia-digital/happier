@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { runManagedCliUpdate } from '@happier-dev/cli-common/firstPartyRuntime';
+import { readLastCliUpdateResult, runManagedCliUpdate, watchLastCliUpdateResult } from '@happier-dev/cli-common/firstPartyRuntime';
 
 import type { MachineMetadata } from '@/api/types';
 import { readCliUpdateFacts } from '@/cli/runtime/update/cliUpdateFacts';
@@ -32,7 +32,7 @@ describe('the daemon republishes its CLI update facts when the update record cha
     rmSync(homeDir, { recursive: true, force: true });
   });
 
-  function setup() {
+  function setup(watchRecord?: typeof watchLastCliUpdateResult) {
     const published: MachineMetadata[] = [];
     let serverMetadata: MachineMetadata | null = initialMachineMetadata;
     const publisher = createCliUpdateMetadataPublisher({
@@ -56,6 +56,7 @@ describe('the daemon republishes its CLI update facts when the update record cha
         npmPackageName: '@happier-dev/cli',
       }),
       onError: () => {},
+      watchRecord,
     });
     publisher.watch({ channel: 'stable', processEnv: { HAPPIER_HOME_DIR: homeDir } });
     return { publisher, published };
@@ -73,11 +74,20 @@ describe('the daemon republishes its CLI update facts when the update record cha
 
 
   it('publishes exactly one refresh carrying the new lastUpdate for one write', async () => {
-    const { publisher, published } = setup();
+    let notifyRecordChanged = () => { throw new Error('record watch was not installed'); };
+    // The separate rename/reconnect case exercises the real directory watcher. Here the OS
+    // event is delivered explicitly so a missed fs.watch notification cannot hide publisher logic.
+    const { publisher, published } = setup(({ onChange }) => {
+      notifyRecordChanged = onChange;
+      return () => {};
+    });
     try {
       await recordFailedAttempt('GitHub returned 503');
+      expect(readLastCliUpdateResult({ channel: 'stable', processEnv: { HAPPIER_HOME_DIR: homeDir } })).toMatchObject({ outcome: 'failed', message: expect.stringContaining('GitHub returned 503') });
+      notifyRecordChanged();
       await vi.waitFor(() => expect(published).toHaveLength(1));
       // Any further event for the same write reads unchanged facts and publishes nothing.
+      notifyRecordChanged();
       expect(published).toHaveLength(1);
       expect(published[0]?.cliUpdate?.lastUpdate).toMatchObject({ outcome: 'failed', message: expect.stringContaining('GitHub returned 503') });
     } finally {
