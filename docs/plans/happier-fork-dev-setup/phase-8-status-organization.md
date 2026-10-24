@@ -42,6 +42,8 @@ Additional deciding RED checks reproduce two missing association publications (e
 
 Follow-up GREEN: projector nine checks, narrow inputs six checks and association publication two checks pass together (17 total). The streaming workloads replace `sessionMessages` for either a loaded candidate or an unrelated session over 100 notifications with 500 rows loaded. Both reproduced 50,000 classifier reads before correction; both now produce zero by reusing the canonical row-overlay reference when the runtime clock is unchanged (338/369 ms observed shared-machine workload, no ratio claim). Runtime expiry still recomputes without a storage update. Integrated UI typecheck passes. Corrected Chrome r2 is next; source/browser completion is not yet claimed.
 
+The projector suite now also composes the actual session-list builder, folder application, pin/index projection, tag filter, machine projection and repository projection. Its tenth check verifies each session once, physical folder membership and action targets, collapse without empty folder-status headers, saved presentation identity and focused-folder filtering. The complete projector suite passes 10 checks. Root independently replayed the prior deciding 17/17 at `9dc80431a9` and reviewed the corrected canonical owners without a new material finding; browser r2 remains pending.
+
 - [x] 🟢 Discover grouping, ordering, preferences and the OH-58 subscription boundary; record the concrete design before edits.
 - [ ] 🔴 RED/GREEN all four options, mixed group/sort, custom multi-workflow order, stable ties, No ticket versus unavailable, and selected-session continuity.
 - [ ] 🔴 Verify Pinned, filters, folders and machine/repository restoration through real projection/preference owners.

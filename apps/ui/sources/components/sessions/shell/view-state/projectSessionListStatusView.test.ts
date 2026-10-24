@@ -7,6 +7,15 @@ import type { SessionTicketStatus } from '@/sync/domains/session/tickets/session
 import { buildSessionListSelectedItems } from '../sessionListSelectedItems';
 import { buildSessionListIndexFromViewData } from '@/sync/domains/session/listing/sessionListIndex';
 import { projectSessionListStatusView, SESSION_LIST_AGENT_STATUS_ORDER } from './projectSessionListStatusView';
+import { applySessionFoldersToSessionListViewData, buildSessionListViewData } from '@/sync/domains/session/listing/sessionListViewData';
+import { computeVisibleSessionListIndex } from '@/sync/domains/session/listing/computeVisibleSessionListIndex';
+import { buildSessionListViewDataFromIndex } from '@/sync/domains/session/listing/sessionListViewDataFromIndex';
+import { projectSessionListMachineView } from './projectSessionListMachineView';
+import { projectSessionListRepositoryView } from './projectSessionListRepositoryView';
+import { repositoryWorkspaceKey } from '@/sync/domains/session/listing/sessionRepositoryIdentity';
+import { filterSessionListItemsForHeaderControls } from '../sessionListFilters';
+import { filterSessionListItemsByFocusedFolder } from '../sessionFolderShellTypes';
+import { filterCollapsedSessionListItems } from '../sessionListCollapsedItems';
 
 type Row = Extract<SessionListViewItem, { type: 'session' }>;
 const now = 100_000;
@@ -70,6 +79,42 @@ describe('status organization through the canonical sidebar projection', () => {
         expect(result.find(item => item.type === 'session' && item.session.id === 'first')).toMatchObject({ folderId: 'tests', session: first.session });
         expect(result.find(item => item.type === 'session' && item.session.id === 'second')).toMatchObject({ folderId: 'nested', session: second.session });
         expect(ids(result).sort()).toEqual(['first', 'loose', 'second']);
+    });
+
+    it('composes real folder/pin/filter/machine/repository owners and restores their exact saved presentation', () => {
+        const rows = [row('assigned'), row('loose'), row('pin'), row('excluded')];
+        const sessions = Object.fromEntries(rows.map(item => [item.session.id, item.session]));
+        const source = buildSessionListViewData(sessions, {}, { groupInactiveSessionsByProject: true, sectionModeV1: 'single', serverScope: { serverId: 'home' } });
+        const workspace = { t: 'workspaceScope' as const, serverId: 'home', machineId: 'mac', rootPath: '/repo' };
+        const folders = { v: 1 as const, folders: [{ id: 'planning', workspace, parentId: null, name: 'Planning', createdAt: 1, updatedAt: 1 }] };
+        const foldered = applySessionFoldersToSessionListViewData(source, { enabled: true, folders, assignmentsBySessionKey: { 'home:assigned': 'planning' } });
+        const sourceIndex = buildSessionListIndexFromViewData(foldered)!;
+        const visibleIndex = computeVisibleSessionListIndex({ source: sourceIndex, resolveSessionRow: (_home, id) => sessions[id], hideInactiveSessions: false,
+            pinnedSessionKeysV1: ['home:pin'], sessionListGroupOrderV1: {}, presentation: { enabled: false, presentation: 'flat-with-badge' } });
+        const visible = buildSessionListViewDataFromIndex({ index: visibleIndex, sourceIndex, source: foldered })!;
+        const filtered = filterSessionListItemsForHeaderControls(visible, { searchQuery: '', selectedTags: ['work'], searchableTextBySessionKey: {}, sessionTags: { 'home:assigned': ['work'], 'home:loose': ['work'], 'home:pin': ['work'], 'home:excluded': ['other'] } });
+        const scope = { serverId: 'home', accountId: 'account' };
+        const associations = { [repositoryWorkspaceKey({ ...scope, machineId: 'mac', path: '/repo' })]: { identity: 'example.com/team/repo', label: 'Repository', rootPath: '/repo', worktreePaths: [] } };
+        const machine = projectSessionListMachineView(filtered, {});
+        const repository = projectSessionListRepositoryView({ items: filtered, scopes: { home: scope }, associations });
+        for (const saved of [machine, repository]) {
+            const snapshot = JSON.stringify(saved);
+            const grouped = projectSessionListStatusView({ items: saved, grouping: 'agent', sorting: 'none', ticketStatuses: new Map(), nowMs: now });
+            expect(new Set(ids(grouped))).toEqual(new Set(['assigned', 'loose', 'pin']));
+            expect(ids(grouped)).toHaveLength(3);
+            expect(grouped.some(item => item.type === 'header' && item.headerKind === 'pinned')).toBe(true);
+            expect(grouped.some(item => item.type === 'header' && (item.headerKind === 'machine' || item.headerKind === 'project'))).toBe(false);
+            const assigned = grouped.find(item => item.type === 'session' && item.session.id === 'assigned');
+            expect(assigned).toMatchObject({ folderId: 'planning', workspace, session: sessions.assigned });
+            const folder = grouped.find(item => item.type === 'header' && item.folderId === 'planning' && item.headerKind === 'folder')!;
+            const collapsed = filterCollapsedSessionListItems(grouped, { [folder.groupKey!]: true });
+            expect(ids(collapsed)).not.toContain('assigned');
+            expect(collapsed.some(item => item.type === 'header' && item.headerKind === 'status' && item.folderId === 'planning')).toBe(false);
+            expect(JSON.stringify(saved)).toBe(snapshot);
+            expect(projectSessionListStatusView({ items: saved, grouping: 'none', sorting: 'none', ticketStatuses: new Map(), nowMs: now })).toBe(saved);
+        }
+        const focused = filterSessionListItemsByFocusedFolder(filtered, 'planning');
+        expect(ids(projectSessionListStatusView({ items: focused, grouping: 'agent', sorting: 'none', ticketStatuses: new Map(), nowMs: now }))).toEqual(['assigned']);
     });
 
     it('sorts actual custom ticket workflows without globally comparing unrelated numeric ranks', () => {
