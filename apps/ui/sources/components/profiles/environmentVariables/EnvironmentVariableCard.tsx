@@ -131,13 +131,17 @@ export function EnvironmentVariableCard({
     const useSecretVault = Boolean(effectiveSourceRequirement?.useSecretVault);
     const hideValueInUi = Boolean(isSecret) || useSecretVault;
 
-    // Vault-enforced secrets must not persist plaintext or fallbacks.
+    // Vault-enforced secrets must not persist plaintext or fallbacks. Use the
+    // incoming value here; draft synchronization must never publish stale edits.
     React.useEffect(() => {
         if (!useSecretVault) return;
-        if (defaultValue.trim() !== '') {
-            setDefaultValue('');
+        const newValue = parsed.useRemoteVariable
+            ? formatEnvVarTemplate({ sourceVar: parsed.remoteVariableName, fallback: '', operator: null })
+            : '';
+        if (newValue !== variable.value) {
+            onUpdate(index, newValue);
         }
-    }, [defaultValue, useSecretVault]);
+    }, [index, onUpdate, parsed, useSecretVault, variable.value]);
 
     // If the user opts into the secret vault, we must enforce hiding the value in the UI.
     // This is treated similarly to daemon-enforced sensitivity: the user cannot disable it while vault is enabled.
@@ -162,23 +166,27 @@ export function EnvironmentVariableCard({
     const canEditSecret = Boolean(onUpdateSecretOverride) && !isForcedSensitive && !useSecretVault;
     const showResetToAuto = canEditSecret && secretOverride !== undefined;
 
-    // Update parent when local state changes
-    React.useEffect(() => {
+    // Publish only user edits. Publishing draft state from an effect races with
+    // incoming props and can send an older value back to the parent indefinitely.
+    const updateValue = (nextRemote: boolean, nextSource: string, nextDefault: string) => {
         // Important UX: when "use machine env" is enabled, allow the user to clear/edit the
         // source variable name without implicitly disabling the mode or overwriting the stored
         // template value. Only persist when source var is non-empty.
-        if (useRemoteVariable && remoteVariableName.trim() === '') {
+        if (nextRemote && nextSource.trim() === '') {
             return;
         }
 
-        const newValue = useRemoteVariable
-            ? formatEnvVarTemplate({ sourceVar: remoteVariableName, fallback: defaultValue, operator: computedOperator })
-            : defaultValue;
+        const fallback = useSecretVault ? '' : nextDefault;
+        const newValue = nextRemote
+            ? formatEnvVarTemplate({
+                sourceVar: nextSource,
+                fallback,
+                operator: fallback.trim() !== '' ? (fallbackOperator ?? ':-') : null,
+            })
+            : fallback;
 
-        if (newValue !== variable.value) {
-            onUpdate(index, newValue);
-        }
-    }, [computedOperator, defaultValue, index, onUpdate, remoteVariableName, useRemoteVariable, useSecretVault, variable.value]);
+        onUpdate(index, newValue);
+    };
 
     // Determine status
     const showRemoteDiffersWarning = remoteValue !== null && expectedValue && remoteValue !== expectedValue;
@@ -247,7 +255,10 @@ export function EnvironmentVariableCard({
                 }
                 placeholderTextColor={theme.colors.input.placeholder}
                 value={defaultValue}
-                onChangeText={setDefaultValue}
+                onChangeText={(text) => {
+                    setDefaultValue(text);
+                    updateValue(useRemoteVariable, remoteVariableName, text);
+                }}
                 autoCapitalize="none"
                 autoCorrect={false}
                 secureTextEntry={hideValueInUi}
@@ -304,7 +315,11 @@ export function EnvironmentVariableCard({
                         placeholder={t('profiles.environmentVariables.card.sourceVariablePlaceholder')}
                         placeholderTextColor={theme.colors.input.placeholder}
                         value={remoteVariableName}
-                        onChangeText={(text) => setRemoteVariableName(text.toUpperCase())}
+                        onChangeText={(text) => {
+                            const source = text.toUpperCase();
+                            setRemoteVariableName(source);
+                            updateValue(useRemoteVariable, source, defaultValue);
+                        }}
                         autoCapitalize="characters"
                         autoCorrect={false}
                     />
@@ -411,7 +426,10 @@ export function EnvironmentVariableCard({
                 rightElement={(
                     <Switch
                         value={useRemoteVariable}
-                        onValueChange={setUseRemoteVariable}
+                        onValueChange={(next) => {
+                            setUseRemoteVariable(next);
+                            updateValue(next, remoteVariableName, defaultValue);
+                        }}
                     />
                 )}
             />
