@@ -516,6 +516,7 @@ test.describe('ui e2e: session list ordering mode', () => {
     await expect(clickedRow).toHaveCount(1, { timeout: 120_000 });
     await page.evaluate((sessionId) => {
       const watched = document.querySelector(`[data-testid="session-list-item-${sessionId}"]`);
+      const watchedHeader = document.querySelector('[data-testid^="session-list-project-header:"]');
       const events: unknown[] = [];
       (window as typeof window & { __oh50RowEvents?: unknown[] }).__oh50RowEvents = events;
       const snapshot = (type: string, event?: PointerEvent | MouseEvent) => {
@@ -524,6 +525,25 @@ test.describe('ui e2e: session list ordering mode', () => {
         const target = event?.target instanceof Element ? event.target : null;
         const hit = event ? document.elementFromPoint(event.clientX, event.clientY) : null;
         const scroll = current?.closest('[data-testid="sessions-list-keyboard-zone"]');
+        const header = document.querySelector('[data-testid^="session-list-project-header:"]');
+        const firstProjectRow = Array.from(document.querySelectorAll('[data-testid^="session-list-item-"]'))
+          .find((row) => header && Boolean(header.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING));
+        const layoutChain = (start: Element | null | undefined) => {
+          const result: Array<Record<string, string | number | null>> = [];
+          for (let element = start; element; element = element.parentElement) {
+            const bounds = element.getBoundingClientRect();
+            const style = getComputedStyle(element);
+            result.push({
+              testId: element.getAttribute('data-testid'), tag: element.tagName,
+              y: bounds.y, height: bounds.height,
+              position: style.position, top: style.top, cssHeight: style.height,
+              minHeight: style.minHeight, marginTop: style.marginTop, marginBottom: style.marginBottom,
+              paddingTop: style.paddingTop, paddingBottom: style.paddingBottom, transform: style.transform,
+            });
+            if (element === scroll) break;
+          }
+          return result;
+        };
         events.push({
           type,
           watchedConnected: watched?.isConnected ?? null,
@@ -536,6 +556,9 @@ test.describe('ui e2e: session list ordering mode', () => {
           scrollTop: scroll?.scrollTop ?? null,
           rowOrder: Array.from(document.querySelectorAll('[data-testid^="session-list-item-"]'))
             .map((row) => row.getAttribute('data-testid')).slice(0, 16),
+          sameHeaderElement: watchedHeader === header,
+          headerChain: layoutChain(header),
+          firstProjectRowChain: layoutChain(firstProjectRow),
           listGeometry: Array.from(document.querySelectorAll(
             '[data-testid^="session-list-item-"], [data-testid^="session-list-header:"], [data-testid^="session-list-project-header:"]',
           )).slice(0, 24).map((element) => {
@@ -546,6 +569,18 @@ test.describe('ui e2e: session list ordering mode', () => {
               testId: element.getAttribute('data-testid'), y: bounds.y, height: bounds.height,
               parent: parent ? { y: parent.y, height: parent.height } : null,
               grandparent: grandparent ? { y: grandparent.y, height: grandparent.height } : null,
+              ...(element.getAttribute('data-testid')?.startsWith('session-list-project-header:') ? {
+                outer: (() => {
+                  const result: Array<{ y: number; height: number; top: string; cssHeight: string; minHeight: string }> = [];
+                  let ancestor = element.parentElement?.parentElement?.parentElement ?? null;
+                  for (let depth = 0; ancestor && depth < 4; depth++, ancestor = ancestor.parentElement) {
+                    const rect = ancestor.getBoundingClientRect();
+                    const style = getComputedStyle(ancestor);
+                    result.push({ y: rect.y, height: rect.height, top: style.top, cssHeight: style.height, minHeight: style.minHeight });
+                  }
+                  return result;
+                })(),
+              } : {}),
             };
           }),
           ancestors: (() => {
