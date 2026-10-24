@@ -188,6 +188,7 @@ export function resolveUiWebExportSourceFingerprint(): string {
     resolvePath(uiWorkspaceDir, 'index.ts'),
     resolvePath(uiWorkspaceDir, 'logo.png'),
     resolvePath(uiWorkspaceDir, 'app.config.js'),
+    resolvePath(uiWorkspaceDir, 'app.local.js'),
     resolvePath(uiWorkspaceDir, 'appProjectConfig.cjs'),
     resolvePath(uiWorkspaceDir, 'appVariantConfig.cjs'),
     resolvePath(uiWorkspaceDir, 'app.config.ts'),

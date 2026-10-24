@@ -84,6 +84,9 @@ describe('UI web export source fingerprint', () => {
     await put(root, 'packages/release-runtime/releaseRings.cjs', 'module.exports = { ring: "internaldev" };\n');
     const afterReleaseRing = resolveUiWebExportSourceFingerprint();
     expect(afterReleaseRing).not.toBe(afterLock);
+    await put(root, 'apps/ui/app.local.js', 'module.exports = { name: "fixture" };\n');
+    const afterLocalConfig = resolveUiWebExportSourceFingerprint();
+    expect(afterLocalConfig).not.toBe(afterReleaseRing);
 
     await put(root, 'packages/protocol/package.json', JSON.stringify({
       name: '@happier-dev/protocol',
@@ -91,7 +94,7 @@ describe('UI web export source fingerprint', () => {
       dependencies: { '@happier-dev/agents': '0.0.0' },
     }));
     const whileDependencyMissing = resolveUiWebExportSourceFingerprint();
-    expect(whileDependencyMissing).not.toBe(afterReleaseRing);
+    expect(whileDependencyMissing).not.toBe(afterLocalConfig);
     await put(root, 'packages/agents/package.json', JSON.stringify({ name: '@happier-dev/agents' }));
     await put(root, 'packages/agents/src/index.ts', 'export const agent = 1;\n');
     const afterDependencyAdded = resolveUiWebExportSourceFingerprint();
