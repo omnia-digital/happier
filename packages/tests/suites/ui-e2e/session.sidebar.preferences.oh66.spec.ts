@@ -29,6 +29,7 @@ type SidebarMetrics = Readonly<{
   supportingFontSize: number;
   machineFontSize: number | null;
   groupHeaderFontSizes: readonly number[];
+  navigationFontSizes: readonly number[];
   sidebarHeaderFontSize: number;
   sidebarHeaderColor: string;
   titleFits: boolean;
@@ -44,6 +45,7 @@ async function readSidebarMetrics(page: Page, sessionId: string): Promise<Sideba
     if (!titleNode) throw new Error('session title is missing from the sidebar row');
     const machine = document.querySelector<HTMLElement>(`[data-testid="session-list-machine-identity-${sessionId}"]`);
     const groupHeaders = Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="session-list-header:"]'));
+    const navigationTabs = Array.from(document.querySelectorAll<HTMLElement>('[role="tab"]'));
     const leafTextNodes = Array.from(row.querySelectorAll<HTMLElement>('*'))
       .filter((node) => node.children.length === 0 && Boolean(node.textContent?.trim()))
       .filter((node) => node !== titleNode && !machine?.contains(node));
@@ -64,6 +66,7 @@ async function readSidebarMetrics(page: Page, sessionId: string): Promise<Sideba
       supportingFontSize: Math.max(...leafTextNodes.map((node) => Number.parseFloat(getComputedStyle(node).fontSize))),
       machineFontSize: fontSizeForText(machine),
       groupHeaderFontSizes: groupHeaders.map((header) => fontSizeForText(header)).filter((size): size is number => size !== null),
+      navigationFontSizes: navigationTabs.map((tab) => fontSizeForText(tab)).filter((size): size is number => size !== null),
       sidebarHeaderFontSize: Number.parseFloat(getComputedStyle(sidebarHeader).fontSize),
       sidebarHeaderColor: getComputedStyle(sidebarHeader).color,
       titleFits: titleBounds.left >= rowBounds.left && titleBounds.right <= rowBounds.right,
@@ -244,6 +247,10 @@ test.describe('ui e2e: OH66 sidebar text size and item density preferences', () 
     expect(largerDark.groupHeaderFontSizes).toHaveLength(baseline.groupHeaderFontSizes.length);
     for (const [index, fontSize] of largerDark.groupHeaderFontSizes.entries()) {
       expect(fontSize).toBeGreaterThan(baseline.groupHeaderFontSizes[index]!);
+    }
+    expect(largerDark.navigationFontSizes).toHaveLength(baseline.navigationFontSizes.length);
+    for (const [index, fontSize] of largerDark.navigationFontSizes.entries()) {
+      expect(fontSize).toBeGreaterThan(baseline.navigationFontSizes[index]!);
     }
     expect(largerDark.machineFontSize).toBeGreaterThan(baseline.machineFontSize ?? 0);
     expect(largerDark.rowHeight).toBeGreaterThan(compact.rowHeight);
