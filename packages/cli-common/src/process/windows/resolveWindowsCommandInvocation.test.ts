@@ -53,7 +53,8 @@ describe('resolveWindowsCommandInvocation', () => {
             writeFileSync(shim, script);
             const env = { PATH: root, PATHEXT: '.CMD;.EXE' };
             const { resolveWindowsCommandOnPath, resolveWindowsCommandInvocation } = await import('./resolveWindowsCommandInvocation.js');
-            expect(resolveWindowsCommandOnPath('claude', env)).toBe(shim);
+            // A case-insensitive host may return the PATHEXT spelling `.CMD` for `claude.cmd`.
+            expect(resolveWindowsCommandOnPath('claude', env)?.toLowerCase()).toBe(shim.toLowerCase());
             expect(resolveWindowsCommandInvocation({ command: shim, args: ['test'], env }).command).toBe('cmd.exe');
         },
     );

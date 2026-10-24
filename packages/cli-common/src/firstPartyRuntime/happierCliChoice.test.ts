@@ -108,8 +108,8 @@ posixOnly('a happier this app did not install (R12)', () => {
         Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
         try {
             // `Path` spelled the Windows way; the delimiter is this host's, as node:path reports it.
-            expect(resolveForeignHappierCli({ binDir, processEnv: { Path: `${binDir}${delimiter}${npmDir}`, PATHEXT: '.EXE;.CMD' } }))
-                .toBe(join(npmDir, 'happier.cmd'));
+            expect(resolveForeignHappierCli({ binDir, processEnv: { Path: `${binDir}${delimiter}${npmDir}`, PATHEXT: '.EXE;.CMD' } })?.toLowerCase())
+                .toBe(join(npmDir, 'happier.cmd').toLowerCase());
             expect(resolveForeignHappierCli({ binDir, processEnv: { Path: binDir, PATHEXT: '.EXE;.CMD' } })).toBeNull();
         } finally {
             Object.defineProperty(process, 'platform', { value: realPlatform, configurable: true });
@@ -134,7 +134,10 @@ posixOnly('a happier this app did not install (R12)', () => {
         expect(terminal(`${binDir}:${npmBin}`)).toEqual({ command: join(binDir, 'happier'), managed: true, desktopExposed: true });
         // The installer's link is not Desktop's to remove.
         expect(terminal(`${localBin}:${npmBin}`)).toEqual({ command: join(localBin, 'happier'), managed: true, desktopExposed: false });
-        expect(terminal('/nonexistent')).toBeNull();
+        // A Dock-launched macOS app also searches the user's home bins, even with an empty process PATH.
+        expect(terminal('/nonexistent')).toEqual(process.platform === 'darwin'
+            ? { command: join(localBin, 'happier'), managed: true, desktopExposed: false }
+            : null);
     });
 
     it('on Windows counts the managed bin dir as Desktop\'s only when Desktop recorded adding or moving it (RV3-1)', async () => {

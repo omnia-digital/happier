@@ -228,7 +228,11 @@ export function resolveHappierCliSearchPath(processEnv: NodeJS.ProcessEnv): stri
 
 function isSameFile(left: string, right: string): boolean {
   try {
-    return realpathSync(left) === realpathSync(right);
+    const leftResolved = realpathSync(left);
+    const rightResolved = realpathSync(right);
+    return process.platform === 'win32'
+      ? sameWindowsPathEntry(leftResolved, rightResolved)
+      : leftResolved === rightResolved;
   } catch {
     return false;
   }
