@@ -373,6 +373,7 @@ async function cmdUpdate(argv: string[], rawArgv: readonly string[] = process.ar
   });
   await maybeRunDoctorRepair({
     migrationRan,
+    channel: effective.channel,
   });
 }
 
