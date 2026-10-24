@@ -24,4 +24,4 @@ Keep isolated browser verification accurate and reusable through the existing te
 - [ ] 🔴 Preserve export plus Metro failure evidence; test export success, fallback success, both failures and fallback-disabled behavior without running a full app build for each.
 - [ ] 🔴 Relevant tests/types, independent source review and one justified affected browser replay. Existing GPU/native/additional-host gaps stay explicit until actually exercised.
 
-Routing selected actual Sol/high for the future bounded worker, zero failed review cycles. Dispatch follows the current PR-link source/QA handoff; root owns Linear, tasks and integration verification.
+Routing recommends Sol/high for the future bounded worker, zero failed review cycles. Dispatch follows the current PR-link source/QA handoff; root owns Linear, tasks and integration verification.
