@@ -3,6 +3,7 @@ import { boundExpoPushMessage } from './boundExpoPushMessage'
 import { logger } from '@/ui/logger'
 import { Expo, ExpoPushMessage } from 'expo-server-sdk'
 import { withServerUrlInPushData } from './pushNotificationData'
+import { decodeJwtPayload } from '@/cloud/decodeJwtPayload'
 import { serializeAxiosErrorForLog } from './client/serializeAxiosErrorForLog'
 import { summarizeExpoPushTicketErrorsForLog } from './pushTicketLogSummary'
 import {
@@ -396,6 +397,11 @@ export class PushNotificationClient {
             }
 
             const badgeCount = await this.fetchAccountActivityBadgeCount()
+            // Bind actions to the account that fetched these device tokens. A saved
+            // credential at the same server URL may belong to another account later.
+            const subject = decodeJwtPayload(this.token)?.sub
+            const accountId = typeof subject === 'string' ? subject.trim() : ''
+            const { accountId: _callerAccountId, ...notificationData } = data ?? {}
 
             // Create messages for all tokens
             const messages: ExpoPushMessage[] = tokens.map((token, index) => {
@@ -408,7 +414,10 @@ export class PushNotificationClient {
                     to: token.token,
                     title,
                     body,
-                    data: withServerUrlInPushData({ baseUrl, data }),
+                    data: withServerUrlInPushData({
+                        baseUrl,
+                        data: { ...notificationData, ...(accountId ? { accountId } : {}) },
+                    }),
                     sound: 'default',
                     priority: 'high',
                     categoryId,

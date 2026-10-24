@@ -104,12 +104,18 @@ describe('foreground notification permission actions', () => {
             await vi.waitFor(() => expect(boundary.navigate).toHaveBeenCalledTimes(1));
             expect(boundary.rpc).not.toHaveBeenCalled();
 
-            await act(async () => { boundary.listener?.(response('other-account', { occurrenceId: 'occurrence-a', accountId: 'account-a' })); });
+            // The pre-account-scope CLI producer included an occurrence but no account.
+            // It cannot establish that the saved credential still owns this notification.
+            await act(async () => { boundary.listener?.(response('unscoped-occurrence', { occurrenceId: 'occurrence-a' })); });
             await vi.waitFor(() => expect(boundary.navigate).toHaveBeenCalledTimes(2));
             expect(boundary.rpc).not.toHaveBeenCalled();
 
-            await act(async () => { boundary.listener?.(response('current', { occurrenceId: 'occurrence-b', accountId: 'account-b' })); });
+            await act(async () => { boundary.listener?.(response('other-account', { occurrenceId: 'occurrence-a', accountId: 'account-a' })); });
             await vi.waitFor(() => expect(boundary.navigate).toHaveBeenCalledTimes(3));
+            expect(boundary.rpc).not.toHaveBeenCalled();
+
+            await act(async () => { boundary.listener?.(response('current', { occurrenceId: 'occurrence-b', accountId: 'account-b' })); });
+            await vi.waitFor(() => expect(boundary.navigate).toHaveBeenCalledTimes(4));
             expect(boundary.rpc).toHaveBeenCalledTimes(1);
             expect(boundary.rpc.mock.calls[0]?.[1]).toMatchObject({
                 method: 'session:session.permission.respondToOccurrence.v1',
