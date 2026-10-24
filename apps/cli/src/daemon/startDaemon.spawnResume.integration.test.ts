@@ -540,7 +540,9 @@ function spawnHappyCliBoundary(argv: string[], _opts?: unknown) {
   spawnHappyCliCapture.children.push(child);
   return child;
 }
-const spawnHappyCLI = vi.fn(spawnHappyCliBoundary);
+const spawnHappyCLI = vi.hoisted(() =>
+  vi.fn<(...args: Parameters<typeof spawnHappyCliBoundary>) => ReturnType<typeof spawnHappyCliBoundary>>(),
+);
 const resolveHappyCliSubprocessRuntimeDecision = vi.hoisted(() =>
   vi.fn<() => HappyCliSubprocessRuntimeDecision | null>(() => null),
 );

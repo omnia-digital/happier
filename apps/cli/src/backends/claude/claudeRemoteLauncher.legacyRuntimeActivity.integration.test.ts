@@ -534,13 +534,12 @@ describe.sequential('claudeRemoteLauncher legacy Runtime Activity subscriber', (
     const switchHandler = await switchHandlerReady;
     try {
       await providerEntered.promise;
-      expect(notifyDaemonSessionStarted).toHaveBeenCalledWith(
-        'happier-session-1',
-        expect.objectContaining({
-          claudeSubscriptionAccessTokenRefreshV1: { v: 1, mode: 'unavailable' },
-        }),
-        expect.anything(),
+      const registration = notifyDaemonSessionStarted.mock.calls.find(
+        ([sessionId]) => sessionId === 'happier-session-1',
       );
+      expect(registration?.[1]).toEqual(expect.objectContaining({
+        claudeSubscriptionAccessTokenRefreshV1: { v: 1, mode: 'unavailable' },
+      }));
     } finally {
       const switching = Promise.resolve(switchHandler({ to: 'local' }));
       finishProvider.resolve(undefined);
