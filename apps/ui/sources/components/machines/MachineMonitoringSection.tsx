@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Platform, Pressable, ScrollView, View } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { MACHINE_METRICS_REFRESH_MS, type MachineMetricsSnapshot } from '@happier-dev/protocol/capabilities';
 import { useActiveServerAccountScope, useAllMachines } from '@/sync/domains/state/storage';
@@ -117,16 +117,16 @@ const MachineMonitoringRow = React.memo(function MachineMonitoringRow({ serverId
 const styles = StyleSheet.create((theme) => ({
     section: { flexShrink: 1, maxHeight: '35%', paddingHorizontal: 12, paddingBottom: 8 },
     heading: { minHeight: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-    title: { ...Typography.default('semiBold'), color: theme.colors.text.secondary },
+    title: { ...Typography.rowTitle(), color: theme.colors.text.secondary },
     rows: { flexShrink: 1 },
     rowsContent: { gap: 10 },
     machine: { minWidth: 0 },
-    summary: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 48, paddingHorizontal: 4 },
-    name: { flex: 1, minWidth: 0, ...Typography.default('semiBold'), color: theme.colors.text.primary },
-    summaryReadings: { flex: 2, minWidth: 0, ...Typography.mono(), color: theme.colors.text.secondary },
-    expandedName: { ...Typography.default('semiBold'), color: theme.colors.text.primary },
+    summary: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: Platform.OS === 'web' ? 32 : 48, paddingHorizontal: 4 },
+    name: { flex: 1, minWidth: 0, ...Typography.rowTitle(), color: theme.colors.text.primary },
+    summaryReadings: { flex: 2, minWidth: 0, ...Typography.rowMeta(), ...Typography.mono(), color: theme.colors.text.secondary },
+    expandedName: { ...Typography.rowTitle(), color: theme.colors.text.primary },
     metrics: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 10, rowGap: 2 },
-    metric: { ...Typography.mono(), color: theme.colors.text.secondary },
-    secondary: { ...Typography.default(), color: theme.colors.text.secondary },
+    metric: { flexShrink: 1, maxWidth: '100%', ...Typography.rowMeta(), ...Typography.mono(), color: theme.colors.text.secondary },
+    secondary: { ...Typography.rowMeta(), color: theme.colors.text.secondary },
     details: { gap: 6, paddingVertical: 6 },
 }));

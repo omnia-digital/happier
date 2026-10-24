@@ -184,6 +184,7 @@ test.describe('OH59 actual local collector through authenticated fixture machine
             await waitForInitialAppUi({ page, timeoutMs: 180_000 });
             const button = page.getByTestId(`machine-monitoring-${LOCAL}-details`);
             const readings = page.getByTestId(`machine-monitoring-${LOCAL}-readings`);
+            let baseSummaryFontSize = 0;
             for (const [themePreference, uiFontScale, width] of [['light', 1, 1440], ['dark', 1, 1000], ['dark', 2, 1000]] as const) {
                 await mutateUiE2eLocalSettings({ page, settingsPatch: { themePreference, uiFontScale } });
                 await page.setViewportSize({ width, height: 900 });
@@ -192,6 +193,10 @@ test.describe('OH59 actual local collector through authenticated fixture machine
                 await expect(button).toHaveAttribute('aria-expanded', 'false');
                 await expect(button).toHaveAttribute('aria-label', /CPU \d+%/, { timeout: 120_000 });
                 await expect(readings).toHaveCount(0);
+                const summaryFontSize = await page.getByTestId(`machine-monitoring-${LOCAL}-summary`).evaluate((element) => parseFloat(getComputedStyle(element).fontSize));
+                if (!baseSummaryFontSize) baseSummaryFontSize = summaryFontSize;
+                console.info('[OH59 measured summary font]', { themePreference, uiFontScale, summaryFontSize });
+                expect(summaryFontSize).toBe(baseSummaryFontSize * uiFontScale);
                 for (const machineId of [LOCAL, LEGACY]) {
                     const row = page.getByTestId(`machine-monitoring-${machineId}-details`);
                     const name = page.getByTestId(`machine-monitoring-${machineId}-name`);
@@ -219,6 +224,7 @@ test.describe('OH59 actual local collector through authenticated fixture machine
                 for (const metric of ['CPU', 'MEM', 'GPU', 'Storage used', 'LA 1/5/15m']) await expect(readings).toContainText(metric);
                 await expect(readings).toContainText('Storage capacity used, not I/O');
                 await expect(readings).toContainText('Volume:');
+                await page.screenshot({ path: join(suiteDir, `expanded-top-${themePreference}-${uiFontScale}.png`) });
                 const detailOverflow = await readings.evaluate((element) => ({ width: element.clientWidth, scrollWidth: element.scrollWidth }));
                 expect(detailOverflow.scrollWidth).toBeLessThanOrEqual(detailOverflow.width + 1);
                 const volume = readings.getByText(/^Volume:/);
