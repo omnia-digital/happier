@@ -20,7 +20,7 @@ const IDENTITY = {
   issuer: 'happier-ui-e2e-oh66-sidebar-preferences',
   fingerprint: `oh66-sidebar-${run.runId}`,
 } as const;
-const SESSION_TITLE = `OH66 preference row ${run.runId}`;
+const SESSION_TITLE = `OH66 ${run.runId.slice(-6)}`;
 
 type SidebarMetrics = Readonly<{
   rowHeight: number;
@@ -33,6 +33,8 @@ type SidebarMetrics = Readonly<{
   sidebarHeaderFontSize: number;
   sidebarHeaderColor: string;
   titleFits: boolean;
+  titleTextFits: boolean;
+  machineTextFits: boolean;
 }>;
 
 async function readSidebarMetrics(page: Page, sessionId: string): Promise<SidebarMetrics> {
@@ -44,6 +46,9 @@ async function readSidebarMetrics(page: Page, sessionId: string): Promise<Sideba
       .find((node) => node.children.length === 0 && node.textContent?.trim() === title);
     if (!titleNode) throw new Error('session title is missing from the sidebar row');
     const machine = document.querySelector<HTMLElement>(`[data-testid="session-list-machine-identity-${sessionId}"]`);
+    const machineTextNode = machine
+      ? Array.from(machine.querySelectorAll<HTMLElement>('*')).find((node) => node.children.length === 0 && Boolean(node.textContent?.trim()))
+      : null;
     const groupHeaders = Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="session-list-header:"]'));
     const navigationTabs = Array.from(document.querySelectorAll<HTMLElement>('[role="tab"]'));
     const leafTextNodes = Array.from(row.querySelectorAll<HTMLElement>('*'))
@@ -70,6 +75,8 @@ async function readSidebarMetrics(page: Page, sessionId: string): Promise<Sideba
       sidebarHeaderFontSize: Number.parseFloat(getComputedStyle(sidebarHeader).fontSize),
       sidebarHeaderColor: getComputedStyle(sidebarHeader).color,
       titleFits: titleBounds.left >= rowBounds.left && titleBounds.right <= rowBounds.right,
+      titleTextFits: titleNode.scrollWidth <= titleNode.clientWidth,
+      machineTextFits: machineTextNode ? machineTextNode.scrollWidth <= machineTextNode.clientWidth : false,
     };
   }, { sessionId, title: SESSION_TITLE });
 }
@@ -159,7 +166,7 @@ test.describe('ui e2e: OH66 sidebar text size and item density preferences', () 
       baseUrl: server.baseUrl,
       token,
       machineId: MACHINE_ID,
-      metadata: 'OH66 Sidebar Machine',
+      metadata: 'OH66 machine',
     });
     sessionId = await createPlainSession({
       baseUrl: server.baseUrl,
@@ -270,8 +277,13 @@ test.describe('ui e2e: OH66 sidebar text size and item density preferences', () 
     await page.setViewportSize({ width: 720, height: 900 });
     const narrow = await readSidebarMetrics(page, sessionId);
     expect(narrow.titleFits).toBe(true);
+    expect(narrow.titleTextFits).toBe(true);
+    expect(narrow.machineTextFits).toBe(true);
     expect(narrow.rowWidth).toBeGreaterThan(0);
     await row.hover();
+    const narrowHovered = await readSidebarMetrics(page, sessionId);
+    expect(narrowHovered.titleTextFits).toBe(true);
+    expect(narrowHovered.machineTextFits).toBe(true);
     const moreAction = page.getByTestId('session-item-more-menu');
     await expect(moreAction).toBeVisible();
     const actionBounds = await moreAction.boundingBox();
