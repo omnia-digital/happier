@@ -57,6 +57,27 @@ function orders(serverId: string) {
 }
 
 describe('session list group order persistence', () => {
+    it.each(['original', 'repository'] as const)('persists the first mixed-Home pinned order through the real %s view owner', async mode => {
+        const items: SessionListViewItem[] = [
+            { type: 'header', headerKind: 'pinned', title: 'Pinned', groupKey: 'pinned-v1' },
+            ...[['home-b', 'b1'], ['home-a', 'a'], ['home-b', 'b2']].map(([serverId, id]) => ({
+                type: 'session' as const, serverId, pinned: true, groupKind: 'pinned' as const, groupKey: 'pinned-v1',
+                session: createSessionFixture({ id, serverId }),
+            })),
+        ];
+        const hook = await renderHook(() => useSessionRepositoryView({ items, mode, setMode: () => {}, onFailure: () => {} }));
+        if (mode === 'repository') await vi.waitFor(() => expect(hook.getCurrent().scopes['home-b']?.accountId).toBe('account-b'));
+        expect(orders('home-a')).toEqual({});
+        expect(orders('home-b')).toEqual({});
+        await act(async () => { await persistSessionListGroupOrder({
+            currentOrder: hook.getCurrent().groupOrder,
+            nextOrder: { ...hook.getCurrent().groupOrder, 'pinned-v1': ['home-b:b2', 'home-a:a', 'home-b:b1'] },
+            defaultServerId: 'home-a', groupScopes: hook.getCurrent().orderScopes,
+        }); });
+        expect(orders('home-a')['pinned-v1']).toEqual(['home-a:a']);
+        expect(orders('home-b')['pinned-v1']).toEqual(['home-b:b2', 'home-b:b1']);
+    });
+
     it.each(['original', 'repository'] as const)('persists a physical foreign folder order to its Home in %s view', async mode => {
         const workspace = { t: 'workspaceScope' as const, serverId: 'home-b', machineId: 'machine-b', rootPath: '/repo' };
         const folderKey = 'server:home-b:project:repo:folder:foreign-folder';
