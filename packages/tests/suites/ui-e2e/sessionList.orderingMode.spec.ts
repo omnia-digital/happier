@@ -662,7 +662,7 @@ test.describe('ui e2e: session list ordering mode', () => {
     await page.keyboard.press('Escape');
   });
 
-  test('dispatches labeled menu hotkeys on the clicked row and reaches a saved reminder choice', async ({ page }) => {
+  test('dispatches labeled menu hotkeys on the clicked row and reaches a saved reminder choice', async ({ page }, testInfo) => {
     test.setTimeout(240_000);
     if (!server || !uiBaseUrl || !token) throw new Error('missing server/ui fixtures');
 
@@ -711,6 +711,7 @@ test.describe('ui e2e: session list ordering mode', () => {
     await expect.poll(() => rename.getByText('Rename Session', { exact: true }).evaluate(element =>
       element.scrollWidth <= element.clientWidth,
     ), { message: 'The context menu must show the action label beside its shortcut without clipping' }).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath('oh50-menu-labels-desktop.png') });
     await page.keyboard.press('Alt+Shift+E');
     await expect(page.getByTestId('web-prompt-input')).toHaveValue(clickedTitle);
     await page.getByTestId('web-prompt-cancel').click();
@@ -741,5 +742,30 @@ test.describe('ui e2e: session list ordering mode', () => {
     await page.keyboard.press('Escape');
     await page.waitForURL((url) => !url.pathname.endsWith('/new'), { timeout: 60_000 });
     expect(sessionCreateRequests).toEqual([]);
+
+    // Exercise the real font preference and a smaller desktop viewport, not injected CSS.
+    await mutateUiE2eLocalSettings({ page, settingsPatch: { uiFontScale: 2 } });
+    await page.setViewportSize({ width: 1000, height: 900 });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+    await clickedRow.click({ button: 'right' });
+    const scaledRenameLabel = rename.getByText('Rename Session', { exact: true });
+    await expect(scaledRenameLabel).toHaveCSS('font-size', '30px');
+    for (const [item, labelText, hintText] of [
+      [rename, 'Rename Session', 'Option+Shift+E'],
+      [sameSetup, 'New session with same setup', 'Option+Shift+N'],
+    ] as const) {
+      await item.scrollIntoViewIfNeeded();
+      await expect(item.getByText(hintText, { exact: true })).toBeVisible();
+      await expect.poll(() => item.getByText(labelText, { exact: true }).evaluate(element =>
+        element.scrollWidth <= element.clientWidth && element.scrollHeight <= element.clientHeight,
+      ), { message: 'Full menu labels remain readable at 200% text size' }).toBe(true);
+      const bounds = await item.boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(1000);
+    }
+    await page.screenshot({ path: testInfo.outputPath('oh50-menu-labels-large-text.png') });
+    await page.keyboard.press('Escape');
   });
 });
