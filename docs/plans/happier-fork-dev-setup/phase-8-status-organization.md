@@ -47,9 +47,11 @@ The projector suite now also composes the actual session-list builder, folder ap
 Chrome r2 reached the real isolated app but stopped before organization assertions: all 22 seeded legacy encrypted rows lacked a per-session key envelope, so the canonical catalog hydration correctly marked their metadata unavailable and hid them. The direct-route OH-58 seed recipe did not establish catalog suitability. The OH-60 fixture now uses existing AES ciphertext and protocol-sealed recipient envelopes with its isolated connected CLI credentials, and asserts catalog coverage before UI assertions. The failed screenshot/run remains preserved; no product completion is inferred. A separate menu RED reproduced a no-op Repository refresh while status grouping replaces repository presentation; the narrow condition correction passes the real dropdown test (1/1).
 
 - [x] 🟢 Discover grouping, ordering, preferences and the OH-58 subscription boundary; record the concrete design before edits.
-- [ ] 🔴 RED/GREEN all four options, mixed group/sort, custom multi-workflow order, stable ties, No ticket versus unavailable, and selected-session continuity.
-- [ ] 🔴 Verify Pinned, filters, folders and machine/repository restoration through real projection/preference owners.
+- [x] 🟢 Source RED/GREEN all four options, mixed group/sort, custom multi-workflow order, stable ties, No ticket versus unavailable, and selected-session continuity.
+- [x] 🟢 Verify Pinned, filters, folders and machine/repository restoration through real projection/preference owners.
 - [ ] 🔴 Mounted controls and isolated system Chrome using fixture machine RPC; persist and reload preferences. Preserve meaningful assertions.
 - [ ] 🔴 Independent review, relevant typechecks, focused/adjacent checks and router assessment. Source/browser evidence does not establish native completion.
 
 Routing selects Sol/high, zero failed cycles. Actual dispatch follows available capacity and OH-58 integration; classification alone is not execution. The previously reported route-and-execute transport error requires the explicitly selected native worker fallback.
+
+Final focused source replay after `e19d48e773` passes 26 checks across six files: projector 10, narrow inputs 6, real controls 1, association producer/shell 2, settings roundtrip 4 and shared ticket owner 3. All three 500-row/100-notification workloads report zero classifier reads, including candidate and unrelated-session streaming replacements. Integrated UI typecheck (27.18 s) and packages/tests typecheck (18.25 s) pass. Chrome r3 is running with the corrected encrypted catalog under the same reusable export namespace; no rendered acceptance is claimed while it is pending.
