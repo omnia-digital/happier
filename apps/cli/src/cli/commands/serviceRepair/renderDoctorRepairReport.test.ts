@@ -164,6 +164,29 @@ describe('renderDoctorRepairReport — mismatched state', () => {
     expect(out).toContain('started manually');
   });
 
+  it('keeps a stopped service distinct from a manual daemon on the same profile', () => {
+    const stopped = {
+      ...entry, running: false, runningCliVersion: null,
+      configuredCliVersion: '0.12.1', managedServerIds: ['company'],
+    };
+    const manual: RunningDaemonEntry = {
+      serverId: 'company', pid: 1234, httpPort: 41800, startedBy: 'manual',
+      startedWithReleaseChannel: 'dev', startedWithCliVersion: '0.12.3',
+      matchesCurrentCli: true, staleStateFile: false,
+    };
+
+    const out = renderDoctorRepairReport(makeReport({
+      automaticStartup: [stopped], currentlyRunning: [manual],
+      findings: [{
+        kind: 'automatic_startup_stale_definition', severity: 'warning',
+        autoApplyWithoutPrompt: true, entry: stopped,
+      }],
+    })).join('\n');
+    expect(out).toMatch(/Default automatic startup.*0\.12\.1.*stopped/);
+    expect(out).toMatch(/company.*0\.12\.3.*running/);
+    expect(out).toContain('started manually');
+  });
+
   it('renders "is on the stable release channel" wording (no "is stable")', () => {
     const relay: LocalRelayEntry = {
       releaseChannel: 'stable',
