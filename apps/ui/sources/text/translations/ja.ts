@@ -6,7 +6,6 @@
  */
 
 import type { TranslationStructure } from "../_types";
-import { en } from './en';
 
 const mcpServersUxTranslationExtension = {
   mcpServersConfiguredEmptySubtitle: 'サーバーを作成し、ホスト JSON をインポートするか、推奨プリセットをインストールしてください。',
@@ -6430,11 +6429,24 @@ localTailscale: {
   },
 
   commandPalette: {
-    ...en.commandPalette,
     titleMode: 'タイトル',
     contentMode: 'メッセージ',
     contentChangeHome: 'ホームを変更',
     contentChangeMachine: 'マシンを変更',
+    contentChooseHome: "インデックス済みメッセージを検索するホームを選択してください。",
+    contentChooseMachine: ({ home }: { home: string }) => `${home} のマシンを選択してください。そのマシンのインデックス済みメッセージだけを検索します。`,
+    contentCheckingIndex: ({ home, machine }: { home: string; machine: string }) => `${machine} · ${home} のメッセージインデックスを確認しています…`,
+    contentIndexUnavailable: ({ home, machine }: { home: string; machine: string }) => `${machine} · ${home} ではメッセージ検索を利用できません。設定でこのマシンのメモリ検索とインデックス作成を有効にしてください。`,
+    contentSearching: ({ home, machine }: { home: string; machine: string }) => `${machine} · ${home} のインデックス済みメッセージを検索しています…`,
+    contentSearchFailed: ({ home, machine }: { home: string; machine: string }) => `${machine} · ${home} のインデックスを検索できませんでした。もう一度お試しください。`,
+    contentNoResults: ({ home, machine }: { home: string; machine: string }) => `${machine} · ${home} に一致するインデックス済みメッセージの要約はありません。未インデックスの履歴は検索されません。`,
+    contentScope: ({ home, machine }: { home: string; machine: string }) => `${machine} · ${home} のインデックス済みメッセージの要約。未インデックスの履歴は検索されません。`,
+    contentHomeSubtitle: "インデックス済みメッセージを検索するホームを選択",
+    contentMachineSubtitle: ({ home }: { home: string }) => `${home} のローカルインデックスを検索`,
+    contentSummary: ({ summary, machine, seq }: { summary: string; machine: string; seq: number }) => `インデックス済み要約: ${summary} · ${machine} · メッセージ ${seq}`,
+    contentHomesCategory: "ホーム",
+    contentMachinesCategory: "マシン",
+    contentMessagesCategory: "インデックス済みメッセージ",
     placeholder: "コマンドを入力または検索...",
     noCommandsFound: "コマンドが見つかりません",
     searchScope: '利用可能な選択済みサーバーの未アーカイブのセッションを検索します。サーバーがページングに対応している場合は古いタイトルも読み込みます。',

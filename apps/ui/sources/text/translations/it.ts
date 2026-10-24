@@ -1,5 +1,4 @@
 import type { TranslationStructure } from "../_types";
-import { en } from './en';
 
 const mcpServersUxTranslationExtension = {
   mcpServersConfiguredEmptySubtitle: 'Crea un server, importa il JSON dell’host o installa un preset consigliato.',
@@ -6507,11 +6506,24 @@ export const it: TranslationStructure = {
   },
 
   commandPalette: {
-    ...en.commandPalette,
     titleMode: 'Titoli',
     contentMode: 'Messaggi',
     contentChangeHome: 'Cambia server',
     contentChangeMachine: 'Cambia macchina',
+    contentChooseHome: "Scegli un server per cercare nei suoi messaggi indicizzati.",
+    contentChooseMachine: ({ home }: { home: string }) => `Scegli una macchina su ${home}. Verranno cercati solo i suoi messaggi indicizzati.`,
+    contentCheckingIndex: ({ home, machine }: { home: string; machine: string }) => `Controllo dell’indice dei messaggi su ${machine} · ${home}…`,
+    contentIndexUnavailable: ({ home, machine }: { home: string; machine: string }) => `La ricerca dei messaggi non è disponibile su ${machine} · ${home}. Attiva la ricerca nella memoria e l’indicizzazione per questa macchina nelle impostazioni.`,
+    contentSearching: ({ home, machine }: { home: string; machine: string }) => `Ricerca nei messaggi indicizzati su ${machine} · ${home}…`,
+    contentSearchFailed: ({ home, machine }: { home: string; machine: string }) => `Impossibile cercare nell’indice su ${machine} · ${home}. Riprova.`,
+    contentNoResults: ({ home, machine }: { home: string; machine: string }) => `Nessun riepilogo di messaggi indicizzati corrispondente su ${machine} · ${home}. La cronologia non indicizzata non viene cercata.`,
+    contentScope: ({ home, machine }: { home: string; machine: string }) => `Riepiloghi dei messaggi indicizzati su ${machine} · ${home}. La cronologia non indicizzata non viene cercata.`,
+    contentHomeSubtitle: "Scegli un server per cercare messaggi indicizzati",
+    contentMachineSubtitle: ({ home }: { home: string }) => `Cerca nell’indice locale su ${home}`,
+    contentSummary: ({ summary, machine, seq }: { summary: string; machine: string; seq: number }) => `Riepilogo indicizzato: ${summary} · ${machine} · messaggio ${seq}`,
+    contentHomesCategory: "Server",
+    contentMachinesCategory: "Macchine",
+    contentMessagesCategory: "Messaggi indicizzati",
     placeholder: "Digita un comando o cerca...",
     noCommandsFound: "Nessun comando trovato",
     searchScope: 'Cerca le sessioni non archiviate dei server selezionati disponibili. Carica i titoli meno recenti se il server supporta la paginazione.',

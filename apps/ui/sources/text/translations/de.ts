@@ -1,5 +1,4 @@
 import type { TranslationStructure } from "../_types";
-import { en } from './en';
 
 const mcpServersUxTranslationExtension = {
   mcpServersConfiguredEmptySubtitle: 'Erstelle einen Server, importiere Host-JSON oder installiere ein empfohlenes Preset.',
@@ -5810,11 +5809,24 @@ export const de: TranslationStructure = {
     },
 
     commandPalette: {
-        ...en.commandPalette,
         titleMode: 'Titel',
         contentMode: 'Nachrichten',
         contentChangeHome: 'Home wechseln',
         contentChangeMachine: 'Computer wechseln',
+        contentChooseHome: "Wähle einen Home-Server, um seine indizierten Nachrichten zu durchsuchen.",
+        contentChooseMachine: ({ home }: { home: string }) => `Wähle einen Computer auf ${home}. Nur seine indizierten Nachrichten werden durchsucht.`,
+        contentCheckingIndex: ({ home, machine }: { home: string; machine: string }) => `Nachrichtenindex auf ${machine} · ${home} wird geprüft…`,
+        contentIndexUnavailable: ({ home, machine }: { home: string; machine: string }) => `Nachrichtensuche ist auf ${machine} · ${home} nicht verfügbar. Aktiviere Speichersuche und Indizierung für diesen Computer in den Einstellungen.`,
+        contentSearching: ({ home, machine }: { home: string; machine: string }) => `Indizierte Nachrichten auf ${machine} · ${home} werden durchsucht…`,
+        contentSearchFailed: ({ home, machine }: { home: string; machine: string }) => `Der Index auf ${machine} · ${home} konnte nicht durchsucht werden. Versuche es erneut.`,
+        contentNoResults: ({ home, machine }: { home: string; machine: string }) => `Keine indizierten Nachrichtenzusammenfassungen auf ${machine} · ${home} gefunden. Nicht indizierter Verlauf wird nicht durchsucht.`,
+        contentScope: ({ home, machine }: { home: string; machine: string }) => `Indizierte Nachrichtenzusammenfassungen auf ${machine} · ${home}. Nicht indizierter Verlauf wird nicht durchsucht.`,
+        contentHomeSubtitle: "Home-Server für die Suche in indizierten Nachrichten wählen",
+        contentMachineSubtitle: ({ home }: { home: string }) => `Lokalen Index auf ${home} durchsuchen`,
+        contentSummary: ({ summary, machine, seq }: { summary: string; machine: string; seq: number }) => `Indizierte Zusammenfassung: ${summary} · ${machine} · Nachricht ${seq}`,
+        contentHomesCategory: "Home-Server",
+        contentMachinesCategory: "Computer",
+        contentMessagesCategory: "Indizierte Nachrichten",
         placeholder: 'Tipp einen Befehl ein oder suche…',
         noCommandsFound: 'Keine Befehle gefunden',
         searchScope: 'Durchsucht nicht archivierte Sitzungen verfügbarer ausgewählter Server. Ältere Titel werden geladen, wenn der Server Seiten unterstützt.',

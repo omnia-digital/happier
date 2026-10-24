@@ -6,7 +6,6 @@
  */
 
 import type { TranslationStructure } from '../_types';
-import { en } from './en';
 import { zhHans } from './zh-Hans';
 
 const mcpServersUxTranslationExtension = {
@@ -5351,11 +5350,24 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
     },
 
     commandPalette: {
-        ...en.commandPalette,
         titleMode: '標題',
         contentMode: '訊息',
         contentChangeHome: '更換伺服器',
         contentChangeMachine: '更換機器',
+        contentChooseHome: "選擇伺服器以搜尋其已索引的訊息。",
+        contentChooseMachine: ({ home }: { home: string }) => `選擇 ${home} 上的機器。只會搜尋該機器已索引的訊息。`,
+        contentCheckingIndex: ({ home, machine }: { home: string; machine: string }) => `正在檢查 ${machine} · ${home} 上的訊息索引…`,
+        contentIndexUnavailable: ({ home, machine }: { home: string; machine: string }) => `${machine} · ${home} 上無法使用訊息搜尋。請在設定中為此機器啟用記憶搜尋和索引。`,
+        contentSearching: ({ home, machine }: { home: string; machine: string }) => `正在搜尋 ${machine} · ${home} 上已索引的訊息…`,
+        contentSearchFailed: ({ home, machine }: { home: string; machine: string }) => `無法搜尋 ${machine} · ${home} 上的索引。請重試。`,
+        contentNoResults: ({ home, machine }: { home: string; machine: string }) => `${machine} · ${home} 上沒有相符的已索引訊息摘要。不會搜尋未索引的歷史紀錄。`,
+        contentScope: ({ home, machine }: { home: string; machine: string }) => `${machine} · ${home} 上已索引的訊息摘要。不會搜尋未索引的歷史紀錄。`,
+        contentHomeSubtitle: "選擇伺服器以搜尋已索引訊息",
+        contentMachineSubtitle: ({ home }: { home: string }) => `搜尋 ${home} 上的本機索引`,
+        contentSummary: ({ summary, machine, seq }: { summary: string; machine: string; seq: number }) => `已索引摘要：${summary} · ${machine} · 訊息 ${seq}`,
+        contentHomesCategory: "伺服器",
+        contentMachinesCategory: "機器",
+        contentMessagesCategory: "已索引訊息",
         placeholder: '輸入命令或搜尋...',
         noCommandsFound: '找不到命令',
         searchScope: '搜尋可用的所選伺服器上未封存的工作階段。伺服器支援分頁時也會載入較早的標題。',

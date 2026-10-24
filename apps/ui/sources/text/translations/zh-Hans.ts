@@ -6,7 +6,6 @@
  */
 
 import type { TranslationStructure } from "../_types";
-import { en } from './en';
 
 const mcpServersUxTranslationExtension = {
   mcpServersConfiguredEmptySubtitle: '创建一个服务器、导入主机 JSON，或安装推荐预设。',
@@ -5965,11 +5964,24 @@ export const zhHans: TranslationStructure = {
   },
 
   commandPalette: {
-    ...en.commandPalette,
     titleMode: '标题',
     contentMode: '消息',
     contentChangeHome: '更换服务器',
     contentChangeMachine: '更换机器',
+    contentChooseHome: "选择服务器以搜索其已索引的消息。",
+    contentChooseMachine: ({ home }: { home: string }) => `选择 ${home} 上的机器。只会搜索该机器已索引的消息。`,
+    contentCheckingIndex: ({ home, machine }: { home: string; machine: string }) => `正在检查 ${machine} · ${home} 上的消息索引…`,
+    contentIndexUnavailable: ({ home, machine }: { home: string; machine: string }) => `${machine} · ${home} 上无法使用消息搜索。请在设置中为此机器启用记忆搜索和索引。`,
+    contentSearching: ({ home, machine }: { home: string; machine: string }) => `正在搜索 ${machine} · ${home} 上已索引的消息…`,
+    contentSearchFailed: ({ home, machine }: { home: string; machine: string }) => `无法搜索 ${machine} · ${home} 上的索引。请重试。`,
+    contentNoResults: ({ home, machine }: { home: string; machine: string }) => `${machine} · ${home} 上没有匹配的已索引消息摘要。不会搜索未索引的历史记录。`,
+    contentScope: ({ home, machine }: { home: string; machine: string }) => `${machine} · ${home} 上已索引的消息摘要。不会搜索未索引的历史记录。`,
+    contentHomeSubtitle: "选择服务器以搜索已索引消息",
+    contentMachineSubtitle: ({ home }: { home: string }) => `搜索 ${home} 上的本地索引`,
+    contentSummary: ({ summary, machine, seq }: { summary: string; machine: string; seq: number }) => `已索引摘要：${summary} · ${machine} · 消息 ${seq}`,
+    contentHomesCategory: "服务器",
+    contentMachinesCategory: "机器",
+    contentMessagesCategory: "已索引消息",
     placeholder: "输入命令或搜索...",
     noCommandsFound: "未找到命令",
     searchScope: '搜索可用的所选服务器上的未归档会话。服务器支持分页时也会加载较早的标题。',

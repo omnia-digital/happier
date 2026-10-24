@@ -1,5 +1,4 @@
 import type { TranslationStructure } from '../_types';
-import { en } from './en';
 
 const mcpServersUxTranslationExtension = {
   mcpServersConfiguredEmptySubtitle: 'Crea un servidor, importa JSON de l’amfitrió o instal·la un preajust recomanat.',
@@ -5809,11 +5808,24 @@ deps: {
     },
 
     commandPalette: {
-        ...en.commandPalette,
         titleMode: 'Títols',
         contentMode: 'Missatges',
         contentChangeHome: 'Canvia de servidor',
         contentChangeMachine: 'Canvia de màquina',
+        contentChooseHome: "Tria un servidor per cercar als seus missatges indexats.",
+        contentChooseMachine: ({ home }: { home: string }) => `Tria una màquina a ${home}. Només se cercaran els seus missatges indexats.`,
+        contentCheckingIndex: ({ home, machine }: { home: string; machine: string }) => `Es comprova l’índex de missatges a ${machine} · ${home}…`,
+        contentIndexUnavailable: ({ home, machine }: { home: string; machine: string }) => `La cerca de missatges no està disponible a ${machine} · ${home}. Activa la cerca de memòria i la indexació d’aquesta màquina a la configuració.`,
+        contentSearching: ({ home, machine }: { home: string; machine: string }) => `Se cerquen missatges indexats a ${machine} · ${home}…`,
+        contentSearchFailed: ({ home, machine }: { home: string; machine: string }) => `No s’ha pogut cercar a l’índex de ${machine} · ${home}. Torna-ho a provar.`,
+        contentNoResults: ({ home, machine }: { home: string; machine: string }) => `No hi ha resums de missatges indexats coincidents a ${machine} · ${home}. No se cerca a l’historial sense indexar.`,
+        contentScope: ({ home, machine }: { home: string; machine: string }) => `Resums de missatges indexats a ${machine} · ${home}. No se cerca a l’historial sense indexar.`,
+        contentHomeSubtitle: "Tria un servidor per cercar missatges indexats",
+        contentMachineSubtitle: ({ home }: { home: string }) => `Cerca a l’índex local de ${home}`,
+        contentSummary: ({ summary, machine, seq }: { summary: string; machine: string; seq: number }) => `Resum indexat: ${summary} · ${machine} · missatge ${seq}`,
+        contentHomesCategory: "Servidors",
+        contentMachinesCategory: "Màquines",
+        contentMessagesCategory: "Missatges indexats",
         placeholder: 'Escriu una comanda o cerca...',
         noCommandsFound: 'No s\'han trobat comandes',
         searchScope: 'Cerca sessions no arxivades dels servidors seleccionats disponibles. Les més antigues es carreguen si el servidor permet paginació.',

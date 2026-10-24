@@ -1,5 +1,4 @@
 import type { TranslationStructure } from '../_types';
-import { en } from './en';
 
 const mcpServersUxTranslationExtension = {
   mcpServersConfiguredEmptySubtitle: 'Создайте сервер, импортируйте JSON хоста или установите рекомендуемый пресет.',
@@ -6707,11 +6706,24 @@ export const ru: TranslationStructure = {
   },
 
   commandPalette: {
-    ...en.commandPalette,
     titleMode: 'Названия',
     contentMode: 'Сообщения',
     contentChangeHome: 'Сменить сервер',
     contentChangeMachine: 'Сменить компьютер',
+    contentChooseHome: "Выберите сервер для поиска по индексированным сообщениям.",
+    contentChooseMachine: ({ home }: { home: string }) => `Выберите компьютер на ${home}. Поиск будет выполнен только по его индексированным сообщениям.`,
+    contentCheckingIndex: ({ home, machine }: { home: string; machine: string }) => `Проверка индекса сообщений на ${machine} · ${home}…`,
+    contentIndexUnavailable: ({ home, machine }: { home: string; machine: string }) => `Поиск сообщений на ${machine} · ${home} недоступен. Включите поиск по памяти и индексирование для этого компьютера в настройках.`,
+    contentSearching: ({ home, machine }: { home: string; machine: string }) => `Поиск по индексированным сообщениям на ${machine} · ${home}…`,
+    contentSearchFailed: ({ home, machine }: { home: string; machine: string }) => `Не удалось выполнить поиск по индексу на ${machine} · ${home}. Повторите попытку.`,
+    contentNoResults: ({ home, machine }: { home: string; machine: string }) => `Совпадающих сводок индексированных сообщений на ${machine} · ${home} нет. Неиндексированная история не просматривается.`,
+    contentScope: ({ home, machine }: { home: string; machine: string }) => `Сводки индексированных сообщений на ${machine} · ${home}. Неиндексированная история не просматривается.`,
+    contentHomeSubtitle: "Выберите сервер для поиска по индексированным сообщениям",
+    contentMachineSubtitle: ({ home }: { home: string }) => `Поиск в локальном индексе на ${home}`,
+    contentSummary: ({ summary, machine, seq }: { summary: string; machine: string; seq: number }) => `Индексированная сводка: ${summary} · ${machine} · сообщение ${seq}`,
+    contentHomesCategory: "Серверы",
+    contentMachinesCategory: "Компьютеры",
+    contentMessagesCategory: "Индексированные сообщения",
     placeholder: "Введите команду или поиск...",
     noCommandsFound: "Команды не найдены",
     searchScope: 'Ищет неархивированные сеансы на доступных выбранных серверах. Старые названия загружаются, если сервер поддерживает страницы.',

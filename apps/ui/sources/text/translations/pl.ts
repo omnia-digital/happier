@@ -1,5 +1,4 @@
 import type { TranslationStructure } from "../_types";
-import { en } from './en';
 
 const mcpServersUxTranslationExtension = {
   mcpServersConfiguredEmptySubtitle: 'Utwórz serwer, zaimportuj JSON hosta albo zainstaluj zalecany preset.',
@@ -6183,11 +6182,24 @@ export const pl: TranslationStructure = {
   },
 
   commandPalette: {
-    ...en.commandPalette,
     titleMode: 'Tytuły',
     contentMode: 'Wiadomości',
     contentChangeHome: 'Zmień serwer',
     contentChangeMachine: 'Zmień komputer',
+    contentChooseHome: "Wybierz serwer, aby przeszukać jego zindeksowane wiadomości.",
+    contentChooseMachine: ({ home }: { home: string }) => `Wybierz komputer na ${home}. Przeszukane zostaną tylko jego zindeksowane wiadomości.`,
+    contentCheckingIndex: ({ home, machine }: { home: string; machine: string }) => `Sprawdzanie indeksu wiadomości na ${machine} · ${home}…`,
+    contentIndexUnavailable: ({ home, machine }: { home: string; machine: string }) => `Wyszukiwanie wiadomości na ${machine} · ${home} jest niedostępne. Włącz wyszukiwanie pamięci i indeksowanie dla tego komputera w ustawieniach.`,
+    contentSearching: ({ home, machine }: { home: string; machine: string }) => `Przeszukiwanie zindeksowanych wiadomości na ${machine} · ${home}…`,
+    contentSearchFailed: ({ home, machine }: { home: string; machine: string }) => `Nie udało się przeszukać indeksu na ${machine} · ${home}. Spróbuj ponownie.`,
+    contentNoResults: ({ home, machine }: { home: string; machine: string }) => `Nie znaleziono pasujących podsumowań zindeksowanych wiadomości na ${machine} · ${home}. Historia bez indeksu nie jest przeszukiwana.`,
+    contentScope: ({ home, machine }: { home: string; machine: string }) => `Podsumowania zindeksowanych wiadomości na ${machine} · ${home}. Historia bez indeksu nie jest przeszukiwana.`,
+    contentHomeSubtitle: "Wybierz serwer do wyszukiwania zindeksowanych wiadomości",
+    contentMachineSubtitle: ({ home }: { home: string }) => `Przeszukaj lokalny indeks na ${home}`,
+    contentSummary: ({ summary, machine, seq }: { summary: string; machine: string; seq: number }) => `Zindeksowane podsumowanie: ${summary} · ${machine} · wiadomość ${seq}`,
+    contentHomesCategory: "Serwery",
+    contentMachinesCategory: "Komputery",
+    contentMessagesCategory: "Zindeksowane wiadomości",
     placeholder: "Wpisz polecenie lub wyszukaj...",
     noCommandsFound: "Nie znaleziono poleceń",
     searchScope: 'Przeszukuje niezarchiwizowane sesje na dostępnych wybranych serwerach. Starsze tytuły wczytuje, jeśli serwer obsługuje stronicowanie.',

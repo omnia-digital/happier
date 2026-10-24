@@ -1,5 +1,4 @@
 import type { TranslationStructure } from "../_types";
-import { en } from './en';
 
 const mcpServersUxTranslationExtension = {
   mcpServersConfiguredEmptySubtitle: 'Crea un servidor, importa JSON del host o instala un preajuste recomendado.',
@@ -6160,11 +6159,24 @@ export const es: TranslationStructure = {
   },
 
   commandPalette: {
-    ...en.commandPalette,
     titleMode: 'Títulos',
     contentMode: 'Mensajes',
     contentChangeHome: 'Cambiar servidor',
     contentChangeMachine: 'Cambiar máquina',
+    contentChooseHome: "Elige un servidor para buscar en sus mensajes indexados.",
+    contentChooseMachine: ({ home }: { home: string }) => `Elige una máquina en ${home}. Solo se buscará en sus mensajes indexados.`,
+    contentCheckingIndex: ({ home, machine }: { home: string; machine: string }) => `Comprobando el índice de mensajes en ${machine} · ${home}…`,
+    contentIndexUnavailable: ({ home, machine }: { home: string; machine: string }) => `La búsqueda de mensajes no está disponible en ${machine} · ${home}. Activa la búsqueda de memoria y la indexación para esta máquina en los ajustes.`,
+    contentSearching: ({ home, machine }: { home: string; machine: string }) => `Buscando mensajes indexados en ${machine} · ${home}…`,
+    contentSearchFailed: ({ home, machine }: { home: string; machine: string }) => `No se pudo buscar en el índice de ${machine} · ${home}. Inténtalo de nuevo.`,
+    contentNoResults: ({ home, machine }: { home: string; machine: string }) => `No hay resúmenes de mensajes indexados coincidentes en ${machine} · ${home}. No se busca en el historial sin indexar.`,
+    contentScope: ({ home, machine }: { home: string; machine: string }) => `Resúmenes de mensajes indexados en ${machine} · ${home}. No se busca en el historial sin indexar.`,
+    contentHomeSubtitle: "Elige un servidor para buscar mensajes indexados",
+    contentMachineSubtitle: ({ home }: { home: string }) => `Buscar en el índice local de ${home}`,
+    contentSummary: ({ summary, machine, seq }: { summary: string; machine: string; seq: number }) => `Resumen indexado: ${summary} · ${machine} · mensaje ${seq}`,
+    contentHomesCategory: "Servidores",
+    contentMachinesCategory: "Máquinas",
+    contentMessagesCategory: "Mensajes indexados",
     placeholder: "Escriba un comando o busque...",
     noCommandsFound: "No se encontraron comandos",
     searchScope: 'Busca sesiones no archivadas en los servidores seleccionados disponibles. Carga títulos antiguos si el servidor admite paginación.',

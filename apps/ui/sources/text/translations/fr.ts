@@ -1,5 +1,4 @@
 import type { TranslationStructure } from "../_types";
-import { en } from './en';
 
 const mcpServersUxTranslationExtension = {
   mcpServersConfiguredEmptySubtitle: 'Crée un serveur, importe du JSON hôte ou installe un préréglage recommandé.',
@@ -5797,11 +5796,24 @@ export const fr: TranslationStructure = {
     },
 
     commandPalette: {
-        ...en.commandPalette,
         titleMode: 'Titres',
-        contentMode: 'Messages',
+        contentMode: 'Contenu',
         contentChangeHome: 'Changer de serveur',
         contentChangeMachine: 'Changer de machine',
+        contentChooseHome: "Choisissez un serveur pour rechercher dans ses messages indexés.",
+        contentChooseMachine: ({ home }: { home: string }) => `Choisissez une machine sur ${home}. Seuls ses messages indexés seront recherchés.`,
+        contentCheckingIndex: ({ home, machine }: { home: string; machine: string }) => `Vérification de l’index des messages sur ${machine} · ${home}…`,
+        contentIndexUnavailable: ({ home, machine }: { home: string; machine: string }) => `La recherche de messages n’est pas disponible sur ${machine} · ${home}. Activez la recherche en mémoire et l’indexation pour cette machine dans les réglages.`,
+        contentSearching: ({ home, machine }: { home: string; machine: string }) => `Recherche dans les messages indexés sur ${machine} · ${home}…`,
+        contentSearchFailed: ({ home, machine }: { home: string; machine: string }) => `Impossible de rechercher dans l’index sur ${machine} · ${home}. Réessayez.`,
+        contentNoResults: ({ home, machine }: { home: string; machine: string }) => `Aucun résumé de message indexé trouvé sur ${machine} · ${home}. L’historique non indexé n’est pas recherché.`,
+        contentScope: ({ home, machine }: { home: string; machine: string }) => `Résumés des messages indexés sur ${machine} · ${home}. L’historique non indexé n’est pas recherché.`,
+        contentHomeSubtitle: "Choisir un serveur pour rechercher dans les messages indexés",
+        contentMachineSubtitle: ({ home }: { home: string }) => `Rechercher dans l’index local sur ${home}`,
+        contentSummary: ({ summary, machine, seq }: { summary: string; machine: string; seq: number }) => `Résumé indexé : ${summary} · ${machine} · message ${seq}`,
+        contentHomesCategory: "Serveurs",
+        contentMachinesCategory: "Ordinateurs",
+        contentMessagesCategory: "Messages indexés",
         placeholder: 'Tape une commande ou recherche…',
         noCommandsFound: 'Aucune commande trouvée',
         searchScope: 'Recherche les sessions non archivées des serveurs sélectionnés disponibles. Les anciens titres se chargent si le serveur permet la pagination.',
