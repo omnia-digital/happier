@@ -246,8 +246,8 @@ describe('NewSessionDraftsSection', () => {
         expect(minimalRow?.props.titleLines).toBe(1);
         expect(minimalRow?.props.subtitle).toBeUndefined();
         expect(minimalRow?.props.style).toMatchObject({
-            height: 34,
-            minHeight: 34,
+            height: 44,
+            minHeight: 44,
             paddingVertical: 0,
         });
         expect(minimalRow?.props.titleStyle).toMatchObject({ fontSize: 12, lineHeight: 16 });
