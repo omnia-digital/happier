@@ -14,7 +14,6 @@ import { appendBrowserDiagnostics, collectBrowserDiagnostics } from '../../src/t
 
 const run = createRunDirs({ runLabel: 'ui-e2e' });
 const receipt = (phase: string) => { console.log(`[oh52-pr-links] ${new Date().toISOString()} ${phase}`); };
-test.use({ trace: 'on' });
 
 test.describe('session linked pull requests', () => {
     const suiteDir = run.testDir('oh52-pr-links');
