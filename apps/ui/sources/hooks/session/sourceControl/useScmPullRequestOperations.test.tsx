@@ -13,6 +13,11 @@ const openExternalUrlMock = vi.hoisted(() => vi.fn(async () => true));
 const invalidateFromMutationAndAwaitMock = vi.hoisted(() => vi.fn(async () => {}));
 const modalAlertMock = vi.hoisted(() => vi.fn());
 const modalPromptMock = vi.hoisted(() => vi.fn());
+const capturePullRequestMock = vi.hoisted(() => vi.fn(async () => true));
+
+vi.mock('@/sync/ops/sessionPullRequestLinks', () => ({
+    captureSessionPullRequestFromSummary: capturePullRequestMock,
+}));
 
 vi.mock('@/sync/ops', () => ({
     sessionScmPullRequestOpenOrReuse: sessionScmPullRequestOpenOrReuseMock,
@@ -104,6 +109,7 @@ describe('useScmPullRequestOperations', () => {
         invalidateFromMutationAndAwaitMock.mockClear();
         modalAlertMock.mockClear();
         modalPromptMock.mockReset();
+        capturePullRequestMock.mockClear();
     });
 
     it('opens an existing pull request URL without calling the PR create RPC', async () => {
@@ -157,6 +163,7 @@ describe('useScmPullRequestOperations', () => {
             body: '',
         });
         expect(openExternalUrlMock).toHaveBeenCalledWith('https://github.com/happier/dev/pull/42');
+        expect(capturePullRequestMock).toHaveBeenCalledWith('s1', existingModel().pullRequest);
         expect(invalidateFromMutationAndAwaitMock).toHaveBeenCalledWith('s1');
     });
 
@@ -174,6 +181,7 @@ describe('useScmPullRequestOperations', () => {
         });
 
         expect(openExternalUrlMock).toHaveBeenCalledWith('https://github.com/happier/dev/compare/main...feature/prs');
+        expect(capturePullRequestMock).not.toHaveBeenCalled();
         expect(invalidateFromMutationAndAwaitMock).not.toHaveBeenCalled();
     });
 
@@ -248,6 +256,7 @@ describe('useScmPullRequestOperations', () => {
         });
         expect(sessionScmPullRequestOpenOrReuseMock).not.toHaveBeenCalled();
         expect(openExternalUrlMock).toHaveBeenCalledWith('https://github.com/happier/dev/pull/42');
+        expect(capturePullRequestMock).toHaveBeenCalledWith('s1', existingModel().pullRequest);
     });
 
     it('opens stacked action nextAction compose URLs before legacy fields', async () => {
@@ -271,5 +280,6 @@ describe('useScmPullRequestOperations', () => {
         });
 
         expect(openExternalUrlMock).toHaveBeenCalledWith('https://github.com/happier/dev/compare/main...feature%2Fprs');
+        expect(capturePullRequestMock).not.toHaveBeenCalled();
     });
 });
