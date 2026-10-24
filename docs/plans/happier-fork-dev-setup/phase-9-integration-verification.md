@@ -90,6 +90,42 @@ OH-69 source through `0f666c760f` uses the existing authenticated by-local-id ro
 
 OH-52 follow-through `c28df42b40` passes route/actions/PR68, UI/E2E types and composed Chrome-r9, with no empty archived Activity heading and both merged identities/reason retained. Read-only ancestry checkpoint `2a119f4899` passes25 disposable cases and CLI types; no executor exists and every cleanup resource remains skipped. Current macOS libproc permission gaps remain an explicit blocker. Canonical app/transcript guidance now labels the new goal/timestamp behavior development-only and keeps acceptance limits next to it.
 
+## Whole-repository baseline and Windows development follow-through
+
+Fresh root `yarn test` is active on root session71413 (`/tmp/happier-oh4-root-unit-current.log`).
+Its initial shared failures are retained. Actual path defects were corrected through the existing
+Windows identity and provider-install owners (`f9e76c43c3`, `d5209e4219`); lookup fixtures now supply
+their ephemeral publisher public key (`eebfa75f6c`). Root complete CLI-common103files/602pass/5skip
+and package types pass (`/tmp/happier-oh4-cli-common-{full,types}-current.log`). Bootstrap scope/trust
+fixtures (`30a184d31a`) pass root full25files/248tests and types (`/tmp/happier-oh4-bootstrap-{full,types}-current.log`).
+Website's independent CI discovery sources were missing, not a reason to weaken assertions. Source-only
+archives of `packages/agents/src` from `cli-v0.2.17` (`a2c45c8680`) and `upstream/v0.3` (`7dd34021f8`)
+now make all24files/184tests plus3script checks pass (`/tmp/happier-oh4-website-source-inputs.log`).
+These are disposable CI registry inputs, not a 0.3 development checkout or port disposition. The next
+root invocation must set both documented input variables; prior root failures remain failures.
+
+Current UI fixture corrections retain behavior assertions: settings includes the Archive Automation
+group, Inbox uses the real Icon/constants with native boundary mocks (`c037f67541`,25tests), and the
+voice picker fixture supplies the stored settings scope already checked by the canonical favorite
+writer (`dd8fb58848`,13tests). No guard was removed. Later full-root shards remain pending.
+
+On Windows, the existing feature checkout fast-forwarded fromf82e6f3e to4b64e0e67d without branch
+switches or overwriting its four dirty generated bundles. Canonical dependency admission converged;
+its selector-only14/14 `yarn.lock` normalization remains uncommitted and preserved. Focused Windows
+execution passes20/22skip, then4/6skip after existing Windows cases were made portable (`4b64e0e67d`):
+both managed executable/PATHEXT choice and Desktop ownership cases run and pass on Windows. Logs:
+`C:\Users\Admin\AppData\Local\Temp\happier-oh7-windows-{cli-common-focused,choice-verbose}.log`.
+
+The release-style debug build refuses upstream ownership before Rust compilation. That result applies
+to the `build` owner, not the canonical stack development path: read-only `tauri_dev.mjs --json`
+proves the latter generates the isolated stack identifier and disables updater artifacts. Current
+canonical Windows dev startup uses `--tauri --no-daemon --no-browser --no-dev-targets --loopback`,
+with auth seeding off and preserved WebView assets. Actual compile/launch is pending with the existing
+Windows agent; no release, native-visible-window, account pairing or session acceptance is claimed.
+
+Both production path-correction intents'0.3 dispositions remain blocked on the missing destination.
+No source branch, alias, release representation or new coordination owner was added.
+
 ## Parent maintenance
 
 October24 fetch advances parent dev from `413054f17c` to `2bf968563b` by29 commits, with128 files changed. Five coherent intents have now been selectively adapted through fork owners. This supersedes the earlier fetched-only state; no full parent merge, runtime/version upgrade or daily-app cutover occurred, and the rest of the parent-exclusive history is not certified compatible.
