@@ -531,14 +531,14 @@ export async function claudeRemoteAgentSdk(opts: {
     let lastAppliedRuntimeSettings: RuntimeSettingsSnapshot = resolveDesiredRuntimeSettingsSnapshot(mode);
 
     let runtimeSettingsUpdate = Promise.resolve();
-    const applyRuntimeSettingsUpdatesIfNeeded = (next: RuntimeSettingsSnapshot): Promise<void> => {
+    const applyRuntimeSettingsUpdatesIfNeeded = (next: Partial<RuntimeSettingsSnapshot>): Promise<void> => {
         const update = runtimeSettingsUpdate.then(async () => {
-            if (next.permissionMode !== lastAppliedRuntimeSettings.permissionMode) {
+            if (next.permissionMode !== undefined && next.permissionMode !== lastAppliedRuntimeSettings.permissionMode) {
                 await response?.setPermissionMode?.(next.permissionMode);
                 lastAppliedRuntimeSettings = { ...lastAppliedRuntimeSettings, permissionMode: next.permissionMode };
             }
 
-            if (next.model !== lastAppliedRuntimeSettings.model) {
+            if (next.model !== undefined && next.model !== lastAppliedRuntimeSettings.model) {
                 await response?.setModel?.(next.model ?? undefined);
                 lastAppliedRuntimeSettings = { ...lastAppliedRuntimeSettings, model: next.model };
             }
@@ -548,10 +548,18 @@ export async function claudeRemoteAgentSdk(opts: {
                 lastAppliedRuntimeSettings = { ...lastAppliedRuntimeSettings, maxThinkingTokens: next.maxThinkingTokens };
             }
         });
-        // A rejected control must not prevent the next metadata update or queued prompt
-        // from retrying. Each caller owns reporting its control failure.
+        // A rejected control must not poison later explicit prompt attempts or permission updates.
+        // Metadata-driven permission updates never retry prompt-scoped model controls.
         runtimeSettingsUpdate = update.catch(() => {});
         return update;
+    };
+
+    const reportRuntimeSettingsFailure = (error: unknown, messageWasHeld: boolean): void => {
+        const reason = redactBugReportSensitiveText(error instanceof Error ? error.message : String(error));
+        const message = `Failed to update Claude runtime settings: ${reason}
+Current model: ${lastAppliedRuntimeSettings.model ?? 'provider default'}.${messageWasHeld ? ' Message was not sent; retry it after choosing the model or settings you want.' : ''}`;
+        logger.infoFile('[WARN] [claudeRemoteAgentSdk] Runtime settings update failed', { reason, messageWasHeld });
+        opts.onCompletionEvent?.(message);
     };
 
     const canCallToolWithModeTransitions = async (
@@ -1019,10 +1027,11 @@ export async function claudeRemoteAgentSdk(opts: {
             if (abortSignal.aborted) return;
             mode = { ...mode, permissionMode };
             try {
-                await applyRuntimeSettingsUpdatesIfNeeded(resolveDesiredRuntimeSettingsSnapshot(mode));
+                await applyRuntimeSettingsUpdatesIfNeeded({
+                    permissionMode: resolveClaudeSdkPermissionModeFromEnhancedMode(mode),
+                });
             } catch (error) {
-                logger.debug('[claudeRemoteAgentSdk] Failed to update runtime settings (non-fatal)', error);
-                opts.onCompletionEvent?.('Failed to update runtime settings (non-fatal); continuing.');
+                reportRuntimeSettingsFailure(error, false);
             }
         });
         opts.onWorkflowActivityObserverReady?.();
@@ -1571,19 +1580,20 @@ export async function claudeRemoteAgentSdk(opts: {
                             return;
                         }
 
-                        if (nextSpecial.type === 'compact') {
-                            isCompactCommand = true;
-                            emitManualCompactionStarted();
-                        }
-
                         mode = next.mode;
                         lastTurnFlushSummary = null;
 
                         try {
                             await applyRuntimeSettingsUpdatesIfNeeded(resolveDesiredRuntimeSettingsSnapshot(mode));
-                        } catch (e) {
-                            logger.debug('[claudeRemoteAgentSdk] Failed to update runtime settings (non-fatal)', e);
-                            opts.onCompletionEvent?.('Failed to update runtime settings (non-fatal); continuing.');
+                        } catch (error) {
+                            reportRuntimeSettingsFailure(error, true);
+                            promptSettlements.rejectBeforeEffect(next);
+                            continue;
+                        }
+
+                        if (nextSpecial.type === 'compact') {
+                            isCompactCommand = true;
+                            emitManualCompactionStarted();
                         }
 
                         const pendingProviderAction = next.pendingProviderAction;

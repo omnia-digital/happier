@@ -2178,7 +2178,7 @@ export async function runClaudeUnifiedTerminalSession<Mode extends EnhancedMode 
         onPromptDeliveryRetired: (batch) => {
           acceptedPromptTranscriptDiscovery.forgetRetiredPromptByBatch(batch);
         },
-        onPromptAccepted: (batch, acceptance) => {
+        onPromptAccepted: (batch) => {
           acceptedPromptTranscriptDiscovery.consumeAcceptedPromptByBatch({
             message: batch.message,
             maxUserMessageSeq: batch.maxUserMessageSeq ?? null,
@@ -2188,11 +2188,6 @@ export async function runClaudeUnifiedTerminalSession<Mode extends EnhancedMode 
             message: batch.message,
             maxUserMessageSeq: batch.maxUserMessageSeq ?? null,
             userMessageLocalIds: batch.userMessageLocalIds ?? [],
-            ...(acceptance.acceptedAs === 'new_turn'
-              && typeof batch.mode?.model === 'string'
-              && batch.mode.model.trim()
-              ? { appliedModelId: batch.mode.model.trim() }
-              : {}),
           });
           // Exact provider acceptance settles Pending custody even when the hook bridge is
           // unusable. Fail the runtime only after settlement, including evidence received

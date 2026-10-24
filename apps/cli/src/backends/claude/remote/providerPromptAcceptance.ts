@@ -65,11 +65,6 @@ export function readClaudeRemoteProviderPromptAcceptance(
             ? prompt.maxUserMessageSeq
             : null,
         userMessageLocalIds: localIds,
-        ...(prompt.pendingProviderAction !== 'steer'
-            && typeof prompt.mode.model === 'string'
-            && prompt.mode.model.trim()
-            ? { appliedModelId: prompt.mode.model.trim() }
-            : {}),
     };
 }
 
