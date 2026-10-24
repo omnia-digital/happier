@@ -104,7 +104,18 @@ test.describe('session ticket link/read/status via isolated opt-in reader', () =
             await expect(page.getByTestId('session-ticket-header-status')).toContainText('Stale', { timeout: 60_000 });
             await page.setViewportSize({ width: 390, height: 844 });
             await expect(page.getByTestId('session-ticket-open')).toHaveAttribute('aria-label', /DEV-2.*Fixture ticket/);
-            await page.screenshot({ path: testInfo.outputPath('oh58-compact-stale.png') });
+            // Responsive navigation may remount the header and initiate its own read. Establish
+            // a verified compact reading, then revoke it, before claiming a stale screenshot.
+            await expect(page.getByTestId('session-ticket-header-status')).toContainText(/Stale|Status unavailable/, { timeout: 60_000 });
+            await writeFile(statePath, JSON.stringify({ status: 'Ready for Prod / Stakeholder sign-off' }));
+            await page.getByTestId('session-ticket-refresh').click();
+            await expect(page.getByTestId('session-ticket-header-status')).toContainText('Ready for Prod / Stakeholder sign-off', { timeout: 60_000 });
+            await expect(page.getByTestId('session-ticket-header-status')).not.toContainText('Stale');
+            await writeFile(statePath, JSON.stringify({ error: '401 invalid credential' }));
+            await page.getByTestId('session-ticket-refresh').click();
+            await expect(page.getByTestId('session-ticket-header-status')).toContainText('Stale', { timeout: 60_000 });
+            await page.mouse.move(380, 800);
+            await page.screenshot({ path: testInfo.outputPath('oh58-compact-stale-verified.png') });
             await page.getByTestId('session-ticket-change').click();
             // A second real metadata writer changes the association while the editor is open.
             // The stale remove must fail its compare-and-set instead of deleting the newer link.
