@@ -21,8 +21,18 @@ import { dirname } from 'node:path';
 import { readUntrackedFileStats } from '../../readUntrackedFileStats';
 import { parseGitRemoteVerbose } from './remoteListParser';
 
+// These controls apply only to cleanup evidence, never to ordinary SCM operations.
+export const gitCleanupReadArgs = ['--no-pager', '--no-replace-objects', '--no-lazy-fetch', '--no-optional-locks',
+    '-c', 'core.fsmonitor=false', '-c', 'core.commitGraph=false'] as const;
+
+export function hasUnsafeGitCleanupEnvironment(): boolean {
+    const controlled = new Set(['GIT_PAGER', 'GIT_TERMINAL_PROMPT', 'GIT_OPTIONAL_LOCKS', 'GIT_NO_REPLACE_OBJECTS', 'GIT_NO_LAZY_FETCH']);
+    return Object.keys(process.env).some((key) => key.toUpperCase().startsWith('GIT_')
+        && process.env[key] !== undefined && !controlled.has(key.toUpperCase()));
+}
+
 export type GitWorktreeCleanupEvidence =
-    | Readonly<{ kind: 'unavailable'; reason: 'identity_changed' | 'status_unavailable' | 'registration_unavailable' | 'registration_ambiguous' | 'remotes_unavailable' }>
+    | Readonly<{ kind: 'unavailable'; reason: 'unsafe_git_environment' | 'identity_changed' | 'status_unavailable' | 'registration_unavailable' | 'registration_ambiguous' | 'remotes_unavailable' }>
     | Readonly<{
         kind: 'ok';
         branchName: string;
@@ -49,6 +59,7 @@ export async function readGitWorktreeCleanupEvidence(expected: Readonly<{
 }>): Promise<GitWorktreeCleanupEvidence> {
     const unavailable = (reason: Extract<GitWorktreeCleanupEvidence, { kind: 'unavailable' }>['reason']) =>
         ({ kind: 'unavailable', reason } as const);
+    if (hasUnsafeGitCleanupEnvironment()) return unavailable('unsafe_git_environment');
     const identity = await inspectGitCheckoutIdentity({ cwd: expected.worktreeRealPath });
     if (!identity || !isGitLinkedWorktreeIdentity(identity) || identity.branchName !== expected.branchName
         || !identity.headRevision || !/^[0-9a-f]{40,64}$/i.test(identity.headRevision)) return unavailable('identity_changed');
@@ -61,9 +72,9 @@ export async function readGitWorktreeCleanupEvidence(expected: Readonly<{
     }
     const cwd = paths[0]!;
     const [statusResult, worktreesResult, remotesResult] = await Promise.all([
-        runScmCommand({ bin: 'git', cwd, args: ['status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all', '--ignored=matching'], timeoutMs: 10_000 }),
-        runScmCommand({ bin: 'git', cwd, args: ['worktree', 'list', '--porcelain', '-z'], timeoutMs: 10_000 }),
-        runScmCommand({ bin: 'git', cwd, args: ['remote', '-v'], timeoutMs: 10_000 }),
+        runScmCommand({ bin: 'git', cwd, args: [...gitCleanupReadArgs, 'status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all', '--ignored=matching'], timeoutMs: 10_000 }),
+        runScmCommand({ bin: 'git', cwd, args: [...gitCleanupReadArgs, 'worktree', 'list', '--porcelain', '-z'], timeoutMs: 10_000 }),
+        runScmCommand({ bin: 'git', cwd, args: [...gitCleanupReadArgs, 'remote', '-v'], timeoutMs: 10_000 }),
     ]);
     if (!statusResult.success) return unavailable('status_unavailable');
     if (!worktreesResult.success) return unavailable('registration_unavailable');

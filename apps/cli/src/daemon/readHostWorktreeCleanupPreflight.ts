@@ -133,8 +133,8 @@ export async function readHostWorktreeCleanupPreflight(input: Readonly<{
   let publication: GitPublishedMergeEvidence | null = null;
   for (const link of readSessionPullRequestLinks(metadata)) {
     const result = await readGitPublishedMergeEvidence({ gitEvidence: git, link, ...input.publication });
-    publication = result;
-    if (result.kind === 'current_publication_match') break;
+    if (result.kind === 'current_publication_match' || publication?.kind !== 'current_publication_match') publication = result;
+    if (result.kind === 'current_publication_match' && result.integration.kind === 'ancestor') break;
   }
   const worktreeBlockers = ['process_visibility_unknown'];
   if (git.status.staged.length || git.status.modified.length || git.status.untracked.length || git.status.ignored.length) worktreeBlockers.push('worktree_dirty');
@@ -144,12 +144,12 @@ export async function readHostWorktreeCleanupPreflight(input: Readonly<{
   if (visibleSessionInventory.pathInUse) worktreeBlockers.push('other_session_uses_worktree');
   if (!visibleSessionInventory.complete) worktreeBlockers.push('session_inventory_unknown');
   if (publication?.kind !== 'current_publication_match') worktreeBlockers.push('publication_unproven');
-  worktreeBlockers.push('integration_snapshot_unproven');
+  if (publication?.kind !== 'current_publication_match' || publication.integration.kind !== 'ancestor') worktreeBlockers.push('integration_snapshot_unproven');
 
   const branchBlockers = ['worktree_registered', 'branch_protection_unknown'];
   if (!claim.branchCreatedHere) branchBlockers.push('branch_not_owned');
   if (publication?.kind !== 'current_publication_match') branchBlockers.push('publication_unproven');
-  branchBlockers.push('integration_snapshot_unproven');
+  if (publication?.kind !== 'current_publication_match' || publication.integration.kind !== 'ancestor') branchBlockers.push('integration_snapshot_unproven');
   if (git.registration.otherWorktreeUsesBranch) branchBlockers.push('branch_used_by_other_worktree');
   return {
     kind: 'observed', sessionId: claim.sessionId,
