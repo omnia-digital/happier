@@ -1,11 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { DEFAULT_CAPABILITIES_INVOKE_TIMEOUT_MS } from '@happier-dev/protocol/capabilities';
 import { renderHook, standardCleanup } from '@/dev/testkit';
 import { useMachineMetricsPolling } from './useMachineMetrics';
 import { isHostVisible, isRuntimeActive } from '@/utils/runtime/isRuntimeActive';
 import { isTauriDesktop } from '@/utils/platform/tauri';
 
 const rpc = vi.hoisted(() => vi.fn());
-vi.mock('@/sync/runtime/orchestration/serverScopedRpc/serverScopedMachineRpc', () => ({ machineRpcWithServerScope: rpc }));
+// This lifecycle test counts collection requests; transport/credential correctness is
+// covered separately. Keep the store and runtime/host visibility owners real.
+vi.mock('@/sync/runtime/orchestration/serverScopedRpc/serverScopedMachineRpc', async (importOriginal) => {
+    const { createServerScopedMachineRpcModuleMock } = await import('@/dev/testkit/mocks/serverScopedRpc');
+    return createServerScopedMachineRpcModuleMock({ importOriginal, overrides: { machineRpcWithServerScope: rpc } });
+});
 afterEach(() => { standardCleanup(); vi.unstubAllGlobals(); vi.useRealTimers(); rpc.mockReset(); });
 
 describe('machine monitor target lifecycle', () => {
@@ -28,6 +34,7 @@ describe('machine monitor target lifecycle', () => {
         const hook = await renderHook(() => useMachineMetricsPolling(scope, [{ machineId: 'desktop-host', online: true }]));
         await vi.advanceTimersByTimeAsync(0);
         expect(rpc).toHaveBeenCalledTimes(1);
+        expect(visibilityListeners.size).toBeGreaterThan(0);
         hostDocument.visibilityState = 'hidden';
         visibilityListeners.forEach((listener) => listener());
         expect(isTauriDesktop()).toBe(true);
@@ -44,6 +51,10 @@ describe('machine monitor target lifecycle', () => {
         expect(rpc).toHaveBeenCalledTimes(2);
         await hook.unmount();
         expect(visibilityListeners.size).toBe(0);
+        // The existing capability adapter leaves its settled Promise.race deadline
+        // queued until the RPC budget expires; no polling interval may survive it.
+        await vi.advanceTimersByTimeAsync(DEFAULT_CAPABILITIES_INVOKE_TIMEOUT_MS);
+        expect(vi.getTimerCount()).toBe(0);
         await vi.advanceTimersByTimeAsync(360_000);
         expect(rpc).toHaveBeenCalledTimes(2);
     });

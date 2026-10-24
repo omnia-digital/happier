@@ -2,9 +2,15 @@ import * as React from 'react';
 import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import { createMachineMetricsStore, type MachineMetricsTarget } from '@/sync/engine/machines/machineMetricsStore';
 import { loadMachineMetrics } from '@/sync/ops/machineMetrics';
-import { isRuntimeActive, startRuntimeActiveGatedInterval, subscribeToRuntimeActiveChange } from '@/utils/runtime/isRuntimeActive';
+import { isHostVisible, isRuntimeActive, startRuntimeActiveGatedInterval, subscribeToRuntimeActiveChange } from '@/utils/runtime/isRuntimeActive';
 
-const store = createMachineMetricsStore({ load: loadMachineMetrics, startInterval: startRuntimeActiveGatedInterval, isActive: isRuntimeActive, subscribeActiveChange: subscribeToRuntimeActiveChange });
+const store = createMachineMetricsStore({
+    load: loadMachineMetrics,
+    startInterval: startRuntimeActiveGatedInterval,
+    // Desktop background session sync may continue, but UI-only metrics need a visible host.
+    isActive: () => isRuntimeActive() && isHostVisible(),
+    subscribeActiveChange: subscribeToRuntimeActiveChange,
+});
 
 export function useMachineMetricsPolling(scope: ServerAccountScope, targets: readonly MachineMetricsTarget[]) {
     const targetKey = JSON.stringify(targets);
