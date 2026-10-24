@@ -140,6 +140,7 @@ const machineBashMock = vi.hoisted(() => vi.fn(async () => ({
     stderr: '',
     exitCode: 0,
 })));
+const applySettingsMock = vi.hoisted(() => vi.fn());
 
 installNewSessionScreenModelCommonModuleMocks({
     router: async () => {
@@ -255,7 +256,7 @@ vi.mock('@/sync/sync', () => ({
 }));
 
 vi.mock('@/sync/store/settingsWriters', () => ({
-    useApplySettings: () => vi.fn(),
+    useApplySettings: () => applySettingsMock,
 }));
 
 vi.mock('@/sync/ops/sessionDrafts/sessionDraftRepository', async (importOriginal) => {
@@ -384,6 +385,77 @@ afterEach(() => {
 });
 
 describe('useCreateNewSession (worktree gating)', () => {
+    it('does not write settings or spawn when the viewer Account changes during target verification', async () => {
+        const { useCreateNewSession } = await import('./useCreateNewSession');
+        const { storage } = await import('@/sync/domains/state/storage');
+        const state = storage.getState();
+        const originalProfileScope = state.profileScope;
+        const originalSettingsScope = state.settingsScope;
+        const viewerA = { serverId: 'api.happier.dev', accountId: 'account-a' };
+        state.profileScope = viewerA;
+        state.settingsScope = viewerA;
+        let finishVerification!: (target: { serverId: string; accountId: string; machineId: string }) => void;
+        const getVerifiedMachinePathTarget = vi.fn(() => new Promise<{ serverId: string; accountId: string; machineId: string }>((resolve) => {
+            finishVerification = resolve;
+        }));
+        const setIsCreating = vi.fn();
+        const machineEnvPresence = { isPreviewEnvSupported: false, isLoading: false, meta: {} } as unknown as Parameters<typeof useCreateNewSession>[0]['machineEnvPresence'];
+        const params = {
+            draftId: 'f3c0d3f2-87b7-4676-a47f-cf57d1e2a763',
+            draftScope: viewerA,
+            getVerifiedMachinePathTarget,
+            launchIntentSignature: 'account-a-launch',
+            router: { push: vi.fn(), replace: vi.fn() },
+            selectedMachineId: 'machine-1',
+            selectedPath: '/repo',
+            selectedMachine: { id: 'machine-1', metadata: {} },
+            setIsCreating,
+            setIsResumeSupportChecking: vi.fn(),
+            settings: testSettingsDefaults,
+            useProfiles: false,
+            selectedProfileId: null,
+            profileMap: new Map(),
+            recentMachinePaths: [],
+            agentType: 'codex' as const,
+            permissionMode: 'default' as const,
+            modelMode: 'auto' as const,
+            promptStore: createNewSessionPromptStore(''),
+            resumeSessionId: '',
+            agentNewSessionOptions: null,
+            machineEnvPresence,
+            secrets: [],
+            secretBindingsByProfileId: {},
+            selectedSecretIdByProfileIdByEnvVarName: {},
+            sessionOnlySecretValueByProfileIdByEnvVarName: {},
+            selectedMachineCapabilities: null,
+            targetServerId: null,
+            allowedTargetServerIds: [],
+        } satisfies Parameters<typeof useCreateNewSession>[0];
+
+        try {
+            const hook = await renderHook(() => useCreateNewSession(params));
+            let pending!: Promise<void>;
+            await act(async () => {
+                pending = hook.handleCreateSession({ initialMessage: 'skip' }) as unknown as Promise<void>;
+                await Promise.resolve();
+            });
+            await vi.waitFor(() => expect(getVerifiedMachinePathTarget).toHaveBeenCalledTimes(1));
+            state.profileScope = { serverId: viewerA.serverId, accountId: 'account-b' };
+            state.settingsScope = state.profileScope;
+            await act(async () => {
+                finishVerification({ ...viewerA, machineId: 'machine-1' });
+                await pending;
+            });
+
+            expect(applySettingsMock).not.toHaveBeenCalled();
+            expect(machineSpawnNewSessionMock).not.toHaveBeenCalled();
+            expect(setIsCreating).toHaveBeenCalledWith(false);
+        } finally {
+            state.profileScope = originalProfileScope;
+            state.settingsScope = originalSettingsScope;
+        }
+    });
+
     it('does not create a worktree when no checkout creation draft is selected', async () => {
         const { useCreateNewSession } = await import('./useCreateNewSession');
         const typecheck = useCreateNewSession;
@@ -426,6 +498,9 @@ describe('useCreateNewSession (worktree gating)', () => {
             selectedProfileId: profile.id,
             profileMap: new Map([[profile.id, profile]]),
             recentMachinePaths: [],
+            getVerifiedMachinePathTarget: async () => ({
+                serverId: 'api.happier.dev', accountId: 'account-a', machineId: 'machine-1',
+            }),
             agentType: 'codex' as const,
             permissionMode: 'default' as const,
             modelMode: 'auto' as const,
@@ -461,6 +536,7 @@ describe('useCreateNewSession (worktree gating)', () => {
         expect(machineSpawnNewSessionMock).toHaveBeenCalledWith(expect.objectContaining({
             directory: '/repo',
             machineId: 'machine-1',
+            expectedAccountId: 'account-a',
         }));
     });
 
@@ -555,6 +631,9 @@ describe('useCreateNewSession (worktree gating)', () => {
             selectedMachine: { id: 'machine-1', metadata: {} },
             setIsCreating: vi.fn(),
             setIsResumeSupportChecking: vi.fn(),
+            getVerifiedMachinePathTarget: async () => ({
+                serverId: 'api.happier.dev', accountId: 'account-a', machineId: 'machine-1',
+            }),
             checkoutCreationDraft: {
                 kind: 'git_worktree' as const,
                 displayName: 'feature/auth',
@@ -598,6 +677,7 @@ describe('useCreateNewSession (worktree gating)', () => {
         expect(materializeNewSessionCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({
             machineId: 'machine-1',
             selectedPath: '/repo',
+            scope: { serverId: 'api.happier.dev', accountId: 'account-a' },
             checkoutCreationDraft: {
                 kind: 'git_worktree',
                 displayName: 'feature/auth',
@@ -639,6 +719,9 @@ describe('useCreateNewSession (worktree gating)', () => {
             selectedMachine: { id: 'machine-1', metadata: {} },
             setIsCreating: vi.fn(),
             setIsResumeSupportChecking: vi.fn(),
+            getVerifiedMachinePathTarget: async () => ({
+                serverId: 'api.happier.dev', accountId: 'account-a', machineId: 'machine-1',
+            }),
             checkoutCreationDraft: {
                 kind: 'git_worktree' as const,
                 displayName: 'feature/auth',
@@ -707,6 +790,9 @@ describe('useCreateNewSession (worktree gating)', () => {
             selectedMachine: { id: 'machine-1', metadata: {} },
             setIsCreating: vi.fn(),
             setIsResumeSupportChecking: vi.fn(),
+            getVerifiedMachinePathTarget: async () => ({
+                serverId: 'api.happier.dev', accountId: 'account-a', machineId: 'machine-1',
+            }),
             checkoutCreationDraft: {
                 kind: 'git_worktree' as const,
                 displayName: 'feature/auth',
@@ -770,6 +856,9 @@ describe('useCreateNewSession (worktree gating)', () => {
             selectedMachine: { id: 'machine-1', metadata: {} },
             setIsCreating,
             setIsResumeSupportChecking: vi.fn(),
+            getVerifiedMachinePathTarget: async () => ({
+                serverId: 'api.happier.dev', accountId: 'account-a', machineId: 'machine-1',
+            }),
             checkoutCreationDraft: {
                 kind: 'git_worktree' as const,
                 displayName: 'feature/auth',
@@ -900,6 +989,9 @@ describe('useCreateNewSession (worktree gating)', () => {
             selectedMachine: { id: 'machine-1', metadata: {} },
             setIsCreating: vi.fn(),
             setIsResumeSupportChecking: vi.fn(),
+            getVerifiedMachinePathTarget: async () => ({
+                serverId: 'api.happier.dev', accountId: 'account-a', machineId: 'machine-1',
+            }),
             checkoutCreationDraft: {
                 kind: 'git_worktree' as const,
                 displayName: 'feature/auth',
@@ -972,6 +1064,9 @@ describe('useCreateNewSession (worktree gating)', () => {
             selectedMachine: { id: 'machine-1', metadata: {} },
             setIsCreating: vi.fn(),
             setIsResumeSupportChecking: vi.fn(),
+            getVerifiedMachinePathTarget: async () => ({
+                serverId: 'api.happier.dev', accountId: 'account-a', machineId: 'machine-1',
+            }),
             checkoutCreationDraft: {
                 kind: 'git_worktree' as const,
                 displayName: 'feature/auth',
@@ -1042,6 +1137,9 @@ describe('useCreateNewSession (worktree gating)', () => {
             selectedMachine: { id: 'machine-1', metadata: {} },
             setIsCreating: vi.fn(),
             setIsResumeSupportChecking: vi.fn(),
+            getVerifiedMachinePathTarget: async () => ({
+                serverId: 'api.happier.dev', accountId: 'account-a', machineId: 'machine-1',
+            }),
             checkoutCreationDraft: {
                 kind: 'git_worktree' as const,
                 displayName: 'feature/auth',
@@ -1113,6 +1211,9 @@ describe('useCreateNewSession (worktree gating)', () => {
             selectedMachine: { id: 'machine-1', metadata: {} },
             setIsCreating: vi.fn(),
             setIsResumeSupportChecking: vi.fn(),
+            getVerifiedMachinePathTarget: async () => ({
+                serverId: 'api.happier.dev', accountId: 'account-a', machineId: 'machine-1',
+            }),
             checkoutCreationDraft: {
                 kind: 'git_worktree' as const,
                 displayName: 'feature/auth',
@@ -1191,6 +1292,9 @@ describe('useCreateNewSession (worktree gating)', () => {
             selectedMachine: { id: 'machine-1', metadata: {} },
             setIsCreating: vi.fn(),
             setIsResumeSupportChecking: vi.fn(),
+            getVerifiedMachinePathTarget: async () => ({
+                serverId: 'api.happier.dev', accountId: 'account-a', machineId: 'machine-1',
+            }),
             checkoutCreationDraft: {
                 kind: 'git_worktree' as const,
                 displayName: 'feature/auth',
@@ -1251,6 +1355,9 @@ describe('useCreateNewSession (worktree gating)', () => {
             selectedMachine: { id: 'machine-1', metadata: {} },
             setIsCreating: vi.fn(),
             setIsResumeSupportChecking: vi.fn(),
+            getVerifiedMachinePathTarget: async () => ({
+                serverId: 'api.happier.dev', accountId: 'account-a', machineId: 'machine-1',
+            }),
             checkoutCreationDraft: {
                 kind: 'git_worktree' as const,
                 displayName: 'feature/auth',
@@ -1321,6 +1428,9 @@ describe('useCreateNewSession (worktree gating)', () => {
             selectedMachine: { id: 'machine-1', metadata: {} },
             setIsCreating: vi.fn(),
             setIsResumeSupportChecking: vi.fn(),
+            getVerifiedMachinePathTarget: async () => ({
+                serverId: 'api.happier.dev', accountId: 'account-a', machineId: 'machine-1',
+            }),
             checkoutCreationDraft: {
                 kind: 'git_worktree' as const,
                 displayName: 'feature/auth',

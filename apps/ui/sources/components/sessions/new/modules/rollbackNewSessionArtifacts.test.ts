@@ -12,6 +12,7 @@ describe('rollbackNewSessionArtifacts', () => {
             actualPath: 'C:/repo/.dev/worktree/feature branch',
             checkoutCreationDraft: { kind: 'git_worktree', displayName: 'feature/auth', baseRef: 'main' },
             serverId: 'server-b',
+            accountId: 'account-a',
             machineBash,
         });
 
@@ -21,7 +22,7 @@ describe('rollbackNewSessionArtifacts', () => {
                 argv: ['git', 'worktree', 'remove', '--force', '--', 'C:/repo/.dev/worktree/feature branch'],
             },
             'C:/repo',
-            { serverId: 'server-b' },
+            { serverId: 'server-b', accountId: 'account-a' },
         );
     });
 });

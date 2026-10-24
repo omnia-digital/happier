@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RPC_ERROR_CODES, RPC_METHODS } from '@happier-dev/protocol/rpc';
 import { SPAWN_SESSION_ERROR_CODES } from '@happier-dev/protocol';
 import { storage } from '@/sync/domains/state/storage';
+import { TokenStorage } from '@/auth/storage/tokenStorage';
 import { getPersistenceStorage } from '@/sync/domains/state/persistence';
 import { serverAccountScopedStorageKey } from '@/sync/domains/scope/serverAccountScope';
 import { createSpawnAttemptKeyForFreshSpawnOptions } from '@/sync/domains/session/spawn/spawnAttemptKey';
@@ -14,9 +15,17 @@ import {
 const machineRpcWithServerScopeMock = vi.hoisted(() => vi.fn());
 const prepareAccountSettingsForDaemonSpawnMock = vi.hoisted(() => vi.fn(async () => ({})));
 
-vi.mock('@/sync/runtime/orchestration/serverScopedRpc/serverScopedMachineRpc', () => ({
+vi.mock('@/sync/runtime/orchestration/serverScopedRpc/serverScopedMachineRpc', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/sync/runtime/orchestration/serverScopedRpc/serverScopedMachineRpc')>(),
   machineRpcWithServerScope: machineRpcWithServerScopeMock,
 }));
+
+vi.mock('@/auth/encryption/createEncryptionFromAuthCredentials', () => ({
+  createEncryptionFromAuthCredentials: vi.fn(async () => ({})),
+}));
+
+const tokenForAccount = (accountId: string) =>
+  `e30.${globalThis.btoa(JSON.stringify({ sub: accountId })).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')}.signature`;
 
 vi.mock('./accountSettingsDaemonSpawnPreparation', async (importOriginal) => ({
   ...await importOriginal<typeof import('./accountSettingsDaemonSpawnPreparation')>(),
@@ -243,6 +252,168 @@ describe('machineSpawnNewSession error mapping', () => {
     if (result.type !== 'error') throw new Error('expected an error result');
     expect(result.errorCode).toBe('ACCOUNT_SCOPE_CHANGED');
     expect(machineRpcWithServerScopeMock).not.toHaveBeenCalled();
+  });
+
+  it('does not submit a spawn when the active Account changes while preparation is pending', async () => {
+    let finishPreparation!: (value: Record<string, never>) => void;
+    prepareAccountSettingsForDaemonSpawnMock.mockImplementationOnce(() => new Promise((resolve) => {
+      finishPreparation = resolve;
+    }));
+
+    const { machineSpawnNewSession } = await import('./machines');
+    const pending = machineSpawnNewSession({
+      machineId: 'machine-1',
+      directory: '/tmp',
+      backendTarget: { kind: 'builtInAgent', agentId: 'claude' },
+      serverId: 'server-b',
+    });
+    await vi.waitFor(() => expect(prepareAccountSettingsForDaemonSpawnMock).toHaveBeenCalledTimes(1));
+    storage.setState({ profileScope: { serverId: 'server-b', accountId: 'account-b' } });
+    finishPreparation({});
+
+    await expect(pending).resolves.toMatchObject({
+      type: 'error',
+      errorCode: SPAWN_SESSION_ERROR_CODES.ACCOUNT_SCOPE_CHANGED,
+    });
+    expect(machineRpcWithServerScopeMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects an Account switch at the immediate RPC emission boundary and clears unused custody', async () => {
+    machineRpcWithServerScopeMock.mockImplementationOnce(async (params: { onIssued?: () => void }) => {
+      storage.setState({ profileScope: { serverId: 'server-b', accountId: 'account-b' } });
+      params.onIssued?.();
+      return { type: 'success', sessionId: 'wrong-account-session' };
+    });
+
+    const { machineSpawnNewSession } = await import('./machines');
+    await expect(machineSpawnNewSession({
+      machineId: 'machine-1',
+      directory: '/tmp',
+      backendTarget: { kind: 'builtInAgent', agentId: 'claude' },
+      serverId: 'server-b',
+      userAttemptId: 'viewer-switch-before-emit',
+    })).resolves.toMatchObject({ type: 'error', errorCode: SPAWN_SESSION_ERROR_CODES.ACCOUNT_SCOPE_CHANGED });
+    expect(getPersistenceStorage().getString(spawnCustodyStorageKey)).toBeUndefined();
+  });
+
+  it('retains nonce custody when Account changes before fallback after the first RPC was issued', async () => {
+    machineRpcWithServerScopeMock
+      .mockImplementationOnce(async (params: { onIssued?: () => void }) => {
+        params.onIssued?.();
+        throw Object.assign(new Error('RPC method not available'), {
+          rpcErrorCode: RPC_ERROR_CODES.METHOD_NOT_AVAILABLE,
+        });
+      })
+      .mockImplementationOnce(async (params: { onIssued?: () => void }) => {
+        storage.setState({ profileScope: { serverId: 'server-b', accountId: 'account-b' } });
+        params.onIssued?.();
+        return { type: 'success', sessionId: 'wrong-account-session' };
+      });
+
+    const { machineSpawnNewSession } = await import('./machines');
+    await expect(machineSpawnNewSession({
+      machineId: 'machine-1',
+      directory: '/tmp',
+      backendTarget: { kind: 'builtInAgent', agentId: 'claude' },
+      serverId: 'server-b',
+      userAttemptId: 'account-switch-after-issued-rpc',
+    })).resolves.toMatchObject({ type: 'error', errorCode: SPAWN_SESSION_ERROR_CODES.ACCOUNT_SCOPE_CHANGED });
+    expect(machineRpcWithServerScopeMock.mock.calls.map(([call]) => call.method)).toEqual([
+      RPC_METHODS.SPAWN_HAPPY_SESSION_PROVIDER_SAFE,
+      RPC_METHODS.SPAWN_HAPPY_SESSION,
+    ]);
+    expect(getPersistenceStorage().getString(spawnCustodyStorageKey)).toContain('account-switch-after-issued-rpc');
+  });
+
+  it('uses a foreign Home Account for admission, custody and RPC without the viewer settings hint', async () => {
+    const targetUrl = 'https://foreign-spawn.example.test';
+    const targetServerId = 'srv_foreign_spawn';
+    upsertServerProfile({ serverUrl: targetUrl, name: 'Foreign spawn' });
+    setServerProfileIdentityForUrl(targetUrl, targetServerId);
+    const credentials = { token: tokenForAccount('account-foreign'), secret: 'secret-rotated' };
+    const readCredentials = vi.spyOn(TokenStorage, 'getCredentialsForServerUrl')
+      .mockResolvedValueOnce({ token: tokenForAccount('account-foreign'), secret: 'secret-original' })
+      .mockResolvedValue(credentials);
+    storage.setState((state) => ({
+      machineListByServerId: { ...state.machineListByServerId, [targetServerId]: [state.machines['machine-1']!] },
+    }));
+    machineRpcWithServerScopeMock
+      .mockResolvedValueOnce({ type: 'success', spawnNonce: 'foreign-spawn-nonce', sessionIdStatus: 'pending' })
+      .mockResolvedValueOnce({ status: 'success', sessionId: 'session-foreign' });
+
+    try {
+      const { completeMachineSpawnAttemptCustody, machineSpawnNewSession } = await import('./machines');
+      const result = await machineSpawnNewSession({
+        machineId: 'machine-1',
+        directory: '/tmp',
+        backendTarget: { kind: 'builtInAgent', agentId: 'claude' },
+        serverId: targetServerId,
+        expectedAccountId: 'account-foreign',
+      });
+
+      expect(result, JSON.stringify(result)).toMatchObject({ type: 'success', sessionId: 'session-foreign' });
+      expect(readCredentials).toHaveBeenCalledWith(targetUrl, { serverId: targetServerId });
+      expect(prepareAccountSettingsForDaemonSpawnMock).not.toHaveBeenCalled();
+      expect(machineRpcWithServerScopeMock).toHaveBeenCalledWith(expect.objectContaining({
+        serverId: targetServerId,
+        accountId: 'account-foreign',
+        payload: expect.not.objectContaining({ expectedAccountId: expect.any(String) }),
+      }));
+      expect(machineRpcWithServerScopeMock.mock.calls[0]?.[0]?.payload?.accountSettingsVersionHint).toBeUndefined();
+      expect(machineRpcWithServerScopeMock.mock.calls.map(([call]) => [call.method, call.accountId])).toEqual([
+        [RPC_METHODS.SPAWN_HAPPY_SESSION_PROVIDER_SAFE, 'account-foreign'],
+        [RPC_METHODS.DAEMON_SPAWN_SESSION_RESOLVE, 'account-foreign'],
+      ]);
+      const custodyKey = serverAccountScopedStorageKey('session-spawn-attempts-v1', {
+        serverId: targetServerId, accountId: 'account-foreign',
+      });
+      expect(getPersistenceStorage().getString(custodyKey)).toContain('account-foreign');
+      if (result.type !== 'success' || result.spawnAttemptCustody?.status !== 'completed') {
+        throw new Error('expected completed foreign spawn custody');
+      }
+      expect(await completeMachineSpawnAttemptCustody({
+        machineId: 'machine-1',
+        serverId: targetServerId,
+        custody: result.spawnAttemptCustody,
+      })).toBe(true);
+      expect(getPersistenceStorage().getString(custodyKey)).toBeUndefined();
+    } finally {
+      readCredentials.mockRestore();
+    }
+  });
+
+  it('refuses a foreign spawn when the captured target Account differs from current credentials', async () => {
+    const targetUrl = 'https://foreign-spawn-mismatch.example.test';
+    const targetServerId = 'srv_foreign_spawn_mismatch';
+    upsertServerProfile({ serverUrl: targetUrl, name: 'Foreign spawn mismatch' });
+    setServerProfileIdentityForUrl(targetUrl, targetServerId);
+    const readCredentials = vi.spyOn(TokenStorage, 'getCredentialsForServerUrl')
+      .mockResolvedValue({ token: tokenForAccount('account-b'), secret: 'secret' });
+    try {
+      const { machineSpawnNewSession } = await import('./machines');
+      await expect(machineSpawnNewSession({
+        machineId: 'machine-1',
+        directory: '/tmp',
+        backendTarget: { kind: 'builtInAgent', agentId: 'claude' },
+        serverId: targetServerId,
+        expectedAccountId: 'account-a',
+      })).resolves.toMatchObject({ type: 'error', errorCode: SPAWN_SESSION_ERROR_CODES.ACCOUNT_SCOPE_CHANGED });
+      expect(machineRpcWithServerScopeMock).not.toHaveBeenCalled();
+    } finally {
+      readCredentials.mockRestore();
+    }
+  });
+
+  it('maps a pre-emission scoped Account replacement to an unused-custody error', async () => {
+    const { ScopedMachineRpcAccountChangedError } = await import('@/sync/runtime/orchestration/serverScopedRpc/serverScopedMachineRpc');
+    machineRpcWithServerScopeMock.mockRejectedValueOnce(new ScopedMachineRpcAccountChangedError());
+    const { machineSpawnNewSession } = await import('./machines');
+    await expect(machineSpawnNewSession({
+      machineId: 'machine-1', directory: '/tmp', serverId: 'server-b',
+      backendTarget: { kind: 'builtInAgent', agentId: 'claude' },
+      userAttemptId: 'pre-emission-replacement',
+    })).resolves.toMatchObject({ type: 'error', errorCode: SPAWN_SESSION_ERROR_CODES.ACCOUNT_SCOPE_CHANGED });
+    expect(getPersistenceStorage().getString(spawnCustodyStorageKey)).toBeUndefined();
   });
 
   it('does not override an explicit account settings version hint', async () => {
@@ -704,6 +875,12 @@ describe('machineSpawnNewSession error mapping', () => {
   });
 
   it('uses the authoritative server-scoped machine home for custody identity', async () => {
+    const remoteServerUrl = 'https://server-c.example.test';
+    const remoteServerId = 'srv_server_c';
+    upsertServerProfile({ serverUrl: remoteServerUrl, name: 'Remote machine' });
+    setServerProfileIdentityForUrl(remoteServerUrl, remoteServerId);
+    const readCredentials = vi.spyOn(TokenStorage, 'getCredentialsForServerUrl')
+      .mockResolvedValue({ token: tokenForAccount('account-c'), secret: 'secret-c' });
     const remoteMachine = {
       ...storage.getState().machines['machine-1']!,
       metadata: {
@@ -715,7 +892,7 @@ describe('machineSpawnNewSession error mapping', () => {
     storage.setState((state) => ({
       machineListByServerId: {
         ...state.machineListByServerId,
-        'server-c': [remoteMachine],
+        [remoteServerId]: [remoteMachine],
       },
     }));
     machineRpcWithServerScopeMock
@@ -726,28 +903,33 @@ describe('machineSpawnNewSession error mapping', () => {
     const base = {
       machineId: 'machine-1',
       backendTarget: { kind: 'builtInAgent', agentId: 'claude' },
-      serverId: 'server-c',
+      serverId: remoteServerId,
+      expectedAccountId: 'account-c',
     } as const;
 
-    await machineSpawnNewSession({
-      ...base,
-      directory: '~/repo',
-      userAttemptId: 'remote-attempt',
-      spawnNonce: 'remote-nonce',
-    });
-    await expect(machineSpawnNewSession({
-      ...base,
-      directory: '/srv/remote-user/repo/',
-      userAttemptId: 'remote-attempt',
-    })).resolves.toMatchObject({
-      type: 'success',
-      sessionId: 'session-from-remote-attempt',
-      spawnAttemptCustody: {
-        status: 'completed',
+    try {
+      await machineSpawnNewSession({
+        ...base,
+        directory: '~/repo',
         userAttemptId: 'remote-attempt',
         spawnNonce: 'remote-nonce',
-      },
-    });
+      });
+      await expect(machineSpawnNewSession({
+        ...base,
+        directory: '/srv/remote-user/repo/',
+        userAttemptId: 'remote-attempt',
+      })).resolves.toMatchObject({
+        type: 'success',
+        sessionId: 'session-from-remote-attempt',
+        spawnAttemptCustody: {
+          status: 'completed',
+          userAttemptId: 'remote-attempt',
+          spawnNonce: 'remote-nonce',
+        },
+      });
+    } finally {
+      readCredentials.mockRestore();
+    }
   });
 
   it('fails closed before custody when authoritative machine home is unavailable', async () => {

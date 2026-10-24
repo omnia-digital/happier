@@ -8,6 +8,7 @@ import { getActiveServerSnapshot } from '@/sync/domains/server/serverRuntime';
 import { recordCachedMachineRpcDirectRouteViable } from '@/sync/domains/transfers/runtime/transferRouteCache';
 import { createEphemeralServerSocketClient } from '@/sync/runtime/orchestration/serverScopedRpc/createEphemeralServerSocketClient';
 import { resolveServerScopedContext } from '@/sync/runtime/orchestration/serverScopedRpc/resolveServerScopedContext';
+import { runWithCurrentServerScopedSessionContext } from '@/sync/runtime/orchestration/serverScopedRpc/resolveServerScopedSessionContext';
 import { resolveScopedMachineEncryptionContext } from '@/sync/runtime/orchestration/serverScopedRpc/serverScopedRpcPool';
 import {
     MACHINE_ENCRYPT_RAW_ATTRIBUTION_EVENTS,
@@ -42,6 +43,13 @@ function resolveScopedMachineRpcEncryptRawAttributionEvent(method: string): Mach
 }
 
 type MachineRpcTimeoutScope = 'active' | 'scoped';
+
+export class ScopedMachineRpcAccountChangedError extends Error {
+    constructor() {
+        super('The selected Home Account changed before machine RPC emission');
+        this.name = 'ScopedMachineRpcAccountChangedError';
+    }
+}
 
 function createMachineRpcTimeoutError(params: Readonly<{
     scope: MachineRpcTimeoutScope;
@@ -192,14 +200,30 @@ export async function machineRpcWithServerScope<R, A>(params: ServerScopedMachin
                 async () => await machineEncryption.encodeRpcPayload(params.payload),
             );
             const socketEmission = socket.timeout(context.timeoutMs);
-            onIssued?.();
-            const result = await withMachineRpcTimeout(
-                socketEmission.emitWithAck(SOCKET_RPC_EVENTS.CALL, {
+            const expectedAccountId = normalizeId(params.accountId);
+            let pendingEmission: Promise<SocketRpcResult<unknown>> | null = null;
+            const emit = () => {
+                onIssued?.();
+                pendingEmission = socketEmission.emitWithAck(SOCKET_RPC_EVENTS.CALL, {
                     method: `${context.machineId}:${params.method}`,
                     params: encryptedPayload,
                     ...(params.authorization ? { authorization: params.authorization } : {}),
                     timeoutMs: context.timeoutMs,
-                }) as Promise<SocketRpcResult<unknown>>,
+                }) as Promise<SocketRpcResult<unknown>>;
+            };
+            if (expectedAccountId) {
+                const current = await runWithCurrentServerScopedSessionContext({
+                    targetServerId: context.targetServerId,
+                    targetServerUrl: context.targetServerUrl,
+                    targetAccountId: expectedAccountId,
+                }, emit);
+                if (!current) throw new ScopedMachineRpcAccountChangedError();
+            } else {
+                emit();
+            }
+            if (!pendingEmission) throw new Error('Machine RPC emission was not started');
+            const result = await withMachineRpcTimeout<SocketRpcResult<unknown>>(
+                pendingEmission,
                 {
                     scope: 'scoped',
                     method: params.method,

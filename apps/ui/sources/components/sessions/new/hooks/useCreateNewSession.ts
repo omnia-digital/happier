@@ -15,6 +15,7 @@ import type { MachineSpawnAttemptCustody } from '@/sync/ops/machines';
 import { resolveTerminalSpawnOptions } from '@/sync/domains/settings/terminalSettings';
 import { normalizeSessionAuthoringConnectedServices } from '@/sync/domains/sessionAuthoring/sessionAuthoringNormalization';
 import { getActiveServerSnapshot } from '@/sync/domains/server/serverRuntime';
+import { areServerProfileIdentifiersEquivalent } from '@/sync/domains/server/serverProfiles';
 import { resolveNewSessionServerTarget } from '@/sync/domains/server/selection/serverSelectionResolver';
 import { getMissingRequiredConfigEnvVarNames } from '@/utils/profiles/profileConfigRequirements';
 import type { SecretChoiceByProfileIdByEnvVarName } from '@/utils/secrets/secretRequirementApply';
@@ -165,6 +166,8 @@ function normalizeLaunchScopePart(value: unknown): string {
 function buildNewSessionLaunchScopeKey(params: Readonly<{
     machineId: string | null;
     serverId: string | null;
+    viewerScope: ServerAccountScope | null;
+    settingsScope: ServerAccountScope | null;
     selectedPath: string;
     useProfiles: boolean;
     selectedProfileId: string | null;
@@ -172,6 +175,8 @@ function buildNewSessionLaunchScopeKey(params: Readonly<{
     return [
         `machine:${normalizeLaunchScopePart(params.machineId)}`,
         `server:${normalizeLaunchScopePart(params.serverId)}`,
+        `viewer:${normalizeLaunchScopePart(params.viewerScope?.serverId)}:${normalizeLaunchScopePart(params.viewerScope?.accountId)}`,
+        `settings:${normalizeLaunchScopePart(params.settingsScope?.serverId)}:${normalizeLaunchScopePart(params.settingsScope?.accountId)}`,
         `path:${normalizeLaunchScopePart(params.selectedPath)}`,
         `profiles:${params.useProfiles ? 'on' : 'off'}`,
         `profile:${normalizeLaunchScopePart(params.selectedProfileId)}`,
@@ -352,6 +357,7 @@ export function useCreateNewSession(params: Readonly<{
         const trimmedEffectiveSelectedPath = effectiveSelectedPath;
         let rollbackActualPath: string | null = null;
         let rollbackServerId: string | null = current.targetServerId ?? null;
+        let rollbackAccountId: string | null = null;
         let confirmedCreatedSessionId: string | null = null;
         let operationReentryRegistration: NewSessionOperationReentryRegistration | null = null;
         let launchDraftCurrentness: SessionDraftCurrentness | null = null;
@@ -397,9 +403,12 @@ export function useCreateNewSession(params: Readonly<{
                 ? targetResolution.targetServerId
                 : snapshot.serverId;
             rollbackServerId = resolvedTargetServerId;
+            const launchStorageState = storage.getState();
             const launchScopeKey = buildNewSessionLaunchScopeKey({
                 machineId: current.selectedMachineId,
                 serverId: resolvedTargetServerId,
+                viewerScope: launchStorageState.profileScope,
+                settingsScope: launchStorageState.settingsScope,
                 selectedPath: trimmedEffectiveSelectedPath,
                 useProfiles: current.useProfiles,
                 selectedProfileId: current.useProfiles ? current.selectedProfileId : null,
@@ -429,6 +438,8 @@ export function useCreateNewSession(params: Readonly<{
                 return buildNewSessionLaunchScopeKey({
                     machineId: latest.selectedMachineId,
                     serverId: latestResolvedTargetServerId,
+                    viewerScope: storage.getState().profileScope,
+                    settingsScope: storage.getState().settingsScope,
                     selectedPath: latestEffectiveSelectedPath,
                     useProfiles: latest.useProfiles,
                     selectedProfileId: latest.useProfiles ? latest.selectedProfileId : null,
@@ -467,6 +478,15 @@ export function useCreateNewSession(params: Readonly<{
             }
 
             const recentTarget = await current.getVerifiedMachinePathTarget?.() ?? null;
+            if (!isLaunchScopeStillActive()
+                || (isRepoNativeWorktreeLaunch && !recentTarget)
+                || (current.getVerifiedMachinePathTarget && (!recentTarget
+                    || recentTarget.machineId !== current.selectedMachineId
+                    || !areServerProfileIdentifiersEquivalent(recentTarget.serverId, resolvedTargetServerId)))) {
+                current.setIsCreating(false);
+                return;
+            }
+            rollbackAccountId = recentTarget?.accountId ?? null;
             const profilesActive = current.useProfiles;
 
             const settingsUpdate: MutableSettingsDelta = {
@@ -839,6 +859,10 @@ export function useCreateNewSession(params: Readonly<{
             let shouldPreserveLaunchAttemptForSpawnRetry = false;
 
             if (shouldSpawnForNewSessionLaunchAttempt(launchAttempt)) {
+                if (!isLaunchScopeStillActive()) {
+                    current.setIsCreating(false);
+                    return;
+                }
                 launchAttempt = markNewSessionLaunchAttemptSpawning(launchAttempt);
                 launchAttemptRef.current = launchAttempt;
 
@@ -846,6 +870,7 @@ export function useCreateNewSession(params: Readonly<{
                     machineId: current.selectedMachineId,
                     selectedPath: effectiveSelectedPath,
                     checkoutCreationDraft: current.checkoutCreationDraft,
+                    scope: recentTarget ? { serverId: recentTarget.serverId, accountId: recentTarget.accountId } : undefined,
                 });
 
                 if (!checkoutResult.success) {
@@ -859,6 +884,10 @@ export function useCreateNewSession(params: Readonly<{
                     return;
                 }
                 actualPath = checkoutResult.path;
+                if (!isLaunchScopeStillActive()) {
+                    current.setIsCreating(false);
+                    return;
+                }
                 const sessionPath = checkoutResult.sessionPath.trim() || trimmedEffectiveSelectedPath;
                 rollbackActualPath = actualPath;
 
@@ -875,6 +904,7 @@ export function useCreateNewSession(params: Readonly<{
                         sourceContext: current.sourceContext ?? null,
                     }),
                     ...spawnSessionExtras,
+                    ...(recentTarget ? { expectedAccountId: recentTarget.accountId } : {}),
                     spawnNonce: launchAttempt.spawnNonce,
                     userAttemptId: launchAttempt.attemptId,
                     firstTurnLocalId: launchAttempt.firstTurnLocalId,
@@ -948,6 +978,7 @@ export function useCreateNewSession(params: Readonly<{
                 if (launchAttempt.spawnTargetFingerprint) {
                     operationCustody = {
                         status: 'completed',
+                        ...(recentTarget ? { scope: { serverId: recentTarget.serverId, accountId: recentTarget.accountId } } : {}),
                         userAttemptId: launchAttempt.attemptId,
                         spawnNonce: launchAttempt.spawnNonce,
                         targetFingerprint: launchAttempt.spawnTargetFingerprint,
@@ -966,6 +997,7 @@ export function useCreateNewSession(params: Readonly<{
                         actualPath,
                         checkoutCreationDraft: current.checkoutCreationDraft,
                         serverId: resolvedTargetServerId,
+                        accountId: rollbackAccountId,
                         machineBash,
                     });
                     return null;
@@ -1333,7 +1365,8 @@ export function useCreateNewSession(params: Readonly<{
                     && readTrackedSpawnCreatedSessionId(persistedPresentedOperation) === createdSessionId
                     ? persistedPresentedOperation
                     : findPresentedSpawnOperation({
-                        accountId: current.draftScope?.accountId,
+                        accountId: (operationCustody?.status === 'completed' ? operationCustody.scope?.accountId : null)
+                            ?? recentTarget?.accountId ?? current.draftScope?.accountId,
                         machineId: current.selectedMachineId,
                         requestId: launchAttempt.spawnNonce,
                         sessionId: createdSessionId,
@@ -1383,7 +1416,10 @@ export function useCreateNewSession(params: Readonly<{
                         },
                     );
                     if (shouldReset) {
-                        await resetMachineSpawnAttemptCustody({ serverId: resolvedTargetServerId });
+                        await resetMachineSpawnAttemptCustody({
+                            serverId: resolvedTargetServerId,
+                            accountId: recentTarget?.accountId,
+                        });
                     }
                     current.setIsCreating(false);
                     return;
@@ -1494,6 +1530,7 @@ export function useCreateNewSession(params: Readonly<{
                         actualPath: rollbackActualPath,
                         checkoutCreationDraft: current.checkoutCreationDraft,
                         serverId: rollbackServerId,
+                        accountId: rollbackAccountId,
                         machineBash,
                     });
                 } catch (rollbackError) {

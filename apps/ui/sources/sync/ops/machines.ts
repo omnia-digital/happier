@@ -41,6 +41,9 @@ import {
 } from '../domains/session/spawn/spawnAttemptNonceStore';
 import { createUiSessionSpawnUserAttemptId } from '../domains/session/spawn/spawnSessionNonce';
 import { storage } from '../domains/state/storage';
+import { areServerAccountScopesEqual } from '../domains/scope/serverAccountScope';
+import { areServerProfileIdentifiersEquivalent } from '../domains/server/serverProfiles';
+import { getActiveServerSnapshot } from '../domains/server/serverRuntime';
 import { readMachineDaemonCliVersionForServerScope } from '../domains/machines/readMachineDaemonCliVersionForServerScope';
 import { isPlainObject, normalizeSpawnSessionResult } from './_shared';
 import { isSocketIoAckTimeoutError } from '@/sync/runtime/socketIoAckTimeout';
@@ -56,6 +59,9 @@ import {
 } from '@/sync/encryption/machineEncryption';
 import { prepareAccountSettingsForDaemonSpawnIfNeeded } from './accountSettingsDaemonSpawnPreparation';
 import { isAccountSettingsScopeChangedDuringSpawnPreparationError } from '@/sync/engine/settings/accountSettingsSpawnPreparationError';
+import { AccountSettingsScopeChangedDuringSpawnPreparationError } from '@/sync/engine/settings/accountSettingsSpawnPreparationError';
+import { isServerScopedSessionContextCurrent, resolveServerScopedSessionContext } from '@/sync/runtime/orchestration/serverScopedRpc/resolveServerScopedSessionContext';
+import { ScopedMachineRpcAccountChangedError } from '@/sync/runtime/orchestration/serverScopedRpc/serverScopedMachineRpc';
 import { delay } from '@/utils/timing/time';
 import { ConnectedServiceAuthSelectionUnsupportedError, machineRpcWithConnectedServiceAuthAdmission, requireMachineConnectedServiceAuthSelection } from './connectedServiceAuthSupport';
 
@@ -73,6 +79,7 @@ export type MachineSpawnSessionResolveStatus =
 export type MachineSpawnAttemptCustody =
     | Readonly<{
         status: 'unresolved';
+        scope?: Readonly<{ serverId: string; accountId: string }>;
         userAttemptId: string;
         spawnNonce: string;
         targetFingerprint: string;
@@ -82,6 +89,7 @@ export type MachineSpawnAttemptCustody =
     }>
     | Readonly<{
         status: 'completed';
+        scope?: Readonly<{ serverId: string; accountId: string }>;
         userAttemptId: string;
         spawnNonce: string;
         targetFingerprint: string;
@@ -200,6 +208,7 @@ export async function machineSpawnNewSession(options: SpawnSessionOptions): Prom
         reused: boolean;
     }> | null = null;
     let spawnSubmitted = false;
+    let spawnActuallyIssued = false;
     let pendingFirstInputTransferred = false;
     // This must survive into the transport-error recovery branch below. The
     // source recipe itself remains in the RPC payload; this flag only prevents
@@ -219,6 +228,7 @@ export async function machineSpawnNewSession(options: SpawnSessionOptions): Prom
         const { machineId } = options;
         const serverId = typeof options.serverId === 'string' ? options.serverId.trim() : null;
         const profileScope = storage.getState().profileScope;
+        const activeServerId = getActiveServerSnapshot().serverId;
         if (!profileScope) {
             return {
                 type: 'error',
@@ -227,19 +237,46 @@ export async function machineSpawnNewSession(options: SpawnSessionOptions): Prom
             };
         }
         const effectiveServerId = serverId || profileScope.serverId;
+        const targetsActiveAccount = areServerProfileIdentifiersEquivalent(effectiveServerId, profileScope.serverId);
+        const targetContext = targetsActiveAccount
+            ? null
+            : await resolveServerScopedSessionContext({ serverId: effectiveServerId, preferScoped: true });
+        if (targetContext?.scope === 'active') {
+            throw new AccountSettingsScopeChangedDuringSpawnPreparationError();
+        }
+        const targetAccountId = targetContext?.targetAccountId ?? profileScope.accountId;
+        if (options.expectedAccountId && options.expectedAccountId !== targetAccountId) {
+            throw new AccountSettingsScopeChangedDuringSpawnPreparationError();
+        }
+        const assertViewerCurrent = () => {
+            if (!areServerAccountScopesEqual(profileScope, storage.getState().profileScope)
+                || !areServerProfileIdentifiersEquivalent(activeServerId, getActiveServerSnapshot().serverId)) {
+                throw new AccountSettingsScopeChangedDuringSpawnPreparationError();
+            }
+        };
+        const assertLaunchScopesCurrent = async () => {
+            assertViewerCurrent();
+            if (targetContext && !await isServerScopedSessionContextCurrent(targetContext)) {
+                throw new AccountSettingsScopeChangedDuringSpawnPreparationError();
+            }
+            assertViewerCurrent();
+        };
+        await assertLaunchScopesCurrent();
         await requireMachineConnectedServiceAuthSelection({
             machineId,
             serverId: effectiveServerId,
-            accountId: profileScope.accountId,
+            accountId: targetAccountId,
             backendTarget: options.backendTarget,
             connectedServices: options.connectedServices,
         });
-        const accountSettingsPreparation = typeof options.accountSettingsVersionHint === 'number'
+        const accountSettingsPreparation = !targetsActiveAccount || typeof options.accountSettingsVersionHint === 'number'
             ? {}
             : await prepareAccountSettingsForDaemonSpawnIfNeeded(options.accountSettingsVersionHint);
+        await assertLaunchScopesCurrent();
         const preparedOptions = {
             ...options,
             ...accountSettingsPreparation,
+            ...(!targetsActiveAccount ? { accountSettingsVersionHint: undefined } : {}),
         };
         const daemonCliVersion = readMachineDaemonCliVersion({
             machineId,
@@ -299,10 +336,11 @@ export async function machineSpawnNewSession(options: SpawnSessionOptions): Prom
             };
         }
         const userAttemptId = normalizeSpawnUserAttemptId(preparedOptions.userAttemptId);
+        await assertLaunchScopesCurrent();
         const acquired = await acquireSpawnAttemptCustody({
             scope: {
                 serverId: effectiveServerId,
-                accountId: profileScope.accountId,
+                accountId: targetAccountId,
             },
             machineId,
             targetFingerprint,
@@ -326,7 +364,7 @@ export async function machineSpawnNewSession(options: SpawnSessionOptions): Prom
         }
         const activeAttempt = acquired;
         custody = {
-            scope: { serverId: effectiveServerId, accountId: profileScope.accountId },
+            scope: { serverId: effectiveServerId, accountId: targetAccountId },
             machineId,
             targetFingerprint,
             record: activeAttempt.record,
@@ -352,6 +390,7 @@ export async function machineSpawnNewSession(options: SpawnSessionOptions): Prom
             const resolved = await machineResolveSpawnSessionByNonceUntilSettled({
                 machineId,
                 serverId,
+                accountId: targetAccountId,
                 spawnNonce: activeAttempt.record.nonce,
             });
             if (resolved.status === 'success') {
@@ -392,19 +431,24 @@ export async function machineSpawnNewSession(options: SpawnSessionOptions): Prom
             daemonCliVersion,
         });
         spawnSubmitted = true;
-        const callSpawnRpc = async (method: string) => (
-            await machineRpcWithConnectedServiceAuthAdmission<CompatibleSpawnHappySessionRpcParams>({
+        const callSpawnRpc = async (method: string) => {
+            await assertLaunchScopesCurrent();
+            return await machineRpcWithConnectedServiceAuthAdmission<CompatibleSpawnHappySessionRpcParams>({
                 machineId,
                 method,
                 payload: params,
                 serverId,
-                accountId: profileScope.accountId,
+                accountId: targetAccountId,
+                onIssued: () => {
+                    assertViewerCurrent();
+                    spawnActuallyIssued = true;
+                },
                 timeoutMs: readSpawnSessionRpcTimeoutMsFromEnv(),
             }, {
                 backendTarget: preparedOptions.backendTarget,
                 connectedServices: preparedOptions.connectedServices,
-            })
-        );
+            });
+        };
         const result = await (async () => {
             try {
                 return await callSpawnRpc(RPC_METHODS.SPAWN_HAPPY_SESSION_PROVIDER_SAFE);
@@ -442,6 +486,7 @@ export async function machineSpawnNewSession(options: SpawnSessionOptions): Prom
             const resolved = await machineResolveSpawnSessionByNonceUntilSettled({
                 machineId,
                 serverId,
+                accountId: targetAccountId,
                 spawnNonce: activeAttempt.record.nonce,
             });
             if (resolved.status === 'success') {
@@ -504,8 +549,8 @@ export async function machineSpawnNewSession(options: SpawnSessionOptions): Prom
             await clearCustody();
             return { type: 'error', errorCode: SPAWN_SESSION_ERROR_CODES.INVALID_REQUEST, errorMessage: error.message };
         }
-        if (isAccountSettingsScopeChangedDuringSpawnPreparationError(error)) {
-            if (!spawnSubmitted) await clearCustody();
+        if (isAccountSettingsScopeChangedDuringSpawnPreparationError(error) || error instanceof ScopedMachineRpcAccountChangedError) {
+            if (!spawnActuallyIssued) await clearCustody();
             return {
                 type: 'error',
                 errorCode: SPAWN_SESSION_ERROR_CODES.ACCOUNT_SCOPE_CHANGED,
@@ -531,6 +576,7 @@ export async function machineSpawnNewSession(options: SpawnSessionOptions): Prom
                 const resolved = await machineResolveSpawnSessionByNonceUntilSettled({
                     machineId: custody.machineId,
                     serverId: custody.serverId,
+                    accountId: custody.scope.accountId,
                     spawnNonce: custody.record.nonce,
                 });
                 if (resolved.status === 'success') {
@@ -593,6 +639,7 @@ function buildSpawnAttemptCustodyIdentity(
     record: PersistedSpawnAttempt,
 ): Extract<MachineSpawnAttemptCustody, { status: 'unresolved' | 'completed' }> {
     const identity = {
+        scope: record.scope,
         userAttemptId: record.userAttemptId,
         spawnNonce: record.nonce,
         targetFingerprint: record.targetFingerprint,
@@ -619,14 +666,15 @@ export async function completeMachineSpawnAttemptCustody(params: Readonly<{
     custody: Extract<MachineSpawnAttemptCustody, { status: 'completed' }>;
 }>): Promise<boolean> {
     const profileScope = storage.getState().profileScope;
-    if (!profileScope) return false;
+    const scope = params.custody.scope ?? (profileScope ? {
+        serverId: typeof params.serverId === 'string' && params.serverId.trim()
+            ? params.serverId.trim()
+            : profileScope.serverId,
+        accountId: profileScope.accountId,
+    } : null);
+    if (!scope) return false;
     return await clearSpawnAttemptCustody({
-        scope: {
-            serverId: typeof params.serverId === 'string' && params.serverId.trim()
-                ? params.serverId.trim()
-                : profileScope.serverId,
-            accountId: profileScope.accountId,
-        },
+        scope,
         machineId: params.machineId,
         targetFingerprint: params.custody.targetFingerprint,
         userAttemptId: params.custody.userAttemptId,
@@ -635,14 +683,19 @@ export async function completeMachineSpawnAttemptCustody(params: Readonly<{
 
 export async function resetMachineSpawnAttemptCustody(params: Readonly<{
     serverId?: string | null;
+    accountId?: string | null;
 }> = {}): Promise<boolean> {
     const profileScope = storage.getState().profileScope;
-    if (!profileScope) return false;
+    const serverId = typeof params.serverId === 'string' && params.serverId.trim()
+        ? params.serverId.trim()
+        : profileScope?.serverId ?? null;
+    const accountId = typeof params.accountId === 'string' && params.accountId.trim()
+        ? params.accountId.trim()
+        : profileScope?.accountId ?? null;
+    if (!serverId || !accountId) return false;
     return await resetUnreadableSpawnAttemptCustody({
-        serverId: typeof params.serverId === 'string' && params.serverId.trim()
-            ? params.serverId.trim()
-            : profileScope.serverId,
-        accountId: profileScope.accountId,
+        serverId,
+        accountId,
     });
 }
 
@@ -735,6 +788,7 @@ function normalizeMachineSpawnSessionResolveStatus(value: unknown): MachineSpawn
 export async function machineResolveSpawnSessionByNonce(options: Readonly<{
     machineId: string;
     serverId?: string | null;
+    accountId?: string | null;
     spawnNonce: string;
     timeoutMs?: number;
 }>): Promise<MachineSpawnSessionResolveStatus> {
@@ -749,6 +803,7 @@ export async function machineResolveSpawnSessionByNonce(options: Readonly<{
             method: RPC_METHODS.DAEMON_SPAWN_SESSION_RESOLVE,
             payload: { spawnNonce },
             serverId: options.serverId ?? null,
+            accountId: options.accountId ?? null,
             timeoutMs: options.timeoutMs,
         });
         return normalizeMachineSpawnSessionResolveStatus(result);
@@ -774,6 +829,7 @@ function normalizeMachineSpawnNonceRecoveryDuration(value: number | undefined, f
 export async function machineResolveSpawnSessionByNonceUntilSettled(options: Readonly<{
     machineId: string;
     serverId?: string | null;
+    accountId?: string | null;
     spawnNonce: string;
     timeoutMs?: number;
     pollIntervalMs?: number;
@@ -871,7 +927,7 @@ export async function machineBash(
     machineId: string,
     command: MachineBashRequest,
     cwd: string,
-    options?: { serverId?: string | null }
+    options?: { serverId?: string | null; accountId?: string | null }
 ): Promise<{
     success: boolean;
     stdout: string;
@@ -894,6 +950,7 @@ export async function machineBash(
             method: 'bash',
             payload,
             serverId: options?.serverId,
+            accountId: options?.accountId,
         });
         return result;
     } catch (error) {

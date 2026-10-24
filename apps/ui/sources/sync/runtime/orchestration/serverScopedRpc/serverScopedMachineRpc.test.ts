@@ -9,6 +9,7 @@ import { encodeBase64 } from '@/encryption/base64';
 const machineRpcSpy = vi.hoisted(() => vi.fn());
 const createEphemeralSocketSpy = vi.hoisted(() => vi.fn());
 const getCredentialsSpy = vi.hoisted(() => vi.fn());
+const credentialChangeListeners = vi.hoisted(() => new Set<() => void>());
 const createEncryptionSpy = vi.hoisted(() => vi.fn());
 const listServerProfilesSpy = vi.hoisted(() => vi.fn());
 const getActiveServerSnapshotSpy = vi.hoisted(() => vi.fn());
@@ -37,6 +38,10 @@ vi.mock('@/sync/api/session/apiSocket', async (importOriginal) => {
 vi.mock('@/auth/storage/tokenStorage', () => ({
     TokenStorage: {
         getCredentialsForServerUrl: (...args: unknown[]) => getCredentialsSpy(...args),
+        subscribeCredentialChanges: (listener: () => void) => {
+            credentialChangeListeners.add(listener);
+            return () => { credentialChangeListeners.delete(listener); };
+        },
     },
 }));
 
@@ -102,6 +107,84 @@ function installScopedFallback(): Readonly<{
 }
 
 describe('machineRpcWithServerScope', () => {
+    it('rejects a changed scoped Account after payload encryption and before socket emission', async () => {
+        const tokenForAccount = (accountId: string) =>
+            `e30.${globalThis.btoa(JSON.stringify({ sub: accountId })).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')}.signature`;
+        const currentCredentials = { token: tokenForAccount('account-a'), secret: 'secret-a' };
+        getCredentialsSpy.mockImplementation(async () => currentCredentials);
+        const scoped = installScopedFallback();
+        getCredentialsSpy.mockImplementation(async () => currentCredentials);
+        scoped.machineEncryption.encodeRpcPayload.mockImplementation(async () => {
+            currentCredentials.token = tokenForAccount('account-b');
+            return 'scoped-encrypted-payload';
+        });
+        getActiveServerSnapshotSpy.mockReturnValue({ serverId: 'server-a', serverUrl: 'https://server-a.example.test', generation: 1 });
+        listServerProfilesSpy.mockReturnValue([{ id: 'server-b', serverUrl: 'https://server-b.example.test' }]);
+        const onIssued = vi.fn();
+
+        const { machineRpcWithServerScope, ScopedMachineRpcAccountChangedError } = await import('./serverScopedMachineRpc');
+        await expect(machineRpcWithServerScope({
+            machineId: 'machine-1', method: 'spawn-happy-session', payload: {},
+            serverId: 'server-b', accountId: 'account-a', onIssued,
+        })).rejects.toBeInstanceOf(ScopedMachineRpcAccountChangedError);
+        expect(onIssued).not.toHaveBeenCalled();
+        expect(scoped.emitWithAck).not.toHaveBeenCalled();
+    });
+
+    it('continues scoped emission when credentials rotate within the same Account', async () => {
+        const tokenForAccount = (nonce: string) =>
+            `e30.${globalThis.btoa(JSON.stringify({ sub: 'account-a', nonce })).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')}.signature`;
+        const currentCredentials = { token: tokenForAccount('first'), secret: 'secret-a' };
+        const scoped = installScopedFallback();
+        getCredentialsSpy.mockImplementation(async () => currentCredentials);
+        scoped.machineEncryption.encodeRpcPayload.mockImplementation(async () => {
+            currentCredentials.token = tokenForAccount('second');
+            return 'scoped-encrypted-payload';
+        });
+        getActiveServerSnapshotSpy.mockReturnValue({ serverId: 'server-a', serverUrl: 'https://server-a.example.test', generation: 1 });
+        listServerProfilesSpy.mockReturnValue([{ id: 'server-b', serverUrl: 'https://server-b.example.test' }]);
+        const onIssued = vi.fn();
+
+        const { machineRpcWithServerScope } = await import('./serverScopedMachineRpc');
+        await expect(machineRpcWithServerScope({
+            machineId: 'machine-1', method: 'spawn-happy-session', payload: {},
+            serverId: 'server-b', accountId: 'account-a', onIssued,
+        })).resolves.toEqual({ decoded: 'scoped' });
+        expect(onIssued).toHaveBeenCalledTimes(1);
+        expect(scoped.emitWithAck).toHaveBeenCalledTimes(1);
+    });
+
+    it('re-reads a stale pre-emission credential result after an Account change event', async () => {
+        const tokenForAccount = (accountId: string) =>
+            `e30.${globalThis.btoa(JSON.stringify({ sub: accountId })).replaceAll('+', '-').replaceAll('/', '_').replaceAll('=', '')}.signature`;
+        const accountA = { token: tokenForAccount('account-a'), secret: 'secret-a' };
+        const accountB = { token: tokenForAccount('account-b'), secret: 'secret-b' };
+        let finishStaleRead!: (credentials: typeof accountA) => void;
+        let readCount = 0;
+        const scoped = installScopedFallback();
+        getCredentialsSpy.mockImplementation(async () => {
+            readCount += 1;
+            if (readCount === 2) return await new Promise<typeof accountA>((resolve) => { finishStaleRead = resolve; });
+            return readCount > 2 ? accountB : accountA;
+        });
+        getActiveServerSnapshotSpy.mockReturnValue({ serverId: 'server-a', serverUrl: 'https://server-a.example.test', generation: 1 });
+        listServerProfilesSpy.mockReturnValue([{ id: 'server-b', serverUrl: 'https://server-b.example.test' }]);
+        const onIssued = vi.fn();
+
+        const { machineRpcWithServerScope, ScopedMachineRpcAccountChangedError } = await import('./serverScopedMachineRpc');
+        const pending = machineRpcWithServerScope({
+            machineId: 'machine-1', method: 'spawn-happy-session', payload: {},
+            serverId: 'server-b', accountId: 'account-a', onIssued,
+        });
+        await vi.waitFor(() => expect(readCount).toBe(2));
+        for (const listener of credentialChangeListeners) listener();
+        finishStaleRead(accountA);
+        await expect(pending).rejects.toBeInstanceOf(ScopedMachineRpcAccountChangedError);
+        expect(readCount).toBe(3);
+        expect(onIssued).not.toHaveBeenCalled();
+        expect(scoped.emitWithAck).not.toHaveBeenCalled();
+    });
+
     it('uses raw JSON for active plain Machine RPC through the real keyless encryption owner', async () => {
         const { Encryption } = await import('@/sync/encryption/encryption');
         const encryption = Encryption.createWithoutKeyMaterial();
@@ -118,6 +201,7 @@ describe('machineRpcWithServerScope', () => {
         machineRpcSpy.mockReset();
         createEphemeralSocketSpy.mockReset();
         getCredentialsSpy.mockReset();
+        credentialChangeListeners.clear();
         createEncryptionSpy.mockReset();
         listServerProfilesSpy.mockReset();
         getActiveServerSnapshotSpy.mockReset();
