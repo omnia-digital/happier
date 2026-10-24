@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createActionExecutor, type ActionExecutorDeps } from './actionExecutor.js';
+import { RpcError } from '../rpcErrors.js';
 
 function createExecutor(overrides: Partial<ActionExecutorDeps> = {}) {
   return createActionExecutor({
@@ -49,6 +50,41 @@ function createExecutor(overrides: Partial<ActionExecutorDeps> = {}) {
 }
 
 describe('createActionExecutor (session control)', () => {
+  it('preserves typed RPC failures from the permission response dependency', async () => {
+    const executor = createExecutor({
+      sessionPermissionRespond: async () => {
+        throw new RpcError('Permission request is no longer pending', 'permission_request_not_found');
+      },
+    });
+
+    await expect(executor.execute(
+      'session.permission.respond' as any,
+      { sessionId: 's1', decision: 'allow', requestId: 'req-1' },
+      { surface: 'voice_tool', defaultSessionId: null },
+    )).resolves.toEqual({
+      ok: false,
+      errorCode: 'permission_request_not_found',
+      error: 'Permission request is no longer pending',
+    });
+  });
+
+  it.each([
+    new Error('ordinary failure'),
+    Object.assign(new Error('untrusted RPC-like failure'), { rpcErrorCode: 'permission_request_not_found' }),
+    { code: 'permission_request_not_found', message: 'untrusted code carrier' },
+    { rpcErrorCode: 'permission_request_not_found', message: 'untrusted RPC carrier' },
+  ])('keeps untyped dependency failures generic', async (rejection) => {
+    const executor = createExecutor({
+      sessionPermissionRespond: async () => { throw rejection; },
+    });
+
+    await expect(executor.execute(
+      'session.permission.respond' as any,
+      { sessionId: 's1', decision: 'allow', requestId: 'req-1' },
+      { surface: 'voice_tool', defaultSessionId: null },
+    )).resolves.toMatchObject({ ok: false, errorCode: 'action_failed' });
+  });
+
   it('executes session.message.send via deps.sessionSendMessage (including optional overrides)', async () => {
     const sessionSendMessage = vi.fn(async () => ({ ok: true }));
     const executor = createExecutor({ sessionSendMessage });
