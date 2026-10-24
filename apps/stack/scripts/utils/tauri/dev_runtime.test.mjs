@@ -25,6 +25,31 @@ test('stack desktop dev and bundled builds consume the same dev artwork and macO
   assert.match(plist, /<key>CFBundleDisplayName<\/key>\s*<string>\(Dev\) Omnia - Happier<\/string>/);
 });
 
+test('an explicit production bundle keeps stable Tauri assets and isolated stack identity', async () => {
+  const baseConfig = JSON.parse(await readFile(new URL('../../../../ui/src-tauri/tauri.conf.json', import.meta.url), 'utf8'));
+  const overlayConfig = JSON.parse(await readFile(new URL('../../../../ui/src-tauri/tauri.publicdev.conf.json', import.meta.url), 'utf8'));
+  const config = buildStackTauriBundleConfig({
+    baseConfig,
+    overlayConfig,
+    variant: 'production',
+    frontendDist: '../dist',
+    env: {
+      HAPPIER_STACK_STACK: 'omnia-production-desktop',
+      HAPPIER_STACK_TAURI_IDENTIFIER: 'com.omnia.happier.production',
+      HAPPIER_STACK_TAURI_PRODUCT_NAME: 'Omnia Happier',
+    },
+  });
+
+  assert.equal(config.identifier, 'com.omnia.happier.production');
+  assert.equal(config.productName, 'Omnia Happier');
+  assert.equal(config.app.windows[0].title, 'Omnia Happier');
+  assert.equal(config.mainBinaryName, baseConfig.mainBinaryName);
+  assert.equal(config.bundle.macOS.infoPlist, undefined);
+  assert.deepEqual(config.bundle.icon, baseConfig.bundle.icon);
+  assert.deepEqual(config.plugins['deep-link'], baseConfig.plugins['deep-link']);
+  assert.deepEqual(config.plugins.updater, baseConfig.plugins.updater);
+});
+
 test('resolveStackTauriDevUrl prefers the stack expo web port', () => {
   assert.equal(
     resolveStackTauriDevUrl({
