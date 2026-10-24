@@ -6189,6 +6189,16 @@ export const en = {
         },
     },
     sessionsList: {
+        statusOrganization: {
+            groupTitle: 'Group by',
+            agentGroup: 'Group by Agent Status',
+            ticketGroup: 'Group by Ticket Status',
+            agentSort: 'Sort by Agent Status',
+            ticketSort: 'Sort by Ticket Status',
+            restoreGrouping: 'Use saved layout',
+            description: 'Replaces machine and repository groups. Pinned stays separate; folders contain their own status groups. Saved layout and manual order are kept.',
+            noTicket: 'No ticket',
+        },
         serverHeader: ({ server }: { server: string }) => `Server: ${server}`,
         storagePersistedTab: 'Happier',
         storageDirectTab: 'Direct',
