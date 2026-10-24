@@ -493,6 +493,7 @@ describe('useNewSessionScreenModel (draft hydration — core)', () => {
     });
 
     it('hydrates scoped worktree intent on first render when the target server is already resolved', async () => {
+        activeServerAccountScopeState.value = { serverId: 'server-b', accountId: 'account-b' };
         targetServerState.allowedTargetServerIds = ['server-a', 'server-b'];
         targetServerState.targetServerId = 'server-b';
         targetServerState.targetServerName = 'Server B';

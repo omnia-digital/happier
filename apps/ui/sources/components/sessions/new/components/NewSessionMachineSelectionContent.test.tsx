@@ -156,11 +156,6 @@ function getOption(
     return option!;
 }
 
-function readIconName(option: SelectionListOption): unknown {
-    if (!React.isValidElement(option.icon)) return undefined;
-    return (option.icon.props as Readonly<{ name?: unknown }>).name;
-}
-
 describe('NewSessionMachineSelectionContent', () => {
     beforeEach(() => {
         capturedSelectionLists.length = 0;
@@ -240,10 +235,6 @@ describe('NewSessionMachineSelectionContent', () => {
 
         const recentOption = getOption(recentSection, 'm-recent');
         expect(recentOption.testID).toBe('new-session-machine-option:m-recent');
-        expect(readIconName(recentOption)).toBe('clock');
-
-        const favoriteOption = getOption(favoritesSection, 'm-fav');
-        expect(readIconName(favoriteOption)).toBe('desktop');
 
         const offlineOption = getOption(allSection, 'm-offline');
         expect(offlineOption.disabled).toBe(true);

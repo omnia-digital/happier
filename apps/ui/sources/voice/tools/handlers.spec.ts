@@ -26,6 +26,7 @@ const teleportVoiceAgentToSessionRoot = vi.fn();
 
 function createBaseState(): any {
   return {
+    profileScope: { serverId: 'server-a', accountId: 'account-a' },
     sessions: {
       s1: {
         id: 's1',
@@ -183,6 +184,11 @@ function createBaseState(): any {
         { machineId: 'm1', path: '/tmp/s1' },
         { machineId: 'm1', path: '/tmp/s2' },
       ],
+      machinePathPreferencesByTargetV1: {
+        [JSON.stringify(['server-a', 'account-a', 'm1'])]: {
+          favorites: [], recentPaths: ['/tmp/s1', '/tmp/s2'],
+        },
+      },
     },
   };
 }
@@ -435,6 +441,11 @@ describe('voice tool handlers', () => {
       { machineId: 'm1', path: '/Users/leeroy/workspaces/apps/leeroy' },
       { machineId: 'm1', path: '/Users/leeroy/workspaces/docs/leeroy' },
     ];
+    state.settings.machinePathPreferencesByTargetV1 = {
+      [JSON.stringify(['server-a', 'account-a', 'm1'])]: {
+        favorites: [], recentPaths: ['/Users/leeroy/workspaces/apps/leeroy', '/Users/leeroy/workspaces/docs/leeroy'],
+      },
+    };
     state.sessions = {
       ...state.sessions,
       s3: {
@@ -474,6 +485,10 @@ describe('voice tool handlers', () => {
       { machineId: 'm1', path: '/Users/leeroy' },
       { machineId: 'm1_alias', path: '/Users/leeroy' },
     ];
+    state.settings.machinePathPreferencesByTargetV1 = {
+      [JSON.stringify(['server-a', 'account-a', 'm1'])]: { favorites: [], recentPaths: ['/Users/leeroy'] },
+      [JSON.stringify(['server-a', 'account-a', 'm1_alias'])]: { favorites: [], recentPaths: ['/Users/leeroy'] },
+    };
     state.machines = {
       ...state.machines,
       m1_alias: { id: 'm1_alias', metadata: { host: 'a-host' } },

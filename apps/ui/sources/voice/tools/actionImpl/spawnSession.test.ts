@@ -7,6 +7,7 @@ const state: any = {
     sessions: {},
     machines: {},
     settings: {},
+    profileScope: { serverId: 'server-a', accountId: 'account-a' },
 };
 
 vi.mock('@/sync/domains/state/storage', () => ({
@@ -30,8 +31,10 @@ vi.mock('./spawnSessionPostProcess', () => ({
 }));
 
 describe('spawnSessionForVoiceTool', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
         vi.resetModules();
+        const { registerStorageStateReader } = await import('@/sync/domains/state/storageStateReaderBridge');
+        registerStorageStateReader(() => state);
         machineSpawnNewSessionMock.mockReset();
         machineSpawnNewSessionMock.mockResolvedValue({ type: 'success', sessionId: 'voice-session' });
         useVoiceTargetStore.setState({
@@ -77,7 +80,11 @@ describe('spawnSessionForVoiceTool', () => {
                 metadata: { host: 'mac', displayName: 'Mac', homeDir: '/Users/test' },
             },
         };
-        state.settings.recentMachinePaths = [{ machineId: 'machine-old', path: '/Users/test/repo' }];
+        state.settings.machinePathPreferencesByTargetV1 = {
+            [JSON.stringify(['server-a', 'account-a', 'machine-old'])]: {
+                favorites: [], recentPaths: ['/Users/test/repo'],
+            },
+        };
 
         await spawnSessionForVoiceTool({});
 

@@ -185,7 +185,7 @@ async function setupUseCreateNewSessionHarness() {
     vi.doMock('@/sync/domains/state/storage', () => ({
         storage: {
             getState: () => ({
-                settings: {},
+                settings: { machinePathPreferencesByTargetV1: {} },
                 machines: { m1: { id: 'm1' } },
                 sessions,
                 updateSessionPermissionMode: vi.fn(),
@@ -1233,6 +1233,7 @@ describe('useCreateNewSession permission seeding', () => {
                     displayName: 'feature/scope-fix',
                     baseRef: 'main',
                 },
+                getVerifiedMachinePathTarget: async () => ({ serverId: 'server-b', accountId: 'account-b', machineId: 'm1' }),
                 setIsCreating: vi.fn(),
                 setIsResumeSupportChecking: vi.fn(),
                 settings,
@@ -1317,6 +1318,7 @@ describe('useCreateNewSession permission seeding', () => {
                     displayName: 'feature/scope-fix',
                     baseRef: 'main',
                 },
+                getVerifiedMachinePathTarget: async () => ({ serverId: 'server-b', accountId: 'account-b', machineId: 'm1' }),
                 setIsCreating: vi.fn(),
                 setIsResumeSupportChecking: vi.fn(),
                 settings,
@@ -1583,6 +1585,7 @@ describe('useCreateNewSession permission seeding', () => {
                     displayName: 'feature/auth',
                     baseRef: 'main',
                 },
+                getVerifiedMachinePathTarget: async () => ({ serverId: 'server-a', accountId: 'account-a', machineId: 'm1' }),
                 settings,
                 useProfiles: false,
                 selectedProfileId: null,

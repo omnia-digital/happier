@@ -18,6 +18,7 @@ type SpawnPayloadCapture = {
 
 const applySettingsMock = vi.hoisted(() => vi.fn());
 const prepareAccountSettingsForDaemonSpawnMock = vi.hoisted(() => vi.fn(async () => ({})));
+let pathPreferencesState: Record<string, { favorites: string[]; recentPaths: string[] }> = {};
 
 async function setupHarness() {
     const captured: { value: SpawnPayloadCapture } = { value: null };
@@ -44,7 +45,7 @@ async function setupHarness() {
             return createStorageModuleStub({
                 storage: {
                     getState: () => ({
-                        settings: {},
+                        settings: { machinePathPreferencesByTargetV1: pathPreferencesState },
                         machines: { m1: { id: 'm1' } },
                         updateSessionPermissionMode: vi.fn(),
                         updateSessionModelMode: vi.fn(),
@@ -221,6 +222,7 @@ describe('useCreateNewSession configured ACP backend spawning', () => {
     beforeEach(() => {
         vi.resetModules();
         applySettingsMock.mockReset();
+        pathPreferencesState = {};
         prepareAccountSettingsForDaemonSpawnMock.mockReset();
         prepareAccountSettingsForDaemonSpawnMock.mockResolvedValue({});
     });
@@ -248,6 +250,7 @@ describe('useCreateNewSession configured ACP backend spawning', () => {
         launchIntentSignature: 'test-launch-intent',
                 router: { push: vi.fn(), replace: vi.fn() },
                 selectedMachineId: 'm1',
+                getVerifiedMachinePathTarget: async () => ({ serverId: 'server-a', accountId: 'account-a', machineId: 'm1' }),
                 selectedPath: '/tmp',
                 selectedMachine: { metadata: {} },
                 setIsCreating: vi.fn(),
@@ -288,7 +291,9 @@ describe('useCreateNewSession configured ACP backend spawning', () => {
 
         expect(captured.value).not.toBeNull();
         expect(applySettingsMock).toHaveBeenCalledWith({
-            recentMachinePaths: [{ machineId: 'm1', path: '/tmp' }],
+            machinePathPreferencesByTargetV1: {
+                [JSON.stringify(['server-a', 'account-a', 'm1'])]: { favorites: [], recentPaths: ['/tmp'] },
+            },
             lastUsedAgent: 'customAcp',
             lastUsedBackendTarget: { kind: 'configuredAcpBackend', backendId: 'custom-kiro-preset' },
         });
@@ -424,6 +429,10 @@ describe('useCreateNewSession configured ACP backend spawning', () => {
     });
 
     it('moves the launched machine path to the front without dropping other paths for the same machine', async () => {
+        pathPreferencesState = {
+            [JSON.stringify(['server-a', 'account-a', 'm1'])]: { favorites: [], recentPaths: ['/old/a', '/tmp'] },
+            [JSON.stringify(['server-a', 'account-a', 'm2'])]: { favorites: [], recentPaths: ['/other'] },
+        };
         const { useCreateNewSession } = await setupHarness();
 
         let handleCreateSession: null | (() => Promise<void>) = null;
@@ -442,6 +451,7 @@ describe('useCreateNewSession configured ACP backend spawning', () => {
         launchIntentSignature: 'test-launch-intent',
                 router: { push: vi.fn(), replace: vi.fn() },
                 selectedMachineId: 'm1',
+                getVerifiedMachinePathTarget: async () => ({ serverId: 'server-a', accountId: 'account-a', machineId: 'm1' }),
                 selectedPath: '/tmp',
                 selectedMachine: { metadata: {} },
                 setIsCreating: vi.fn(),
@@ -485,11 +495,10 @@ describe('useCreateNewSession configured ACP backend spawning', () => {
         await handleCreateSession!();
 
         expect(applySettingsMock).toHaveBeenCalledWith({
-            recentMachinePaths: [
-                { machineId: 'm1', path: '/tmp' },
-                { machineId: 'm1', path: '/old/a' },
-                { machineId: 'm2', path: '/other' },
-            ],
+            machinePathPreferencesByTargetV1: {
+                [JSON.stringify(['server-a', 'account-a', 'm1'])]: { favorites: [], recentPaths: ['/tmp', '/old/a'] },
+                [JSON.stringify(['server-a', 'account-a', 'm2'])]: { favorites: [], recentPaths: ['/other'] },
+            },
             lastUsedAgent: 'customAcp',
             lastUsedBackendTarget: { kind: 'configuredAcpBackend', backendId: 'custom-kiro-preset' },
         });

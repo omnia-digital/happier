@@ -22,7 +22,7 @@ installVoicePickerCommonModuleMocks({
             useAllMachines: () => machinesState,
             useSessions: () => [],
             useActiveServerAccountScope: () => ({ serverId: 'home-a', accountId: 'viewer' }),
-            storage: { getState: () => ({ settings: {
+            storage: { getState: () => ({ settingsScope: { serverId: 'home-a', accountId: 'viewer' }, settings: {
                 machinePathPreferencesByTargetV1: scopedPathPreferencesState,
                 favoriteDirectories: favoriteDirectoriesState,
             } }) },

@@ -25,7 +25,7 @@ const installPathMocks = () => installMcpServersCommonModuleMocks({
       useAllMachines: () => [],
       useActiveServerAccountScope: () => ({ serverId: 'home-a', accountId: 'viewer' }),
       useSetting: (key: string) => key === 'favoriteDirectories' ? pathSettings.legacy : pathSettings.preferences,
-      storage: { getState: () => ({ settings: {
+      storage: { getState: () => ({ settingsScope: { serverId: 'home-a', accountId: 'viewer' }, settings: {
         machinePathPreferencesByTargetV1: pathSettings.preferences,
         favoriteDirectories: pathSettings.legacy,
       } }) },
