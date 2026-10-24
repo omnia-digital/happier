@@ -273,11 +273,11 @@ const SessionListRowModelBoundaryContent = React.memo(function SessionListRowMod
     useSessionListRuntimeWake(rowModel.nextRuntimeFreshnessAtMs, props.dataActive);
 
     const sessionKey = rowModel.rowKey || null;
-    const rowAttentionAnimationEnabled = props.rowStoreSubscriptionMode === 'all-rendered'
+    const rowViewable = props.rowStoreSubscriptionMode === 'all-rendered'
         || props.viewableSessionRowKeys === null
         || sessionKey === null
-        || props.viewableSessionRowKeys.has(sessionKey)
-        || props.prioritySessionRowKeys.has(sessionKey);
+        || props.viewableSessionRowKeys.has(sessionKey);
+    const rowAttentionAnimationEnabled = rowViewable || (sessionKey !== null && props.prioritySessionRowKeys.has(sessionKey));
     const supportsPin = Boolean(sessionKey);
     const onTogglePinned = supportsPin && sessionKey
         ? props.getRowTogglePinnedHandler(sessionKey)
@@ -357,6 +357,7 @@ const SessionListRowModelBoundaryContent = React.memo(function SessionListRowMod
             compact={rowModel.compact}
             compactMinimal={rowModel.compactMinimal}
             rowAttentionAnimationEnabled={rowAttentionAnimationEnabled}
+            ticketStatusDemandEnabled={props.dataActive && rowViewable}
             {...(isIos && sessionKey != null && props.dragEnabled
                 ? {
                     nativeInlineDragEnabled: true,

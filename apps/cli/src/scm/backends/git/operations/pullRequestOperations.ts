@@ -1,7 +1,12 @@
 import {
     SCM_OPERATION_ERROR_CODES,
+    SessionPullRequestLinkV1Schema,
+    sessionPullRequestLinkFromSummary,
+    sessionPullRequestLinkFromUrl,
+    sessionPullRequestLinkKey,
     type ScmPullRequestGetRequest,
     type ScmPullRequestGetResponse,
+    type ScmPullRequestSummary,
     type ScmPullRequestCheckoutRequest,
     type ScmPullRequestCheckoutResponse,
     type ScmPullRequestListRequest,
@@ -249,10 +254,45 @@ export function createGitPullRequestBackend(deps: GitPullRequestOperationDeps = 
         request: ScmPullRequestGetRequest;
     }): Promise<ScmPullRequestGetResponse> {
         const snapshot = await readSnapshot(input.context);
-        const provider = snapshot?.hostingProvider ?? null;
-        if (!provider) return providerUnavailableResponse<ScmPullRequestGetResponse & { success: false }>();
+        const currentProvider = snapshot?.hostingProvider ?? null;
+        if (!currentProvider) return providerUnavailableResponse<ScmPullRequestGetResponse & { success: false }>();
+
+        const linkedIdentity = input.request.linkedIdentity;
+        const invalidLinkedIdentity = (): ScmPullRequestGetResponse => ({
+            success: false,
+            errorCode: SCM_OPERATION_ERROR_CODES.INVALID_REQUEST,
+            error: 'Linked pull request identity is unsupported or does not match the requested reference.',
+        });
+        if (linkedIdentity && !SessionPullRequestLinkV1Schema.safeParse(linkedIdentity).success) return invalidLinkedIdentity();
+        // Custom hosts are usable only when this checkout identifies the same configured provider host.
+        const isPublicHost = linkedIdentity?.providerBaseUrl === 'https://github.com'
+            || linkedIdentity?.providerBaseUrl === 'https://gitlab.com';
+        if (linkedIdentity && !isPublicHost && (
+            linkedIdentity.providerKind !== currentProvider.kind
+            || linkedIdentity.providerBaseUrl !== currentProvider.baseUrl
+        )) return invalidLinkedIdentity();
+        const provider = linkedIdentity ? {
+            kind: linkedIdentity.providerKind,
+            name: linkedIdentity.providerKind === 'github' ? 'GitHub' : 'GitLab',
+            baseUrl: linkedIdentity.providerBaseUrl,
+            nameWithOwner: linkedIdentity.repository,
+            remoteName: null,
+        } as const : currentProvider;
+        const validateResult = (pullRequest: ScmPullRequestSummary | null): ScmPullRequestGetResponse => {
+            if (!linkedIdentity || !pullRequest) return { success: true, pullRequest };
+            const returnedIdentity = sessionPullRequestLinkFromSummary(pullRequest);
+            if (!returnedIdentity || sessionPullRequestLinkKey(returnedIdentity) !== sessionPullRequestLinkKey(linkedIdentity)) {
+                return {
+                    success: false,
+                    errorCode: SCM_OPERATION_ERROR_CODES.COMMAND_FAILED,
+                    error: 'Provider returned a pull request with a different repository identity.',
+                };
+            }
+            return { success: true, pullRequest };
+        };
 
         const referenceHead = resolvePullRequestReferenceHead(input.request.prReference);
+        if (linkedIdentity && referenceHead) return invalidLinkedIdentity();
         if (referenceHead) {
             const response = await list({
                 context: input.context,
@@ -270,6 +310,17 @@ export function createGitPullRequestBackend(deps: GitPullRequestOperationDeps = 
         }
 
         const referenceNumber = resolvePullRequestReferenceNumber(input.request.prReference);
+        const linkedReferenceUrl = linkedIdentity && 'url' in input.request.prReference
+            ? sessionPullRequestLinkFromUrl(input.request.prReference.url, {
+                kind: linkedIdentity.providerKind,
+                baseUrl: linkedIdentity.providerBaseUrl,
+            })
+            : null;
+        if (linkedIdentity && (referenceNumber !== linkedIdentity.number
+            || ('url' in input.request.prReference
+                && (!linkedReferenceUrl || sessionPullRequestLinkKey(linkedReferenceUrl) !== sessionPullRequestLinkKey(linkedIdentity))))) {
+            return invalidLinkedIdentity();
+        }
         if (provider.kind === 'github' && referenceNumber != null) {
             let restFailure: RestPullRequestFailure | null = null;
             const githubConnectedAccountAuth = await resolveGithubConnectedAccountAuth({
@@ -284,10 +335,7 @@ export function createGitPullRequestBackend(deps: GitPullRequestOperationDeps = 
                         token: githubConnectedAccountAuth.token,
                         number: referenceNumber,
                     });
-                    return {
-                        success: true,
-                        pullRequest,
-                    };
+                    return validateResult(pullRequest);
                 } catch (error) {
                     restFailure = toRestFailure(error, 'GitHub REST pull request lookup failed.');
                 }
@@ -299,10 +347,7 @@ export function createGitPullRequestBackend(deps: GitPullRequestOperationDeps = 
                         provider,
                         number: referenceNumber,
                     });
-                    return {
-                        success: true,
-                        pullRequest,
-                    };
+                    return validateResult(pullRequest);
                 } catch (error) {
                     return {
                         success: false,
@@ -328,10 +373,7 @@ export function createGitPullRequestBackend(deps: GitPullRequestOperationDeps = 
                         provider,
                         number: referenceNumber,
                     });
-                    return {
-                        success: true,
-                        pullRequest,
-                    };
+                    return validateResult(pullRequest);
                 } catch (error) {
                     return {
                         success: false,

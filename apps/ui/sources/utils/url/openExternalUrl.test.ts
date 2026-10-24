@@ -24,6 +24,13 @@ vi.mock('react-native', async () => {
 });
 
 describe('openExternalUrl', () => {
+  it('allows only exact supported Linear issue app links', async () => {
+    const { openExternalUrl } = await import('./openExternalUrl');
+    await expect(openExternalUrl('linear://linear.app/team/issue/ENG-123/title')).resolves.toBe(true);
+    for (const url of ['linear://https://linear.app/team/issue/ENG-123', 'linear://evil.test/team/issue/ENG-123', 'linear://linear.app/settings', 'linear://linear.app/team/issue/ENG-123?redirect=evil']) {
+      await expect(openExternalUrl(url)).resolves.toBe(false);
+    }
+  });
   it('opens web links with the system browser on Tauri desktop', async () => {
     tauriState.isDesktop = true;
     tauriInvokeSpy.mockClear();

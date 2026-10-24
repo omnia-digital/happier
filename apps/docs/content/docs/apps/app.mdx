@@ -88,6 +88,50 @@ the selected session and machine identity keep their separate indicators. These
 status and appearance changes have isolated browser coverage; native visual and
 restart acceptance is still pending.
 
+## Session ticket links
+
+The unreleased Omnia development fork can link a session to a Linear, ClickUp or
+Jira Cloud ticket. It needs an authorized configured MCP connection on a machine
+running the separate [opt-in ticket reader](/extending/mcp-servers#ticket-reader-in-the-omnia-development-fork).
+Updating the app alone does not add this capability to older CLIs.
+
+Choose **Link ticket** in the session header, read and verify the ticket through
+the selected connection, then confirm the link. The header shows its identity,
+title and actual provider workflow status; the sidebar shows the same status,
+including in Pinned. This is separate from whether the agent is working or idle.
+Use **Refresh ticket status** to check again and **Change ticket** to change or
+remove the association. These actions do not edit the provider ticket.
+
+The ticket link attempts the supported Linear app link; **Open ticket in browser**
+always uses its canonical web destination. Other supported providers use their
+canonical web links. Truncated titles retain the full accessible identity.
+Stale and unavailable states are explicit when the reader or connection cannot
+verify current status. Native app receipt and real provider acceptance remain
+pending; isolated browser coverage is not a packaged-release announcement.
+
+## Machine monitoring
+
+The unreleased Omnia development fork adds a collapsible **Machines** section to
+the session sidebar. It shows machines in the current relay account independently
+of the selected session, using their chosen names, icons and colors. Each machine
+needs a connected fork CLI that provides host metrics; updating the app alone does
+not add telemetry to older CLIs.
+
+Expand a machine to see metric definitions, sample time, GPU device identities and
+the measured storage volume. CPU is overall utilization across logical cores;
+memory and storage show capacity used. Storage measures space occupied, not disk
+I/O activity. Load average shows the 1-, 5- and 15-minute values where supported;
+Windows reports it unavailable. GPU utilization appears per device when a supported
+host interface exposes it. Some Macs expose a device percentage through their GPU
+driver; absent or invalid statistics remain unavailable.
+
+Readings refresh every three minutes while the section is expanded and the app is
+visible and active. Collapsing it pauses its polling. Offline machines retain their
+last reading with a stale label; missing measurements appear as a dash instead of
+zero. Reconnect the machine to resume reads. Isolated browser and actual local Mac
+collection checks cover this development path; native and second-host acceptance
+remain pending.
+
 ## Notifications
 
 Happier supports push notifications for:

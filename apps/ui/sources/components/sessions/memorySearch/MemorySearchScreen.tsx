@@ -8,20 +8,17 @@ import { useNavigateToSession } from '@/hooks/session/useNavigateToSession';
 import { useAllMachines } from '@/sync/domains/state/storage';
 import { useAllSessions } from '@/sync/store/hooks';
 import { getActiveServerSnapshot } from '@/sync/domains/server/serverRuntime';
-import { fetchDaemonMemoryStatus } from '@/sync/domains/memory/fetchDaemonMemoryStatus';
 import { getDaemonMemoryStatusStateTranslationKey } from '@/sync/domains/memory/getDaemonMemoryStatusStateTranslationKey';
-import { isDaemonMemorySearchUsable } from '@/sync/domains/memory/isDaemonMemorySearchUsable';
 import { presentDaemonMemoryStatus } from '@/sync/domains/memory/presentDaemonMemoryStatus';
-import { searchDaemonMemory } from '@/sync/domains/memory/searchDaemonMemory';
 import { useFeatureEnabled } from '@/hooks/server/useFeatureEnabled';
 import { DropdownMenu } from '@/components/ui/forms/dropdown/DropdownMenu';
 
-import { type MemorySearchHitV1, type MemoryStatusV1 } from '@happier-dev/protocol';
 import { Text, TextInput } from '@/components/ui/text/Text';
 import { t } from '@/text';
 import { getSessionName } from '@/utils/sessions/sessionUtils';
 
 import { groupMemorySearchHitsBySession } from './groupMemorySearchHitsBySession';
+import { useMemorySearchOnMachine } from './useMemorySearchOnMachine';
 
 
 export const MemorySearchScreen = React.memo(function MemorySearchScreen() {
@@ -36,12 +33,11 @@ export const MemorySearchScreen = React.memo(function MemorySearchScreen() {
 
     const [machineId, setMachineId] = React.useState<string>(() => machines[0]?.id ?? '');
     const [query, setQuery] = React.useState('');
-    const [status, setStatus] = React.useState<'idle' | 'loading' | 'error' | 'ready'>('idle');
-    const [hits, setHits] = React.useState<ReadonlyArray<MemorySearchHitV1>>([]);
-    const [errorCode, setErrorCode] = React.useState<string | null>(null);
-    const [memoryStatus, setMemoryStatus] = React.useState<MemoryStatusV1 | null>(null);
-    const [memoryStatusLoading, setMemoryStatusLoading] = React.useState(false);
     const [machineMenuOpen, setMachineMenuOpen] = React.useState(false);
+    const {
+        memoryStatus, memoryStatusLoading, memorySearchUsable,
+        runState: status, hits, errorCode, runSearch,
+    } = useMemorySearchOnMachine({ enabled: memorySearchEnabled, serverId, machineId });
 
     React.useEffect(() => {
         if (!machines.find((m) => m.id === machineId)) {
@@ -71,32 +67,7 @@ export const MemorySearchScreen = React.memo(function MemorySearchScreen() {
         return map;
     }, [allSessions]);
 
-    React.useEffect(() => {
-        if (!memorySearchEnabled || !serverId || !machineId) {
-            setMemoryStatus(null);
-            setMemoryStatusLoading(false);
-            return;
-        }
-        let cancelled = false;
-        setMemoryStatus(null);
-        setMemoryStatusLoading(true);
-        void fetchDaemonMemoryStatus({ serverId, machineId })
-            .then((next) => {
-                if (!cancelled) setMemoryStatus(next);
-            })
-            .catch(() => {
-                if (!cancelled) setMemoryStatus(null);
-            })
-            .finally(() => {
-                if (!cancelled) setMemoryStatusLoading(false);
-            });
-        return () => {
-            cancelled = true;
-        };
-    }, [machineId, memorySearchEnabled, serverId]);
-
     const statusPresentation = React.useMemo(() => presentDaemonMemoryStatus(memoryStatus), [memoryStatus]);
-    const memorySearchUsable = React.useMemo(() => isDaemonMemorySearchUsable(memoryStatus), [memoryStatus]);
     const showEnableCta =
         memoryStatusLoading !== true
         && ((status === 'error' && errorCode === 'memory_disabled') || (memoryStatus?.enabled === false));
@@ -108,36 +79,6 @@ export const MemorySearchScreen = React.memo(function MemorySearchScreen() {
         hits,
         sessionLabelById,
     }), [hits, sessionLabelById]);
-
-    const runSearch = React.useCallback(async () => {
-        if (!memorySearchEnabled) return;
-        const q = query.trim();
-        if (!q || !serverId || !machineId || !memorySearchUsable) return;
-        setStatus('loading');
-        setErrorCode(null);
-        try {
-            const parsed = await searchDaemonMemory({
-                machineId,
-                serverId,
-                query: q,
-                scope: { type: 'global' },
-                mode: 'auto',
-                maxResults: 20,
-            });
-            if (parsed.ok) {
-                setHits(parsed.hits);
-                setStatus('ready');
-                return;
-            }
-            setErrorCode(typeof parsed.errorCode === 'string' ? parsed.errorCode : null);
-            setHits([]);
-            setStatus('error');
-        } catch {
-            setErrorCode(null);
-            setHits([]);
-            setStatus('error');
-        }
-    }, [machineId, memorySearchEnabled, memorySearchUsable, query, serverId]);
 
     if (!memorySearchEnabled) {
         return (
@@ -171,9 +112,6 @@ export const MemorySearchScreen = React.memo(function MemorySearchScreen() {
                 search={true}
                 onSelect={(nextId) => {
                     setMachineId(nextId);
-                    setHits([]);
-                    setStatus('idle');
-                    setErrorCode(null);
                     setMachineMenuOpen(false);
                 }}
                 itemTrigger={{
@@ -206,7 +144,7 @@ export const MemorySearchScreen = React.memo(function MemorySearchScreen() {
                     testID="memory-search-submit"
                     disabled={!memorySearchUsable}
                     accessibilityState={{ disabled: !memorySearchUsable }}
-                    onPress={() => { void runSearch(); }}
+                    onPress={() => { void runSearch(query); }}
                     style={{
                         paddingHorizontal: 12,
                         paddingVertical: 10,

@@ -198,10 +198,37 @@ it. `hstack stack install` is not the hosted-relay installation path: it also
 configures local runtime services and a loopback relay.
 
 The separate application identifier keeps local account storage distinct, so
-connect the existing hosted account in the new app. Both stable apps currently
+connect the existing hosted account in the new app. The earlier **Happier Omnia
+Production** bundle and the renamed **Omnia Happier** bundle intentionally share
+`com.omnia.happier.production` to preserve that storage. They are successive
+versions of one app. Quit the earlier bundle before opening its replacement;
+the single-instance owner otherwise forwards the launch to the running old
+process and exits normally. Both stable apps currently
 declare `happier://`; launch this bundle by its full path. After the first launch,
 the observed default handler remained `/Applications/Happier.app`. Verify the
 intended handler before relying on external login/deep links in the fork app.
+
+## Latest development integration
+
+The follow-up desktop integration includes committed product work through
+`e658d2b024`: indexed palette content search, ticket linking/status, machine
+monitoring, independent status grouping/sorting, and session PR links. The
+source is assembled in a temporary worktree owned by `happier-dev` and reaches
+`dev` through its pull request. Uncommitted work in the old checkout is not part
+of this build. Follow-up product corrections `e48cf42d9b`, `f8b50926ef`,
+and `9ce7947ee6` are included for offscreen metadata demand, GitHub PR identity
+casing, and Home ownership/demand lifetime. The isolated Chrome status workflow
+now passes grouping, sorting, live active/idle changes, provider refresh, keyboard
+navigation, reload persistence, and compact layout. Native installation and
+protected production promotion remain separate acceptance steps.
+
+OH-5 commits `85bef2bda8` and `f4c093c9cd` remain deferred. Their unfinished
+signing/feed admission changes reject the unsigned preparation used by the
+existing nightly promotion workflow. This integration reverses those two
+commits while preserving their original branch and the product features.
+When OH-5 is complete, explicitly reintroduce the reviewed changes; ancestry
+alone will not reapply reverted commits. The current nightly continues to
+promote source after CI and unsigned native builds, with app updates disabled.
 
 ## Nightly promotion
 

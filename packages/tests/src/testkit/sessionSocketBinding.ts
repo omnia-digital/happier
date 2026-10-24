@@ -10,6 +10,7 @@ async function ensureSessionScopedAccessKey(params: Readonly<{
   sessionId: string;
   machineId: string;
   plainMachine?: boolean;
+  machineMetadataCiphertext?: string;
 }>): Promise<void> {
   const requestInit = {
     headers: {
@@ -26,7 +27,7 @@ async function ensureSessionScopedAccessKey(params: Readonly<{
       id: params.machineId,
       metadata: params.plainMachine
         ? encodePlainMachineStoredContent({ host: 'e2e-machine', platform: 'darwin' })
-        : 'e2e-machine-metadata',
+        : params.machineMetadataCiphertext ?? 'e2e-machine-metadata',
       ...(params.plainMachine ? { dataEncryptionKey: MACHINE_PLAIN_DATA_KEY_MARKER } : {}),
     }),
     timeoutMs: requestInit.timeoutMs,
@@ -57,6 +58,7 @@ export async function createMachineBoundSessionScopedSocketCollector(params: Rea
   sessionId: string;
   machineId?: string;
   plainMachine?: boolean;
+  machineMetadataCiphertext?: string;
 }>): Promise<{ machineId: string; socket: SocketCollector }> {
   const machineId = params.machineId ?? randomUUID();
   await ensureSessionScopedAccessKey({
@@ -65,6 +67,7 @@ export async function createMachineBoundSessionScopedSocketCollector(params: Rea
     sessionId: params.sessionId,
     machineId,
     plainMachine: params.plainMachine,
+    machineMetadataCiphertext: params.machineMetadataCiphertext,
   });
 
   return {

@@ -280,12 +280,34 @@ function resolveRowSubtitle(input: Readonly<{
     };
 }
 
+/** Shared lifecycle inputs for the badge and independent status organization. */
+export function resolveSessionListRowStatus(input: Readonly<{
+    session: SessionStatusSource;
+    state?: Partial<SessionListRowStateSnapshot>;
+    nowMs: number;
+    statusOptions?: Parameters<typeof getSessionStatus>[2];
+}>) {
+    const session = resolveSessionListRowSession(input.state?.renderable, input.session);
+    const status = getSessionStatus(session, input.nowMs, input.statusOptions);
+    const pendingCount = readPendingCount(input.state ?? {}, session);
+    const pendingBlockedCount = readPendingBlockedCount(input.state ?? {}, session);
+    const meaningfulActivityAt = resolveMeaningfulActivityAt(input.state ?? {}, session);
+    const visualStatus = deriveSessionListVisualStatus({ sessionState: status.state,
+        latestTurnStatus: session.latestTurnStatus ?? null,
+        latestTurnStatusObservedAt: normalizeFiniteTimestamp(session.latestTurnStatusObservedAt),
+        meaningfulActivityAt, pendingCount, pendingBlockedCount });
+    return { session, status, pendingCount, pendingBlockedCount, meaningfulActivityAt, visualStatus };
+}
+
 export function buildSessionListRowModel(input: BuildSessionListRowModelInput): SessionListRowModel {
     const { item, settings } = input;
     const sessionId = String(item.session.id);
     const serverId = normalizeNonEmptyString(item.serverId);
     const rowKey = serverId ? sessionTagKey(serverId, sessionId) : sessionId;
-    const resolvedSession = resolveSessionListRowSession(input.state?.renderable, item.session);
+    const { session: resolvedSession, status, pendingCount, pendingBlockedCount, meaningfulActivityAt, visualStatus } = resolveSessionListRowStatus({
+        session: item.session, state: input.state, nowMs: settings.runtimeNowMs,
+        statusOptions: { workingTextMode: settings.workingTextMode, statusColors: settings.statusColors },
+    });
     const activityMode: SessionListRowModel['activity']['mode'] = item.groupKind === 'date'
         ? 'updatedAt'
         : 'meaningful';
@@ -298,22 +320,7 @@ export function buildSessionListRowModel(input: BuildSessionListRowModelInput): 
     const activityLabel = typeof activityTimestamp === 'number' && activityTimestamp > 0
         ? formatShortRelativeTimeAt(activityTimestamp, settings.relativeNowMs)
         : '';
-    const status = getSessionStatus(resolvedSession, settings.runtimeNowMs, {
-        workingTextMode: settings.workingTextMode,
-        statusColors: settings.statusColors,
-    });
-    const pendingCount = readPendingCount(input.state ?? {}, resolvedSession);
-    const pendingBlockedCount = readPendingBlockedCount(input.state ?? {}, resolvedSession);
     const hasUnreadMessages = resolveHasUnreadMessages(input.state ?? {}, resolvedSession);
-    const meaningfulActivityAt = resolveMeaningfulActivityAt(input.state ?? {}, resolvedSession);
-    const visualStatus = deriveSessionListVisualStatus({
-        sessionState: status.state,
-        latestTurnStatus: resolvedSession.latestTurnStatus ?? null,
-        latestTurnStatusObservedAt: normalizeFiniteTimestamp(resolvedSession.latestTurnStatusObservedAt),
-        meaningfulActivityAt,
-        pendingCount,
-        pendingBlockedCount,
-    });
     const attentionState = deriveSessionListAttentionState({
         hasUnreadMessages,
         pendingCount,

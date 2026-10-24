@@ -8,6 +8,7 @@ import { windowsTerminalCapability } from '@/capabilities/registry/toolWindowsTe
 import { executionRunsCapability } from '@/capabilities/registry/toolExecutionRuns';
 import { systemTasksCapability } from '@/capabilities/registry/toolSystemTasks';
 import { createTicketReaderCapability, type TicketReaderContext } from '@/capabilities/registry/toolTicketReader';
+import { createMachineMetricsCapability } from '@/capabilities/registry/toolMachineMetrics';
 import { installableDepCapabilities } from '@/capabilities/registry/installableDeps';
 import { withProviderCliUpdates } from '@/capabilities/cliUpdate/providerCliUpdates';
 import { createCapabilitiesService } from '@/capabilities/service';
@@ -653,9 +654,10 @@ function augmentCliCapabilityWithProbeModels(cap: Capability, agentId: AgentCata
     };
 }
 
+export type MachineCapabilitiesContext = Readonly<{ machineId: string; credentials?: TicketReaderContext['credentials'] }>;
 type CliCapabilitiesOptions = Readonly<{
     hasSessionAgentTransition?: () => boolean;
-    ticketReaderContext?: TicketReaderContext;
+    machineCapabilitiesContext?: MachineCapabilitiesContext;
 }>;
 
 export async function createCliCapabilitiesService(options?: CliCapabilitiesOptions): Promise<ReturnType<typeof createCapabilitiesService>> {
@@ -690,7 +692,10 @@ export async function createCliCapabilitiesService(options?: CliCapabilitiesOpti
             ...cliCapabilities,
             ...extraCapabilities,
             ...daemonCapabilities,
-            ...(options?.ticketReaderContext ? [createTicketReaderCapability(options.ticketReaderContext)] : []),
+            ...(options?.machineCapabilitiesContext ? [createMachineMetricsCapability(options.machineCapabilitiesContext.machineId)] : []),
+            ...(options?.machineCapabilitiesContext?.credentials ? [createTicketReaderCapability({
+                machineId: options.machineCapabilitiesContext.machineId, credentials: options.machineCapabilitiesContext.credentials,
+            })] : []),
             ...installableDepCapabilities,
             tmuxCapability,
             windowsTerminalCapability,

@@ -18,6 +18,8 @@ import { resolveAgentIdFromSessionMetadata } from '@happier-dev/agents';
 import { Typography } from '@/constants/Typography';
 import { formatPendingCountBadge } from '@/components/sessions/pendingBadge';
 import { SessionMachineIdentity } from '@/components/sessions/SessionMachineIdentity';
+import { SessionTicketRowStatus } from '@/components/sessions/tickets/SessionTicketHeader';
+import { readSessionTicketAssociation } from '@happier-dev/protocol';
 import { useNavigateToSession } from '@/hooks/session/useNavigateToSession';
 import { t } from '@/text';
 import type { SessionListSecondaryLineMode } from '@/sync/domains/session/listing/deriveSessionListActivity';
@@ -171,6 +173,7 @@ type SessionItemBaseProps = Readonly<{
     nativeContextMenuOpen?: boolean;
     onNativeContextMenuOpenChange?: (next: boolean) => void;
     rowAttentionAnimationEnabled?: boolean;
+    ticketStatusDemandEnabled?: boolean;
     folderDepth?: number;
     onMoveDown?: () => void;
     onMoveToFolder?: () => void;
@@ -786,6 +789,7 @@ const SessionItemContent = React.memo(
         workingIndicatorMode,
         workingIndicatorPaused,
         rowAttentionAnimationEnabled,
+        ticketStatusDemandEnabled = true,
         sessionListIdentityDisplay,
         sessionListActiveColorMode,
         hideInactiveSessions,
@@ -793,6 +797,7 @@ const SessionItemContent = React.memo(
         const styles = stylesheet;
         const { theme } = useUnistyles();
         const resolvedSession = session;
+        const ticketAssociation = React.useMemo(() => readSessionTicketAssociation(resolvedSession.metadata), [resolvedSession.metadata?.sessionTicketV1]);
         // Retained-working rows show the working indicator frozen: the
         // session is held in the working group while its live signals are
         // stale, so animating would misrepresent live activity.
@@ -1791,6 +1796,7 @@ const SessionItemContent = React.memo(
                         )
                     ) : null}
 
+                    {ticketAssociation && ticketStatusDemandEnabled ? <SessionTicketRowStatus association={ticketAssociation} serverId={serverId} sessionId={resolvedSession.id} /> : null}
                     {showBelowTagChips ? renderTagChipRow('below') : null}
                 </View>
                 <View

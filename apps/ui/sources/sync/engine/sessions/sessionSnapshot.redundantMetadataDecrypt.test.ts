@@ -13,6 +13,8 @@ import { syncPerformanceTelemetry } from '@/sync/runtime/syncPerformanceTelemetr
 import type { V2SessionRecord } from '@happier-dev/protocol';
 
 import { fetchAndApplySessions, type SessionListEncryption } from './sessionSnapshot';
+import { buildSessionListCacheEntryFromRenderable } from '@/sync/domains/state/warmCacheAdapters';
+import { createSessionFixture } from '@/dev/testkit';
 
 vi.mock('@/voice/context/voiceHooks', () => ({
     voiceHooks: { onAgentRequest: vi.fn() },
@@ -29,6 +31,19 @@ vi.mock('@/sync/domains/server/serverRuntime', () => ({
 
 const SESSION_ID = 'session_redundant_decrypt';
 const CREATED_AT = 1_699_000_000_000;
+
+it('preserves a persisted ticket association in the initial snapshot projection before metadata hydration', async () => {
+    const association = { v: 1 as const, ticket: { v: 1 as const, provider: 'linear' as const, workspaceId: 'fixture', ticketId: 'id-1', key: 'DEV-1', title: 'Fixture', url: 'https://linear.app/fixture/issue/DEV-1' }, reader: { machineId: 'machine', mcpServerId: 'source', directory: '/repo' } };
+    const renderable = buildSessionListRenderableFromSession(createSessionFixture({ id: SESSION_ID, metadata: { path: '/repo', host: 'fixture', sessionTicketV1: association } }));
+    const cached = buildSessionListCacheEntryFromRenderable(renderable);
+    let first: readonly SessionListRenderableSession[] = [];
+    await fetchAndApplySessions({ serverId: 'test', credentials: { token: 'fixture', secret: 'fixture' }, encryption: await Encryption.create(new Uint8Array(32).fill(7)),
+        sessionDataKeys: new Map(), cachedSessionListEntries: { [SESSION_ID]: cached },
+        request: async () => jsonResponse({ sessions: [{ ...buildEncryptedRow({ seq: 0, updatedAt: CREATED_AT, metadataVersion: cached.metadataVersion, runtimeActivityRevision: 0, runtimeActivityObservedAt: CREATED_AT }), active: false }], hasNext: false }),
+        applySessionListRenderables: rows => { first = rows; }, applySessionListRenderablePatches: () => {}, applySessions: () => {},
+        sessionListEagerHydrationCount: 0, sessionListBackgroundHydrationMaxRows: 0, repairInvalidReadStateV1: async () => {}, log: { log: () => {} } });
+    expect(first[0]?.metadata?.sessionTicketV1).toEqual(association);
+});
 
 type RowMovement = Readonly<{
     seq: number;

@@ -921,6 +921,7 @@ class Sync {
         private pauseController = new PauseController();
         private syncTuning: SyncTuning = loadSyncTuning();
         private readonly snapshotSyncAttemptLimiter = createTaskLimiter(this.syncTuning.bootstrapConcurrencyLimit);
+        private readonly sessionListMetadataHydrationLimiter = createTaskLimiter(this.syncTuning.sessionListHydrationConcurrencyLimit);
         private sessionTranscriptRetention!: SessionTranscriptRetentionController;
       private resumeInFlight: Promise<void> | null = null;
       private changesCatchUpQueuedAfterResume = false;
@@ -2262,6 +2263,22 @@ class Sync {
             return storage.getState().sessions[normalized] ?? null;
         }
 
+        /** Status views need metadata before a catalog row becomes visible. Reuse the scoped shell loader. */
+        public ensureSessionListMetadata = async (
+            candidates: readonly Readonly<{ sessionId: string; serverId?: string | null }>[],
+            shouldContinue: () => boolean,
+        ): Promise<Array<EnsureSessionVisibleForRouteResult | null>> => {
+            const generation = this.serverScopeGeneration;
+            const activeServerId = getActiveServerSnapshot().serverId;
+            return Promise.all(candidates.map(candidate => this.sessionListMetadataHydrationLimiter.run(async () => {
+                if (!shouldContinue() || generation !== this.serverScopeGeneration) return null;
+                // Foreign Home lists are already fully hydrated by concurrentSessionCache. Its
+                // scoped list publication must never enter the active session/route store here.
+                if (candidate.serverId && !areServerProfileIdentifiersEquivalent(candidate.serverId, activeServerId)) return null;
+                return this.ensureSessionVisibleForMessageRoute(candidate.sessionId, { serverId: candidate.serverId ?? undefined, refreshMessages: false });
+            })));
+        };
+
         /**
          * Hydrate a visible session by id for deep links / hard refreshes.
          *
@@ -2272,7 +2289,7 @@ class Sync {
          */
         ensureSessionVisibleForMessageRoute = async (
             sessionId: string,
-            options?: Readonly<{ forceRefresh?: boolean; serverId?: string }>,
+            options?: Readonly<{ forceRefresh?: boolean; serverId?: string; refreshMessages?: boolean }>,
         ): Promise<EnsureSessionVisibleForRouteResult> => {
             const normalized = String(sessionId ?? '').trim();
             if (!normalized) return createEnsureSessionVisibleMissingResult(normalized, 'not_found');
@@ -2339,12 +2356,20 @@ class Sync {
                 return createEnsureSessionVisibleRetryableResult(normalized, 'unknown', scopedServerId);
             }
 
+            const completeHydration = (result: EnsureSessionVisibleForRouteResult): EnsureSessionVisibleForRouteResult => {
+                if (result.kind === 'available' && options?.refreshMessages !== false && isRouteHydrationScopeCurrent()) {
+                    // A route joining metadata-only hydration still owns its message-tail demand.
+                    this.replayDeferredMessagesFetch(normalized);
+                    this.getOrCreateMessagesSync(normalized).invalidateCoalesced();
+                }
+                return result;
+            };
             const existing = this.sessionByIdHydrationInFlight.get(inFlightKey);
             if (existing) {
                 if (DEBUG_SESSION_HYDRATE) {
                     log.log(`[sessionHydrate] awaiting in-flight hydration for ${normalized}`);
                 }
-                return await existing;
+                return completeHydration(await existing);
             }
 
             const inFlight = (async () => {
@@ -2453,15 +2478,7 @@ class Sync {
                 }
             });
 
-            const result = await inFlight;
-            if (result.kind === 'available') {
-                // A message invalidation may have observed the session before this route
-                // hydration committed its owner. Replay that deferred attempt now that the
-                // owner is authoritative, instead of leaving the transcript permanently empty.
-                this.replayDeferredMessagesFetch(normalized);
-                this.getOrCreateMessagesSync(normalized).invalidateCoalesced();
-            }
-            return result;
+            return completeHydration(await inFlight);
         }
 
     private commitSessionDataKeyCacheEntry(
@@ -3259,8 +3276,9 @@ class Sync {
     private async updateSessionMetadataWithRetry(
         sessionId: string,
         updater: (metadata: Metadata) => Metadata,
-        options?: Readonly<{ serverId?: string | null; shouldContinue?: () => boolean }>,
+        options?: Readonly<{ serverId?: string | null; accountId?: string | null; shouldContinue?: () => boolean }>,
     ): Promise<void> {
+        if (options?.shouldContinue?.() === false) return;
         const resolvedServerIdOverride =
             typeof options?.serverId === 'string' && options.serverId.trim().length > 0
                 ? options.serverId.trim()
@@ -3278,7 +3296,7 @@ class Sync {
                 sessionDataKeys: this.sessionDataKeys,
                 sessionDataKeyEnvelopes: this.sessionDataKeyEnvelopes,
                 activeRequest: (path, init) => apiSocket.request(path, init),
-                applySessions: (sessions) => this.applySessions(sessions),
+                applySessions: (sessions) => { if (options?.shouldContinue?.() !== false) this.applySessions(sessions); },
                 getExistingSession: (targetSessionId) => storage.getState().sessions[targetSessionId] ?? null,
                 log,
             });
@@ -3294,6 +3312,7 @@ class Sync {
         let patchContext = resolvePatchContext();
         if (!patchContext.session?.metadata || (patchContext.sessionEncryptionMode === 'e2ee' && !patchContext.encryption)) {
             await fetchLatestSession();
+            if (options?.shouldContinue?.() === false) return;
             patchContext = resolvePatchContext();
         }
 
@@ -3341,6 +3360,8 @@ class Sync {
                 expectedVersion: payload.expectedVersion,
                 metadata: payload.metadata,
                 ...(resolvedServerIdOverride ? { serverId: resolvedServerIdOverride } : {}),
+                ...(options?.accountId ? { accountId: options.accountId } : {}),
+                ...(options?.shouldContinue ? { shouldContinue: options.shouldContinue } : {}),
             }),
             applySessionMetadata: ({ metadataVersion, metadata }) => {
                 const currentSession = storage.getState().sessions[sessionId];
@@ -4862,7 +4883,7 @@ class Sync {
     public patchSessionMetadataWithRetry = async (
         sessionId: string,
         updater: (metadata: Metadata) => Metadata,
-        options?: Readonly<{ serverId?: string | null }>,
+        options?: Readonly<{ serverId?: string | null; accountId?: string | null; shouldContinue?: () => boolean }>,
     ): Promise<void> => {
         await this.updateSessionMetadataWithRetry(sessionId, updater, options);
     }
