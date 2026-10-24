@@ -1,8 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
-import type { SessionListRenderableSession } from '@/sync/domains/session/listing/sessionListRenderable';
+import {
+    areSessionListRenderablesEqual,
+    buildSessionListRenderableFromSession,
+    type SessionListRenderableSession,
+} from '@/sync/domains/session/listing/sessionListRenderable';
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
+import type { Session } from '@/sync/domains/state/storageTypes';
 import { SESSION_RUNTIME_STATUS_STALE_SIGNAL_MS } from '@/sync/domains/session/attention/deriveSessionRuntimePresentationState';
+import { createSessionFixture } from '@/dev/testkit';
 import {
     buildCachedSessionListRowModel,
     createSessionListRowModelsCache,
@@ -29,6 +35,61 @@ describe('resolveSessionListRowModelAdjacency', () => {
         const second = resolveSessionListRowModelAdjacency([{ ...session }], 0);
 
         expect(second).toBe(first);
+    });
+});
+
+describe('buildCachedSessionListRowModel goal projection', () => {
+    it('follows persisted goal updates through the renderable cache, ignores task-only updates, and clears on canonical removal', () => {
+        const metadataWithGoal = (status: string, includeTask = false) => ({
+            path: '/repo/cache-goal',
+            host: 'workstation.local',
+            machineId: 'machine-1',
+            sessionWorkStateV1: {
+                v: 1,
+                backendId: 'codex',
+                updatedAt: NOW_MS,
+                primaryItemId: 'goal:codex',
+                items: [
+                    { id: 'goal:codex', kind: 'goal', origin: 'vendor', status, title: 'Finish the feature', updatedAt: NOW_MS },
+                    ...(includeTask ? [{ id: 'task:1', kind: 'task', origin: 'vendor', status: 'active', title: 'Unrelated task', updatedAt: NOW_MS }] : []),
+                ],
+            },
+        });
+        const sessionRenderable = (status?: string, includeTask = false) => buildSessionListRenderableFromSession(
+            createSessionFixture({
+                id: 'cache-goal',
+                createdAt: NOW_MS - 300_000,
+                updatedAt: NOW_MS,
+                metadata: (status ? metadataWithGoal(status, includeTask) : {
+                    path: '/repo/cache-goal', host: 'workstation.local', machineId: 'machine-1',
+                }) as Session['metadata'],
+            }),
+        );
+        const active = sessionRenderable('active');
+        const item = createSessionItem(active);
+        const cache = createSessionListRowModelsCache();
+        const adjacency = { isFirst: true, isLast: true, isSingle: true };
+        const settings = createSettings();
+        const build = (renderable: SessionListRenderableSession) => buildCachedSessionListRowModel({
+            item,
+            snapshot: { ...EMPTY_ROW_STATE, renderable },
+            adjacency,
+            settings,
+            cache,
+        });
+
+        const activeModel = build(active);
+        expect(activeModel.goalIndicator).toMatchObject({ status: 'active', title: 'Finish the feature' });
+
+        const taskOnlyUpdate = sessionRenderable('active', true);
+        expect(areSessionListRenderablesEqual(active, taskOnlyUpdate)).toBe(true);
+        const retainedAfterTaskUpdate = areSessionListRenderablesEqual(active, taskOnlyUpdate) ? active : taskOnlyUpdate;
+        expect(build(retainedAfterTaskUpdate)).toBe(activeModel);
+
+        const completeModel = build(sessionRenderable('complete'));
+        expect(completeModel.goalIndicator).toMatchObject({ status: 'complete', title: 'Finish the feature' });
+        const clearedModel = build(sessionRenderable());
+        expect(clearedModel.goalIndicator).toBeNull();
     });
 });
 

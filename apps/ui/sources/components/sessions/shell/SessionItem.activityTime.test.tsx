@@ -288,6 +288,7 @@ function createSessionRowModel(overrides: Partial<SessionListRowModel> = {}): Se
         pendingCount: 0,
         draft: null,
         agentActivityLabel: null,
+        goalIndicator: null,
         pendingBlockedCount: 0,
         tags: ['model-tag'],
         allKnownTags: ['model-tag', 'other-tag'],

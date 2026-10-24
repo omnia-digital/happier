@@ -5175,6 +5175,7 @@ deps: {
                 budgetReachedBody: 'Aquest objectiu ha assolit el seu pressupost de tokens. Treu el pressupost per continuar.',
                 removeBudgetAndResume: 'Treu el pressupost i continua',
                 statusInterrupted: 'Interromput',
+                statusUnknown: 'Desconegut',
                 tokenBudget: 'Pressupost de tokens',
                 budgetProgress: ({ used, budget }: { used: string; budget: string }) => `${used} / ${budget}`,
                 budgetCaption: ({ budget }: { budget: string }) => `de ${budget} de pressupost`,

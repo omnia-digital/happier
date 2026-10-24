@@ -46,6 +46,12 @@ export type SessionWorkStateStatusBadgePresentation = Readonly<{
     emphasis: 'quiet' | 'prominent';
 }>;
 
+export function resolveSidebarGoalTone(item: SessionWorkStateItem): 'active' | 'complete' | 'neutral' {
+    if (item.status === 'complete') return 'complete';
+    if (item.status === 'active' && item.statusReason === undefined) return 'active';
+    return 'neutral';
+}
+
 function readString(value: unknown): string | null {
     return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 }
@@ -164,7 +170,9 @@ function readLegacyGoalSnapshot(metadata: Record<string, unknown>): SessionWorkS
     const title = readString(raw.objective) ?? readString(raw.title);
     if (!title) return null;
     const rawStatus = readString(raw.status);
-    const status: SessionWorkStateStatus = rawStatus && VALID_STATUSES.has(rawStatus) ? rawStatus as SessionWorkStateStatus : 'active';
+    const status: SessionWorkStateStatus = rawStatus === null
+        ? (Object.prototype.hasOwnProperty.call(raw, 'status') ? 'unknown' : 'active')
+        : VALID_STATUSES.has(rawStatus) ? rawStatus as SessionWorkStateStatus : 'unknown';
     const updatedAt = readNumber(raw.updatedAt) ?? Date.now();
     const backendId = readString(metadata.flavor) ?? 'codex';
     const statusReason = readStatusReason(raw.statusReason);

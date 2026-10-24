@@ -4,6 +4,7 @@ import {
     omitGoalItemFromSnapshot,
     resolveCurrentGoalItem,
     resolveEditableGoalItem,
+    resolveSidebarGoalItem,
     resolveGoalCreationControlsVisible,
     resolveGoalManagementControlsVisible,
 } from './sessionGoalSelectors';
@@ -70,6 +71,17 @@ describe('resolveCurrentGoalItem', () => {
         for (const status of ['paused', 'cancelled', 'complete'] as const) {
             expect(resolveCurrentGoalItem(snapshot([item({ id: 'goal:claude', kind: 'goal', status })]))).toBeNull();
         }
+    });
+});
+
+describe('resolveSidebarGoalItem', () => {
+    it('retains active and completed goals, keeps other known states truthful, and hides cleared goals', () => {
+        for (const status of ['active', 'complete', 'paused', 'pending', 'blocked', 'unknown'] as const) {
+            const goal = item({ id: `goal:${status}`, kind: 'goal', status });
+            expect(resolveSidebarGoalItem(snapshot([goal]))).toEqual(goal);
+        }
+        expect(resolveSidebarGoalItem(snapshot([item({ id: 'goal:cleared', kind: 'goal', status: 'cancelled' })]))).toBeNull();
+        expect(resolveSidebarGoalItem(snapshot([item({ id: 'todo:1', kind: 'todo', status: 'active' })]))).toBeNull();
     });
 });
 

@@ -55,6 +55,12 @@ export function resolveEditableGoalItem(snapshot: SessionWorkStateSnapshot | nul
     return [...goals].sort((left, right) => compareEditableGoalItems(snapshot, left, right))[0] ?? null;
 }
 
+/** Sidebar goal presence retains every associated lifecycle state except cleared goals. */
+export function resolveSidebarGoalItem(snapshot: SessionWorkStateSnapshot | null): SessionWorkStateItem | null {
+    const goal = resolveEditableGoalItem(snapshot);
+    return goal?.status === 'cancelled' ? null : goal;
+}
+
 /**
  * The session's CURRENT goal (active-only) for "current goal" surfaces such as the chip label.
  * Delegates to the canonical `resolveActiveSessionGoalItem` so the controller and the presentation
