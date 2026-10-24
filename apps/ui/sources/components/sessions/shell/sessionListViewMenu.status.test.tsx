@@ -15,6 +15,7 @@ describe('independent status choices in existing view controls', () => {
         const items = menu.props.items;
         expect(items.filter((item: { id: string }) => item.id.startsWith('status-group:') || item.id.startsWith('status-sort:')).map((item: { id: string }) => item.id)).toEqual(['status-group:none', 'status-group:agent', 'status-group:ticket', 'status-sort:agent', 'status-sort:ticket']);
         expect(items.find((item: { id: string }) => item.id === 'status-group:ticket').subtitle).toContain('folders');
+        expect(items.some((item: { id: string }) => item.id === 'session-repository-refresh')).toBe(false);
         menu.props.onSelect('status-group:agent'); expect(grouping).toHaveBeenLastCalledWith('agent'); expect(sorting).not.toHaveBeenCalled();
         menu.props.onSelect('status-group:ticket'); expect(grouping).toHaveBeenLastCalledWith('ticket');
         menu.props.onSelect('status-sort:agent'); expect(sorting).toHaveBeenLastCalledWith('agent');

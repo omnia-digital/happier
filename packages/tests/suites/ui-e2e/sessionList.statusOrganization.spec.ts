@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { accountSettingsParse, deriveSettingsSecretsKeyV1, encryptSecretStringV1 } from '@happier-dev/protocol';
+import { accountSettingsParse, deriveSettingsSecretsKeyV1, encryptSecretStringV1, sealEncryptedDataKeyEnvelopeV1 } from '@happier-dev/protocol';
 import { createRunDirs } from '../../src/testkit/runDir';
 import { startServerLight, type StartedServer } from '../../src/testkit/process/serverLight';
 import { startUiWeb, type StartedUiWeb } from '../../src/testkit/process/uiWeb';
@@ -10,8 +10,10 @@ import { type StartedDaemon } from '../../src/testkit/daemon/daemon';
 import { authenticateAndStartDaemon } from '../../src/testkit/uiE2e/authenticateAndStartDaemon';
 import { gotoDomContentLoadedWithRetries, normalizeLoopbackBaseUrl } from '../../src/testkit/uiE2e/pageNavigation';
 import { upsertEncryptedAccountSettingsV2 } from '../../src/testkit/accountSettings';
-import { createSessionWithCiphertexts, fetchSessionV2, patchSessionMetadataWithRetry } from '../../src/testkit/sessions';
-import { encryptLegacyBase64, decryptLegacyBase64 } from '../../src/testkit/messageCrypto';
+import { createSessionWithCiphertexts, fetchSessionV2, fetchSessionsV2 } from '../../src/testkit/sessions';
+import { encryptLegacyBase64 } from '../../src/testkit/messageCrypto';
+import { encryptDataKeyBase64, decryptDataKeyBase64 } from '../../src/testkit/rpcCrypto';
+import { readCliAccessKey } from '../../src/testkit/cliAccessKey';
 import { repoRootDir } from '../../src/testkit/paths';
 import { readUiE2eScopedAccountSettings } from '../../src/testkit/uiE2e/scopedAccountSettingsStorage';
 import { createMachineBoundSessionScopedSocketCollector } from '../../src/testkit/sessionSocketBinding';
@@ -59,6 +61,9 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
                 return { token: credentials.token as string, secret: credentials.secret as string };
             });
             const secret = Uint8Array.from(Buffer.from(access.secret, 'base64url'));
+            const cliAccess = await readCliAccessKey(cliHome);
+            if (!cliAccess || !('encryption' in cliAccess)) throw new Error('Expected isolated connected CLI recipient credentials');
+            const sessionKeys = new Map<string, Uint8Array>();
             const loginOutput = await readFile(join(suiteDir, 'cli.auth.login.stdout.log'), 'utf8');
             const machineId = loginOutput.replaceAll(/\u001b\[[0-9;]*m/g, '').match(/Machine ID:\s*([^\s]+)/)?.[1];
             if (!machineId) throw new Error('fixture machine identity missing');
@@ -72,7 +77,11 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             const seed = async (name: string, ticketNumber?: number) => {
                 const key = ticketNumber ? 'DEV-' + ticketNumber : null;
                 const metadata = { path: suiteDir, host: 'Isolated reader', machineId, name, version: '0.2.16', unknownOldCliField: { keep: 'preserved' }, ...(key ? { sessionTicketV1: { v: 1, ticket: { v: 1, provider: 'linear', workspaceId: 'fixture', ticketId: 'fixture-' + key, key, title: 'Fixture ticket', url: 'https://linear.app/fixture/issue/' + key }, reader: { machineId, mcpServerId: 'fixture-source', directory: suiteDir } } } : {}) };
-                return (await createSessionWithCiphertexts({ baseUrl: server!.baseUrl, token: access.token, metadataCiphertextBase64: encryptLegacyBase64(metadata, secret) })).sessionId;
+                const dataKey = Uint8Array.from(randomBytes(32));
+                const envelope = sealEncryptedDataKeyEnvelopeV1({ dataKey, recipientPublicKey: Uint8Array.from(Buffer.from(cliAccess.encryption.publicKey, 'base64')), randomBytes: (length) => Uint8Array.from(randomBytes(length)) });
+                const { sessionId } = await createSessionWithCiphertexts({ baseUrl: server!.baseUrl, token: access.token, metadataCiphertextBase64: encryptDataKeyBase64(metadata, dataKey), dataEncryptionKeyBase64: Buffer.from(envelope).toString('base64') });
+                sessionKeys.set(sessionId, dataKey);
+                return sessionId;
             };
             const idle = await seed('OH60 QA idle', 1);
             const working = await seed('OH60 QA working', 2);
@@ -94,6 +103,9 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             const idlePublisher = await publish(idle, false);
             const workingPublisher = await publish(working, true);
             await publish(testing, false); await publish(production, false); await publish(unavailable, false);
+            const catalog = await fetchSessionsV2(server.baseUrl, access.token, { limit: 50 });
+            expect(catalog.sessions).toHaveLength(22);
+            expect(catalog.sessions.every(session => typeof session.dataEncryptionKey === 'string')).toBe(true);
             await gotoDomContentLoadedWithRetries(page, baseUrl, 120_000);
             const choose = async (id: string) => {
                 await page.getByTestId('session-list-ordering-menu-trigger').first().click();
@@ -177,7 +189,7 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await expect(row(noTicket)).toHaveCount(1);
             const ids = await visibleIds(); expect(new Set(ids).size).toBe(ids.length);
             const persisted = await fetchSessionV2(server.baseUrl, access.token, idle);
-            expect(decryptLegacyBase64(persisted.metadata, secret)).toMatchObject({ unknownOldCliField: { keep: 'preserved' }, sessionTicketV1: { ticket: { key: 'DEV-1' } } });
+            expect(decryptDataKeyBase64(persisted.metadata, sessionKeys.get(idle)!)).toMatchObject({ unknownOldCliField: { keep: 'preserved' }, sessionTicketV1: { ticket: { key: 'DEV-1' } } });
             // Keep publisher handles live until after the visible assertions and fixture teardown.
             expect(idlePublisher.isConnected() && workingPublisher.isConnected()).toBe(true);
         } catch (error) { throw appendBrowserDiagnostics(error, diagnostics()); }

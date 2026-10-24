@@ -89,7 +89,7 @@ export function SessionListViewMenuButton(props: Readonly<{
             rightElement: props.statusGrouping === 'none' && props.machineViewMode === 'repository'
                 ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} /> : null,
         },
-        ...(props.machineViewMode === 'repository' ? [{
+        ...(props.machineViewMode === 'repository' && props.statusGrouping === 'none' ? [{
             id: 'session-repository-refresh',
             testID: 'session-repository-refresh',
             category: t('sessionsList.viewOptions'),
