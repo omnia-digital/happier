@@ -11,11 +11,11 @@ import { useSessionTicketStatus } from '@/hooks/session/useSessionTicketStatus';
 import { getActiveServerAccountScope } from '@/sync/domains/scope/activeServerAccountScope';
 import { deriveTranscriptInteraction } from '@/utils/sessions/deriveTranscriptInteraction';
 import { openExternalUrl } from '@/utils/url/openExternalUrl';
-import { isTauriDesktop } from '@/utils/platform/tauri';
 import { Modal } from '@/modal';
 import { t } from '@/text';
 import { SessionTicketStatusLabel } from './SessionTicketStatusLabel';
 import { SessionTicketLinkEditor } from './SessionTicketLinkEditor';
+import { resolveSessionHeaderActionTargetPx } from '@/components/sessions/actions/sessionHeaderIconMetrics';
 
 function TicketProviderIcon({ provider }: { provider: SessionTicketProvider }) {
     const { theme } = useUnistyles();
@@ -34,7 +34,7 @@ function LinkedTicketHeader({ association, serverId, onEdit }: { association: Se
     const open = async (web = false) => {
         // Linear documents this exact scheme transformation. Other providers use canonical web
         // links; Jira support is limited to Cloud by the reader's protocol parser.
-        const nativeApp = ticket.provider === 'linear' && !web && (Platform.OS !== 'web' || isTauriDesktop());
+        const nativeApp = ticket.provider === 'linear' && !web;
         const opened = nativeApp && await openExternalUrl(ticket.url.replace(/^https:/, 'linear:'));
         if (!opened && !await openExternalUrl(ticket.url)) Modal.alert(t('common.error'), t('sessionTickets.openFailed'));
     };
@@ -74,6 +74,6 @@ const styles = StyleSheet.create((theme) => ({
     ticketLink: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 1, minWidth: 0, minHeight: 24 },
     title: { ...Typography.default(), color: theme.colors.text.secondary, flexShrink: 1 },
     mark: { width: 14, height: 14, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-    button: { minWidth: 28, minHeight: 28, alignItems: 'center', justifyContent: 'center' },
+    button: { minWidth: resolveSessionHeaderActionTargetPx(), minHeight: resolveSessionHeaderActionTargetPx(), alignItems: 'center', justifyContent: 'center' },
     row: { flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 0, marginTop: 2 },
 }));

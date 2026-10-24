@@ -1949,7 +1949,7 @@ export const SessionView = React.memo((props: SessionViewProps) => {
             )}
 
             {/* Content based on state */}
-            <View style={{ flex: 1, paddingTop: showTopHeader ? safeAreaTopInset + headerHeight + (headerProps.ticketElement ? 32 : 0) : 0 }}>
+            <View style={{ flex: 1, paddingTop: showTopHeader ? safeAreaTopInset + headerHeight + (headerProps.ticketElement ? resolveSessionHeaderActionTargetPx() : 0) : 0 }}>
                 {!session && authSurfaceState ? (
                     <SessionAuthRecoveryFallback message={authSurfaceState.message} />
                 ) : routeHydrationRetrying ? (

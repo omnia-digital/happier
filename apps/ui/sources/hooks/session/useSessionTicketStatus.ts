@@ -1,5 +1,4 @@
 import * as React from 'react';
-import { AppState, Platform } from 'react-native';
 import type { SessionTicketAssociationV1 } from '@happier-dev/protocol';
 import { useActiveServerAccountScope } from '@/sync/domains/state/storage';
 import { type ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
@@ -8,6 +7,8 @@ import { readSessionTicket } from '@/sync/ops/sessionTickets';
 import { resolveServerScopedSessionContext, runWithCurrentServerScopedSessionContext, type ResolvedServerSessionRpcContext } from '@/sync/runtime/orchestration/serverScopedRpc/resolveServerScopedSessionContext';
 import { TokenStorage } from '@/auth/storage/tokenStorage';
 import { subscribeServerProfiles, areServerProfileIdentifiersEquivalent } from '@/sync/domains/server/serverProfiles';
+import { isRuntimeActive, isHostVisible, subscribeToRuntimeActiveChange } from '@/utils/runtime/isRuntimeActive';
+import { readHostWindowFocus } from '@/utils/runtime/readHostWindowFocus';
 
 const entries = new Map<string, { entry: ReturnType<typeof createSessionTicketStatusEntry>; users: number }>();
 
@@ -34,7 +35,7 @@ export function useSessionTicketStatus(association: SessionTicketAssociationV1, 
     const capturedContext = context && areServerProfileIdentifiersEquivalent(context.targetServerId, serverId ?? activeScope?.serverId)
         && (!activeScope || !areServerProfileIdentifiersEquivalent(context.targetServerId, activeScope.serverId) || context.targetAccountId === activeScope.accountId) ? context : null;
     const scope = capturedContext ? { serverId: capturedContext.targetServerId, accountId: capturedContext.targetAccountId } : null;
-    const key = JSON.stringify([scope?.serverId, scope?.accountId, association]);
+    const key = JSON.stringify([scope?.serverId, scope?.accountId, capturedContext?.targetServerUrl, association]);
     const shared = React.useMemo(() => {
         const previous = entries.get(key);
         if (previous) return previous;
@@ -47,13 +48,12 @@ export function useSessionTicketStatus(association: SessionTicketAssociationV1, 
     React.useEffect(() => {
         shared.users++;
         void shared.entry.refresh();
-        const refresh = () => { void shared.entry.refresh(); };
-        const subscription = AppState.addEventListener('change', (next) => { if (next === 'active') refresh(); else shared.entry.markStale(); });
-        const blur = () => shared.entry.markStale();
-        if (Platform.OS === 'web' && typeof window !== 'undefined') { window.addEventListener('focus', refresh); window.addEventListener('blur', blur); }
+        const unsubscribeLifecycle = subscribeToRuntimeActiveChange(() => {
+            if (isRuntimeActive() && isHostVisible() && readHostWindowFocus() !== false) void shared.entry.refresh();
+            else shared.entry.markStale();
+        }, { includeWindowFocus: true });
         return () => {
-            subscription.remove();
-            if (Platform.OS === 'web' && typeof window !== 'undefined') { window.removeEventListener('focus', refresh); window.removeEventListener('blur', blur); }
+            unsubscribeLifecycle();
             if (--shared.users === 0) entries.delete(key);
         };
     }, [key, shared]);

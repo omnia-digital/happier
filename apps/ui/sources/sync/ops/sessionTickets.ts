@@ -15,6 +15,7 @@ async function invokeTicketReader(scope: ServerAccountScope, machineId: string, 
     const result = await machineCapabilitiesInvoke(machineId, { id: TICKET_READER_CAPABILITY_ID, method, params }, scope);
     if (!result.supported) throw new Error(result.reason === 'not-supported' ? 'unsupported' : 'offline');
     if (!result.response.ok) {
+        if (result.response.error.code === 'unsupported-capability' || result.response.error.code === 'unsupported-method') throw new Error('unsupported');
         const code = TicketReaderErrorCodeSchema.safeParse(result.response.error.code);
         throw new Error(code.success ? code.data : 'provider_error');
     }

@@ -34,7 +34,7 @@ export function SessionTicketLinkEditor({ sessionId, scope, association, initial
         if (!isCurrent()) { setError(t('sessionTickets.changed')); return; }
         setPending(true); setError(null);
         try { await operation(); }
-        catch (cause) { if (mounted.current) { const code = TicketReaderErrorCodeSchema.safeParse(cause instanceof Error ? cause.message : cause); setError(code.success ? t(`sessionTickets.${code.data}`) : t('sessionTickets.changed')); } }
+        catch (cause) { if (mounted.current) { const code = TicketReaderErrorCodeSchema.safeParse(cause instanceof Error ? cause.message : cause); setError(code.success ? t(`sessionTickets.${code.data}`) : t('sessionTickets.provider_error')); } }
         finally { if (mounted.current) setPending(false); }
     };
     const discover = () => run(async () => {

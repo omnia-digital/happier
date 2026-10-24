@@ -13,6 +13,7 @@ describe('session ticket live projection', () => {
         await entry.refresh();
         expect(commit).toHaveBeenCalledOnce();
         expect(entry.getSnapshot().snapshot).toBeNull();
+        expect(entry.getSnapshot().phase).toBe('unavailable');
     });
     it('shares concurrent reads and preserves custom provider status/order for both consumers', async () => {
         let complete!: (value: unknown) => void;

@@ -307,7 +307,7 @@ const styles = StyleSheet.create(() => ({
         width: '100%',
     },
     ticketRow: {
-        height: 32,
+        height: resolveSessionHeaderActionTargetPx(),
         width: '100%',
         paddingHorizontal: HEADER_HORIZONTAL_PADDING_PX,
         alignSelf: 'center',

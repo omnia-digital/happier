@@ -520,7 +520,7 @@ function areSessionListRenderableMetadataEqual(
     if (previous === next) return true;
     if (!previous || !next) return previous === next;
 
-    return JSON.stringify(previous.sessionTicketV1 ?? null) === JSON.stringify(next.sessionTicketV1 ?? null)
+    return (previous.sessionTicketV1 === next.sessionTicketV1 || JSON.stringify(previous.sessionTicketV1 ?? null) === JSON.stringify(next.sessionTicketV1 ?? null))
         && (previous.name ?? null) === (next.name ?? null)
         && (previous.summaryText ?? null) === (next.summaryText ?? null)
         && previous.path === next.path

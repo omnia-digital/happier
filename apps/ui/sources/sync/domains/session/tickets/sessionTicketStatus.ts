@@ -8,6 +8,15 @@ export function createSessionTicketStatusEntry(scope: ServerAccountScope, associ
     let inFlight: Promise<void> | null = null;
     const listeners = new Set<() => void>();
     const publish = (next: SessionTicketStatus) => { state = next; for (const listener of listeners) listener(); };
+    const commit = async (next: SessionTicketStatus) => {
+        try {
+            if (await commitIfCurrent(() => publish(next))) return;
+        } catch {
+            console.warn('[Ticket reader] Could not verify the captured Home Account');
+        }
+        // A failed credential check may clear this projection but must never publish ticket data.
+        publish({ phase: 'unavailable', snapshot: null, error: 'cancelled' });
+    };
     const refresh = (): Promise<void> => {
         if (inFlight) return inFlight;
         if (!isCurrent()) return Promise.resolve();
@@ -18,10 +27,10 @@ export function createSessionTicketStatusEntry(scope: ServerAccountScope, associ
                 const before = association.ticket;
                 const after = snapshot.ticket;
                 if (before.provider !== after.provider || before.workspaceId !== after.workspaceId || before.ticketId !== after.ticketId) throw new Error('identity_mismatch');
-                await commitIfCurrent(() => publish({ phase: 'ready', snapshot, error: null }));
+                await commit({ phase: 'ready', snapshot, error: null });
             } catch (error) {
                 const parsed = TicketReaderErrorCodeSchema.safeParse(error instanceof Error ? error.message : error);
-                await commitIfCurrent(() => publish({ phase: state.snapshot ? 'stale' : 'unavailable', snapshot: state.snapshot, error: parsed.success ? parsed.data : 'provider_error' }));
+                await commit({ phase: state.snapshot ? 'stale' : 'unavailable', snapshot: state.snapshot, error: parsed.success ? parsed.data : 'provider_error' });
             } finally { inFlight = null; }
         })();
         return inFlight;

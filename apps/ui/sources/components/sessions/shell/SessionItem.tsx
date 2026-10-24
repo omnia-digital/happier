@@ -173,6 +173,7 @@ type SessionItemBaseProps = Readonly<{
     nativeContextMenuOpen?: boolean;
     onNativeContextMenuOpenChange?: (next: boolean) => void;
     rowAttentionAnimationEnabled?: boolean;
+    ticketStatusDemandEnabled?: boolean;
     folderDepth?: number;
     onMoveDown?: () => void;
     onMoveToFolder?: () => void;
@@ -788,6 +789,7 @@ const SessionItemContent = React.memo(
         workingIndicatorMode,
         workingIndicatorPaused,
         rowAttentionAnimationEnabled,
+        ticketStatusDemandEnabled = true,
         sessionListIdentityDisplay,
         sessionListActiveColorMode,
         hideInactiveSessions,
@@ -1794,7 +1796,7 @@ const SessionItemContent = React.memo(
                         )
                     ) : null}
 
-                    {ticketAssociation ? <SessionTicketRowStatus association={ticketAssociation} serverId={serverId} sessionId={resolvedSession.id} /> : null}
+                    {ticketAssociation && ticketStatusDemandEnabled ? <SessionTicketRowStatus association={ticketAssociation} serverId={serverId} sessionId={resolvedSession.id} /> : null}
                     {showBelowTagChips ? renderTagChipRow('below') : null}
                 </View>
                 <View

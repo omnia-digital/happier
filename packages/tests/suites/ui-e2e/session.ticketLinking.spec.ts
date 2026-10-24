@@ -43,10 +43,14 @@ test.describe('session ticket link/read/status via isolated opt-in reader', () =
             await gotoDomContentLoadedWithRetries(page, baseUrl, 240_000);
             daemon = await authenticateAndStartDaemon({ page, testDir: suiteDir, cliHomeDir: cliHome, serverUrl: server.baseUrl, uiBaseUrl: baseUrl, extraEnv: { HOME: providerHome, TMPDIR: providerHome, CLAUDE_CONFIG_DIR: join(providerHome, 'claude'), HAPPIER_CLAUDE_CONFIG_DIR: join(providerHome, 'claude'), HAPPIER_TICKET_READER_ENABLED: '1', HAPPIER_E2E_CLI_SNAPSHOT_NODE_MODULES_MODE: 'symlink' } });
             // Read only this fixture's generated credentials, never the daily CLI home.
-            const settings = JSON.parse(await readFile(join(cliHome, 'settings.json'), 'utf8'));
-            const activeServerId = settings.activeServerId as string;
-            const access = JSON.parse(await readFile(join(cliHome, 'servers', activeServerId, 'access.key'), 'utf8')) as { token: string; secret: string };
-            const secret = Uint8Array.from(Buffer.from(access.secret, 'base64'));
+            const access = await page.evaluate(() => {
+                const keys = Object.keys(localStorage).filter((key) => key.startsWith('auth_credentials__srv_'));
+                if (keys.length !== 1) throw new Error('Expected exactly one isolated fixture Home');
+                const credentials = JSON.parse(localStorage.getItem(keys[0]) ?? '{}');
+                if (typeof credentials.token !== 'string' || typeof credentials.secret !== 'string') throw new Error('Fixture app encryption credentials missing');
+                return { token: credentials.token as string, secret: credentials.secret as string };
+            });
+            const secret = Uint8Array.from(Buffer.from(access.secret, 'base64url'));
             const loginOutput = await readFile(join(suiteDir, 'cli.auth.login.stdout.log'), 'utf8');
             const machineId = loginOutput.replaceAll(/\u001b\[[0-9;]*m/g, '').match(/Machine ID:\s*([^\s]+)/)?.[1];
             if (!machineId) throw new Error('fixture machine identity missing');
@@ -77,6 +81,8 @@ test.describe('session ticket link/read/status via isolated opt-in reader', () =
             // Canonical web destination is observable without opening a real provider account.
             await page.evaluate(() => { (window as any).__ticketOpened = null; window.open = ((url: string) => { (window as any).__ticketOpened = url; return null; }) as typeof window.open; });
             await page.getByTestId('session-ticket-open').click();
+            await expect.poll(() => page.evaluate(() => (window as any).__ticketOpened)).toBe('linear://linear.app/fixture/issue/DEV-1');
+            await page.getByTestId('session-ticket-open-web').click();
             await expect.poll(() => page.evaluate(() => (window as any).__ticketOpened)).toBe('https://linear.app/fixture/issue/DEV-1');
             await page.reload();
             await expect(page.getByTestId('session-ticket-open')).toContainText('DEV-1', { timeout: 120_000 });
@@ -99,7 +105,6 @@ test.describe('session ticket link/read/status via isolated opt-in reader', () =
             await expect(page.getByTestId('session-ticket-link')).toBeVisible();
             await page.reload();
             await expect(page.getByTestId('session-ticket-link')).toBeVisible({ timeout: 120_000 });
-        } catch (error) { throw appendBrowserDiagnostics(error, diagnostics); }
-        finally { diagnostics.stop(); }
+        } catch (error) { throw appendBrowserDiagnostics(error, diagnostics()); }
     });
 });
