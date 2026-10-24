@@ -536,7 +536,13 @@ test.describe('ui e2e: session list ordering mode', () => {
             '[data-testid^="session-list-item-"], [data-testid^="session-list-header:"], [data-testid^="session-list-project-header:"]',
           )).slice(0, 24).map((element) => {
             const bounds = element.getBoundingClientRect();
-            return { testId: element.getAttribute('data-testid'), y: bounds.y, height: bounds.height };
+            const parent = element.parentElement?.getBoundingClientRect();
+            const grandparent = element.parentElement?.parentElement?.getBoundingClientRect();
+            return {
+              testId: element.getAttribute('data-testid'), y: bounds.y, height: bounds.height,
+              parent: parent ? { y: parent.y, height: parent.height } : null,
+              grandparent: grandparent ? { y: grandparent.y, height: grandparent.height } : null,
+            };
           }),
           ancestors: (() => {
             const result: Array<{ testId: string | null; tag: string; y: number; height: number }> = [];
