@@ -32,6 +32,27 @@ class FakeSession {
 }
 
 describe('AgentStateRequestStore', () => {
+    it('gives a replacement request a distinct occurrence and rejects settlement for the old one', async () => {
+        const session = new FakeSession();
+        const store = new AgentStateRequestStore({ session, logPrefix: '[Test]' });
+        const request = { requestId: 'reused', toolName: 'Write', toolInput: { path: '/workspace/file' }, createdAt: 10 };
+
+        store.publishRequest(request);
+        const firstOccurrenceId = session.agentState.requests?.reused?.occurrenceId;
+        expect(firstOccurrenceId).toEqual(expect.any(String));
+
+        store.publishRequest({ ...request, createdAt: 20 });
+        const replacement = session.agentState.requests?.reused;
+        expect(replacement?.occurrenceId).toEqual(expect.any(String));
+        expect(replacement?.occurrenceId).not.toBe(firstOccurrenceId);
+
+        await expect(store.completeRequest({
+            requestId: 'reused', status: 'approved', expectedOccurrenceId: firstOccurrenceId,
+            fallback: { toolName: request.toolName, toolInput: request.toolInput, createdAt: 20 },
+        })).rejects.toThrow('did not match');
+        expect(session.agentState.requests?.reused).toEqual(replacement);
+        expect(session.agentState.completedRequests?.reused).toBeUndefined();
+    });
     it.each(['claimed', 'replacement', 'missing'] as const)('rejects a %s occurrence before settlement admission', async (change) => {
         const session = new FakeSession();
         const request = { tool: 'Write', arguments: { path: '/workspace/original' }, createdAt: 10 };

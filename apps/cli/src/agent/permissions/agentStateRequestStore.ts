@@ -21,6 +21,7 @@ import {
 import { normalizeAskUserQuestionInputForPublication } from '@/agent/questions/normalizeAskUserQuestionInput';
 import { logger } from '@/ui/logger';
 import { deepEqual } from '@/utils/deterministicJson';
+import { randomUUID } from 'node:crypto';
 
 type AgentStateRequestEntry = NonNullable<AgentState['requests']>[string];
 type AgentStateCompletedEntry = NonNullable<AgentState['completedRequests']>[string];
@@ -55,6 +56,7 @@ export function isSameAgentStateRequestOccurrence(left: unknown, right: unknown)
 
 export type AgentStateOutstandingRequest = Readonly<{
     requestId: string;
+    occurrenceId?: string;
     toolName: string;
     toolInput: unknown;
     createdAt: number;
@@ -120,6 +122,7 @@ export class AgentStateRequestStore {
 
         return {
             requestId,
+            ...(typeof entry.occurrenceId === 'string' ? { occurrenceId: entry.occurrenceId } : {}),
             toolName: entry.tool,
             toolInput: entry.arguments,
             createdAt: entry.createdAt,
@@ -133,6 +136,8 @@ export class AgentStateRequestStore {
 
     publishRequest(params: Readonly<{
         requestId: string;
+        occurrenceId?: string;
+        onOccurrenceAssigned?: (occurrenceId: string) => void;
         toolName: string;
         toolInput: unknown;
         createdAt: number;
@@ -146,6 +151,7 @@ export class AgentStateRequestStore {
     }>): void {
         const normalizedToolInput = normalizeAskUserQuestionInputForPublication(params.toolName, params.toolInput);
         const wasClaimedBeforePublication = this.isOutstandingRequestClaimed(params.requestId);
+        const candidateOccurrenceId = params.occurrenceId ?? randomUUID();
         updateAgentStateBestEffort(
             this.session,
             (currentState) => {
@@ -163,6 +169,10 @@ export class AgentStateRequestStore {
                 if (typeof params.source === 'string') {
                     entry.source = params.source;
                 }
+                entry.occurrenceId = isSameAgentStateRequestOccurrence(existingRequest, entry)
+                    && typeof existingRequest?.occurrenceId === 'string'
+                    ? existingRequest.occurrenceId
+                    : candidateOccurrenceId;
                 if (Array.isArray(params.permissionSuggestions) && params.permissionSuggestions.length > 0) {
                     entry.permissionSuggestions = params.permissionSuggestions;
                 }
@@ -178,6 +188,7 @@ export class AgentStateRequestStore {
                     return typeof params.updateState === 'function' ? params.updateState(currentState) : currentState;
                 }
                 requests[params.requestId] = entry;
+                params.onOccurrenceAssigned?.(entry.occurrenceId);
 
                 const nextState: AgentState = {
                     ...currentState,
@@ -209,8 +220,9 @@ export class AgentStateRequestStore {
         allowedTools?: readonly string[] | undefined;
         updatedPermissions?: unknown;
         extraCompletedFields?: Readonly<Record<string, unknown>> | null;
-        fallback?: Readonly<{ toolName: string; toolInput: unknown; createdAt: number; kind?: string; source?: string }> | null;
+        fallback?: Readonly<{ occurrenceId?: string; toolName: string; toolInput: unknown; createdAt: number; kind?: string; source?: string }> | null;
         requireAck?: boolean;
+        expectedOccurrenceId?: string;
         /** An actual provider effect was observed, such as Claude PostToolUse. */
         observedCompletion?: true;
     }>): Promise<void> {
@@ -223,6 +235,14 @@ export class AgentStateRequestStore {
             completedRequest = false;
             const requests = cloneStringKeyedRecordToNullProto(currentState.requests);
             const existing = requests[params.requestId] as unknown;
+            if (params.expectedOccurrenceId !== undefined) {
+                if (existing) {
+                    if (typeof existing !== 'object' || !('occurrenceId' in existing)
+                        || existing.occurrenceId !== params.expectedOccurrenceId) return currentState;
+                } else if (!expectedCompletion
+                    || expectedCompletion.occurrenceId !== params.expectedOccurrenceId
+                    || !deepEqual(currentState.completedRequests?.[params.requestId], expectedCompletion)) return currentState;
+            }
             if (!existing && !params.fallback) {
                 return currentState;
             }
@@ -246,6 +266,7 @@ export class AgentStateRequestStore {
             const completedEntry = clonePlainObjectToNullProto(existing) ?? Object.create(null);
 
             if (!existing && params.fallback) {
+                if (typeof params.fallback.occurrenceId === 'string') completedEntry.occurrenceId = params.fallback.occurrenceId;
                 completedEntry.tool = params.fallback.toolName;
                 completedEntry.arguments = params.fallback.toolInput;
                 completedEntry.createdAt = params.fallback.createdAt;
