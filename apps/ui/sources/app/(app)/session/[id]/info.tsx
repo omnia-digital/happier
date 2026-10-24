@@ -97,7 +97,6 @@ import {
 } from '@/sync/domains/session/folders';
 import {
     setSessionFolderAssignment as setSessionOrganizationFolderAssignment,
-    setSessionPin as setSessionOrganizationPin,
     setSessionTagLabels as setSessionOrganizationTagLabels,
 } from '@/sync/ops/sessionOrganization';
 import { buildSessionOrganizationListViewState } from '@/sync/domains/session/organization/viewState';
@@ -764,20 +763,8 @@ function SessionInfoContent({ session, sessionServerId, sourceMachineIdForHandof
         await executeSessionAction({
             actionId: isPinnedSession ? SESSION_ACTION_UNPIN_ID : SESSION_ACTION_PIN_ID,
             target: sessionActionTarget,
-            context: {
-                operations: {
-                    setPinned: async (_sessionId, pinned) => {
-                        const mutation = await getOrganizationMutationContext();
-                        await setSessionOrganizationPin({
-                            ...mutation,
-                            sessionId: session.id,
-                            pinned,
-                        });
-                    },
-                },
-            },
         });
-    }, [getOrganizationMutationContext, isPinnedSession, session.id, sessionActionTarget, sessionSettingsKey]);
+    }, [isPinnedSession, sessionActionTarget, sessionSettingsKey]);
     const [pinningSession, performTogglePinned] = useHappyAction(handleTogglePinned);
 
     const handleEditTags = useCallback(async () => {
@@ -1108,14 +1095,12 @@ function SessionInfoContent({ session, sessionServerId, sourceMachineIdForHandof
                         icon={<Icon name="copy" size={29} color={theme.colors.accent.blue} />}
                         onPress={handleNewSessionSameSetup}
                     />
-                    {devModeEnabled ? (
-                        <Item
-                            testID="session-info-copy-debug-information"
-                            title={t('sessionInfo.copyDebugInformation')}
-                            icon={<Icon name="copy" size={29} color={theme.colors.accent.blue} />}
-                            copy={sessionDebugInformation.text}
-                        />
-                    ) : null}
+                    <Item
+                        testID="session-info-copy-debug-information"
+                        title={t('sessionInfo.copyDebugInformation')}
+                        icon={<Icon name="copy" size={29} color={theme.colors.accent.blue} />}
+                        copy={sessionDebugInformation.text}
+                    />
                     {!session.accessLevel && handoffActionEnabled && handoffSupported && (
                         <Item
                             title={handoffActionSpec.title}
