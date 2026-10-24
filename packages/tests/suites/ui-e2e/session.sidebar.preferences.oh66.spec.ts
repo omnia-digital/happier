@@ -140,6 +140,7 @@ test.describe('ui e2e: OH66 sidebar text size and item density preferences', () 
       token,
       settings: {
         experiments: true,
+        sessionListDensity: 'detailed',
         sessionListActiveGroupingV1: 'date',
         sessionListOrderingModeV1: 'custom',
       },
