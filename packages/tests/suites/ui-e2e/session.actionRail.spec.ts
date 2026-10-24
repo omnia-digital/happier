@@ -34,7 +34,7 @@ function rightPaneLocator(page: Page) {
 
 type SessionMessageTimestampRecord = Readonly<{
   id: string;
-  localId: string | null;
+  messageRole: 'user' | 'agent' | null;
   createdAt: number;
 }>;
 
@@ -45,9 +45,9 @@ function readSessionMessageTimestampRecords(value: unknown): SessionMessageTimes
   return messages.flatMap((message) => {
     if (!message || typeof message !== 'object' || Array.isArray(message)) return [];
     const record = message as Record<string, unknown>;
-    if (typeof record.id !== 'string' || !(typeof record.localId === 'string' || record.localId === null)
-      || typeof record.createdAt !== 'number' || !Number.isFinite(record.createdAt)) return [];
-    return [{ id: record.id, localId: record.localId, createdAt: record.createdAt }];
+    if (typeof record.id !== 'string' || typeof record.createdAt !== 'number' || !Number.isFinite(record.createdAt)) return [];
+    const messageRole = record.messageRole === 'user' || record.messageRole === 'agent' ? record.messageRole : null;
+    return [{ id: record.id, messageRole, createdAt: record.createdAt }];
   });
 }
 
@@ -245,12 +245,18 @@ test.describe('ui e2e: session action rail', () => {
         await page.reload({ waitUntil: 'domcontentloaded' });
         await waitForInitialAppUi({ page, browserDiagnostics });
         const storedMessages = readSessionMessageTimestampRecords(await (await storedMessagesResponse).json());
-        // The send can acknowledge before this row is read: its test id is then
-        // already the server id. Before acknowledgement it is the local id.
-        const storedUserMessage = storedMessages.find((message) =>
-          message.id === userMessageId || message.localId === userMessageId);
-        if (!storedUserMessage) throw new Error('sent message did not reconcile to a stored server message');
+        // Transcript row ids are reducer-local; the server response has the
+        // durable ids. This fixture sends one user message and receives one
+        // assistant message, so each role identifies the exact stored row.
+        const storedUserMessages = storedMessages.filter((message) => message.messageRole === 'user');
+        const storedAssistantMessages = storedMessages.filter((message) => message.messageRole === 'agent');
+        if (storedUserMessages.length !== 1 || storedAssistantMessages.length !== 1) {
+          throw new Error(`expected one stored user and assistant message, got ${storedUserMessages.length} and ${storedAssistantMessages.length}`);
+        }
+        const [storedUserMessage] = storedUserMessages;
+        const [storedAssistantMessage] = storedAssistantMessages;
         expect(userTimestampText).toBe(await formatStoredMessageTimestamp(page, storedUserMessage.createdAt));
+        expect(assistantTimestampText).toBe(await formatStoredMessageTimestamp(page, storedAssistantMessage.createdAt));
         await expect(page.getByText(prompt, { exact: true })).toBeVisible({ timeout: 60_000 });
         await expect(page.getByText('FAKE_CLAUDE_OK_1', { exact: true })).toBeVisible({ timeout: 60_000 });
         const reloadedUserTestId = await page.locator('[data-testid^="transcript-message-"]').filter({ hasText: prompt }).first().getAttribute('data-testid');
@@ -258,11 +264,7 @@ test.describe('ui e2e: session action rail', () => {
         if (!reloadedUserTestId || !reloadedAssistantTestId) throw new Error('missing reloaded transcript message test id');
         const reloadedUserMessageId = reloadedUserTestId.replace(/^transcript-message-/, '');
         const reloadedAssistantMessageId = reloadedAssistantTestId.replace(/^transcript-message-/, '');
-        expect(reloadedUserMessageId).toBe(storedUserMessage.id);
-        const storedAssistantMessage = storedMessages.find((message) => message.id === reloadedAssistantMessageId);
-        expect(storedAssistantMessage).toBeDefined();
         await expect(page.getByTestId(`transcript-message-timestamp-text:${reloadedUserMessageId}`)).toHaveText(userTimestampText);
-        expect(assistantTimestampText).toBe(await formatStoredMessageTimestamp(page, storedAssistantMessage!.createdAt));
         await expect(page.getByTestId(`transcript-message-timestamp-text:${reloadedAssistantMessageId}`)).toHaveText(assistantTimestampText);
         await page.setViewportSize({ width: 1920, height: 900 });
       });
