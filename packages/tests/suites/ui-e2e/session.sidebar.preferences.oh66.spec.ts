@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 
 import { createRunDirs } from '../../src/testkit/runDir';
 import { repoRootDir } from '../../src/testkit/paths';
@@ -245,6 +245,20 @@ test.describe('ui e2e: OH66 sidebar text size and item density preferences', () 
     await sidebarSettings.scrollIntoViewIfNeeded();
     await expect(sidebarAppearance.getByRole('heading', { name: 'Left Sidebar', exact: true })).toBeVisible();
     await page.screenshot({ path: `${suiteDir}/appearance-sidebar-task-sections.png` });
+    const sectionTypography = await Promise.all([
+      ['global', 'Global'],
+      ['left-sidebar', 'Left Sidebar'],
+      ['task-view', 'Task View'],
+    ].map(async ([id, name]) => ({
+      id,
+      ...await page.getByTestId(`settings-appearance.section.${id}`)
+        .getByRole('heading', { name, exact: true })
+        .evaluate((heading) => {
+          const style = getComputedStyle(heading);
+          return { fontSize: style.fontSize, fontWeight: style.fontWeight, color: style.color };
+        }),
+    })));
+    await writeFile(`${suiteDir}/appearance-section-typography.json`, JSON.stringify(sectionTypography, null, 2));
     await sidebarSettings.click();
     await expect(page).toHaveURL(/\/settings\/session(?:[?#].*)?$/);
     await expect(page.getByTestId('settings-session-machineIdentity-toggle')).toHaveCount(1);
