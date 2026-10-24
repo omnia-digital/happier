@@ -27,6 +27,8 @@ Continue source work without interacting with the running daily native app. Nati
 
 Source review accepts the Mac collector and lifecycle recovery. Router assessment is VERIFY Astra/high, explicitly with full-issue behavior unverified because target GPU Chrome, native, second-host and Linux gates remain missing. This does not close OH-59. Review counters remain two failed Sol / zero failed Astra.
 
+After the OH-4 harness correction, targeted actual-GPU Chrome passes1/1 in140s (body11.7s), exit0 (`/tmp/happier-oh59-gpu-harness-fixed-r2-chrome.log`). Authenticated isolated fixture RPC uses the actual Darwin collector: Apple M5 Pro, `ioreg:4294969373`,28%. Root inspected the unique image/measurement under `.project/logs/e2e/2026-10-24T04-58-27-285Z-ui-e2e-oh59-machine-monitoring-d1fec20b/machine-monitoring/`. The percentage is visible, but details below the panel clip are only asserted as DOM text. The same canonical browser case now scrolls the exact detail into view and requires full viewport intersection before its screenshot; that stronger rendered-identity gate is pending. This is test-observation refinement, not a reproduced production defect. Earlier setup failure remains recorded; native/additional-host/Linux gates stay open.
+
 ## OH-56 indexed search
 
 - 🟢 Partial content source `ecf1d2b66d` reuses the existing gated machine-memory status/search owner. Scope is explicitly one Home and machine; results are indexed summaries with message sequence navigation. No account-wide transcript coverage or automatic indexing enablement is claimed.
