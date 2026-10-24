@@ -1,7 +1,7 @@
 import React from 'react';
 import renderer, { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { renderScreen } from '@/dev/testkit';
+import { createExpoVectorIconsMock, renderScreen } from '@/dev/testkit';
 import { installNavigationShellCommonModuleMocks } from './navigationShellTestHelpers';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -220,15 +220,14 @@ vi.mock('@/sync/ops', async (importOriginal) => {
 });
 
 vi.mock('expo-image', () => ({ Image: 'Image' }));
+vi.mock('@expo/vector-icons', async () => createExpoVectorIconsMock());
 vi.mock('react-native-gesture-handler', () => ({
     Swipeable: React.forwardRef(({ children, ...props }: any, _ref) => (
         React.createElement('Swipeable', props, children)
     )),
 }));
-vi.mock('@expo/vector-icons', () => ({ Ionicons: 'Ionicons', Octicons: 'Octicons' }));
 vi.mock('@/track', () => ({ trackFriendsProfileView: vi.fn() }));
 vi.mock('@/components/ui/text/Text', () => ({ Text: 'Text' }));
-vi.mock('@/components/ui/icons/Icon', () => ({ Icon: 'Icon' }));
 vi.mock('@/components/sessions/shell/SessionListIdentity', () => ({
     SessionListIdentity: 'SessionListIdentity',
     useSessionListIdentityDisplay: () => 'none',
@@ -324,7 +323,7 @@ describe('InboxView mark as read', () => {
         expect(ancestor?.props.testID).toBe('inbox.section.ready');
 
         const [readyRow] = nodesByTestId(tree, 'inbox.review_session.server-a.session-a');
-        expect(readyRow!.props.subtitle).toContain('status.readyForReview');
+        expect(readyRow!.props.subtitle).toContain('inbox.sessionReason.ready');
         expect(readyRow!.props.detail).toBeUndefined();
     });
 

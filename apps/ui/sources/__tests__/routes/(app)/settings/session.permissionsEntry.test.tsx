@@ -64,6 +64,7 @@ describe('Session settings (Permissions entry)', () => {
 
         expect(groupTitles).toEqual([
             'settingsSession.detailedBehavior.title',
+            'settingsSession.archiveAutomation.title',
             'settingsSession.rootGroups.launchDefaults.title',
             'settingsSession.rootGroups.listOrganization.title',
             'settingsSession.rootGroups.rowDetails.title',
