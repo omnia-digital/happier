@@ -35,6 +35,9 @@ describe('session autoarchive eligibility', () => {
         expect(assessSessionAutoArchiveHydrationCandidate({ session: cold, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(true);
         expect(assessSessionAutoArchiveHydrationCandidate({ session: warm, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(true);
         expect(assessSessionAutoArchiveCandidate({ session: warm, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(false);
+        const shared = { ...session, owner: undefined, accessLevel: 'view' as const };
+        expect(assessSessionAutoArchiveHydrationCandidate({ session: shared, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(false);
+        expect(assessSessionAutoArchiveCandidate({ session: shared, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(false);
         expect(assessSessionAutoArchiveHydrationCandidate({ session: { ...cold, active: true }, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(false);
     });
 

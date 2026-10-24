@@ -95,6 +95,10 @@ export function createSessionAutoArchiveObserver(input: Readonly<{
             const forceRefresh = !!current.sessions[sessionId]?.metadata
                 && current.sessions[sessionId]!.metadataVersion < (current.sessionListRenderables[sessionId]?.metadataVersion ?? 0);
             if (!await input.ensureMetadata(sessionId, scope.serverId, shouldContinue, forceRefresh)) return;
+            // Metadata hydration may replace the catalog object. It is still this cadence's candidate;
+            // only a later independent change or the next scheduled check should read its PRs again.
+            const hydratedRow = storage.getState().sessionListRenderables[sessionId];
+            if (hydratedRow) checked.add(hydratedRow);
             const links = readSessionPullRequestLinks(storage.getState().sessions[sessionId]?.metadata);
             if (!candidateCurrent(scope, sessionId, links)) return;
             const results = [];

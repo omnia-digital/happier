@@ -28,7 +28,7 @@ export function assessSessionAutoArchiveHydrationCandidate(input: CandidateInput
     if (!input.enabled) return skip('disabled');
     if (session.archivedAt != null) return skip('archived');
     if (input.archivePending) return skip('archive_pending');
-    if (session.accessLevel !== 'admin' && (!input.accountId || session.owner !== input.accountId)) return skip('work_unverified');
+    if (session.accessLevel === 'view' || session.accessLevel === 'edit') return skip('work_unverified');
     if (session.active !== false || typeof session.presence !== 'number' || !Number.isFinite(session.presence)
         || session.thinking !== false || session.pendingCount !== 0 || session.pendingBlockedCount !== 0
         || session.runtimeActivityState !== 'idle' || session.runtimeActivityActiveCount !== 0
@@ -42,6 +42,8 @@ export function assessSessionAutoArchiveCandidate(input: CandidateInput): Sessio
     const base = assessSessionAutoArchiveHydrationCandidate(input);
     if (!base.eligible) return base;
     const session = input.session;
+    // List snapshots may omit owner/access level. Hydration is read-only; an archive still needs full ownership proof.
+    if (session.accessLevel !== 'admin' && (!input.accountId || session.owner !== input.accountId)) return skip('work_unverified');
     if (session.metadataUnavailable || !session.metadata) return skip('metadata_unavailable');
     if (readSessionPullRequestLinks(session.metadata).length === 0) return skip('no_links');
     if (session.metadata.agentActivityCounts?.live !== 0) return skip('work_unverified');
