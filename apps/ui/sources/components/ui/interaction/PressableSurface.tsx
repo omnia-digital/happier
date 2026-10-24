@@ -85,8 +85,9 @@ export const PressableSurface = React.memo((props: PressableSurfaceProps) => {
 
     const resolveStyle = React.useCallback(({ pressed, hovered }: { pressed?: boolean; hovered?: boolean }) => {
         const backgroundColor = feedback.resolveBackgroundColor({ pressed, hovered });
+        const interactionState = { pressed: pressed === true, hovered: hovered === true };
         const consumerStyle = typeof props.style === 'function'
-            ? props.style({ pressed: pressed === true, hovered: hovered === true })
+            ? props.style(interactionState)
             : props.style;
         return [
             consumerStyle,
