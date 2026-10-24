@@ -34,7 +34,7 @@ describe('ClaudeLocalPermissionBridge push policy', () => {
       tool_input: { path: 'a' },
     });
 
-    await vi.waitFor(() => expect(session.client.getAgentStateSnapshot()?.requests?.tool1).toBeDefined());
+    await vi.waitFor(() => expect(session.client.getAgentStateSnapshot?.()?.requests?.tool1).toBeDefined());
     await Promise.resolve();
     await Promise.resolve();
     expect(sendToAllDevicesAsync).not.toHaveBeenCalled();

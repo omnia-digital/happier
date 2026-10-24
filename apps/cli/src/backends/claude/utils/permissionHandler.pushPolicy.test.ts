@@ -35,7 +35,7 @@ describe('Claude PermissionHandler push policy', () => {
     } as any);
 
     const promise = handler.handleToolCall('Read', { path: 'a' }, { permissionMode: 'default' } as any, { signal: controller.signal });
-    await vi.waitFor(() => expect(session.client.getAgentStateSnapshot()?.requests?.tool1).toBeDefined());
+    await vi.waitFor(() => expect(session.client.getAgentStateSnapshot?.()?.requests?.tool1).toBeDefined());
     await Promise.resolve();
     await Promise.resolve();
     expect(sendToAllDevicesAsync).not.toHaveBeenCalled();
