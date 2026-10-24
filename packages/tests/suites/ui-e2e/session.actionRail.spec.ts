@@ -245,9 +245,11 @@ test.describe('ui e2e: session action rail', () => {
         await page.reload({ waitUntil: 'domcontentloaded' });
         await waitForInitialAppUi({ page, browserDiagnostics });
         const storedMessages = readSessionMessageTimestampRecords(await (await storedMessagesResponse).json());
-        const storedUserMessage = storedMessages.find((message) => message.localId === userMessageId);
-        if (!storedUserMessage) throw new Error('sent local message did not reconcile to a stored server message');
-        expect(storedUserMessage.localId).toBe(userMessageId);
+        // The send can acknowledge before this row is read: its test id is then
+        // already the server id. Before acknowledgement it is the local id.
+        const storedUserMessage = storedMessages.find((message) =>
+          message.id === userMessageId || message.localId === userMessageId);
+        if (!storedUserMessage) throw new Error('sent message did not reconcile to a stored server message');
         expect(userTimestampText).toBe(await formatStoredMessageTimestamp(page, storedUserMessage.createdAt));
         await expect(page.getByText(prompt, { exact: true })).toBeVisible({ timeout: 60_000 });
         await expect(page.getByText('FAKE_CLAUDE_OK_1', { exact: true })).toBeVisible({ timeout: 60_000 });
