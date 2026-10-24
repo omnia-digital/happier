@@ -14,12 +14,14 @@ import { upsertSessionLabel } from './upsertSessionLabel';
 import { deleteSessionLabel } from './deleteSessionLabel';
 import { fetchAndApplySessionOrganizationSnapshot } from './fetchSessionOrganizationSnapshot';
 import { setSessionTagLabels } from './setSessionTagLabels';
+import { fetchAndApplySessionFolderAssignments } from './fetchSessionFolderAssignments';
 
 const boundary = vi.hoisted(() => ({
     credentials: { token: '', secret: 'secret' },
     upsert: vi.fn(), delete: vi.fn(), reorder: vi.fn(), assign: vi.fn(), move: vi.fn(),
     attention: vi.fn(), assignTags: vi.fn(), upsertTag: vi.fn(), deleteTag: vi.fn(), upsertLabel: vi.fn(), deleteLabel: vi.fn(),
     fetchSnapshot: vi.fn(),
+    fetchAssignments: vi.fn(),
     encryption: vi.fn(), encryptionMode: vi.fn(), readCredentials: vi.fn(),
     listeners: new Set<() => void>(),
 }));
@@ -50,6 +52,7 @@ vi.mock('@/sync/api/session/sessionOrganizationApi', async (original) => ({
     upsertSessionOrganizationLabel: boundary.upsertLabel,
     deleteSessionOrganizationLabel: boundary.deleteLabel,
     fetchSessionOrganizationSnapshot: boundary.fetchSnapshot,
+    fetchSessionFolderAssignmentsForSessions: boundary.fetchAssignments,
 }));
 const token = (accountId: string, signature = 'signature') => `header.${Buffer.from(JSON.stringify({ sub: accountId })).toString('base64')}.${signature}`;
 const credentialsA = { token: token('account-a'), secret: 'secret' };
@@ -103,6 +106,7 @@ beforeEach(() => {
     for (const mock of [boundary.upsert, boundary.delete, boundary.reorder, boundary.assign, boundary.move,
         boundary.attention, boundary.assignTags, boundary.upsertTag, boundary.deleteTag, boundary.upsertLabel, boundary.deleteLabel,
         boundary.fetchSnapshot,
+        boundary.fetchAssignments,
         boundary.encryption, boundary.encryptionMode]) mock.mockReset();
     boundary.encryptionMode.mockResolvedValue({ mode: 'plain', updatedAt: 0 });
     boundary.encryption.mockResolvedValue({ getContentPrivateKey: () => new Uint8Array(32).fill(7) });
@@ -112,6 +116,26 @@ beforeEach(() => {
 });
 
 describe('organization mutations publish only to their captured account', () => {
+    it('lets B fetch its missing folder assignment while A is in flight and keeps A’s late result out of B', async () => {
+        const responseA = deferred<{ assignments: { sessionId: string; folderId: string }[] }>();
+        boundary.fetchAssignments.mockReturnValueOnce(responseA.promise)
+            .mockResolvedValueOnce({ assignments: [{ sessionId: 'missing-session', folderId: 'B folder' }] });
+        const pendingA = fetchAndApplySessionFolderAssignments({
+            ...base, sessionIds: ['missing-session'], fetchPolicy: 'missing',
+        });
+        await vi.waitFor(() => expect(boundary.fetchAssignments).toHaveBeenCalledTimes(1));
+        seed('account-b');
+        const pendingB = fetchAndApplySessionFolderAssignments({
+            ...base, credentials: boundary.credentials, sessionIds: ['missing-session'], fetchPolicy: 'missing',
+        });
+        await pendingB;
+        expect(boundary.fetchAssignments).toHaveBeenCalledTimes(2);
+        expect(getStorage().getState().sessionOrganizationFolderAssignmentsBySessionKey['home:missing-session']).toBe('B folder');
+        responseA.resolve({ assignments: [{ sessionId: 'missing-session', folderId: 'A folder' }] });
+        await pendingA;
+        expect(getStorage().getState().sessionOrganizationFolderAssignmentsBySessionKey['home:missing-session']).toBe('B folder');
+    });
+
     it('does not resolve an A tag-label action from B’s already-visible tag definitions', async () => {
         seed('account-b');
         boundary.assignTags.mockResolvedValue({ sessionId: 'session', tagIds: ['tag'] });
