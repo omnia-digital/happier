@@ -185,16 +185,21 @@ exit 1
             await gotoDomContentLoadedWithRetries(page, `${baseUrl}/session/${merged}/info`, 120_000);
             await expect(page.getByTestId('session-pr-add')).toBeVisible({ timeout: 120_000 });
             await expect(page.getByTestId('session-pr-change-github-github.com-owner/one-7')).toBeVisible();
+            await page.getByTestId('session-pr-add').scrollIntoViewIfNeeded();
+            await page.screenshot({ path: testInfo.outputPath('oh52-owner-pr-controls.png') });
             receipt('owned session retains visible PR link and correction controls');
 
             await gotoDomContentLoadedWithRetries(page, `${baseUrl}/settings/session`, 120_000);
-            await expect(page.getByTestId('settings-session-autoArchiveLinkedPrs-toggle')).not.toBeChecked();
-            await expect(page.getByTestId('settings-session-cleanupOnArchive-toggle')).not.toBeChecked();
+            const autoArchiveToggle = page.getByTestId('settings-session-autoArchiveLinkedPrs-item').getByRole('switch');
+            const cleanupToggle = page.getByTestId('settings-session-cleanupOnArchive-item').getByRole('switch');
+            await expect(autoArchiveToggle).toHaveAttribute('aria-checked', 'false');
+            await expect(cleanupToggle).toHaveAttribute('aria-checked', 'false');
             await expect(page.getByText('every 5 minutes', { exact: false })).toBeVisible();
             await page.getByTestId('settings-session-autoArchiveLinkedPrs-item').click();
-            await expect(page.getByTestId('settings-session-autoArchiveLinkedPrs-toggle')).toBeChecked();
-            await expect(page.getByTestId('settings-session-cleanupOnArchive-toggle')).not.toBeChecked();
+            await expect(autoArchiveToggle).toHaveAttribute('aria-checked', 'true');
+            await expect(cleanupToggle).toHaveAttribute('aria-checked', 'false');
             await expect.poll(async () => (await readUiE2eScopedAccountSettings({ page })).autoArchiveAfterLinkedPullRequestsMerge).toBe(true);
+            await page.screenshot({ path: testInfo.outputPath('oh52-independent-archive-preferences.png') });
             receipt('foreground autoarchive enabled through visible independent preference');
 
             await expect.poll(async () => readArchivedAt(merged), { timeout: 120_000 }).toEqual(expect.any(Number));
