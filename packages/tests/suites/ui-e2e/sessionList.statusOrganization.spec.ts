@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { randomBytes, randomUUID } from 'node:crypto';
-import { accountSettingsParse, deriveSettingsSecretsKeyV1, encryptSecretStringV1, sealEncryptedDataKeyEnvelopeV1 } from '@happier-dev/protocol';
+import { accountSettingsParse, deriveSettingsSecretsKeyV1, encryptSecretStringV1, sealEncryptedDataKeyEnvelopeV1, SESSION_RUNTIME_ACTIVITY_SNAPSHOT_EVENT, SessionRuntimeActivitySnapshotAckSchema, parseSessionRuntimeActivityProjectionFields } from '@happier-dev/protocol';
 import { createRunDirs } from '../../src/testkit/runDir';
 import { startServerLight, type StartedServer } from '../../src/testkit/process/serverLight';
 import { startUiWeb, type StartedUiWeb } from '../../src/testkit/process/uiWeb';
@@ -84,7 +84,7 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
                 return sessionId;
             };
             const noTicket = await seed('OH60 No ticket');
-            await seed('OH60 layout anchor');
+            await seed('Layout anchor');
             await gotoDomContentLoadedWithRetries(page, baseUrl, 120_000);
             await expect(page.getByTestId('session-list-item-' + noTicket)).toBeVisible({ timeout: 120_000 });
             await page.getByTestId('session-list-item-' + noTicket).hover();
@@ -97,15 +97,27 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             const testing = await seed('OH60 Testing', 3);
             const production = await seed('OH60 Production', 4);
             const unavailable = await seed('OH60 Unavailable', 5);
-            for (let index = 0; index < 32; index++) await seed('OH60 unlinked filler ' + index);
-            const publish = async (sessionId: string, thinking: boolean) => {
+            for (let index = 0; index < 32; index++) await seed('Layout filler ' + index);
+            const publishActivity = async (socket: SocketCollector, sessionId: string, activeWork: boolean) => {
+                const snapshot = { state: activeWork ? 'active' as const : 'idle' as const, activeCount: activeWork ? 1 : 0 };
+                const ack = SessionRuntimeActivitySnapshotAckSchema.parse(await socket.emitWithAck(SESSION_RUNTIME_ACTIVITY_SNAPSHOT_EVENT, {
+                    sessionId, mutationId: randomUUID(), snapshot,
+                }));
+                expect(['applied', 'unchanged']).toContain(ack.status);
+                const persisted = await fetchJson<{ session: Record<string, unknown> }>(`${server!.baseUrl}/v2/sessions/${sessionId}`, { headers: { Authorization: `Bearer ${access.token}` } });
+                expect(persisted.status).toBe(200);
+                expect(parseSessionRuntimeActivityProjectionFields(persisted.data.session)).toMatchObject({ kind: 'valid', projection: snapshot });
+            };
+            const publish = async (sessionId: string, activeWork: boolean) => {
                 const { socket } = await createMachineBoundSessionScopedSocketCollector({ baseUrl: server!.baseUrl, token: access.token, sessionId,
                     machineMetadataCiphertext: encryptLegacyBase64({ host: 'OH60 isolated runtime publisher', platform: 'darwin' }, secret) });
                 publishers.push(socket); socket.connect();
                 await waitFor(async () => socket.isConnected(), { timeoutMs: 20_000, context: 'connect isolated status publisher' });
-                const alive = () => socket.emit('session-alive', { sid: sessionId, time: Date.now(), thinking });
+                // Released alive is reachability only; actual activity uses its acknowledged owner.
+                const alive = () => socket.emit('session-alive', { sid: sessionId, time: Date.now(), thinking: false });
                 alive(); keepAlives.push(setInterval(alive, 15_000));
                 await waitFor(async () => (await fetchSessionV2(server!.baseUrl, access.token, sessionId)).active, { timeoutMs: 20_000, context: 'live fixture runtime' });
+                await publishActivity(socket, sessionId, activeWork);
                 return socket;
             };
             const idlePublisher = await publish(idle, false);
@@ -155,11 +167,12 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await expect(row(idle)).toBeVisible();
             await page.getByTestId('session-list-search-clear').first().click();
             await expect(row(testing)).toBeVisible();
+            // Keep every ticket candidate visible while exercising runtime group movement below.
+            await page.getByTestId('session-list-search-input').first().fill('OH60');
             await page.screenshot({ path: testInfo.outputPath('oh60-ticket-groups-agent-sort.png') });
             await choose('session-list-status-group-agent');
             await expect(statusHeaders.filter({ hasText: 'working...' }).first()).toBeVisible();
-            clearInterval(keepAlives[1]);
-            workingPublisher.emit('session-alive', { sid: working, time: Date.now(), thinking: false });
+            await publishActivity(workingPublisher, working, false);
             await expect(page.getByTestId('session-row-status-' + working + '-idle')).toBeVisible({ timeout: 60_000 });
             await expect(statusHeaders.filter({ hasText: 'working...' })).toHaveCount(0);
             await expect(page).toHaveURL(new RegExp('/session/' + idle));
