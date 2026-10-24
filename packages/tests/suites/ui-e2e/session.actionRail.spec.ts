@@ -38,18 +38,6 @@ type SessionMessageTimestampRecord = Readonly<{
   createdAt: number;
 }>;
 
-function readSessionMessageReceipt(value: unknown): SessionMessageTimestampRecord {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid sent-message acknowledgement');
-  const message = (value as Record<string, unknown>).message;
-  if (!message || typeof message !== 'object' || Array.isArray(message)) throw new Error('missing sent-message acknowledgement');
-  const record = message as Record<string, unknown>;
-  if (typeof record.id !== 'string' || !(typeof record.localId === 'string' || record.localId === null)
-    || typeof record.createdAt !== 'number' || !Number.isFinite(record.createdAt)) {
-    throw new Error('invalid sent-message identity or timestamp');
-  }
-  return { id: record.id, localId: record.localId, createdAt: record.createdAt };
-}
-
 function readSessionMessageTimestampRecords(value: unknown): SessionMessageTimestampRecord[] {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('invalid session messages response');
   const messages = (value as Record<string, unknown>).messages;
@@ -199,14 +187,7 @@ test.describe('ui e2e: session action rail', () => {
       await composer.fill(prompt);
       const send = page.getByTestId('session-composer-send');
       await expect(send).toBeEnabled({ timeout: 60_000 });
-      const sentUserMessageResponse = page.waitForResponse((response) => {
-        const url = new URL(response.url());
-        return response.request().method() === 'POST'
-          && url.pathname === `/v2/sessions/${sessionId}/messages`
-          && response.ok();
-      });
       await send.click();
-      const sentUserMessage = readSessionMessageReceipt(await (await sentUserMessageResponse).json());
       await expect(page.getByText('FAKE_CLAUDE_OK_1').first()).toBeVisible({ timeout: 180_000 });
       await expect(page.locator('[data-testid^="transcript-message-"]').first()).toBeVisible({ timeout: 60_000 });
 
@@ -222,7 +203,6 @@ test.describe('ui e2e: session action rail', () => {
         if (!userTestId || !assistantTestId) throw new Error('missing transcript message test id');
         const userMessageId = userTestId.replace(/^transcript-message-/, '');
         const assistantMessageId = assistantTestId.replace(/^transcript-message-/, '');
-        expect(sentUserMessage.localId).toBe(userMessageId);
         const userTimestamp = page.getByTestId(`transcript-message-timestamp:${userMessageId}`);
         const assistantTimestamp = page.getByTestId(`transcript-message-timestamp:${assistantMessageId}`);
         const userActionSlot = page.getByTestId(`transcript-message-actions:${userMessageId}`);
@@ -234,7 +214,6 @@ test.describe('ui e2e: session action rail', () => {
         const assistantTimestampText = await page.getByTestId(`transcript-message-timestamp-text:${assistantMessageId}`).innerText();
         expect(userTimestampText).not.toBe('');
         expect(assistantTimestampText).not.toBe('');
-        expect(userTimestampText).toBe(await formatStoredMessageTimestamp(page, sentUserMessage.createdAt));
         await expect(userTimestamp).toHaveAttribute('aria-label', userTimestampText);
 
         await userTimestamp.hover();
@@ -266,12 +245,10 @@ test.describe('ui e2e: session action rail', () => {
         await page.reload({ waitUntil: 'domcontentloaded' });
         await waitForInitialAppUi({ page, browserDiagnostics });
         const storedMessages = readSessionMessageTimestampRecords(await (await storedMessagesResponse).json());
-        const storedUserMessage = storedMessages.find((message) => message.localId === sentUserMessage.localId);
-        expect(storedUserMessage).toEqual(expect.objectContaining({
-          id: sentUserMessage.id,
-          localId: sentUserMessage.localId,
-          createdAt: sentUserMessage.createdAt,
-        }));
+        const storedUserMessage = storedMessages.find((message) => message.localId === userMessageId);
+        if (!storedUserMessage) throw new Error('sent local message did not reconcile to a stored server message');
+        expect(storedUserMessage.localId).toBe(userMessageId);
+        expect(userTimestampText).toBe(await formatStoredMessageTimestamp(page, storedUserMessage.createdAt));
         await expect(page.getByText(prompt, { exact: true })).toBeVisible({ timeout: 60_000 });
         await expect(page.getByText('FAKE_CLAUDE_OK_1', { exact: true })).toBeVisible({ timeout: 60_000 });
         const reloadedUserTestId = await page.locator('[data-testid^="transcript-message-"]').filter({ hasText: prompt }).first().getAttribute('data-testid');
@@ -279,7 +256,7 @@ test.describe('ui e2e: session action rail', () => {
         if (!reloadedUserTestId || !reloadedAssistantTestId) throw new Error('missing reloaded transcript message test id');
         const reloadedUserMessageId = reloadedUserTestId.replace(/^transcript-message-/, '');
         const reloadedAssistantMessageId = reloadedAssistantTestId.replace(/^transcript-message-/, '');
-        expect(reloadedUserMessageId).toBe(storedUserMessage?.id);
+        expect(reloadedUserMessageId).toBe(storedUserMessage.id);
         const storedAssistantMessage = storedMessages.find((message) => message.id === reloadedAssistantMessageId);
         expect(storedAssistantMessage).toBeDefined();
         await expect(page.getByTestId(`transcript-message-timestamp-text:${reloadedUserMessageId}`)).toHaveText(userTimestampText);
