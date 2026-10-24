@@ -1,3 +1,4 @@
+import { createSessionOrganizationMutationPublisher } from '@/sync/domains/session/organization/mutationScope';
 import type { AuthCredentials } from '@/auth/storage/tokenStorage';
 import { upsertSessionOrganizationFolder as upsertSessionOrganizationFolderApi } from '@/sync/api/session/sessionOrganizationApi';
 import { readSessionOrganizationServerScopedId } from '@/sync/domains/session/organization';
@@ -29,6 +30,7 @@ export async function upsertSessionFolder(params: Readonly<{
     serverUrl?: string;
     request: CreateOrUpdateSessionOrganizationFolderRequest;
 }>): Promise<void> {
+    const publish = createSessionOrganizationMutationPublisher(params);
     const request: ConcreteSessionOrganizationFolderRequest = {
         ...params.request,
         folderId: params.request.folderId ?? createSessionOrganizationOpaqueId({
@@ -37,6 +39,7 @@ export async function upsertSessionFolder(params: Readonly<{
         }),
         display: await prepareSessionOrganizationDisplayEnvelopeForWrite({
             credentials: params.credentials,
+            serverUrl: params.serverUrl,
             envelope: params.request.display,
         }),
     };
@@ -55,22 +58,28 @@ export async function upsertSessionFolder(params: Readonly<{
             updatedAt: now,
         },
     });
-    const recordId = getStorage().getState().upsertSessionOrganizationFolderOptimistic(params.serverId, optimisticFolder);
+    let recordId: string | null = null;
+    await publish(() => {
+        recordId = getStorage().getState().upsertSessionOrganizationFolderOptimistic(params.serverId, optimisticFolder);
+    });
     try {
         const response = await upsertSessionOrganizationFolderApi({
             credentials: params.credentials,
             serverUrl: params.serverUrl,
             request,
         });
-        getStorage().getState().commitSessionOrganizationOptimistic(recordId);
         const folder = await openSessionOrganizationFolderDisplay({
             credentials: params.credentials,
             folder: response.folder,
         });
-        const reconcileRecordId = getStorage().getState().upsertSessionOrganizationFolderOptimistic(params.serverId, folder);
-        getStorage().getState().commitSessionOrganizationOptimistic(reconcileRecordId);
+        await publish(() => {
+            const reconcileRecordId = getStorage().getState().upsertSessionOrganizationFolderOptimistic(params.serverId, folder);
+            getStorage().getState().commitSessionOrganizationOptimistic(reconcileRecordId);
+        });
     } catch (error) {
-        getStorage().getState().rollbackSessionOrganizationOptimistic(recordId);
+        if (recordId) await publish(() => getStorage().getState().rollbackSessionOrganizationOptimistic(recordId!));
         throw error;
+    } finally {
+        if (recordId) getStorage().getState().commitSessionOrganizationOptimistic(recordId);
     }
 }

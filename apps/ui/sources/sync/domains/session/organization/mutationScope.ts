@@ -1,6 +1,8 @@
+import { getStorage } from '@/sync/domains/state/storageStore';
+import { isServerScopedSessionContextCurrent } from '@/sync/runtime/orchestration/serverScopedRpc/resolveServerScopedSessionContext';
 import { parseToken } from '@/utils/auth/parseToken';
 import { TokenStorage, type AuthCredentials } from '@/auth/storage/tokenStorage';
-import { getServerProfileById, resolveServerProfileScopeId } from '@/sync/domains/server/serverProfiles';
+import { areServerProfileIdentifiersEquivalent, getServerProfileById, resolveServerProfileScopeId } from '@/sync/domains/server/serverProfiles';
 
 /**
  * Credentials, target URL, and the server id every session-organization write must be keyed by.
@@ -47,5 +49,41 @@ export async function resolveSessionOrganizationMutationScope(
             serverId: resolveServerProfileScopeId(serverProfile),
             serverUrl: serverProfile.serverUrl,
         },
+    };
+}
+
+/** Keep local optimistic/result/rollback publication on the account that authorized the write. */
+export function createSessionOrganizationMutationPublisher(params: Readonly<{
+    credentials: AuthCredentials;
+    serverId: string;
+    serverUrl?: string;
+}>): (publish: () => void) => Promise<boolean> {
+    const targetServerUrl = params.serverUrl ?? getServerProfileById(params.serverId)?.serverUrl;
+    const targetAccountId = parseToken(params.credentials.token);
+    return async (publish) => {
+        if (!targetServerUrl) return false;
+        let credentialsChanged = false;
+        const unsubscribe = TokenStorage.subscribeCredentialChanges(() => { credentialsChanged = true; });
+        try {
+            let current: boolean;
+            do {
+                credentialsChanged = false;
+                current = await isServerScopedSessionContextCurrent({
+                    targetServerId: params.serverId,
+                    targetServerUrl,
+                    targetAccountId,
+                });
+                // A storage read already in flight may return the preceding credentials.
+                // Re-read only when the canonical owner reported a change during that read.
+            } while (credentialsChanged);
+            if (!current) return false;
+            const activeScope = getStorage().getState().profileScope;
+            if (activeScope && areServerProfileIdentifiersEquivalent(activeScope.serverId, params.serverId)
+                && activeScope.accountId !== targetAccountId) return false;
+            publish();
+            return true;
+        } finally {
+            unsubscribe();
+        }
     };
 }
