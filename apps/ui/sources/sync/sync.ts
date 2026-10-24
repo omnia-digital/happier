@@ -32,6 +32,7 @@ import {
 import { resolveSessionActionDefaultBackend } from '@/sync/domains/session/resolveSessionActionDefaultBackend';
 import { storage } from './domains/state/storage';
 import { ApiMessage } from './api/types/apiTypes';
+import { fetchStoredMessageCreatedAtByLocalId } from './api/session/sessionMessagesApi';
 import type { ApiEphemeralActivityUpdate } from './api/types/apiTypes';
 import { Session, Machine, MetadataSchema, type Metadata } from './domains/state/storageTypes';
 import { InvalidateSync } from '@/utils/sessions/sync';
@@ -2537,30 +2538,15 @@ class Sync {
         let createdAt = params.ack.createdAt;
         if (createdAt === undefined) {
             try {
-                const response = await apiSocket.request(
-                    `/v2/sessions/${encodeURIComponent(params.sessionId)}/messages/by-local-id/${encodeURIComponent(params.localId)}`,
-                );
-                if (!params.isCurrent()) return;
-                if (!response.ok) throw new Error(`Stored message lookup returned ${response.status}`);
-                const body: unknown = await response.json();
-                if (!params.isCurrent()) return;
-                const message = body && typeof body === 'object' && !Array.isArray(body)
-                    ? (body as { message?: unknown }).message
-                    : null;
-                const stored = message && typeof message === 'object' && !Array.isArray(message)
-                    ? message as Record<string, unknown>
-                    : null;
-                if (
-                    stored?.id !== params.ack.id
-                    || stored.seq !== params.ack.seq
-                    || stored.localId !== params.localId
-                    || typeof stored.createdAt !== 'number'
-                    || !Number.isSafeInteger(stored.createdAt)
-                    || stored.createdAt < 0
-                ) {
-                    throw new Error('Stored message lookup did not match the acknowledged message');
-                }
-                createdAt = stored.createdAt;
+                createdAt = await fetchStoredMessageCreatedAtByLocalId({
+                    sessionId: params.sessionId,
+                    localId: params.localId,
+                    acknowledgedId: params.ack.id,
+                    acknowledgedSeq: params.ack.seq,
+                    assertCurrent: () => {
+                        if (!params.isCurrent()) throw new Error('Message lookup scope expired');
+                    },
+                });
             } catch (error) {
                 if (!params.isCurrent()) return;
                 // The ACK proves persistence, but an older server does not provide its stored time.
@@ -2831,6 +2817,8 @@ class Sync {
             const isSendScopeCurrent = () => isPermissionPublicationScopeCurrent()
                 && areServerAccountScopesEqual(getActiveServerAccountScope(), permissionPublicationScope);
             await this.applyAcknowledgedOutgoingMessage({ sessionId, localId, ack, rawRecord: content, isCurrent: isSendScopeCurrent });
+            const committedResult = { localId, seq: ack.seq, persistence: 'transcript_committed' as const };
+            if (!isSendScopeCurrent()) return committedResult;
 
             // If we miss the broadcast socket update, we still need to advance session.seq so
             // catch-up (`afterSeq`) works correctly across reconnects.
@@ -2850,6 +2838,7 @@ class Sync {
             // we publish the newer local selection as the session-wide permission mode so it propagates
 	            // across devices.
 	            await publishNextPromptPermissionModeIfNeeded();
+	            if (!isSendScopeCurrent()) return committedResult;
 
             if (session.active !== true || runtimeRpcFallbackRequiresWake) {
                 ensureSessionRuntimeAfterCommittedPrompt({
@@ -2866,7 +2855,7 @@ class Sync {
             // We clear optimistic thinking only when we see a terminal lifecycle marker,
             // when the session enters a permission/action-required gate, when the session is marked thinking by live
             // activity updates, or when the optimistic timeout expires.
-            return { localId, seq: ack.seq, persistence: 'transcript_committed' as const };
+            return committedResult;
         } catch (e) {
             if (isTerminalAuthError(e)) {
                 recordTerminalAuthSyncError(e);

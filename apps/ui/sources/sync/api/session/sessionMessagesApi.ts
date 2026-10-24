@@ -1,7 +1,45 @@
 import type { SessionMessageRole } from '@happier-dev/protocol';
 
 import type { ApiSessionMessagesResponse } from '@/sync/api/types/apiTypes';
-import { ApiSessionMessagesResponseSchema } from '@/sync/api/types/apiTypes';
+import { ApiMessageSchema, ApiSessionMessagesResponseSchema } from '@/sync/api/types/apiTypes';
+import { apiSocket } from './apiSocket';
+
+const StoredMessageAckLookupSchema = ApiMessageSchema.pick({
+    id: true,
+    seq: true,
+    localId: true,
+    createdAt: true,
+});
+
+/** Resolve the stored time for a successful ACK from a server that predates ACK.createdAt. */
+export async function fetchStoredMessageCreatedAtByLocalId(params: Readonly<{
+    sessionId: string;
+    localId: string;
+    acknowledgedId: string;
+    acknowledgedSeq: number;
+    assertCurrent: () => void;
+}>): Promise<number> {
+    const path = `/v2/sessions/${encodeURIComponent(params.sessionId)}/messages/by-local-id/${encodeURIComponent(params.localId)}`;
+    return apiSocket.request(path, undefined, async (response) => {
+        if (!response.ok) throw new Error(`Stored message lookup returned ${response.status}`);
+        const body: unknown = await response.json();
+        const candidate = body && typeof body === 'object' && !Array.isArray(body)
+            ? (body as { message?: unknown }).message
+            : null;
+        const parsed = StoredMessageAckLookupSchema.safeParse(candidate);
+        if (
+            !parsed.success
+            || parsed.data.id !== params.acknowledgedId
+            || parsed.data.seq !== params.acknowledgedSeq
+            || parsed.data.localId !== params.localId
+            || !Number.isSafeInteger(parsed.data.createdAt)
+            || parsed.data.createdAt < 0
+        ) {
+            throw new Error('Stored message lookup did not match the acknowledged message');
+        }
+        return parsed.data.createdAt;
+    }, params.assertCurrent);
+}
 
 export type SessionMessagesPageScope = 'main' | 'sidechain' | 'all';
 

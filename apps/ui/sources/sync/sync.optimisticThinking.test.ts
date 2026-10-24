@@ -135,6 +135,21 @@ function tokenForSub(sub: string): string {
     return `e30.${payload}.signature`;
 }
 
+function mockStoredLookupResponse(response: Response | Promise<Response>) {
+    // HTTP transport boundary: exercise the real API response consumer and scope assertion.
+    return vi.spyOn(apiSocket, 'request').mockImplementation(async <T>(
+        _path: string,
+        _options: RequestInit | undefined,
+        consumeResponse: (response: Response) => Promise<T>,
+        assertCurrent: () => void,
+    ): Promise<T> => {
+        assertCurrent();
+        const settled = await response;
+        assertCurrent();
+        return consumeResponse(settled);
+    });
+}
+
 function pendingOutboxFixture(params: Readonly<{
     sessionId: string;
     localId: string;
@@ -453,7 +468,7 @@ describe('sync.sendMessage optimistic thinking', () => {
         const { sync } = await import('./sync');
         sync.encryption = encryption;
         vi.spyOn(apiSocket, 'sessionRPC').mockRejectedValue(createRpcMethodNotAvailableError());
-        const lookup = vi.spyOn(apiSocket, 'request').mockResolvedValue(Response.json({
+        const lookup = mockStoredLookupResponse(Response.json({
             message: { id: 'm-old-ack', seq: 1, localId, createdAt: storedCreatedAt },
         }));
         const ack: MessageAckResponse = { ok: true, id: 'm-old-ack', seq: 1, localId, didWrite: true };
@@ -463,7 +478,12 @@ describe('sync.sendMessage optimistic thinking', () => {
 
         await sync.sendMessage(sessionId, 'hello', undefined, undefined, { localId });
 
-        expect(lookup).toHaveBeenCalledWith(`/v2/sessions/${sessionId}/messages/by-local-id/${localId}`);
+        expect(lookup).toHaveBeenCalledWith(
+            `/v2/sessions/${sessionId}/messages/by-local-id/${localId}`,
+            undefined,
+            expect.any(Function),
+            expect.any(Function),
+        );
         const transcript = storage.getState().sessionMessages[sessionId];
         const user = transcript?.messageIdsOldestFirst
             .map((id) => transcript.messagesById[id])
@@ -513,7 +533,10 @@ describe('sync.sendMessage optimistic thinking', () => {
     it('does not apply an old-server lookup after the sending account changes', async () => {
         const sessionId = 's_old_ack_account_switch';
         const localId = 'local-account-switch';
-        storage.getState().applySessions([createSession({ sessionId })]);
+        storage.getState().applySessions([{
+            ...createSession({ sessionId, metadata: { machineId: 'm1', path: '/repo', host: 'host', flavor: 'codex' } }),
+            active: false,
+        }]);
         const encryption = await Encryption.create(new Uint8Array(32).fill(9));
         await encryption.initializeSessions(new Map([[sessionId, null]]));
 
@@ -521,7 +544,7 @@ describe('sync.sendMessage optimistic thinking', () => {
         sync.encryption = encryption;
         vi.spyOn(apiSocket, 'sessionRPC').mockRejectedValue(createRpcMethodNotAvailableError());
         let resolveLookup: (response: Response) => void = () => { throw new Error('Lookup did not start'); };
-        const lookup = vi.spyOn(apiSocket, 'request').mockReturnValue(new Promise<Response>((resolve) => {
+        const lookup = mockStoredLookupResponse(new Promise<Response>((resolve) => {
             resolveLookup = resolve;
         }));
         const ack: MessageAckResponse = { ok: true, id: 'm-account-switch', seq: 1, localId, didWrite: true };
@@ -540,6 +563,7 @@ describe('sync.sendMessage optimistic thinking', () => {
 
         const transcript = storage.getState().sessionMessages[sessionId];
         expect(transcript?.messageIdsOldestFirst ?? []).toEqual([]);
+        expect(ensureSessionRuntimeForPendingInputMock).not.toHaveBeenCalled();
     });
 
     it('notifies local pending projection after the pending row exists', async () => {
@@ -1734,7 +1758,7 @@ describe('sync.sendMessage optimistic thinking', () => {
             await sync.sendMessage(sessionId, 'hello');
             expect(storage.getState().sessionPending[sessionId]?.messages?.length ?? 0).toBe(1);
             const localId = storage.getState().sessionPending[sessionId].messages[0].id;
-            const lookup = vi.spyOn(apiSocket, 'request').mockResolvedValue(Response.json({
+            const lookup = mockStoredLookupResponse(Response.json({
                 message: { id: 'm_plain_retry_1', seq: 1, localId, createdAt: 42_000 },
             }));
 
