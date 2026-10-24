@@ -31,6 +31,10 @@ Current behavior is intentionally conservative:
 
 For the exact routing behavior, see [Notification routing](/extras/notifications-routing).
 
+The Omnia development fork also checks the receiving account and specific pending request before
+automatically responding. Notifications without those details open the app for review. See
+[foreground action requirements](/extras/notifications-routing#foreground-actions-in-the-omnia-development-fork).
+
 ## Richer notification details
 
 **Development builds:** **Request previews** in **Settings → Notifications** include the actual request by default. You can disable push previews, previews for individual webhooks, and device-local previews separately. Older releases may show only a command name, a short file hint, or a question count.
