@@ -168,8 +168,12 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await expect(statusHeaders.filter({ hasText: 'working...' }).first()).toBeVisible();
             clearInterval(keepAlives[1]);
             await publishRuntimeActivity(workingPublisher, working, 'idle');
-            await expect(page.getByTestId('session-row-status-' + working + '-idle')).toBeVisible({ timeout: 60_000 });
             await expect(statusHeaders.filter({ hasText: 'working...' })).toHaveCount(0);
+            await page.getByTestId('session-list-search-trigger').first().click();
+            await page.getByTestId('session-list-search-input').first().fill('OH60 QA working');
+            await expect(row(working)).toBeVisible();
+            await expect(page.getByTestId('session-row-status-' + working + '-idle')).toBeVisible({ timeout: 60_000 });
+            await page.getByTestId('session-list-search-clear').first().click();
             await expect(page).toHaveURL(new RegExp('/session/' + idle));
             await choose('session-list-status-sort-ticket');
             await expect.poll(async () => (await position(testing)) < (await position(production))).toBe(true);
