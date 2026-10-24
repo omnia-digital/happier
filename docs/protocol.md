@@ -162,7 +162,7 @@ from this current-work projection.
 - `message`
   - `{ sid, message, localId? }`
   - Creates a new session message (encrypted payload) and emits `new-message` update to other connections.
-  - Success callback: `{ ok: true, id, seq, localId, createdAt, didWrite, didUpdate? }`. `createdAt` is the stored message creation time in Unix milliseconds; current clients use it when replacing an optimistic outgoing row. Older servers omit it, so clients retain their local pending time until the stored row is fetched. Older clients can ignore the added field.
+  - In the unreleased fork development build, the success callback adds `createdAt` to `{ ok: true, id, seq, localId, didWrite, didUpdate? }`. It is the stored message creation time in Unix milliseconds, which the matching client uses when replacing an optimistic outgoing row. Older servers omit it; the client retains the local pending time until the stored row is fetched. The field is additive for older clients.
 
 - `session-alive`
   - `{ sid, time, thinking? }`
