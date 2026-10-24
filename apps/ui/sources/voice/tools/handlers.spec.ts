@@ -331,6 +331,19 @@ describe('voice tool handlers', () => {
     expect(events.some((e) => e.kind === 'action.executed' && e.action === 'sendSessionMessage')).toBe(true);
   });
 
+  it('records the same typed failure in the voice activity feed as in a send result', async () => {
+    sendSessionMessageWithServerScope.mockRejectedValue(new RpcError('Message target is unavailable', 'session_not_ready'));
+
+    const { createVoiceToolHandlers } = await import('./handlers');
+    const tools = createVoiceToolHandlers({ resolveSessionId: () => 's1' });
+    const result = JSON.parse(await tools.sendSessionMessage({ message: 'hi' }));
+
+    expect(result).toMatchObject({ ok: false, errorCode: 'session_not_ready', errorMessage: 'Message target is unavailable' });
+    expect(useVoiceActivityStore.getState().eventsBySessionId.s1).toContainEqual(expect.objectContaining({
+      kind: 'error', errorCode: 'session_not_ready', errorMessage: 'Message target is unavailable',
+    }));
+  });
+
   it('can start a review via review.start action (intent-specific)', async () => {
     executionRunStart.mockResolvedValue({ runId: 'run_1', callId: 'c1', sidechainId: 's1' });
 
@@ -726,6 +739,9 @@ describe('voice tool handlers', () => {
       errorCode: 'permission_request_not_found',
       errorMessage: 'Permission request is no longer pending',
     });
+    expect(useVoiceActivityStore.getState().eventsBySessionId.s1).toContainEqual(expect.objectContaining({
+      kind: 'error', errorCode: 'permission_request_not_found', errorMessage: 'Permission request is no longer pending',
+    }));
     expect(trackPermissionResponse).not.toHaveBeenCalled();
   });
 
@@ -1019,6 +1035,9 @@ describe('voice tool handlers', () => {
       errorCode: 'permission_request_not_found',
       errorMessage: 'Permission request is no longer pending',
     });
+    expect(useVoiceActivityStore.getState().eventsBySessionId.s1).toContainEqual(expect.objectContaining({
+      kind: 'error', errorCode: 'permission_request_not_found', errorMessage: 'Permission request is no longer pending',
+    }));
   });
 
   it('answers a transcript-backed user-action request in the resolved session', async () => {
