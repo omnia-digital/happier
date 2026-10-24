@@ -14,6 +14,7 @@ let runLoggedCalls: Array<{ args: string[]; cwd: string; env?: NodeJS.ProcessEnv
 let runLoggedFailureQueue: string[] = [];
 let spawnStdoutText: string | null = null;
 let spawnStderrText: string | null = null;
+let spawnExitImmediately = false;
 
 vi.mock('./spawnProcess', () => {
   return {
@@ -59,6 +60,7 @@ vi.mock('./spawnProcess', () => {
       };
       child.exitCode = null;
       child.signalCode = null;
+      if (spawnExitImmediately) child.exitCode = 1;
       return {
         child,
         stdoutPath: params.stdoutPath,
@@ -181,6 +183,7 @@ describe('startUiWeb baseUrl resolution', () => {
     runLoggedFailureQueue = [];
     spawnStdoutText = null;
     spawnStderrText = null;
+    spawnExitImmediately = false;
   });
 
   it('uses a shared export root directory by default', async () => {
@@ -1176,6 +1179,51 @@ describe('startUiWeb baseUrl resolution', () => {
         delete (globalThis as { fetch?: unknown }).fetch;
       }
     }
+  });
+
+  it('retains both export and Metro failures when fallback also fails', async () => {
+    vi.resetModules();
+    runLoggedFailureQueue = ['export failed at original build step'];
+    spawnExitImmediately = true;
+    const { startUiWeb } = await import('./uiWeb');
+    const testDir = await mkdtemp(join(tmpdir(), 'happier-uiweb-'));
+
+    try {
+      await startUiWeb({
+        testDir,
+        env: {
+          HAPPIER_E2E_UI_WEB_MODE: 'export',
+          HAPPIER_E2E_UI_WEB_EXPORT_FALLBACK_TO_METRO: '1',
+          HAPPIER_E2E_UI_WEB_EXPORT_NAMESPACE: buildUniqueUiWebExportNamespace('both-failures'),
+        },
+      });
+      throw new Error('expected UI web startup to fail');
+    } catch (error) {
+      expect(error).toBeInstanceOf(AggregateError);
+      const failures = (error as AggregateError).errors as Error[];
+      expect(failures).toHaveLength(2);
+      expect(failures[0]?.message).toContain('export failed at original build step');
+      expect(failures[1]?.message).toContain('expo web dev server exited before ready');
+    }
+    expect(runLoggedCalls).toHaveLength(1);
+    expect(spawnCallCount).toBe(1);
+  });
+
+  it('returns the original export error when Metro fallback is disabled', async () => {
+    vi.resetModules();
+    runLoggedFailureQueue = ['export failed with fallback disabled'];
+    const { startUiWeb } = await import('./uiWeb');
+    const testDir = await mkdtemp(join(tmpdir(), 'happier-uiweb-'));
+
+    await expect(startUiWeb({
+      testDir,
+      env: {
+        HAPPIER_E2E_UI_WEB_MODE: 'export',
+        HAPPIER_E2E_UI_WEB_EXPORT_FALLBACK_TO_METRO: '0',
+        HAPPIER_E2E_UI_WEB_EXPORT_NAMESPACE: buildUniqueUiWebExportNamespace('fallback-disabled'),
+      },
+    })).rejects.toThrow('export failed with fallback disabled');
+    expect(spawnCallCount).toBe(0);
   });
 
   it('exports a beforeAll timeout budget that covers cold Expo startup phases', async () => {
