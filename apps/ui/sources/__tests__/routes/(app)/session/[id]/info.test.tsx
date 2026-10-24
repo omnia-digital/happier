@@ -1848,7 +1848,6 @@ describe('/session/[id]/info', () => {
                 cancelText: 'common.cancel',
                 confirmOnEnter: false,
                 confirmText: 'sessionInfo.stopSession',
-                confirmOnEnter: false,
                 destructive: true,
             },
         );
