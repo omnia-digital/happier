@@ -1,5 +1,7 @@
 # OH-52: Read-only host cleanup preflight
 
+Root accepts the bounded read-only source boundary through `e31e0359aa`: independent preflight8, worktree parser9 and provider mapping2 pass19/3 files (`/tmp/happier-oh52-preflight-root-final.log`), plus actual status parser14 (`/tmp/happier-oh52-preflight-parser-root-final.log`). A nonexistent initial parser selector was not counted; the actual parser was then run explicitly. The final test-only correction restores missing-head SHA coverage while retaining draft/source-repository assertions, author2 pass. Source scope, paired configuration, canonical owners and independent unproven blockers are reviewed; no remaining introduced finding in this bounded delta. Router VERIFY retains overall OH-52 Astra/high,2failedSol/0Astra from source2. No cleanup, native or full-issue completion follows from this acceptance.
+
 ## Boundary
 
 Implement a read-only decision over an existing verified phase14 worktree claim. The output describes independent worktree, local-branch, and temporary-directory skip reasons. This slice performs no cleanup, remote mutation, provider write, new machine capability, service action, or operation on a real checkout.
