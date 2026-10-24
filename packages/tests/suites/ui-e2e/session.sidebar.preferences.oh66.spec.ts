@@ -5,7 +5,7 @@ import { createRunDirs } from '../../src/testkit/runDir';
 import { repoRootDir } from '../../src/testkit/paths';
 import { createTestAuthMtls } from '../../src/testkit/auth';
 import { registerMachineIdentity } from '../../src/testkit/machineIdentity';
-import { upsertPlainAccountSettingsV2 } from '../../src/testkit/accountSettings';
+import { patchPlainAccountSettingsV2, upsertPlainAccountSettingsV2 } from '../../src/testkit/accountSettings';
 import { startServerLight, type StartedServer } from '../../src/testkit/process/serverLight';
 import { resolveUiWebBeforeAllTimeoutMs, startUiWeb, type StartedUiWeb } from '../../src/testkit/process/uiWeb';
 import { gotoDomContentLoadedWithRetries, normalizeLoopbackBaseUrl } from '../../src/testkit/uiE2e/pageNavigation';
@@ -25,7 +25,11 @@ const SESSION_TITLE = `OH66 ${run.runId.slice(-2)}`;
 type SidebarMetrics = Readonly<{
   rowHeight: number;
   rowWidth: number;
+  rowTop: number;
+  rowBottom: number;
   titleWidth: number;
+  titleTop: number;
+  titleBottom: number;
   titleNaturalWidth: number;
   titleFontSize: number;
   supportingFontSize: number;
@@ -74,7 +78,11 @@ async function readSidebarMetrics(page: Page, sessionId: string): Promise<Sideba
     return {
       rowHeight: rowBounds.height,
       rowWidth: rowBounds.width,
+      rowTop: rowBounds.top,
+      rowBottom: rowBounds.bottom,
       titleWidth: titleBounds.width,
+      titleTop: titleBounds.top,
+      titleBottom: titleBounds.bottom,
       titleNaturalWidth,
       titleFontSize: Number.parseFloat(titleStyle.fontSize),
       supportingFontSize: Math.max(...leafTextNodes.map((node) => Number.parseFloat(getComputedStyle(node).fontSize))),
@@ -303,5 +311,36 @@ test.describe('ui e2e: OH66 sidebar text size and item density preferences', () 
     const rowBounds = await row.boundingBox();
     expect(actionBounds && rowBounds).toBeTruthy();
     expect(actionBounds!.x + actionBounds!.width).toBeLessThanOrEqual(rowBounds!.x + rowBounds!.width);
+
+    await patchPlainAccountSettingsV2({
+      baseUrl: server.baseUrl,
+      token,
+      settingsPatch: { sessionListDensity: 'minimal' },
+    });
+    await page.reload();
+    await waitForInitialAppUi({ page, timeoutMs: 120_000 });
+    const narrowMinimal = await readSidebarMetrics(page, sessionId);
+    expect(narrowMinimal.rowHeight).toBeLessThan(narrow.rowHeight);
+    expect(narrowMinimal.titleTextFits).toBe(true);
+    expect(narrowMinimal.titleTop).toBeGreaterThanOrEqual(narrowMinimal.rowTop);
+    expect(narrowMinimal.titleBottom).toBeLessThanOrEqual(narrowMinimal.rowBottom);
+    expect(narrowMinimal.machineLabel).toBe(MACHINE_ID);
+    await page.screenshot({ path: `${suiteDir}/sidebar-large-text-narrow-minimal.png` });
+
+    const title = page.getByText(SESSION_TITLE, { exact: true });
+    const titleBounds = await title.boundingBox();
+    expect(titleBounds).toBeTruthy();
+    const hit = await page.evaluate(({ x, y }) => {
+      const element = document.elementFromPoint(x, y);
+      return {
+        text: element?.textContent?.trim() ?? '',
+        rowTestId: element?.closest<HTMLElement>('[data-testid^="session-list-item-"]')?.dataset.testid ?? null,
+        testId: element?.closest<HTMLElement>('[data-testid]')?.dataset.testid ?? null,
+      };
+    }, { x: titleBounds!.x + titleBounds!.width / 2, y: titleBounds!.y + titleBounds!.height / 2 });
+    expect(hit).toMatchObject({ rowTestId: `session-list-item-${sessionId}` });
+    expect(hit.text).toContain(SESSION_TITLE);
+    await title.click();
+    await expect(page).toHaveURL(new RegExp(`/session/${sessionId}(?:\\?|$)`), { timeout: 90_000 });
   });
 });

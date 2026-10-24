@@ -87,8 +87,11 @@ export function resolveSessionListRowHeight(params: Readonly<{
     const touchFloor = shouldUseReadableNativePhoneMinimalSessionRow(params)
         ? SESSION_LIST_ROW_HEIGHT_MINIMAL_NATIVE_PHONE
         : ITEM_ROW_MIN_HEIGHT[density];
+    const minimalTextFloor = params.compactMinimal
+        ? Math.round(SESSION_LIST_ROW_HEIGHT_MINIMAL * fontScale)
+        : touchFloor;
 
     // Text itself scales in the shared Text primitive; reserve matching row space so its fixed
     // sidebar containers do not clip or crowd the larger type.
-    return Math.max(touchFloor, Math.round(baseHeight * fontScale) + densityAdjustment);
+    return Math.max(touchFloor, minimalTextFloor, Math.round(baseHeight * fontScale) + densityAdjustment);
 }
