@@ -115,8 +115,8 @@ export const SidebarView = React.memo((props: SidebarViewProps) => {
                     inboxEnabled={props.inboxEnabled}
                 />
                 {voiceEnabled ? <VoiceSurface variant="sidebar" /> : null}
-                <MainView variant="sidebar" />
                 <MachineMonitoringSection />
+                <MainView variant="sidebar" />
             </PopoverScope>
         </View>
     );

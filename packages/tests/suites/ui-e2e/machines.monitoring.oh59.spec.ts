@@ -15,7 +15,7 @@ import { createMachineScopedSocketCollector, type SocketCollector } from '../../
 import { startForwardedHeaderProxy } from '../../src/testkit/uiE2e/forwardedHeaderProxy';
 import { gotoDomContentLoadedWithRetries, normalizeLoopbackBaseUrl } from '../../src/testkit/uiE2e/pageNavigation';
 import { waitForInitialAppUi } from '../../src/testkit/uiE2e/waitForInitialAppUi';
-import { createPlainSession } from '../../src/testkit/uiE2e/sessionFoldersDrag';
+import { createPlainSession, resolveCanonicalServerIdForUi } from '../../src/testkit/uiE2e/sessionFoldersDrag';
 import { collectBrowserDiagnostics, appendBrowserDiagnostics } from '../../src/testkit/uiE2e/browserDiagnostics';
 
 const run = createRunDirs({ runLabel: 'ui-e2e-oh59-machine-monitoring' });
@@ -33,6 +33,7 @@ test.describe('OH59 actual local collector through authenticated fixture machine
     const sockets = new Map<string, SocketCollector>();
     let heartbeat: ReturnType<typeof setInterval> | null = null;
     let selectedSessionId = '';
+    let canonicalServerId = '';
     const samples: Array<{ machineId: string; cpu: unknown; memory: unknown; storage: unknown; gpu: unknown; load: unknown; collectionMs: number; processCpuMs: number; eventLoopActiveMs: number }> = [];
     let localRequests = 0;
 
@@ -57,6 +58,7 @@ test.describe('OH59 actual local collector through authenticated fixture machine
             'x-happier-client-cert-sha256': identity.fingerprint,
         } });
         stopProxy = proxy.stop;
+        canonicalServerId = await resolveCanonicalServerIdForUi(proxy.baseUrl);
         await upsertPlainAccountSettingsV2({ baseUrl: server.baseUrl, token: auth.token, settings: { experiments: true, sessionListActiveGroupingV1: 'date' } });
         for (const [machineId, displayName] of [[LOCAL, 'Local Mac · actual host'], [LEGACY, 'Older CLI · fixture'], [OFFLINE, 'Offline · fixture']]) {
             await registerMachineIdentity({ baseUrl: server.baseUrl, token: auth.token, machineId,
@@ -67,7 +69,8 @@ test.describe('OH59 actual local collector through authenticated fixture machine
             sockets.set(machineId, socket); socket.connect();
             await expect.poll(() => socket.isConnected(), { timeout: 20_000 }).toBe(true);
             socket.emit('machine-alive', { machineId, time: Date.now() });
-            socket.onRpcRequest<Record<string, unknown>, unknown>(async () => {
+            socket.onRpcRequest<Record<string, unknown>, unknown>(async ({ params }) => {
+                if (params.id !== 'tool.machineMetrics' || params.method !== 'snapshot') return { ok: false, error: { code: 'unsupported-capability', message: 'Unsupported fixture capability' } };
                 if (machineId !== LOCAL) return { ok: false, error: { code: 'unsupported-capability', message: 'Unsupported capability: tool.machineMetrics' } };
                 localRequests++;
                 const beforeCpu = process.cpuUsage();
@@ -100,6 +103,11 @@ test.describe('OH59 actual local collector through authenticated fixture machine
         test.setTimeout(420_000);
         const diagnostics = collectBrowserDiagnostics({ page });
         try {
+            await page.addInitScript(({ key }) => {
+                localStorage.setItem('mmkv.default\\local-settings', JSON.stringify({
+                    machineDisplayIconByMachineV1: { [key]: 'cloud' }, machineDisplayColorByMachineV1: { [key]: 'blue' },
+                }));
+            }, { key: JSON.stringify([canonicalServerId, LOCAL]) });
             await page.setViewportSize({ width: 1440, height: 900 });
             await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 300_000);
             await waitForInitialAppUi({ page, timeoutMs: 180_000 });
@@ -107,6 +115,10 @@ test.describe('OH59 actual local collector through authenticated fixture machine
             await expect(local).toContainText(/CPU \d+%/, { timeout: 120_000 });
             await expect(page.getByTestId(`machine-monitoring-${LEGACY}`)).toContainText('does not support host metrics');
             await expect(page.getByTestId(`machine-monitoring-${OFFLINE}`)).toContainText('offline');
+            const localGlyph = local.locator('svg').first();
+            const legacyGlyph = page.getByTestId(`machine-monitoring-${LEGACY}`).locator('svg').first();
+            expect(await localGlyph.evaluate((element) => getComputedStyle(element).color)).not.toBe(await legacyGlyph.evaluate((element) => getComputedStyle(element).color));
+            expect(await localGlyph.innerHTML()).not.toBe(await legacyGlyph.innerHTML());
             expect(samples).toHaveLength(1);
             expect(localRequests).toBe(1);
             await page.getByTestId(`session-list-item-${selectedSessionId}`).click();
@@ -120,6 +132,10 @@ test.describe('OH59 actual local collector through authenticated fixture machine
             const overflow = await local.evaluate((element) => ({ width: element.clientWidth, scrollWidth: element.scrollWidth }));
             expect(overflow.width).toBeGreaterThan(0);
             expect(overflow.scrollWidth).toBeLessThanOrEqual(overflow.width + 1);
+            const monitoringBounds = await page.getByTestId('machine-monitoring').boundingBox();
+            const newSessionBounds = await page.getByText('Start New Session', { exact: true }).boundingBox();
+            expect(monitoringBounds).not.toBeNull(); expect(newSessionBounds).not.toBeNull();
+            expect(monitoringBounds!.y + monitoringBounds!.height).toBeLessThanOrEqual(newSessionBounds!.y);
             await page.screenshot({ path: join(suiteDir, 'machine-monitoring-narrow-details.png') });
             await page.getByTestId(`machine-monitoring-${LOCAL}-details`).click();
             // This is the real 180-second product cadence, not a changed build flag or fixture timer.
@@ -141,6 +157,10 @@ test.describe('OH59 actual local collector through authenticated fixture machine
             await expect(local).toContainText(/CPU \d+%/);
             expect(samples).toHaveLength(3);
             await page.screenshot({ path: join(suiteDir, 'machine-monitoring-reconnected.png') });
+            await page.getByText('Start New Session', { exact: true }).click();
+            await expect(page).toHaveURL(/\/new(?:\?|$)/);
+            await page.goBack();
+            await expect(page).toHaveURL(new RegExp(`/session/${selectedSessionId}`));
             await writeFile(join(suiteDir, 'machine-monitoring-measurements.json'), JSON.stringify({ actualHostCount: 1, transport: 'authenticated plain test machine socket; source collector; encrypted registry tested separately', samples }, null, 2));
             await testInfo.attach('machine-monitoring-measurements', { path: join(suiteDir, 'machine-monitoring-measurements.json'), contentType: 'application/json' });
         } catch (error) { throw appendBrowserDiagnostics(error, diagnostics()); }
