@@ -362,7 +362,7 @@ export function useSessionListViewState({
     const setSessionListGroupOrderV1 = React.useCallback((nextOrder: Record<string, readonly string[] | undefined>) => {
         runOrganizationMutation(() => persistSessionListGroupOrder({
             currentOrder: currentGroupOrderMap, nextOrder, defaultServerId: activeOrganizationServerId,
-            repositoryScopes: repositoryView.orderScopes,
+            groupScopes: repositoryView.orderScopes,
         }));
     }, [activeOrganizationServerId, currentGroupOrderMap, repositoryView.orderScopes, runOrganizationMutation]);
     const folderPresentedData = repositoryView.items;

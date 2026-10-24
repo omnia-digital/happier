@@ -202,6 +202,10 @@ vi.mock('@/sync/domains/server/serverProfiles', () => ({
     ),
     areServerProfileIdentifiersEquivalent: (left: string | null | undefined, right: string | null | undefined) => left === right,
     getServerProfileById: getServerProfileByIdSpy,
+    resolveServerProfileScopeIdForIdentifier: (id: string | null | undefined) => {
+        const profile = id ? getServerProfileByIdSpy(id) : null;
+        return profile?.serverIdentityId ?? profile?.id ?? id ?? '';
+    },
     // `serverRuntime.getActiveServerSnapshot` re-exports this; the session-list
     // memory-search augmentation reads it during render.
     getActiveServerSnapshot: () => ({

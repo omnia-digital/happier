@@ -8,7 +8,8 @@ import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
 import type { SessionListOrderingModeV1, SessionListOrderingSectionMode } from '@/sync/domains/session/listing/sessionListOrderingRules';
 import type { SessionListFolderSortModeV1 } from '@/sync/domains/session/listing/sessionListFolderSortMode';
-import { areServerProfileIdentifiersEquivalent } from '@/sync/domains/server/serverProfiles';
+import { areServerProfileIdentifiersEquivalent, resolveServerProfileScopeIdForIdentifier } from '@/sync/domains/server/serverProfiles';
+import type { SessionListGroupOrderScope } from '../commit/persistSessionListGroupOrder';
 import { discoverSessionRepositories, type RepositoryDiscoveryFailure } from './sessionRepositoryDiscovery';
 import { collectRepositoryDiscoveryWorkspaces, projectSessionListRepositoryView } from './projectSessionListRepositoryView';
 
@@ -116,25 +117,49 @@ export function useSessionRepositoryView(input: Input) {
         const next = withManualRepositoryAssociation(current, workspace, choice);
         if (next !== current) applyLocalSettingsFromUi({ sessionRepositoryAssociationsV1: next });
     }, []);
-    const orderServerIds = React.useMemo(() => input.mode === 'repository'
-        ? [...new Set(Object.values(scopes).flatMap(scope => scope ? [scope.serverId] : []))].sort() : [], [input.mode, scopes]);
+    const canonicalServerIds = React.useMemo(() => Object.fromEntries((JSON.parse(serverIdsKey) as string[])
+        .map(serverId => [serverId, resolveServerProfileScopeIdForIdentifier(serverId)])), [serverIdsKey]);
+    const orderServerIds = React.useMemo(() => [...new Set(Object.values(canonicalServerIds))].sort(), [canonicalServerIds]);
     const orderByServer = useSessionOrganizationGroupOrderByServer(orderServerIds);
-    const allGroupOrder = React.useMemo(() => Object.assign({}, input.groupOrder, ...Object.values(orderByServer)), [input.groupOrder, orderByServer]);
+    const allGroupOrder = React.useMemo(() => {
+        const result = { ...input.groupOrder };
+        for (const orders of Object.values(orderByServer)) for (const [key, values] of Object.entries(orders)) {
+            result[key] = [...new Set([...(result[key] ?? []), ...values])];
+        }
+        return result;
+    }, [input.groupOrder, orderByServer]);
     const items = React.useMemo(() => input.mode === 'repository' && input.items
         ? projectSessionListRepositoryView({ ...input, groupOrder: allGroupOrder, items: input.items, scopes, associations }) : input.items,
     [input.items, input.mode, allGroupOrder, input.orderingMode, input.sectionMode, input.folderSortMode, scopes, associations]);
     const orderState = React.useMemo(() => {
-        const groupOrder = { ...input.groupOrder };
-        const orderScopes: Record<string, ServerAccountScope | null> = {};
+        const groupOrder = { ...allGroupOrder };
+        const orderScopes: Record<string, readonly SessionListGroupOrderScope[] | null> = {};
+        const addScope = (key: string, scope: SessionListGroupOrderScope) => {
+            const existing = orderScopes[key] ?? [];
+            orderScopes[key] = [...existing.filter(value => value.serverId !== scope.serverId), scope];
+        };
+        // Preserve provenance for hidden orders too: a structural move can clear a
+        // former group that is not rendered in the current view.
+        for (const [serverId, orders] of Object.entries(orderByServer)) {
+            const scope = Object.values(scopes).find(value => value?.serverId === serverId) ?? { serverId };
+            for (const key of Object.keys(orders)) addScope(key, scope);
+        }
+        for (const item of input.items ?? []) {
+            if (!item.groupKey || !(item.type === 'header'
+                ? item.headerKind === 'folder' || item.headerKind === 'project'
+                : item.groupKind === 'folder' || item.groupKind === 'project')) continue;
+            const serverId = item.serverId ?? activeScope?.serverId;
+            if (serverId) addScope(item.groupKey, scopes[serverId] ?? { serverId: canonicalServerIds[serverId] ?? serverId });
+        }
         if (input.mode === 'repository') for (const item of items ?? []) {
             if (item.type !== 'header' || !item.repository || !item.groupKey) continue;
             const checkout = item.repository.checkouts[0];
             for (const key of [item.groupKey, item.repository.orderScope]) {
-                orderScopes[key] = checkout ? { serverId: checkout.serverId, accountId: checkout.accountId } : null;
+                orderScopes[key] = checkout ? [{ serverId: checkout.serverId, accountId: checkout.accountId }] : null;
                 groupOrder[key] = allGroupOrder[key] ?? [];
             }
         }
         return { groupOrder, orderScopes };
-    }, [allGroupOrder, input.groupOrder, input.mode, items]);
+    }, [activeScope, allGroupOrder, canonicalServerIds, input.items, input.mode, items, orderByServer, scopes]);
     return { items, selectMode, refresh, getAssociationChoices, associate, refreshing: input.mode === 'repository' && refreshing, scopes, associations, ...orderState };
 }
