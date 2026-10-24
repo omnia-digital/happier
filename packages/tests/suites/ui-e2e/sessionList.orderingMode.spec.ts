@@ -512,6 +512,7 @@ test.describe('ui e2e: session list ordering mode', () => {
     await expect(clickedRow).toHaveCount(1, { timeout: 120_000 });
     await selectedRow.click();
     await expect.poll(() => new URL(page.url()).pathname, { timeout: 90_000 }).toBe(`/session/${selectedSessionId}`);
+    await page.getByTestId(`session-list-machine-identity-${selectedSessionId}`).hover();
     await expect(page.getByTestId(`session-list-machine-identity-${selectedSessionId}-tooltip`)).toBeVisible();
 
     async function expectBlankDraftAndCancel(): Promise<void> {
