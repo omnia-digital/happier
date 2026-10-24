@@ -66,9 +66,16 @@ function validOwner(owner: ClaimOwner): boolean {
   return Boolean(owner.homeDir && owner.activeServerDir.trim() && owner.accountId.trim() && owner.machineId.trim() && owner.launchNonce.trim());
 }
 
+function belongsToOwner(claim: WorktreeCreationClaim, owner: ClaimOwner): boolean {
+  return claim.accountId === owner.accountId && claim.machineId === owner.machineId
+    && claim.launchNonce === owner.launchNonce && claim.activeServerDir === owner.activeServerDir
+    && claim.ring === (owner.ring ?? 'stable');
+}
+
 export async function readWorktreeCreationClaim(owner: ClaimOwner): Promise<WorktreeCreationClaim | null> {
   if (!validOwner(owner)) return null;
-  return (await readClaim(claimPath(owner))).claim;
+  const claim = (await readClaim(claimPath(owner))).claim;
+  return claim && belongsToOwner(claim, owner) ? claim : null;
 }
 
 /** Persist only after Git has actually created a linked worktree. This never adopts a path. */
@@ -104,8 +111,9 @@ export async function recordHostCreatedWorktree(input: ClaimOwner & Readonly<{
     const prior = await readClaim(path);
     if (prior.exists) {
       if (!prior.claim) return null;
-      return prior.claim.activeServerDir === claim.activeServerDir && prior.claim.ring === claim.ring
+      return belongsToOwner(prior.claim, input)
         && prior.claim.worktreeRealPath === claim.worktreeRealPath
+        && prior.claim.registeredWorktreeRealPath === claim.registeredWorktreeRealPath
         && prior.claim.gitCommonDirRealPath === claim.gitCommonDirRealPath
         && prior.claim.branchName === claim.branchName
         && prior.claim.branchCreatedHere === claim.branchCreatedHere ? prior.claim : null;
@@ -125,9 +133,7 @@ export async function bindCreatedWorktreeToTrackedSession(input: ClaimOwner & Re
   if (!validOwner(input) || !input.sessionId.trim() || !Number.isSafeInteger(input.runnerPid) || input.runnerPid <= 0) return null;
   return await withClaimLock(input, async (path) => {
     const claim = (await readClaim(path)).claim;
-    if (!claim || claim.accountId !== input.accountId || claim.machineId !== input.machineId
-      || claim.activeServerDir !== input.activeServerDir || claim.ring !== (input.ring ?? 'stable')
-      || claim.launchNonce !== input.launchNonce) return null;
+    if (!claim || !belongsToOwner(claim, input)) return null;
     if (!claim.sessionId && input.serverResolution !== 'created') return null;
     if (claim.sessionId && claim.sessionId !== input.sessionId) return null;
     const runnerRealPath = await realpath(input.runnerPath).catch(() => null);
