@@ -708,6 +708,9 @@ test.describe('ui e2e: session list ordering mode', () => {
     const rename = page.getByTestId('dropdown-option-ui_session_rename');
     await expect(rename).toBeVisible();
     await expect(rename).toContainText('Option+Shift+E');
+    await expect.poll(() => rename.getByText('Rename Session', { exact: true }).evaluate(element =>
+      element.scrollWidth <= element.clientWidth,
+    ), { message: 'The context menu must show the action label beside its shortcut without clipping' }).toBe(true);
     await page.keyboard.press('Alt+Shift+E');
     await expect(page.getByTestId('web-prompt-input')).toHaveValue(clickedTitle);
     await page.getByTestId('web-prompt-cancel').click();
@@ -726,7 +729,11 @@ test.describe('ui e2e: session list ordering mode', () => {
 
     await clickedRow.hover();
     await clickedRow.getByTestId('session-item-more-menu').click();
-    await expect(page.getByTestId('dropdown-option-session_sameSetup')).toContainText('Option+Shift+N');
+    const sameSetup = page.getByTestId('dropdown-option-session_sameSetup');
+    await expect(sameSetup).toContainText('Option+Shift+N');
+    await expect.poll(() => sameSetup.getByText('New session with same setup', { exact: true }).evaluate(element =>
+      element.scrollWidth <= element.clientWidth,
+    ), { message: 'The three-dot menu must show the full action label beside its shortcut' }).toBe(true);
     await page.keyboard.press('Alt+Shift+N');
     await page.waitForURL((url) => url.pathname.endsWith('/new'), { timeout: 60_000 });
     await expect(page.getByTestId('new-session-composer-input')).toHaveValue('', { timeout: 60_000 });
