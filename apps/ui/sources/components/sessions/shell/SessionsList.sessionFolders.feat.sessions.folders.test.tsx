@@ -196,7 +196,8 @@ vi.mock('@/auth/storage/tokenStorage', async (importOriginal) => {
     return { ...actual, TokenStorage: { ...actual.TokenStorage, getCredentialsForServerUrl: getCredentialsForServerUrlSpy } };
 });
 
-vi.mock('@/sync/domains/server/serverProfiles', () => ({
+vi.mock('@/sync/domains/server/serverProfiles', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@/sync/domains/server/serverProfiles')>(),
     resolveServerProfileScopeId: (profile: { id: string; serverIdentityId?: string | null }) => (
         profile.serverIdentityId ?? profile.id
     ),
