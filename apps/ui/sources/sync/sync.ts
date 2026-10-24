@@ -921,6 +921,7 @@ class Sync {
         private pauseController = new PauseController();
         private syncTuning: SyncTuning = loadSyncTuning();
         private readonly snapshotSyncAttemptLimiter = createTaskLimiter(this.syncTuning.bootstrapConcurrencyLimit);
+        private readonly sessionListMetadataHydrationLimiter = createTaskLimiter(this.syncTuning.sessionListHydrationConcurrencyLimit);
         private sessionTranscriptRetention!: SessionTranscriptRetentionController;
       private resumeInFlight: Promise<void> | null = null;
       private changesCatchUpQueuedAfterResume = false;
@@ -2262,6 +2263,18 @@ class Sync {
             return storage.getState().sessions[normalized] ?? null;
         }
 
+        /** Status views need metadata before a catalog row becomes visible. Reuse the scoped shell loader. */
+        public ensureSessionListMetadata = async (
+            candidates: readonly Readonly<{ sessionId: string; serverId?: string | null }>[],
+            shouldContinue: () => boolean,
+        ): Promise<Array<EnsureSessionVisibleForRouteResult | null>> => {
+            const generation = this.serverScopeGeneration;
+            return Promise.all(candidates.map(candidate => this.sessionListMetadataHydrationLimiter.run(async () => {
+                if (!shouldContinue() || generation !== this.serverScopeGeneration) return null;
+                return this.ensureSessionVisibleForMessageRoute(candidate.sessionId, { serverId: candidate.serverId ?? undefined, refreshMessages: false });
+            })));
+        };
+
         /**
          * Hydrate a visible session by id for deep links / hard refreshes.
          *
@@ -2272,7 +2285,7 @@ class Sync {
          */
         ensureSessionVisibleForMessageRoute = async (
             sessionId: string,
-            options?: Readonly<{ forceRefresh?: boolean; serverId?: string }>,
+            options?: Readonly<{ forceRefresh?: boolean; serverId?: string; refreshMessages?: boolean }>,
         ): Promise<EnsureSessionVisibleForRouteResult> => {
             const normalized = String(sessionId ?? '').trim();
             if (!normalized) return createEnsureSessionVisibleMissingResult(normalized, 'not_found');
@@ -2339,12 +2352,20 @@ class Sync {
                 return createEnsureSessionVisibleRetryableResult(normalized, 'unknown', scopedServerId);
             }
 
+            const completeHydration = (result: EnsureSessionVisibleForRouteResult): EnsureSessionVisibleForRouteResult => {
+                if (result.kind === 'available' && options?.refreshMessages !== false && isRouteHydrationScopeCurrent()) {
+                    // A route joining metadata-only hydration still owns its message-tail demand.
+                    this.replayDeferredMessagesFetch(normalized);
+                    this.getOrCreateMessagesSync(normalized).invalidateCoalesced();
+                }
+                return result;
+            };
             const existing = this.sessionByIdHydrationInFlight.get(inFlightKey);
             if (existing) {
                 if (DEBUG_SESSION_HYDRATE) {
                     log.log(`[sessionHydrate] awaiting in-flight hydration for ${normalized}`);
                 }
-                return await existing;
+                return completeHydration(await existing);
             }
 
             const inFlight = (async () => {
@@ -2453,15 +2474,7 @@ class Sync {
                 }
             });
 
-            const result = await inFlight;
-            if (result.kind === 'available') {
-                // A message invalidation may have observed the session before this route
-                // hydration committed its owner. Replay that deferred attempt now that the
-                // owner is authoritative, instead of leaving the transcript permanently empty.
-                this.replayDeferredMessagesFetch(normalized);
-                this.getOrCreateMessagesSync(normalized).invalidateCoalesced();
-            }
-            return result;
+            return completeHydration(await inFlight);
         }
 
     private commitSessionDataKeyCacheEntry(

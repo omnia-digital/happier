@@ -20,10 +20,11 @@ function agentKey(row: Row, nowMs: number, liveStatuses?: ReadonlyMap<string, Se
     const status = liveStatuses?.get(sessionListStatusRowKey(row)) ?? resolveSessionListRowStatus({ session: row.session, nowMs }).visualStatus;
     return { identity: status, title: resolveSessionRowStatusLabel(status), scope: [], order: SESSION_LIST_AGENT_STATUS_ORDER.indexOf(status), name: '', freshness: 0 };
 }
-function ticketKey(row: Row, states: ReadonlyMap<string, SessionTicketStatus>, associations?: ReadonlyMap<string, SessionTicketAssociationV1 | null>): StatusKey {
+function ticketKey(row: Row, states: ReadonlyMap<string, SessionTicketStatus>, associations?: ReadonlyMap<string, SessionTicketAssociationV1 | null | undefined>): StatusKey {
     const rowKey = sessionListStatusRowKey(row);
     const association = associations?.has(rowKey) ? associations.get(rowKey) : row.session.metadata?.sessionTicketV1;
-    if (!association) return { identity: 'unlinked', title: t('sessionsList.statusOrganization.noTicket'), scope: ['2'], order: 0, name: '', freshness: 0 };
+    const metadataUnknown = associations?.has(rowKey) ? associations.get(rowKey) === undefined : row.session.metadata == null;
+    if (!association && !metadataUnknown) return { identity: 'unlinked', title: t('sessionsList.statusOrganization.noTicket'), scope: ['2'], order: 0, name: '', freshness: 0 };
     const state = states.get(sessionListStatusRowKey(row)) ?? LOADING;
     const snapshot = state.snapshot;
     const title = resolveSessionTicketStatusLabel(state);
@@ -47,7 +48,7 @@ export function projectSessionListStatusView(input: Readonly<{
     items: readonly SessionListViewItem[]; grouping: SessionListStatusMode; sorting: SessionListStatusMode;
     ticketStatuses: ReadonlyMap<string, SessionTicketStatus>; nowMs: number;
     agentStatuses?: ReadonlyMap<string, SessionListVisualStatus>;
-    ticketAssociations?: ReadonlyMap<string, SessionTicketAssociationV1 | null>;
+    ticketAssociations?: ReadonlyMap<string, SessionTicketAssociationV1 | null | undefined>;
 }>): SessionListViewItem[] {
     if (input.grouping === 'none' && input.sorting === 'none') return input.items as SessionListViewItem[];
     const agentKeys = new Map<Row, StatusKey>(); const ticketKeys = new Map<Row, StatusKey>();

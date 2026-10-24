@@ -26,6 +26,15 @@ function row(id: string, options: Partial<Row['session']> = {}, fields: Partial<
 function header(title: string, headerKind: Extract<SessionListViewItem, { type: 'header' }>['headerKind'] = 'project'): SessionListViewItem {
     return { type: 'header', headerKind, title, groupKey: title };
 }
+
+it('keeps unknown metadata checking or unavailable instead of claiming No ticket', () => {
+    const pending = row('pending', { metadata: null });
+    const failed = row('failed', { metadata: null });
+    const confirmed = row('confirmed');
+    const projected = projectSessionListStatusView({ items: [pending, failed, confirmed], grouping: 'ticket', sorting: 'none', nowMs: now,
+        ticketStatuses: new Map([['home:failed', { phase: 'unavailable', snapshot: null, error: null }]]) });
+    expect(projected.filter(item => item.type === 'header').map(item => item.title)).toEqual(['Checking ticket…', 'Status unavailable', 'No ticket']);
+});
 function ids(items: readonly SessionListViewItem[]) { return items.flatMap(item => item.type === 'session' ? [item.session.id] : []); }
 function linked(id: string, workspace = 'workspace'): Row {
     const ticket: SessionTicketAssociationV1 = { v: 1, ticket: { v: 1, provider: 'linear', workspaceId: workspace, ticketId: id, key: id, title: id, url: `https://linear.app/fixture/issue/DEV-${id}` }, reader: { machineId: 'mac', mcpServerId: 'linear', directory: '/repo' } };

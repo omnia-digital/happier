@@ -123,6 +123,88 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
         sync.disconnectServer();
     });
 
+    it('hydrates all loaded metadata candidates through the real scoped loader with its configured concurrency', async () => {
+        const activeServer = upsertServerProfile({ serverUrl: 'https://status-fixture.example', name: 'Status fixture' });
+        setActiveServerId(activeServer.id);
+        const { sync } = await import('./sync');
+        const { Encryption } = await import('./encryption/encryption');
+        const owner = sync as unknown as { credentials: unknown; encryption: unknown; syncTuning: { sessionListHydrationConcurrencyLimit: number };
+            ensureSessionListMetadata: (candidates: readonly { sessionId: string; serverId?: string }[], shouldContinue: () => boolean) => Promise<unknown[]> };
+        owner.credentials = { token: 'active-token', secret: 'isolated-secret' };
+        owner.encryption = await Encryption.create(new Uint8Array(32).fill(3));
+        let active = 0; let peak = 0;
+        requestMock.mockImplementation(async (path: string) => {
+            active++; peak = Math.max(peak, active);
+            await Promise.resolve(); active--;
+            const id = path.split('/').pop()!;
+            return new Response(JSON.stringify({ session: { id, seq: 0, createdAt: 1, updatedAt: 2, active: false, activeAt: 2,
+                encryptionMode: 'plain', dataEncryptionKey: null, metadata: JSON.stringify({ path: '/repo', host: 'fixture', name: id }), metadataVersion: 1,
+                agentState: null, agentStateVersion: 0, share: null } }), { status: 200 });
+        });
+        const candidates = Array.from({ length: 40 }, (_, index) => ({ sessionId: `status-candidate-${index}` }));
+        await Promise.all([owner.ensureSessionListMetadata(candidates, () => true), owner.ensureSessionListMetadata(candidates, () => true)]);
+        for (const candidate of candidates) expect(storage.getState().sessions[candidate.sessionId]?.metadata?.name).toBe(candidate.sessionId);
+        expect(requestMock.mock.calls.map(call => call[0])).toEqual(candidates.map(candidate => `/v2/sessions/${candidate.sessionId}`));
+        expect(peak).toBeLessThanOrEqual(owner.syncTuning.sessionListHydrationConcurrencyLimit);
+    });
+
+    it('drops queued metadata demand on release and refuses held publication after a scope retires', async () => {
+        const activeServer = upsertServerProfile({ serverUrl: 'https://status-retirement.example', name: 'Status retirement fixture' });
+        setActiveServerId(activeServer.id);
+        const { sync } = await import('./sync');
+        const { Encryption } = await import('./encryption/encryption');
+        const owner = sync as unknown as { credentials: unknown; encryption: unknown; syncTuning: { sessionListHydrationConcurrencyLimit: number };
+            ensureSessionListMetadata: (candidates: readonly { sessionId: string }[], shouldContinue: () => boolean) => Promise<unknown[]> };
+        owner.credentials = { token: 'active-token', secret: 'isolated-secret' };
+        owner.encryption = await Encryption.create(new Uint8Array(32).fill(4));
+        const releaseRequests: Array<() => void> = [];
+        requestMock.mockImplementation(async (path: string) => {
+            await new Promise<void>(resolve => releaseRequests.push(resolve));
+            const id = path.split('/').pop()!;
+            return new Response(JSON.stringify({ session: { id, seq: 0, createdAt: 1, updatedAt: 2, active: false, activeAt: 2,
+                encryptionMode: 'plain', dataEncryptionKey: null, metadata: JSON.stringify({ path: '/retired', host: 'fixture', name: id }), metadataVersion: 1,
+                agentState: null, agentStateVersion: 0, share: null } }), { status: 200 });
+        });
+        let current = true;
+        const candidates = Array.from({ length: 40 }, (_, index) => ({ sessionId: `retired-status-${index}` }));
+        const pending = owner.ensureSessionListMetadata(candidates, () => current);
+        await vi.waitFor(() => expect(releaseRequests).toHaveLength(owner.syncTuning.sessionListHydrationConcurrencyLimit));
+        current = false; sync.disconnectServer(); releaseRequests.forEach(release => release());
+        await pending;
+        expect(requestMock).toHaveBeenCalledTimes(owner.syncTuning.sessionListHydrationConcurrencyLimit);
+        for (const candidate of candidates) expect(storage.getState().sessions[candidate.sessionId]).toBeUndefined();
+    });
+
+    it('refreshes route messages when a route joins held metadata-only shell hydration', async () => {
+        const activeServer = upsertServerProfile({ serverUrl: 'https://status-route-join.example', name: 'Status route fixture' });
+        setActiveServerId(activeServer.id);
+        const { sync } = await import('./sync');
+        const { Encryption } = await import('./encryption/encryption');
+        const owner = sync as unknown as { credentials: unknown; encryption: unknown;
+            ensureSessionListMetadata: (candidates: readonly { sessionId: string }[], shouldContinue: () => boolean) => Promise<unknown[]> };
+        owner.credentials = { token: 'route-token', secret: 'isolated-secret' };
+        owner.encryption = await Encryption.create(new Uint8Array(32).fill(5));
+        let release = () => {};
+        const held = new Promise<void>(resolve => { release = resolve; });
+        const id = 'metadata-first-route-join';
+        requestMock.mockImplementation(async (path: string) => {
+            if (path === `/v2/sessions/${id}`) {
+                await held;
+                return new Response(JSON.stringify({ session: { id, seq: 0, createdAt: 1, updatedAt: 2, active: false, activeAt: 2,
+                    encryptionMode: 'plain', dataEncryptionKey: null, metadata: JSON.stringify({ path: '/repo', host: 'fixture' }), metadataVersion: 1,
+                    agentState: null, agentStateVersion: 0, share: null } }), { status: 200 });
+            }
+            if (path.startsWith(`/v1/sessions/${id}/messages?`)) return new Response(JSON.stringify({ messages: [] }), { status: 200 });
+            throw new Error(`Unexpected fixture request: ${path}`);
+        });
+        const metadata = owner.ensureSessionListMetadata([{ sessionId: id }], () => true);
+        await vi.waitFor(() => expect(requestMock).toHaveBeenCalledTimes(1));
+        const route = sync.ensureSessionVisibleForMessageRoute(id);
+        release(); await Promise.all([metadata, route]);
+        await vi.waitFor(() => expect(requestMock.mock.calls.some(([path]) => path.startsWith(`/v1/sessions/${id}/messages?`))).toBe(true));
+        expect(requestMock.mock.calls.filter(([path]) => path === `/v2/sessions/${id}`)).toHaveLength(1);
+    });
+
     it('hydrates e2ee session encryption on deep link before sessions snapshot fetch', async () => {
         const sessionId = 'deep_link_session';
         storage.getState().applySessions([createSession({ sessionId })]);
