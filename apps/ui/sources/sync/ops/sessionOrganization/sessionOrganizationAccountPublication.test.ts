@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { SessionOrganizationSnapshot } from '@happier-dev/protocol';
 import { getStorage } from '@/sync/domains/state/storageStore';
 import { upsertSessionFolder } from './upsertSessionFolder';
 import { deleteSessionFolder } from './deleteSessionFolder';
@@ -11,11 +12,13 @@ import { upsertSessionTag } from './upsertSessionTag';
 import { deleteSessionTag } from './deleteSessionTag';
 import { upsertSessionLabel } from './upsertSessionLabel';
 import { deleteSessionLabel } from './deleteSessionLabel';
+import { fetchAndApplySessionOrganizationSnapshot } from './fetchSessionOrganizationSnapshot';
 
 const boundary = vi.hoisted(() => ({
     credentials: { token: '', secret: 'secret' },
     upsert: vi.fn(), delete: vi.fn(), reorder: vi.fn(), assign: vi.fn(), move: vi.fn(),
     attention: vi.fn(), assignTags: vi.fn(), upsertTag: vi.fn(), deleteTag: vi.fn(), upsertLabel: vi.fn(), deleteLabel: vi.fn(),
+    fetchSnapshot: vi.fn(),
     encryption: vi.fn(), encryptionMode: vi.fn(), readCredentials: vi.fn(),
     listeners: new Set<() => void>(),
 }));
@@ -45,6 +48,7 @@ vi.mock('@/sync/api/session/sessionOrganizationApi', async (original) => ({
     deleteSessionOrganizationTag: boundary.deleteTag,
     upsertSessionOrganizationLabel: boundary.upsertLabel,
     deleteSessionOrganizationLabel: boundary.deleteLabel,
+    fetchSessionOrganizationSnapshot: boundary.fetchSnapshot,
 }));
 const token = (accountId: string, signature = 'signature') => `header.${Buffer.from(JSON.stringify({ sub: accountId })).toString('base64')}.${signature}`;
 const credentialsA = { token: token('account-a'), secret: 'secret' };
@@ -64,18 +68,21 @@ function deferred<T>() {
     const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; });
     return { promise, resolve, reject };
 }
-function seed(accountId: string) {
-    boundary.credentials = { token: token(accountId), secret: 'secret' };
-    const store = getStorage();
-    store.setState({ profileScope: { serverId: 'home', accountId } });
-    store.getState().clearSessionOrganizationForServer('home');
-    store.getState().applySessionOrganizationSnapshot('home', {
+function organizationSnapshot(accountId: string): SessionOrganizationSnapshot {
+    return {
         schemaVersion: 1, version: 1, pins: [], folders: [folder(accountId)],
         folderAssignments: [{ sessionId: 'session', folderId: accountId }],
         tags: [tag(accountId)], tagAssignments: [{ sessionId: 'session', tagIds: [accountId] }], labels: [label(accountId)],
         attentionStandings: [{ sessionId: 'session', standing: accountId === 'account-a', updatedAt: 1 }],
         orderEntries: [{ scopeKind: 'group', scopeKey: 'repo', itemKind: 'session', itemKey: accountId, sortKey: 'a' }],
-    });
+    };
+}
+function seed(accountId: string) {
+    boundary.credentials = { token: token(accountId), secret: 'secret' };
+    const store = getStorage();
+    store.setState({ profileScope: { serverId: 'home', accountId } });
+    store.getState().clearSessionOrganizationForServer('home');
+    store.getState().applySessionOrganizationSnapshot('home', organizationSnapshot(accountId));
 }
 function projection() {
     const state = getStorage().getState();
@@ -92,6 +99,7 @@ function projection() {
 beforeEach(() => {
     for (const mock of [boundary.upsert, boundary.delete, boundary.reorder, boundary.assign, boundary.move,
         boundary.attention, boundary.assignTags, boundary.upsertTag, boundary.deleteTag, boundary.upsertLabel, boundary.deleteLabel,
+        boundary.fetchSnapshot,
         boundary.encryption, boundary.encryptionMode]) mock.mockReset();
     boundary.encryptionMode.mockResolvedValue({ mode: 'plain', updatedAt: 0 });
     boundary.encryption.mockResolvedValue({ getContentPrivateKey: () => new Uint8Array(32).fill(7) });
@@ -101,6 +109,17 @@ beforeEach(() => {
 });
 
 describe('organization mutations publish only to their captured account', () => {
+    it('does not apply a late A organization snapshot over B', async () => {
+        const response = deferred<{ snapshot: ReturnType<typeof organizationSnapshot> }>();
+        boundary.fetchSnapshot.mockReturnValue(response.promise);
+        const pending = fetchAndApplySessionOrganizationSnapshot({ ...base });
+        await vi.waitFor(() => expect(boundary.fetchSnapshot).toHaveBeenCalledTimes(1));
+        seed('account-b');
+        const expected = projection();
+        response.resolve({ snapshot: organizationSnapshot('account-a') });
+        await pending;
+        expect(projection()).toEqual(expected);
+    });
     it('keeps attention out of B after an A-scoped action resumes under B', async () => {
         seed('account-b');
         const expected = projection();
@@ -134,8 +153,8 @@ describe('organization mutations publish only to their captured account', () => 
         { name: 'bulk move', api: boundary.move, run: () => moveSessionFolderAssignments({ ...base, fromFolderIds: ['account-a'], toFolderId: 'A folder' }), response: { assignments: [{ sessionId: 'session' }], toFolderId: 'A response' } },
         { name: 'attention', api: boundary.attention, run: () => setSessionAttentionStanding({ ...base, sessionId: 'session', standing: false }), response: { standing: { sessionId: 'session', standing: false, updatedAt: 2 } } },
         { name: 'tag assignment', api: boundary.assignTags, run: () => setSessionTagAssignments({ ...base, sessionId: 'session', tagIds: ['A tag'] }), response: { sessionId: 'session', tagIds: ['A response'] } },
-        { name: 'tag upsert', api: boundary.upsertTag, run: () => upsertSessionTag({ ...base, request: { tagId: 'tag', tagKey: 'tag', display: tag('A edit').display } }), response: { tag: tag('A response') } },
-        { name: 'tag delete', api: boundary.deleteTag, run: () => deleteSessionTag({ ...base, request: { tagId: 'tag' } }), response: { tagId: 'tag', removedAssignmentCount: 1 } },
+        { name: 'tag upsert', api: boundary.upsertTag, run: () => upsertSessionTag({ ...base, request: { tagId: 'tag', tagKey: 'tag', sortKey: null, display: tag('A edit').display } }), response: { tag: tag('A response') } },
+        { name: 'tag delete', api: boundary.deleteTag, run: () => deleteSessionTag({ ...base, request: { tagId: 'tag', assignmentBehavior: 'removeAssignments' } }), response: { tagId: 'tag', removedAssignmentCount: 1 } },
         { name: 'label upsert', api: boundary.upsertLabel, run: () => upsertSessionLabel({ ...base, request: { labelKind: 'workspace', scopeKey: 'server:home', display: label('A edit').display } }), response: { label: label('A response') } },
         { name: 'label delete', api: boundary.deleteLabel, run: () => deleteSessionLabel({ ...base, request: { labelKind: 'workspace', scopeKey: 'server:home' } }), response: {} },
     ];
