@@ -4,7 +4,9 @@ import {
   appendSessionPullRequestLink,
   readSessionPullRequestLinks,
   removeSessionPullRequestLink,
+  sessionPullRequestLinkFromSummary,
   sessionPullRequestLinkFromUrl,
+  sessionPullRequestLinkKey,
   SessionPullRequestLinkV1Schema,
 } from './sessionPullRequestsV1.js';
 
@@ -39,5 +41,22 @@ describe('session pull request links', () => {
     const canonical = sessionPullRequestLinkFromUrl('https://github.com/team/repo/pull/7')!;
     expect(SessionPullRequestLinkV1Schema.safeParse({ ...canonical, providerBaseUrl: 'https://github.com/' }).success).toBe(false);
     expect(SessionPullRequestLinkV1Schema.safeParse({ ...canonical, providerBaseUrl: 'https://github.com/other' }).success).toBe(false);
+  });
+
+  it('treats GitHub repository case aliases as one identity while retaining GitLab case', () => {
+    const lower = sessionPullRequestLinkFromUrl('https://github.com/team/repo/pull/7')!;
+    const upper = sessionPullRequestLinkFromUrl('https://github.com/Team/Repo/pull/7')!;
+    expect(sessionPullRequestLinkKey(upper)).toBe(sessionPullRequestLinkKey(lower));
+    expect(readSessionPullRequestLinks(appendSessionPullRequestLink(appendSessionPullRequestLink({}, lower), upper))).toEqual([lower]);
+    expect(readSessionPullRequestLinks(removeSessionPullRequestLink(appendSessionPullRequestLink({}, lower), upper))).toEqual([]);
+    expect(SessionPullRequestLinkV1Schema.safeParse({ ...upper, repository: 'team/repo' }).success).toBe(true);
+    expect(sessionPullRequestLinkFromSummary({
+      provider: { kind: 'github', name: 'GitHub', baseUrl: 'https://github.com', nameWithOwner: 'team/repo', remoteName: null },
+      number: 7, title: 'Alias', url: upper.url, baseBranch: 'main', headBranch: 'feature', state: 'merged',
+    })).toEqual(upper);
+
+    const gitlabLower = sessionPullRequestLinkFromUrl('https://gitlab.com/team/repo/-/merge_requests/7')!;
+    const gitlabUpper = sessionPullRequestLinkFromUrl('https://gitlab.com/Team/Repo/-/merge_requests/7')!;
+    expect(sessionPullRequestLinkKey(gitlabUpper)).not.toBe(sessionPullRequestLinkKey(gitlabLower));
   });
 });

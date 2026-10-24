@@ -128,6 +128,10 @@ describe('git pull request operations', () => {
       request: { cwd: '.', prReference: { number: 51 }, linkedIdentity },
     };
     await expect(backend.get(input)).resolves.toMatchObject({ success: true, pullRequest: returned });
+    returned = { ...pullRequest, provider: { ...provider, nameWithOwner: 'Happier-Dev/Other' }, url: 'https://github.com/Happier-Dev/Other/pull/51' };
+    await expect(backend.get(input)).resolves.toMatchObject({ success: true, pullRequest: returned });
+    await expect(backend.get({ ...input, request: { ...input.request, prReference: { url: returned.url } } })).resolves.toMatchObject({ success: true, pullRequest: returned });
+    await expect(backend.get({ ...input, request: { ...input.request, prReference: { url: 'https://github.com/happier-dev/unrelated/pull/51' } } })).resolves.toMatchObject({ success: false });
     returned = pullRequest;
     await expect(backend.get(input)).resolves.toMatchObject({ success: false });
   });

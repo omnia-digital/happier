@@ -2,6 +2,7 @@ import {
     SCM_OPERATION_ERROR_CODES,
     SessionPullRequestLinkV1Schema,
     sessionPullRequestLinkFromSummary,
+    sessionPullRequestLinkFromUrl,
     sessionPullRequestLinkKey,
     type ScmPullRequestGetRequest,
     type ScmPullRequestGetResponse,
@@ -280,8 +281,7 @@ export function createGitPullRequestBackend(deps: GitPullRequestOperationDeps = 
         const validateResult = (pullRequest: ScmPullRequestSummary | null): ScmPullRequestGetResponse => {
             if (!linkedIdentity || !pullRequest) return { success: true, pullRequest };
             const returnedIdentity = sessionPullRequestLinkFromSummary(pullRequest);
-            if (!returnedIdentity || sessionPullRequestLinkKey(returnedIdentity) !== sessionPullRequestLinkKey(linkedIdentity)
-                || returnedIdentity.url !== linkedIdentity.url) {
+            if (!returnedIdentity || sessionPullRequestLinkKey(returnedIdentity) !== sessionPullRequestLinkKey(linkedIdentity)) {
                 return {
                     success: false,
                     errorCode: SCM_OPERATION_ERROR_CODES.COMMAND_FAILED,
@@ -310,8 +310,15 @@ export function createGitPullRequestBackend(deps: GitPullRequestOperationDeps = 
         }
 
         const referenceNumber = resolvePullRequestReferenceNumber(input.request.prReference);
+        const linkedReferenceUrl = linkedIdentity && 'url' in input.request.prReference
+            ? sessionPullRequestLinkFromUrl(input.request.prReference.url, {
+                kind: linkedIdentity.providerKind,
+                baseUrl: linkedIdentity.providerBaseUrl,
+            })
+            : null;
         if (linkedIdentity && (referenceNumber !== linkedIdentity.number
-            || ('url' in input.request.prReference && input.request.prReference.url !== linkedIdentity.url))) {
+            || ('url' in input.request.prReference
+                && (!linkedReferenceUrl || sessionPullRequestLinkKey(linkedReferenceUrl) !== sessionPullRequestLinkKey(linkedIdentity))))) {
             return invalidLinkedIdentity();
         }
         if (provider.kind === 'github' && referenceNumber != null) {

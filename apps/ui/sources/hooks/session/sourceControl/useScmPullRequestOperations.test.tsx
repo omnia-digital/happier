@@ -190,6 +190,20 @@ describe('useScmPullRequestOperations', () => {
         expect(modalAlertMock).toHaveBeenCalled();
     });
 
+    it('captures a GitHub PR when the provider returns repository casing different from the checkout', async () => {
+        const alias = {
+            ...existingModel().pullRequest,
+            provider: { ...existingModel().pullRequest.provider, nameWithOwner: 'Happier/Dev' },
+            url: 'https://github.com/Happier/Dev/pull/42',
+        };
+        sessionScmPullRequestOpenOrReuseMock.mockResolvedValue({ success: true, kind: 'opened', reused: true, pullRequest: alias });
+        const { useScmPullRequestOperations } = await import('./useScmPullRequestOperations');
+        const hook = await renderHook(() => useScmPullRequestOperations({ sessionId: 's1' }));
+        await act(async () => { await hook.getCurrent().openOrReusePullRequest(readyModel()); });
+        expect(capturePullRequestMock).toHaveBeenCalledWith('s1', alias, expect.anything());
+        expect(modalAlertMock).not.toHaveBeenCalled();
+    });
+
     it('opens the compare URL when the daemon reports no authenticated PR creator', async () => {
         sessionScmPullRequestOpenOrReuseMock.mockResolvedValue({
             success: true,
