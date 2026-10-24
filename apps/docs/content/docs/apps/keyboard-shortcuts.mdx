@@ -127,12 +127,15 @@ Shortcuts respect focus. Most do nothing while you are typing in the composer,
 which is why sending has its own explicitly editable-safe binding rather than
 relying on you leaving the field first.
 
-Session menu shortcuts act on the open menu's session, or the hovered row when
-no menu is open. They do nothing in text inputs or unrelated overlays. Archive's
-`A` binding remains available when single-key shortcuts are disabled; disabling
-or rebinding Archive itself still applies. On native iOS and Android, the hardware
-keyboard integration currently supports only Enter and Escape bindings, so these
-session menu chords are available on desktop and web.
+Session menu shortcuts target the open menu's session first, then the hovered row,
+then the focused row. Other than Archive, they can also fall back to the selected
+session. Only actions available in that session's menu run; state-dependent actions
+use the current option, such as Pin or Unpin. Shortcuts do nothing in text inputs
+or unrelated overlays. Archive's `A` binding remains available when single-key
+shortcuts are disabled; disabling or rebinding Archive itself still applies.
+On native iOS and Android, the hardware keyboard integration currently supports
+only Enter and Escape bindings, so these session menu chords are available on
+desktop and web.
 
 ## Changing them
 
