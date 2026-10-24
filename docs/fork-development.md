@@ -294,23 +294,41 @@ The latest upstream fetch completed and `origin/dev...upstream/dev` remains 0/0 
 
 ## Mac test-environment findings
 
-The original full root run still records its failures; the following focused reruns do not replace its final result. No existing test was edited.
+October 24 corrections now pass the complete CLI-common package (103 files, 602 passed and 5 skipped)
+and bootstrap package (25 files, 248 passed), with both package typechecks. Windows managed CLI
+identity uses the existing case-insensitive path owner after realpath resolution; provider update
+classification resolves native install roots through the same filesystem view as its executable.
+Artifact fixtures compare actual resolved survivors, and bootstrap fixtures supply isolated HOME
+and their generated publisher public key. Default TMPDIR works without the earlier workaround.
+Logs: `/tmp/happier-oh4-cli-common-full-current.log`,
+`/tmp/happier-oh4-bootstrap-full-current.log`, and matching `*-types-current.log` files.
 
-- Set a canonical temporary root for Mac test commands. Node resolves module paths under `/private/var`, while the default `TMPDIR` can spell the same location `/var`. With `TMPDIR` set to `realpathSync(tmpdir())`, the artifact/provider-update suites pass 45 tests across two files, and the vendor updater suite passes another 3. Logs: `/tmp/happier-oh-6-canonical-tmp-tests.log` and `/tmp/happier-oh-6-canonical-tmp-install-tests.log`. The installer memory-pressure case still fails and requires a separate correction.
+Website checks pass all 184 tests plus three script checks with independent CI discovery inputs:
+source-only archives of `packages/agents/src` from immutable `cli-v0.2.17` and current
+`upstream/v0.3`, under `/tmp/happier-oh4-website-sources.u1FylQ/{released,unreleased}`.
+Set `HAPPIER_SHIPPED_TREE` and `HAPPIER_UNRELEASED_TREE` to those respective directories when
+running the root lane. These are registry inputs, not a 0.3 development checkout or native release
+proof. The original root run's missing-input failures remain preserved; its successor still needs
+the complete configured root gate. See `/tmp/happier-oh4-website-source-inputs.log`.
+
+The following earlier diagnostic reruns are history, not a substitute for that gate:
+
+- Earlier diagnosis set a canonical temporary root because Node resolved module paths under `/private/var`, while default `TMPDIR` spelled the same location `/var`. That isolated 45 artifact/provider checks and another 3 updater checks before the owner/fixture corrections above. Logs: `/tmp/happier-oh-6-canonical-tmp-tests.log` and `/tmp/happier-oh-6-canonical-tmp-install-tests.log`.
 - Website availability tests need independent source inputs, as configured in `.github/workflows/tests.yml`. Source-only archives of `packages/agents/src` from `cli-stable` (`b8d1c449c46ab4dfa8637db36b66f643d149e66d`) and `upstream/v0.3` (`cefac10129c6faac450752909ec4f1b8335d5992`) pass all 39 tests in the two previously failing files. Provenance is recorded in the temporary `happier-website-source-trees-ZnjUTk/provenance.json`; log: `/tmp/happier-oh-6-website-discovery-tests.log`. These are CI discovery inputs, not native compatibility evidence or a v0.3 development checkout.
-- Five bootstrap failures inherit the real user HOME while clearing only PATH and Happier's state directory. The intended macOS Dock search still finds `~/.local/bin/happier`, so those fixtures do not simulate a computer without a CLI. Running their five files with an isolated subprocess home and canonical temporary root passes all 76 tests unchanged (`/tmp/happier-oh-6-isolated-bootstrap-tests.log`). The user's shell environment and installed CLI are untouched. Do not remove Dock discovery or alter the installed CLI to make them pass. Existing fixture edits, if later proposed, require Josh's approval.
+- Five bootstrap fixtures originally inherited the real HOME while clearing only PATH and Happier's state directory. Intended macOS Dock search still found `~/.local/bin/happier`. The earlier isolated subprocess diagnosis passed 76 unchanged tests (`/tmp/happier-oh-6-isolated-bootstrap-tests.log`); current fixtures now set that scope directly. Fixed system search directories remain part of intended discovery and can still find a system-wide CLI on another host. Test/fixture updates are authorized under the current global instructions.
 - The CLI-choice suite also expects no result after creating a managed link in its own `HOME/.local/bin`; that conflicts with the intentional Dock search. Eight other failures simulate Windows on the Mac filesystem and compare `.exe`/`.EXE` or `.cmd`/`.CMD` spellings. Native Windows evidence is required before treating those as product defects.
 
-A one-command canonical-temp example using the existing test runner:
+For the current root lane, supply its website discovery inputs:
 
 ```sh
-TMPDIR="$(node -p 'require("node:fs").realpathSync(require("node:os").tmpdir())')" \
-  ./apps/stack/bin/hstack-exec -- yarn --cwd packages/cli-common -s vitest run \
-  --config vitest.config.ts src/componentArtifacts/finalizeRuntimeArtifactPayload.test.ts \
-  src/providers/update.test.ts src/providers/install.update.test.ts
+HAPPIER_SHIPPED_TREE=/tmp/happier-oh4-website-sources.u1FylQ/released \
+HAPPIER_UNRELEASED_TREE=/tmp/happier-oh4-website-sources.u1FylQ/unreleased \
+  ./apps/stack/bin/hstack-exec -- yarn test
 ```
 
-This changes only that command's environment. Recreate website source snapshots from the named upstream refs when they are needed; do not point both discovery variables at this checkout or assume temporary folders survive a reboot.
+Recreate those source inputs from the named refs if the temporary directories are absent. Never
+point both discovery variables at the working checkout; that would remove the released/development
+distinction the tests enforce. Original root failures are not erased by the package reruns.
 
 The installer failure is now corrected at `packages/cli-common/src/providers/install.ts`. The vendor recipe records CLI presence using the same execution environment before the entire command sequence. A nonzero command can recover only when the CLI was absent before that sequence and is available afterward. A previously installed CLI no longer masks a failed forced reinstall. Successful forced installs, default already-installed skipping, consent, timeout handling and newly-available recovery are retained.
 
