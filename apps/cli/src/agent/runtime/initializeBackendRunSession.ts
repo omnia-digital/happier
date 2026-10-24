@@ -226,6 +226,7 @@ export async function initializeBackendRunSession(
     )
   const startupSideEffectsOrder = opts.startupSideEffectsOrder ?? 'report-first'
   let creationResolution: 'created' | 'existing' | undefined
+  let creationAccountId: string | undefined
   const pendingFirstInputCommitter = createPendingFirstInputCommitter()
   let commitPendingFirstInputAfterRuntimeReady: (() => Promise<void>) | null = null
   const deferOrCommitPendingFirstInput = async (session: ApiSessionClient): Promise<void> => {
@@ -258,7 +259,7 @@ export async function initializeBackendRunSession(
     const reportPromise = (async () => {
       await opts.waitForDaemonReportReadiness?.()
       await reportSessionToDaemonIfRunningFn(
-        { sessionId, metadata, ...(creationResolution ? { creationResolution } : {}) },
+        { sessionId, metadata, ...(creationResolution ? { creationResolution } : {}), ...(creationAccountId ? { creationAccountId } : {}) },
         opts.onDaemonSessionReported
           ? {
               onReported: async () => {
@@ -377,6 +378,7 @@ export async function initializeBackendRunSession(
     state: opts.state,
   })
   creationResolution = response?.creationResolution
+  creationAccountId = response?.creationAccountId
   if (response) await claimSessionRunnerOwnership(response.id)
 
   if (!response && !opts.allowOfflineStub) {

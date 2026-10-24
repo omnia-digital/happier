@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, realpath } from 'node:fs/promises';
-import { join, relative, sep } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { z } from 'zod';
 import type { PublicReleaseRingId } from '@happier-dev/release-runtime/releaseRings';
 
@@ -14,6 +14,8 @@ const ClaimSchema = z.object({
   accountId: z.string().min(1),
   machineId: z.string().min(1),
   launchNonce: z.string().min(1),
+  activeServerDir: z.string().min(1),
+  ring: z.enum(['stable', 'preview', 'publicdev']),
   worktreeRealPath: z.string().min(1),
   registeredWorktreeRealPath: z.string().min(1),
   gitCommonDirRealPath: z.string().min(1),
@@ -26,6 +28,7 @@ const ClaimSchema = z.object({
 export type WorktreeCreationClaim = z.infer<typeof ClaimSchema>;
 type ClaimOwner = Readonly<{
   homeDir: string;
+  activeServerDir: string;
   ring?: PublicReleaseRingId | null;
   accountId: string;
   machineId: string;
@@ -36,7 +39,7 @@ function claimPath(owner: ClaimOwner): string {
   const name = createHash('sha256').update(JSON.stringify([
     owner.accountId, owner.machineId, owner.launchNonce,
   ])).digest('hex');
-  return join(owner.homeDir, resolveReleaseRingScopedBasename('worktree-creation-custody', owner.ring), `${name}.json`);
+  return join(owner.activeServerDir, resolveReleaseRingScopedBasename('worktree-creation-custody', owner.ring), `${name}.json`);
 }
 
 async function readClaim(path: string): Promise<{ exists: boolean; claim: WorktreeCreationClaim | null }> {
@@ -52,7 +55,7 @@ async function readClaim(path: string): Promise<{ exists: boolean; claim: Worktr
 
 async function withClaimLock<T>(owner: ClaimOwner, task: (path: string) => Promise<T>): Promise<T> {
   const path = claimPath(owner);
-  await mkdir(join(path, '..'), { recursive: true });
+  await mkdir(dirname(path), { recursive: true });
   return await withJsonOwnerFileLock({
     lockPath: `${path}.lock`, timeoutMs: 10_000, staleAfterMs: 30_000,
     errorCode: 'WORKTREE_CREATION_CLAIM_LOCK_TIMEOUT',
@@ -60,7 +63,7 @@ async function withClaimLock<T>(owner: ClaimOwner, task: (path: string) => Promi
 }
 
 function validOwner(owner: ClaimOwner): boolean {
-  return Boolean(owner.homeDir && owner.accountId.trim() && owner.machineId.trim() && owner.launchNonce.trim());
+  return Boolean(owner.homeDir && owner.activeServerDir.trim() && owner.accountId.trim() && owner.machineId.trim() && owner.launchNonce.trim());
 }
 
 export async function readWorktreeCreationClaim(owner: ClaimOwner): Promise<WorktreeCreationClaim | null> {
@@ -71,11 +74,13 @@ export async function readWorktreeCreationClaim(owner: ClaimOwner): Promise<Work
 /** Persist only after Git has actually created a linked worktree. This never adopts a path. */
 export async function recordHostCreatedWorktree(input: ClaimOwner & Readonly<{
   worktreePath: string;
+  expectedBranchName: string;
   branchCreatedHere: boolean;
 }>): Promise<WorktreeCreationClaim | null> {
   if (!validOwner(input)) return null;
   const identity = await inspectGitCheckoutIdentity({ cwd: input.worktreePath });
-  if (!identity || !isGitLinkedWorktreeIdentity(identity) || !identity.branchName) return null;
+  if (!identity || !isGitLinkedWorktreeIdentity(identity) || !identity.branchName
+    || identity.branchName !== input.expectedBranchName) return null;
   const [worktreeRealPath, registeredWorktreeRealPath, gitCommonDirRealPath] = await Promise.all([
     realpath(identity.worktreePath), realpath(identity.registeredWorktreePath), realpath(identity.commonDirPath),
   ]).catch(() => [null, null, null]);
@@ -87,6 +92,8 @@ export async function recordHostCreatedWorktree(input: ClaimOwner & Readonly<{
     accountId: input.accountId,
     machineId: input.machineId,
     launchNonce: input.launchNonce,
+    activeServerDir: input.activeServerDir,
+    ring: input.ring ?? 'stable',
     worktreeRealPath,
     registeredWorktreeRealPath,
     gitCommonDirRealPath,
@@ -97,7 +104,8 @@ export async function recordHostCreatedWorktree(input: ClaimOwner & Readonly<{
     const prior = await readClaim(path);
     if (prior.exists) {
       if (!prior.claim) return null;
-      return prior.claim.worktreeRealPath === claim.worktreeRealPath
+      return prior.claim.activeServerDir === claim.activeServerDir && prior.claim.ring === claim.ring
+        && prior.claim.worktreeRealPath === claim.worktreeRealPath
         && prior.claim.gitCommonDirRealPath === claim.gitCommonDirRealPath
         && prior.claim.branchName === claim.branchName
         && prior.claim.branchCreatedHere === claim.branchCreatedHere ? prior.claim : null;
@@ -118,6 +126,7 @@ export async function bindCreatedWorktreeToTrackedSession(input: ClaimOwner & Re
   return await withClaimLock(input, async (path) => {
     const claim = (await readClaim(path)).claim;
     if (!claim || claim.accountId !== input.accountId || claim.machineId !== input.machineId
+      || claim.activeServerDir !== input.activeServerDir || claim.ring !== (input.ring ?? 'stable')
       || claim.launchNonce !== input.launchNonce) return null;
     if (!claim.sessionId && input.serverResolution !== 'created') return null;
     if (claim.sessionId && claim.sessionId !== input.sessionId) return null;

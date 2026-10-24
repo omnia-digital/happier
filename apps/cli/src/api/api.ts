@@ -19,6 +19,7 @@ import { PushNotificationClient } from './pushNotifications';
 import { configuration } from '@/configuration';
 import { assertSessionEncryptionModeAllowedByEffectiveClientRequirement } from '@/settings/accountSettings/resolveEffectiveClientEncryptionRequirement';
 import { Credentials } from '@/persistence';
+import { readAccountIdFromToken } from '@/daemon/machineIdentity/resolveMachineRegistrationIdentity';
 
 import { resolveSessionEncryptionContext } from './client/encryptionKey';
 import { resolveMachineRegistrationContent, resolvePublishedMachineContent } from './machine/resolveMachineRegistrationContent';
@@ -494,6 +495,7 @@ export class ApiClient {
         let raw = response.data.session;
         const creationResolution = response.data.resolution === 'created' || response.data.resolution === 'existing'
           ? response.data.resolution : undefined;
+        const creationAccountId = creationResolution ? readAccountIdFromToken(this.credential.token) : null;
 
       const sessionEncryptionMode: 'e2ee' | 'plain' =
         (raw as any)?.encryptionMode === 'plain' ? 'plain' : 'e2ee';
@@ -538,6 +540,7 @@ export class ApiClient {
 	        return {
 	          id: raw.id,
 	          ...(creationResolution ? { creationResolution } : {}),
+	          ...(creationAccountId ? { creationAccountId } : {}),
 	          seq: raw.seq,
 	          ...readSessionRuntimeActivityProjectionBoundary(raw),
 	          encryptionMode: 'plain' as const,
@@ -552,6 +555,7 @@ export class ApiClient {
 	      return {
 	        id: raw.id,
 	        ...(creationResolution ? { creationResolution } : {}),
+	        ...(creationAccountId ? { creationAccountId } : {}),
 	        seq: raw.seq,
 	        ...readSessionRuntimeActivityProjectionBoundary(raw),
 	        encryptionMode: 'e2ee' as const,

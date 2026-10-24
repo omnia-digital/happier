@@ -531,8 +531,11 @@ describe('useCreateNewSession (worktree gating)', () => {
         expect(materializeNewSessionCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({
             machineId: 'machine-1',
             selectedPath: '/repo',
+            launchNonce: expect.any(String),
             checkoutCreationDraft: undefined,
         }));
+        expect(materializeNewSessionCheckoutMock.mock.calls[0]?.[0]?.launchNonce)
+            .toBe(machineSpawnNewSessionMock.mock.calls[0]?.[0]?.spawnNonce);
         expect(machineSpawnNewSessionMock).toHaveBeenCalledWith(expect.objectContaining({
             directory: '/repo',
             machineId: 'machine-1',

@@ -269,6 +269,17 @@ describe('startup side effects: daemon session reporting retry', () => {
     expect(observedTimeouts).toEqual([2_500, 10_000]);
   });
 
+  it('passes the child create account through the daemon report', async () => {
+    const report = vi.fn(async () => ({}));
+    await reportSessionToDaemonIfRunning(
+      { sessionId: 'session-custody', metadata: metadataStub, creationResolution: 'created', creationAccountId: 'account-a' },
+      { notifyDaemonSessionStartedFn: report },
+    );
+    expect(report).toHaveBeenCalledWith(
+      'session-custody', metadataStub, expect.any(Object), 'created', 'account-a',
+    );
+  });
+
   it('uses a longer default retry window for daemon-started sessions', async () => {
     let calls = 0;
     let now = 0;

@@ -2905,6 +2905,7 @@ export async function startDaemon(options: Readonly<{ takeover?: boolean }> = {}
               await bindTrackedWorktreeCreation({
                 owner, tracked, metadata, sessionId: report.sessionId,
                 serverResolution: report.serverResolution,
+                creationAccountId: report.creationAccountId,
               });
             } catch (error) {
               logger.warn('[DAEMON RUN] Worktree creation custody remains unclaimed after session report', error);
