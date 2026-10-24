@@ -3,7 +3,7 @@ import { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDeferred, createSessionFixture, flushHookEffects, renderScreen } from '@/dev/testkit';
 import { TokenStorage } from '@/auth/storage/tokenStorage';
-import { upsertServerProfile } from '@/sync/domains/server/serverProfiles';
+import { getActiveServerId, setActiveServerId, upsertServerProfile } from '@/sync/domains/server/serverProfiles';
 import {
   installSessionActionsCommonModuleMocks,
   resetSessionActionsCommonModuleMockState,
@@ -56,6 +56,10 @@ function findFireAndForgetByTag(tag: string): Promise<void> {
             .join(', ')}`);
     }
     return call[0] as Promise<void>;
+}
+function tokenForAccount(accountId: string): string {
+  const payload = Buffer.from(JSON.stringify({ sub: accountId })).toString('base64');
+  return `e30.${payload}.signature`;
 }
 const createSessionActionDraftMock = vi.hoisted(() => vi.fn());
 const buildActionDraftInputMock = vi.hoisted(() => vi.fn());
@@ -154,6 +158,7 @@ const attentionStandingSettingsState = vi.hoisted(() => ({
 const storageState = vi.hoisted(() => ({
   current: {
     settings: { voice: null as any } as any,
+    profileScope: null as { serverId: string; accountId: string } | null,
     sessionOrganizationSchemaVersionByServerId: {} as Record<string, number>,
     sessionOrganizationSnapshotVersionByServerId: {} as Record<string, number>,
     sessionOrganizationPinsBySessionKey: {} as Record<string, any>,
@@ -493,6 +498,7 @@ describe('SessionHeaderActionMenu handoff', () => {
         experiments: true,
         featureToggles: { 'execution.runs': true },
       },
+      profileScope: null,
       sessions: {},
       sessionListRenderables: {},
       sessionMessages: {},
@@ -537,9 +543,14 @@ describe('SessionHeaderActionMenu handoff', () => {
   });
 
   it('pins a session from the header through the existing organization mutation', async () => {
+    const previousActiveServerId = getActiveServerId();
+    const previousProfileScope = storageState.current.profileScope;
     const profile = upsertServerProfile({ serverUrl: 'https://header-pins.example', name: 'Header pin test' });
+    const accountId = 'header-pin-account';
+    act(() => setActiveServerId(profile.id, { scope: 'device' }));
+    storageState.current.profileScope = { serverId: profile.id, accountId };
     resolveServerIdForSessionIdFromLocalCacheMock.mockReturnValue(profile.id);
-    const session = createSessionFixture({ id: 'header-pin', active: false });
+    const session = createSessionFixture({ id: 'header-pin', active: false, owner: accountId });
     organizationProjectionState.current = {
       ...buildOrganizationProjectionFixture({}),
       pinnedSessionIds: [],
@@ -547,7 +558,7 @@ describe('SessionHeaderActionMenu handoff', () => {
     const pin = { sessionId: session.id, sortKey: null, pinnedAt: 99 };
     pinRequestMock.mockResolvedValue({ pin });
     const credentialsSpy = vi.spyOn(TokenStorage, 'getCredentialsForServerUrl')
-      .mockResolvedValue({ token: 'header-token', secret: 'header-secret' });
+      .mockResolvedValue({ token: tokenForAccount(accountId), secret: 'header-secret' });
     try {
       const screen = await renderScreen(<SessionHeaderActionMenu sessionId={session.id} session={session} />);
       const dropdown = screen.findByType('DropdownMenu' as React.ElementType);
@@ -568,6 +579,8 @@ describe('SessionHeaderActionMenu handoff', () => {
         .toEqual(pin);
     } finally {
       credentialsSpy.mockRestore();
+      storageState.current.profileScope = previousProfileScope;
+      if (previousActiveServerId) act(() => setActiveServerId(previousActiveServerId, { scope: 'device' }));
     }
   });
 
