@@ -1,4 +1,5 @@
 import { vi } from 'vitest';
+import { useRef } from 'react';
 
 import type { StorageState } from '@/sync/store/types';
 import type { Settings } from '@/sync/domains/settings/settings';
@@ -40,6 +41,21 @@ const testkitProfileDefaults = Object.freeze({
     connectedServiceCredentialRevisionsV1: [],
 } satisfies Profile);
 
+// Match the real plural hook: unchanged scoped projections keep the returned record stable.
+function useMockOrganizationProjections(
+    serverIds: readonly string[],
+    read: StorageModule['useSessionOrganizationProjection'],
+): ReturnType<StorageModule['useSessionOrganizationProjections']> {
+    const next = Object.fromEntries(serverIds.flatMap(serverId => {
+        const projection = read(serverId);
+        return projection ? [[serverId, projection]] : [];
+    }));
+    const previous = useRef(next);
+    if (Object.keys(previous.current).length !== Object.keys(next).length
+        || Object.keys(next).some(key => previous.current[key] !== next[key])) previous.current = next;
+    return previous.current;
+}
+
 export async function createStorageModuleMock(options: CreateStorageModuleMockOptions): Promise<StorageModule> {
     const overrides = options.overrides as Partial<StorageModule> | undefined;
     const readOrganization = overrides?.useSessionOrganizationProjection;
@@ -47,10 +63,7 @@ export async function createStorageModuleMock(options: CreateStorageModuleMockOp
         ...options,
         overrides: readOrganization && !overrides?.useSessionOrganizationProjections ? {
             ...overrides,
-            useSessionOrganizationProjections: (serverIds: readonly string[]) => Object.fromEntries(serverIds.flatMap(serverId => {
-                const projection = readOrganization(serverId);
-                return projection ? [[serverId, projection]] : [];
-            })),
+            useSessionOrganizationProjections: (serverIds: readonly string[]) => useMockOrganizationProjections(serverIds, readOrganization),
         } : options.overrides,
     });
     if (!('useActiveServerAccountScope' in mock)) {
@@ -205,9 +218,8 @@ export function createStorageModuleStub<TOverrides extends object>(overrides: TO
         useSessionListViewDataByServerId: () => sessionListViewDataByServerId,
         useSessionOrganizationGroupOrderByServer: () => ({}),
         useSessionOrganizationProjection: () => sessionOrganizationProjection,
-        useSessionOrganizationProjections: (serverIds: readonly string[]) => Object.fromEntries(serverIds.map(serverId => [
-            serverId, (overrides as Partial<StorageModule>).useSessionOrganizationProjection?.(serverId) ?? sessionOrganizationProjection,
-        ])),
+        useSessionOrganizationProjections: (serverIds: readonly string[]) => useMockOrganizationProjections(serverIds,
+            (overrides as Partial<StorageModule>).useSessionOrganizationProjection ?? (() => sessionOrganizationProjection)),
         useMachine: () => null,
         useIsDataReady: () => true,
         useSocketStatus: () => socketStatus,

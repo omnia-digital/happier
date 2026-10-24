@@ -36,7 +36,6 @@ vi.mock('react-native-gesture-handler', async () => (await import('@/dev/testkit
 vi.mock('react-native-worklets', () => ({ scheduleOnRN: (fn: (...args: unknown[]) => unknown, ...args: unknown[]) => fn(...args) }));
 vi.mock('react-native-safe-area-context', () => ({ SafeAreaInsetsContext: React.createContext({ top: 0, bottom: 0, left: 0, right: 0 }), useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }) }));
 vi.mock('@/components/ui/forms/dropdown/DropdownMenu', () => ({ DropdownMenu: (props: Record<string, unknown>) => React.createElement('DropdownMenu', props) }));
-vi.mock('./SessionItem', () => ({ SessionItem: (props: Record<string, unknown>) => React.createElement('SessionItem', props) }));
 vi.mock('@/sync/api/session/sessionOrganizationApi', async (importOriginal) => ({
     ...await importOriginal<typeof import('@/sync/api/session/sessionOrganizationApi')>(),
     reorderSessionOrganization: boundary.reorder,
@@ -95,19 +94,20 @@ beforeEach(async () => {
 });
 
 function visibleIds(screen: Awaited<ReturnType<typeof renderScreen>>) {
-    return screen.findAllByType('SessionItem' as React.ElementType).map(row => (row.props.session as { id: string }).id);
+    return screen.root.findAll(node => typeof node.type === 'string' && typeof node.props.testID === 'string'
+        && node.props.testID.startsWith('session-list-item-')).map(row => row.props.testID.slice('session-list-item-'.length));
 }
 
 describe('Repository session order through the mounted shell and canonical organization writer', () => {
-    it.each(['keyboard', 'pointer'] as const)('interleaves two checkouts with %s and retains order through activity, view roundtrip, and organization hydration', async (interaction) => {
+    it.each(['accessibility move action', 'pointer gesture'] as const)('interleaves two checkouts with %s and retains order through activity, view roundtrip, and organization hydration', async (interaction) => {
         const { SessionsList } = await import('./SessionsList');
         const { storage } = await import('@/sync/domains/state/storage');
         const screen = await renderScreen(<SessionsList />);
         expect(visibleIds(screen)).toEqual(['a', 'a2', 'b']);
-        const row = screen.findAllByType('SessionItem' as React.ElementType).find(row => row.props.session.id === 'b');
-        expect(row?.props.onMoveUp).toBeTypeOf('function');
-        if (interaction === 'keyboard') {
-            await act(async () => { row?.props.onMoveUp(); });
+        const row = screen.findByTestId('session-list-item-b');
+        expect(row?.props.accessibilityActions).toContainEqual(expect.objectContaining({ name: 'moveUp' }));
+        if (interaction === 'accessibility move action') {
+            await act(async () => { row?.props.onAccessibilityAction({ nativeEvent: { actionName: 'moveUp' } }); });
         } else {
             const rows = screen.root.findAll(node => typeof node.props.treeRowId === 'string'
                 && typeof node.props.sessionKey === 'string' && typeof node.props.onRegisterTreeRowBounds === 'function');
@@ -117,7 +117,15 @@ describe('Repository session order through the mounted shell and canonical organ
                     getBoundingClientRectFn: () => ({ x: 0, y: 100 + index * 60, top: 100 + index * 60, left: 0, width: 400, height: 60 }),
                 });
             }
-            const pan = findGestureByKind(row?.props.reorderHandleGesture, 'pan');
+            let rowContent = row;
+            while (rowContent && rowContent.props.session?.id !== 'b') rowContent = rowContent.parent;
+            const hoverSurface = rowContent?.findAll(node => typeof node.type === 'string'
+                && typeof node.props.onPointerEnter === 'function')[0];
+            expect(hoverSurface).toBeTruthy();
+            await act(async () => { hoverSurface?.props.onPointerEnter({ pointerType: 'mouse' }); });
+            expect(rowContent?.findAllByProps({ testID: 'session-item-reorder-handle' }).length).toBeGreaterThan(0);
+            const pan = rowContent?.findAll(node => !!node.props.gesture)
+                .map(node => findGestureByKind(node.props.gesture, 'pan')).find(Boolean);
             expect(pan).toBeTruthy();
             await act(async () => {
                 pan?.__handlers.onTouchesDown?.({ changedTouches: [{ absoluteX: 20, absoluteY: 240 }], allTouches: [{ absoluteX: 20, absoluteY: 240 }] });

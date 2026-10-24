@@ -8,6 +8,8 @@ import type { SessionListViewItem } from '@/sync/domains/session/listing/session
 import { machineScmStatusSnapshot } from '@/sync/ops/scm/machineScm';
 import { repositoryWorkspaceKey } from '@/sync/domains/session/listing/sessionRepositoryIdentity';
 import { useSessionRepositoryView } from './useSessionRepositoryView';
+import { TokenStorage } from '@/auth/storage/tokenStorage';
+import { upsertServerProfile } from '@/sync/domains/server/serverProfiles';
 
 vi.mock('@/sync/ops/scm/machineScm', () => ({ machineScmStatusSnapshot: vi.fn(), machineScmWorktreesEnrichment: vi.fn() }));
 vi.mock('@/sync/ops', () => ({ sessionScmStatusSnapshot: vi.fn() }));
@@ -30,9 +32,80 @@ beforeEach(() => {
     storage.setState({ profileScope: scope, localSettings: { ...localSettingsParse(null), sessionListMachineViewV1: 'repository' } });
     vi.mocked(machineScmStatusSnapshot).mockReset(); onFailure.mockReset();
 });
-afterEach(() => { standardCleanup(); storage.setState(previous, true); });
+afterEach(() => { standardCleanup(); storage.setState(previous, true); vi.restoreAllMocks(); });
 
 describe('Repository view intent lifecycle', () => {
+    it('rebinds foreign associations and cancels discovery when that Home changes account', async () => {
+        const home = upsertServerProfile({ serverUrl: 'https://repository-foreign-account.test', name: 'Repository foreign account' });
+        let accountId = 'foreign-a';
+        const credentialListeners = new Set<() => void>();
+        vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockImplementation(async () => ({
+            token: `e30.${btoa(JSON.stringify({ sub: accountId }))}.signature`,
+        }));
+        vi.spyOn(TokenStorage, 'subscribeCredentialChanges').mockImplementation(listener => {
+            credentialListeners.add(listener);
+            return () => { credentialListeners.delete(listener); };
+        });
+        const foreignWorkspace = { serverId: home.id, accountId, machineId: 'foreign-machine', path: '/foreign-repo' };
+        const first = items[0];
+        if (first.type !== 'session') throw new Error('Expected session');
+        const source: SessionListViewItem[] = [{ ...first, serverId: home.id,
+            workspace: { t: 'workspaceScope', serverId: home.id, machineId: foreignWorkspace.machineId, rootPath: foreignWorkspace.path },
+            session: { ...first.session, metadata: { machineId: foreignWorkspace.machineId, path: foreignWorkspace.path } },
+        }];
+        const associations = Object.fromEntries(['foreign-a', 'foreign-b'].map(owner => [
+            repositoryWorkspaceKey({ ...foreignWorkspace, accountId: owner }),
+            { identity: `example.com/${owner}/repo`, label: owner, rootPath: foreignWorkspace.path, worktreePaths: [] },
+        ]));
+        storage.setState(state => ({ localSettings: { ...state.localSettings, sessionRepositoryAssociationsV1: associations } }));
+        const hook = await renderHook(() => useView(source));
+        await vi.waitFor(() => expect(hook.getCurrent().scopes[home.id]?.accountId).toBe('foreign-a'));
+        expect(hook.getCurrent().items?.some(item => item.type === 'header' && item.title === 'foreign-a')).toBe(true);
+        let finish!: (value: any) => void;
+        vi.mocked(machineScmStatusSnapshot).mockReturnValue(new Promise(resolve => { finish = resolve; }));
+        let pending!: Promise<void>;
+        await act(async () => { pending = hook.getCurrent().refresh(); });
+        await vi.waitFor(() => expect(machineScmStatusSnapshot).toHaveBeenCalledTimes(1));
+        await act(async () => {
+            accountId = 'foreign-b';
+            for (const listener of credentialListeners) listener();
+        });
+        await vi.waitFor(() => expect(hook.getCurrent().scopes[home.id]?.accountId).toBe('foreign-b'));
+        expect(hook.getCurrent().items?.some(item => item.type === 'header' && item.title === 'foreign-a')).toBe(false);
+        expect(hook.getCurrent().items?.some(item => item.type === 'header' && item.title === 'foreign-b')).toBe(true);
+        await act(async () => { finish({ success: true, snapshot }); await pending; });
+        expect(storage.getState().localSettings.sessionRepositoryAssociationsV1).toBe(associations);
+        expect(machineScmStatusSnapshot).toHaveBeenCalledTimes(1);
+        expect(hook.getCurrent().refreshing).toBe(false);
+        expect(onFailure).not.toHaveBeenCalled();
+    });
+
+    it('ignores a superseded local account read without discovering repositories on credential changes', async () => {
+        const home = upsertServerProfile({ serverUrl: 'https://repository-delayed-account.test', name: 'Delayed repository account' });
+        const token = (accountId: string) => ({ token: `e30.${btoa(JSON.stringify({ sub: accountId }))}.signature` });
+        let finishOldRead!: (value: ReturnType<typeof token>) => void;
+        const read = vi.spyOn(TokenStorage, 'getCredentialsForServerUrl')
+            .mockReturnValueOnce(new Promise(resolve => { finishOldRead = resolve; }))
+            .mockResolvedValue(token('foreign-b'));
+        const listeners = new Set<() => void>();
+        vi.spyOn(TokenStorage, 'subscribeCredentialChanges').mockImplementation(listener => {
+            listeners.add(listener);
+            return () => { listeners.delete(listener); };
+        });
+        const source = items.map(item => ({ ...item, serverId: home.id }));
+        const preferences = storage.getState().localSettings;
+        const hook = await renderHook(() => useView(source));
+        await vi.waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+        await act(async () => { for (const listener of listeners) listener(); });
+        await vi.waitFor(() => expect(hook.getCurrent().scopes[home.id]?.accountId).toBe('foreign-b'));
+        await act(async () => { finishOldRead(token('foreign-a')); });
+        expect(hook.getCurrent().scopes[home.id]?.accountId).toBe('foreign-b');
+        expect(machineScmStatusSnapshot).not.toHaveBeenCalled();
+        expect(storage.getState().localSettings).toBe(preferences);
+        standardCleanup();
+        expect(listeners.size).toBe(0);
+    });
+
     it('discovers after selecting Repository from Original and retains the response after the mode transition', async () => {
         storage.setState(state => ({ localSettings: { ...state.localSettings, sessionListMachineViewV1: 'original' } }));
         let finish!: (value: any) => void;

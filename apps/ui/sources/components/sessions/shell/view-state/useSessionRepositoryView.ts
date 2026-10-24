@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { TokenStorage } from '@/auth/storage/tokenStorage';
 import { scmRepositoryService } from '@/scm/scmRepositoryService';
 import { storage, useActiveServerAccountScope, useLocalSetting, useSessionOrganizationGroupOrderByServer } from '@/sync/domains/state/storage';
 import { applyLocalSettingsFromUi } from '@/sync/store/settingsWriters';
@@ -46,19 +47,31 @@ export function useSessionRepositoryView(input: Input) {
         }
         return result;
     }, [activeScope, contextKey, resolvedScopes, serverIdsKey]);
-    React.useEffect(() => {
-        if (input.mode !== 'repository') return;
-        let current = true;
-        // The canonical resolver reads local authenticated context, not SCM/RPC.
-        void Promise.all((JSON.parse(serverIdsKey) as string[]).map(async serverId => {
-            try { return [serverId, await scmRepositoryService.resolveScopeForServer(serverId) ?? undefined] as const; }
-            catch (error) { console.warn('Repository view could not read the local Home account scope', error); return [serverId, undefined] as const; }
-        })).then(entries => { if (current) setResolvedScopes({ contextKey, values: Object.fromEntries(entries) }); });
-        return () => { current = false; };
-    }, [contextKey, input.mode, serverIdsKey]);
-
     const jobRef = React.useRef<{ contextKey: string; cancelled: boolean; promise: Promise<void> } | null>(null);
     const [refreshing, setRefreshing] = React.useState(false);
+    React.useEffect(() => {
+        if (input.mode !== 'repository') return;
+        let cancelRead = () => {};
+        const readScopes = () => {
+            cancelRead();
+            let current = true;
+            cancelRead = () => { current = false; };
+            setResolvedScopes(null);
+            // Local authenticated context only: account changes never initiate SCM/RPC.
+            void Promise.all((JSON.parse(serverIdsKey) as string[]).map(async serverId => {
+                try { return [serverId, await scmRepositoryService.resolveScopeForServer(serverId) ?? undefined] as const; }
+                catch (error) { console.warn('Repository view could not read the local Home account scope', error); return [serverId, undefined] as const; }
+            })).then(entries => { if (current) setResolvedScopes({ contextKey, values: Object.fromEntries(entries) }); });
+        };
+        const unsubscribe = TokenStorage.subscribeCredentialChanges(() => {
+            if (jobRef.current) jobRef.current.cancelled = true;
+            setRefreshing(false);
+            readScopes();
+        });
+        readScopes();
+        return () => { cancelRead(); unsubscribe(); };
+    }, [contextKey, input.mode, serverIdsKey]);
+
     React.useEffect(() => () => { if (jobRef.current) jobRef.current.cancelled = true; }, []);
     React.useEffect(() => {
         const job = jobRef.current;
