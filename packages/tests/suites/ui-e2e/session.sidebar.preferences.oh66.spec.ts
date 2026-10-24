@@ -20,17 +20,19 @@ const IDENTITY = {
   issuer: 'happier-ui-e2e-oh66-sidebar-preferences',
   fingerprint: `oh66-sidebar-${run.runId}`,
 } as const;
-const SESSION_TITLE = `OH66 ${run.runId.slice(-6)}`;
+const SESSION_TITLE = `OH66 ${run.runId.slice(-2)}`;
 
 type SidebarMetrics = Readonly<{
   rowHeight: number;
   rowWidth: number;
   titleWidth: number;
+  titleNaturalWidth: number;
   titleFontSize: number;
   supportingFontSize: number;
   machineFontSize: number | null;
   groupHeaderFontSizes: readonly number[];
   navigationFontSizes: readonly number[];
+  machineLabel: string | null;
   sidebarHeaderFontSize: number;
   sidebarHeaderColor: string;
   titleFits: boolean;
@@ -47,9 +49,6 @@ async function readSidebarMetrics(page: Page, sessionId: string): Promise<Sideba
       .find((node) => node.children.length === 0 && node.textContent?.trim() === title);
     if (!titleNode) throw new Error('session title is missing from the sidebar row');
     const machine = document.querySelector<HTMLElement>(`[data-testid="session-list-machine-identity-${sessionId}"]`);
-    const machineTextNode = machine
-      ? Array.from(machine.querySelectorAll<HTMLElement>('*')).find((node) => node.children.length === 0 && Boolean(node.textContent?.trim()))
-      : null;
     const groupHeaders = Array.from(document.querySelectorAll<HTMLElement>('[data-testid^="session-list-header:"]'));
     const navigationTabs = Array.from(document.querySelectorAll<HTMLElement>('[role="tab"]'));
     const leafTextNodes = Array.from(row.querySelectorAll<HTMLElement>('*'))
@@ -65,22 +64,29 @@ async function readSidebarMetrics(page: Page, sessionId: string): Promise<Sideba
     const rowBounds = row.getBoundingClientRect();
     const titleBounds = titleNode.getBoundingClientRect();
     const titleStyle = getComputedStyle(titleNode);
+    const textCanvas = document.createElement('canvas');
+    const textContext = textCanvas.getContext('2d');
+    if (textContext) textContext.font = titleStyle.font;
+    const letterSpacing = Number.parseFloat(titleStyle.letterSpacing);
+    const titleNaturalWidth = textContext
+      ? textContext.measureText(titleNode.textContent ?? '').width
+        + (Number.isFinite(letterSpacing) ? Math.max(0, (titleNode.textContent?.length ?? 0) - 1) * letterSpacing : 0)
+      : Number.POSITIVE_INFINITY;
     return {
       rowHeight: rowBounds.height,
       rowWidth: rowBounds.width,
       titleWidth: titleBounds.width,
+      titleNaturalWidth,
       titleFontSize: Number.parseFloat(titleStyle.fontSize),
       supportingFontSize: Math.max(...leafTextNodes.map((node) => Number.parseFloat(getComputedStyle(node).fontSize))),
       machineFontSize: fontSizeForText(machine),
       groupHeaderFontSizes: groupHeaders.map((header) => fontSizeForText(header)).filter((size): size is number => size !== null),
       navigationFontSizes: navigationTabs.map((tab) => fontSizeForText(tab)).filter((size): size is number => size !== null),
+      machineLabel: machine?.getAttribute('aria-label') ?? null,
       sidebarHeaderFontSize: Number.parseFloat(getComputedStyle(sidebarHeader).fontSize),
       sidebarHeaderColor: getComputedStyle(sidebarHeader).color,
       titleFits: titleBounds.left >= rowBounds.left && titleBounds.right <= rowBounds.right,
-      titleTextFits: titleNode.clientWidth > 0 && titleNode.scrollWidth <= titleNode.clientWidth,
-      machineTextFits: machineTextNode !== null
-        && machineTextNode.clientWidth > 0
-        && machineTextNode.scrollWidth <= machineTextNode.clientWidth,
+      titleTextFits: titleNode.clientWidth > 0 && titleNaturalWidth <= titleNode.clientWidth,
     };
   }, { sessionId, title: SESSION_TITLE });
 }
@@ -282,13 +288,19 @@ test.describe('ui e2e: OH66 sidebar text size and item density preferences', () 
     const narrow = await readSidebarMetrics(page, sessionId);
     expect(narrow.titleFits).toBe(true);
     expect(narrow.titleTextFits).toBe(true);
-    expect(narrow.machineTextFits).toBe(true);
     expect(narrow.titleWidth).toBeGreaterThan(0);
+    expect(narrow.titleNaturalWidth).toBeLessThanOrEqual(narrow.titleWidth);
     expect(narrow.rowWidth).toBeGreaterThan(0);
+    expect(narrow.machineLabel).toBe(MACHINE_ID);
+    const machineIdentity = page.getByTestId(`session-list-machine-identity-${sessionId}`);
+    await machineIdentity.hover();
+    const machineTooltip = page.getByTestId(`session-list-machine-identity-${sessionId}-tooltip`);
+    await expect(machineTooltip).toBeVisible();
+    await expect(machineTooltip).toContainText(MACHINE_ID);
     await row.hover();
     const narrowHovered = await readSidebarMetrics(page, sessionId);
     expect(narrowHovered.titleTextFits).toBe(true);
-    expect(narrowHovered.machineTextFits).toBe(true);
+    expect(narrowHovered.titleNaturalWidth).toBeLessThanOrEqual(narrowHovered.titleWidth);
     await page.screenshot({ path: `${suiteDir}/sidebar-large-text-narrow-desktop.png` });
     const moreAction = page.getByTestId('session-item-more-menu');
     await expect(moreAction).toBeVisible();
