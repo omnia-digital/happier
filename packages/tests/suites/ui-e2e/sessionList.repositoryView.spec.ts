@@ -27,6 +27,21 @@ async function selectViewMenu(page: Page, id: string) {
   await page.getByTestId('session-list-ordering-menu-trigger').first().click();
   await page.getByTestId(id).click();
 }
+async function openRepositoryAssociationChoices(page: Page, headerTitle: string, checkoutPath: string): Promise<string> {
+  const header = page.locator('[data-testid^="session-list-project-header:"]').filter({ hasText: headerTitle });
+  await expect(header).toHaveCount(1);
+  const headerId = await header.getAttribute('data-testid');
+  if (!headerId) throw new Error('Missing repository header identity');
+  await header.hover();
+  await page.getByTestId(headerId.replace('session-list-project-header:', 'session-workspace-menu-trigger:')).click();
+  await page.getByTestId('dropdown-option-repository-associate').click();
+  const checkout = page.getByTestId(/^dropdown-option-repository-associate_\d+$/).filter({ hasText: checkoutPath });
+  await expect(checkout).toHaveCount(1);
+  const checkoutId = await checkout.getAttribute('data-testid');
+  if (!checkoutId) throw new Error('Missing checkout action identity');
+  await checkout.click();
+  return checkoutId;
+}
 test.describe('ui e2e: session list Repository view', () => {
   test.describe.configure({ mode: 'serial' });
 
@@ -149,7 +164,7 @@ test.describe('ui e2e: session list Repository view', () => {
     await server?.stop().catch(() => {});
   });
 
-  test('discovers on explicit selection and preserves cross-checkout drag order after reload', async ({ page }) => {
+  test('discovers explicitly, preserves cross-checkout drag order, and persists manual association/reset', async ({ page }) => {
     test.setTimeout(240_000);
     if (!server || !uiBaseUrl || !token || !uiServerUrl) throw new Error('missing fixtures');
     const fixtures = [
@@ -211,5 +226,33 @@ test.describe('ui e2e: session list Repository view', () => {
     await expect(headers.filter({ hasText: 'example.com/fork/repo' })).toHaveCount(1);
     await selectViewMenu(page, 'session-repository-refresh');
     await expect.poll(() => requests.length, { timeout: 60_000 }).toBe(beforeReload + 4);
+    await page.getByTestId('session-list-ordering-menu-trigger').first().click();
+    await expect(page.getByTestId('session-repository-refresh')).toBeEnabled();
+    await page.keyboard.press('Escape');
+    const beforeAssociation = requests.length;
+    const choicePrefix = await openRepositoryAssociationChoices(page, '/unknown/repo', '/unknown/repo');
+    const encodedChoice = encodeURIComponent('example.com/team/repo').replace(/[^a-zA-Z0-9_-]/g, '_');
+    await page.getByTestId(`${choicePrefix}_choice_${encodedChoice}`).click();
+    await expect(headers).toHaveCount(2);
+    await expect(headers.filter({ hasText: 'example.com/fork/repo' })).toHaveCount(1);
+    const manualChoice = async () => {
+      const local = await readUiE2eLocalSettings({ page });
+      return Object.values(local.sessionRepositoryAssociationsV1 as Record<string, { rootPath: string; manual?: { identity: string } }>)
+        .find(value => value.rootPath === '/unknown/repo')?.manual?.identity ?? null;
+    };
+    await expect.poll(manualChoice).toBe('example.com/team/repo');
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+    await expect(headers).toHaveCount(2);
+    await expect.poll(manualChoice).toBe('example.com/team/repo');
+    expect(requests.length).toBe(beforeAssociation);
+    const resetPrefix = await openRepositoryAssociationChoices(page, 'example.com/team/repo', '/unknown/repo');
+    await page.getByTestId(`${resetPrefix}_automatic`).click();
+    await expect(headers).toHaveCount(3);
+    await expect(headers.filter({ hasText: '/unknown/repo' })).toHaveCount(1);
+    await expect.poll(manualChoice).toBeNull();
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+    await expect(headers).toHaveCount(3);
+    await expect.poll(manualChoice).toBeNull();
+    expect(requests.length).toBe(beforeAssociation);
   });
 });
