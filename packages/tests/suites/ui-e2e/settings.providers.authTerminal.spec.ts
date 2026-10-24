@@ -9,6 +9,7 @@ import { startTestDaemon, type StartedDaemon } from '../../src/testkit/daemon/da
 import { startCliAuthLoginForTerminalConnect, type StartedCliTerminalConnect } from '../../src/testkit/uiE2e/cliTerminalConnect';
 import { gotoDomContentLoadedWithRetries, normalizeLoopbackBaseUrl } from '../../src/testkit/uiE2e/pageNavigation';
 import { ensureAccountReadyForConnect } from '../../src/testkit/uiE2e/ensureAccountReadyForConnect';
+import { appendBrowserDiagnostics, collectBrowserDiagnostics } from '../../src/testkit/uiE2e/browserDiagnostics';
 
 const run = createRunDirs({ runLabel: 'ui-e2e' });
 const fakeCodexPath = resolve(new URL('../../src/fixtures/fake-codex-auth-cli.js', import.meta.url).pathname);
@@ -74,6 +75,44 @@ test.describe('ui e2e: provider settings auth status', () => {
     await daemon?.stop().catch(() => {});
     await ui?.stop().catch(() => {});
     await server?.stop().catch(() => {});
+  });
+
+  test('persists positive integer Claude settings without step alignment errors', async ({ page }) => {
+    test.setTimeout(180_000);
+    if (!uiBaseUrl) throw new Error('missing ui base url');
+    const browserDiagnostics = collectBrowserDiagnostics({ page });
+    const settingsUrl = `${uiBaseUrl}/settings/providers/claude?happier_hmr=0`;
+    try {
+      await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`);
+      await ensureAccountReadyForConnect({ page, timeoutMs: 120_000 });
+      await gotoDomContentLoadedWithRetries(page, settingsUrl);
+      const timeoutField = page.getByTestId('settings-provider-field-claudeLocalPermissionBridgeTimeoutSeconds');
+      const thinkingField = page.getByTestId('settings-provider-field-claudeRemoteMaxThinkingTokens');
+      const indefiniteField = page.getByTestId('settings-provider-field-claudeLocalPermissionBridgeWaitIndefinitely').locator('input');
+      await expect(indefiniteField).toBeChecked();
+      await expect(timeoutField.locator('input')).toHaveValue('600');
+      await expect(timeoutField).not.toContainText('Invalid number');
+      for (const value of ['300', '900']) {
+        const persisted = page.waitForResponse((response) => /^\/v[12]\/account\/settings$/.test(new URL(response.url()).pathname)
+          && response.request().method() === 'POST' && response.status() === 200);
+        await timeoutField.locator('input').fill(value);
+        await expect(timeoutField).not.toContainText('Invalid number');
+        await persisted;
+      }
+      const persistedThinking = page.waitForResponse((response) => /^\/v[12]\/account\/settings$/.test(new URL(response.url()).pathname)
+        && response.request().method() === 'POST' && response.status() === 200);
+      await thinkingField.locator('input').fill('1024');
+      await expect(thinkingField).not.toContainText('Invalid number');
+      await persistedThinking;
+      await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/settings?happier_hmr=0`);
+      await gotoDomContentLoadedWithRetries(page, settingsUrl);
+      await expect(timeoutField.locator('input')).toHaveValue('900');
+      await expect(thinkingField.locator('input')).toHaveValue('1024');
+      await expect(indefiniteField).toBeChecked();
+      await page.screenshot({ path: join(suiteDir, 'claude-positive-integers-persisted.png'), fullPage: true });
+    } catch (error) {
+      throw appendBrowserDiagnostics(error, browserDiagnostics());
+    }
   });
 
   test('shows provider auth status in web settings and refreshes auth state', async ({ page }) => {
