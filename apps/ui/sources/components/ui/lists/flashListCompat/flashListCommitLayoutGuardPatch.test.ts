@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { PixelRatio } from 'react-native';
 
 /**
  * Contract test for the local patch-package fix on @shopify/flash-list (issue-2, 2026-06-12).
@@ -31,6 +32,8 @@ type FlashListRecyclerViewManager<T> = Readonly<{
   getIsFirstLayoutComplete: () => boolean;
   getRenderStack: () => ReadonlyMap<string, unknown>;
   modifyChildrenLayout: (layoutInfo: unknown[], dataLength: number) => boolean;
+  getLayout: (index: number) => { y: number; height: number };
+  isFirstPaintOnUiComplete: boolean;
   props: FlashListRecyclerViewManagerProps<T>;
   updateLayoutParams: (windowSize: { height: number; width: number }, firstItemOffset: number) => void;
   updateProps: (props: FlashListRecyclerViewManagerProps<T>) => void;
@@ -127,6 +130,57 @@ describe('flash-list commitLayout guard patch', () => {
     expect(manager.getRenderStack().size).toBe(0);
     expect(manager.getIsFirstLayoutComplete()).toBe(false);
     expect(didModifyChildrenLayout).toBe(true);
+  });
+
+  it('commits changed measured positions even when the visible item set is unchanged', async () => {
+    // Vitest's React Native boundary omits the pixel helpers used by FlashList's real layout manager.
+    const pixelRatio = PixelRatio as unknown as Record<string, unknown>;
+    const originalPixelSize = pixelRatio.getPixelSizeForLayoutSize;
+    pixelRatio.getPixelSizeForLayoutSize = (value: number) => value;
+    try {
+    const recyclerViewManagerModule = (await import(
+      '../../../../../node_modules/@shopify/flash-list/dist/recyclerview/RecyclerViewManager.js'
+    )) as unknown as { RecyclerViewManager: FlashListRecyclerViewManagerConstructor };
+    const data = [{ id: 'project' }, { id: 'first-session' }, { id: 'second-session' }];
+    const manager = new recyclerViewManagerModule.RecyclerViewManager({
+      data,
+      estimatedItemSize: 73,
+      horizontal: false,
+      keyExtractor: (item) => item.id,
+      overrideItemLayout: () => undefined,
+      renderItem: () => null,
+    });
+    manager.updateProps(manager.props);
+    manager.updateLayoutParams({ width: 400, height: 800 }, 0);
+    const measured = (projectHeight: number) => [
+      { index: 0, dimensions: { x: 0, y: 0, width: 400, height: projectHeight } },
+      { index: 1, dimensions: { x: 0, y: 0, width: 400, height: 35 } },
+      { index: 2, dimensions: { x: 0, y: 0, width: 400, height: 46 } },
+    ];
+    manager.modifyChildrenLayout(measured(73), data.length);
+    (manager as { isFirstPaintOnUiComplete: boolean }).isFirstPaintOnUiComplete = true;
+    let settled = false;
+    for (let pass = 0; pass < 10; pass++) {
+      if (!manager.modifyChildrenLayout(measured(73), data.length)) {
+        settled = true;
+        break;
+      }
+    }
+    expect(settled).toBe(true);
+    const before = manager.getLayout(1).y;
+    const visibleBefore = manager.computeVisibleIndices().toArray();
+
+    const needsCommit = manager.modifyChildrenLayout(measured(47), data.length);
+
+    expect(before).toBe(73);
+    expect(manager.getLayout(1).y).toBe(47);
+    expect(manager.computeVisibleIndices().toArray()).toEqual(visibleBefore);
+    expect(needsCommit).toBe(true);
+    expect(manager.modifyChildrenLayout(measured(47), data.length)).toBe(false);
+    } finally {
+      if (originalPixelSize === undefined) delete pixelRatio.getPixelSizeForLayoutSize;
+      else pixelRatio.getPixelSizeForLayoutSize = originalPixelSize;
+    }
   });
 
   it('ships a ViewHolderCollection that reveals populated measured content without a parent commit', () => {
