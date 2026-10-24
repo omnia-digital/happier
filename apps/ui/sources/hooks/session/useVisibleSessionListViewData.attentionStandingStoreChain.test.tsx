@@ -267,10 +267,24 @@ describe('attention standing reaches the visible session list through the real s
 
         await hook.unmount();
     });
-    it('paints a selected foreign Home pin and empty folder from the canonical organization store', async () => {
+    it.each([false, true])('paints a selected foreign Home pin and empty folder with active folders already projected=%s', async (activeAlreadyProjected) => {
         const { getStorage } = await import('@/sync/domains/state/storageStore');
         const { useVisibleSessionListViewData } = await import('./useVisibleSessionListViewData');
         const workspace = { t: 'workspaceScope' as const, serverId: 'server-b', machineId: 'machine-b', rootPath: '/repo-b' };
+        const previousActiveData = sourceData.activeData;
+        if (activeAlreadyProjected) {
+            const { applySessionFoldersToSessionListViewData } = await import('@/sync/domains/session/listing/sessionListViewData');
+            const activeWorkspace = { t: 'workspaceScope' as const, serverId: SERVER_ID, machineId: 'machine-a', rootPath: '/repo-a' };
+            sourceData.activeData = applySessionFoldersToSessionListViewData([
+                { type: 'header', headerKind: 'project', title: 'Repo A', groupKey: 'server-a:repo',
+                    serverId: SERVER_ID, workspaceScopeHint: activeWorkspace, workspaceKey: 'machine-a:/repo-a' },
+                { type: 'session', session: makeRenderableSession('active-folder-session'), section: 'inactive',
+                    groupKind: 'project', groupKey: 'server-a:repo', serverId: SERVER_ID },
+            ], { enabled: true, folders: { v: 1, folders: [{ id: 'active-empty', name: 'Active empty', parentId: null,
+                workspace: activeWorkspace, createdAt: 1, updatedAt: 1 }] }, assignmentsBySessionKey: {} });
+            expect(sourceData.activeData.some((item) => (item as SessionListViewItem).type === 'header'
+                && (item as { folderId?: string }).folderId === 'active-empty')).toBe(true);
+        }
         sourceData.allowedServerIds = [SERVER_ID, 'server-b'];
         sourceData.folderTree = true;
         sourceData.dataByServerId = { 'server-b': [
@@ -291,10 +305,15 @@ describe('attention standing reaches the visible session list through the real s
         expect(rows.find(item => item.type === 'session' && item.session.id === 'foreign-pin')).toMatchObject({
             serverId: 'server-b', groupKind: 'pinned',
         });
-        expect(rows.find(item => item.type === 'header' && item.headerKind === 'folder')).toMatchObject({
+        expect(rows.find(item => item.type === 'header' && item.headerKind === 'folder' && item.folderId === 'foreign-empty')).toMatchObject({
             folderId: 'foreign-empty', workspace, serverId: 'server-b',
         });
+        if (activeAlreadyProjected) {
+            expect(rows.filter(item => item.type === 'header' && item.headerKind === 'folder' && item.folderId === 'active-empty')).toHaveLength(1);
+            expect(rows.filter(item => item.type === 'session' && item.session.id === 'active-folder-session')).toHaveLength(1);
+        }
         await hook.unmount();
+        sourceData.activeData = previousActiveData;
         getStorage().getState().clearSessionOrganizationForServer('server-b');
     });
 
