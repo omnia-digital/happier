@@ -23,9 +23,9 @@ describe('session autoarchive eligibility', () => {
     it('projects persisted cross-repository links and ignores disabled or missing links', () => {
         const session = idleSession();
         expect(session.metadata?.sessionPullRequestsV1?.links).toEqual([first, second]);
-        expect(assessSessionAutoArchiveCandidate({ session, enabled: false, archivePending: false, accountId: 'account-a' }).eligible).toBe(false);
-        expect(assessSessionAutoArchiveCandidate({ session: { ...session, metadata: null }, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(false);
-        expect(assessSessionAutoArchiveCandidate({ session, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(true);
+        expect(assessSessionAutoArchiveCandidate({ session, enabled: false, archivePending: false, accountId: 'account-a', authenticatedOwnerAccountId: 'account-a' }).eligible).toBe(false);
+        expect(assessSessionAutoArchiveCandidate({ session: { ...session, metadata: null }, enabled: true, archivePending: false, accountId: 'account-a', authenticatedOwnerAccountId: 'account-a' }).eligible).toBe(false);
+        expect(assessSessionAutoArchiveCandidate({ session, enabled: true, archivePending: false, accountId: 'account-a', authenticatedOwnerAccountId: 'account-a' }).eligible).toBe(true);
     });
 
     it('admits an inactive catalog shell to metadata-only hydration before links and live counts are known', () => {
@@ -34,10 +34,10 @@ describe('session autoarchive eligibility', () => {
         const warm = { ...session, metadata: { ...session.metadata!, agentActivityCounts: undefined } };
         expect(assessSessionAutoArchiveHydrationCandidate({ session: cold, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(true);
         expect(assessSessionAutoArchiveHydrationCandidate({ session: warm, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(true);
-        expect(assessSessionAutoArchiveCandidate({ session: warm, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(false);
+        expect(assessSessionAutoArchiveCandidate({ session: warm, enabled: true, archivePending: false, accountId: 'account-a', authenticatedOwnerAccountId: 'account-a' }).eligible).toBe(false);
         const shared = { ...session, owner: undefined, accessLevel: 'view' as const };
         expect(assessSessionAutoArchiveHydrationCandidate({ session: shared, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(false);
-        expect(assessSessionAutoArchiveCandidate({ session: shared, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(false);
+        expect(assessSessionAutoArchiveCandidate({ session: shared, enabled: true, archivePending: false, accountId: 'account-a', authenticatedOwnerAccountId: 'account-a' }).eligible).toBe(false);
         expect(assessSessionAutoArchiveHydrationCandidate({ session: { ...cold, active: true }, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(false);
     });
 
@@ -53,9 +53,19 @@ describe('session autoarchive eligibility', () => {
             { hasPendingUserActionRequests: true }, { hasPendingUserActionRequests: undefined }, { archivedAt: 42 },
         ];
         for (const variant of variants) {
-            expect(assessSessionAutoArchiveCandidate({ session: { ...session, ...variant }, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(false);
+            expect(assessSessionAutoArchiveCandidate({ session: { ...session, ...variant }, enabled: true, archivePending: false, accountId: 'account-a', authenticatedOwnerAccountId: 'account-a' }).eligible).toBe(false);
         }
-        expect(assessSessionAutoArchiveCandidate({ session, enabled: true, archivePending: true, accountId: 'account-a' }).eligible).toBe(false);
+        expect(assessSessionAutoArchiveCandidate({ session, enabled: true, archivePending: true, accountId: 'account-a', authenticatedOwnerAccountId: 'account-a' }).eligible).toBe(false);
+    });
+
+    it('requires same-account authenticated ownership or an explicit admin share, never the UI owner convention', () => {
+        const input = { session: idleSession(), enabled: true, archivePending: false, accountId: 'account-a' };
+        expect(assessSessionAutoArchiveCandidate(input).eligible).toBe(false);
+        expect(assessSessionAutoArchiveCandidate({ ...input, authenticatedOwnerAccountId: 'account-b' }).eligible).toBe(false);
+        expect(assessSessionAutoArchiveCandidate({ ...input, authenticatedOwnerAccountId: 'account-a' }).eligible).toBe(true);
+        for (const accessLevel of ['view', 'edit', 'admin'] as const) {
+            expect(assessSessionAutoArchiveCandidate({ ...input, session: { ...input.session, owner: 'someone-else', accessLevel } }).eligible).toBe(accessLevel === 'admin');
+        }
     });
 
     it('requires each exact qualified identity to have a fresh merged and explicitly non-draft result', () => {

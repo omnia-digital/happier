@@ -20,6 +20,7 @@ type CandidateInput = Readonly<{
     enabled: boolean;
     archivePending: boolean;
     accountId?: string;
+    authenticatedOwnerAccountId?: string;
 }>;
 
 /** Catalog-only gate for bounded metadata hydration after explicit opt-in. */
@@ -42,8 +43,8 @@ export function assessSessionAutoArchiveCandidate(input: CandidateInput): Sessio
     const base = assessSessionAutoArchiveHydrationCandidate(input);
     if (!base.eligible) return base;
     const session = input.session;
-    // List snapshots may omit owner/access level. Hydration is read-only; an archive still needs full ownership proof.
-    if (session.accessLevel !== 'admin' && (!input.accountId || session.owner !== input.accountId)) return skip('work_unverified');
+    // Manual UI's absent-role convention and the shared-owner display field are not ownership proof.
+    if (session.accessLevel !== 'admin' && (!input.accountId || input.authenticatedOwnerAccountId !== input.accountId)) return skip('work_unverified');
     if (session.metadataUnavailable || !session.metadata) return skip('metadata_unavailable');
     if (readSessionPullRequestLinks(session.metadata).length === 0) return skip('no_links');
     if (session.metadata.agentActivityCounts?.live !== 0) return skip('work_unverified');

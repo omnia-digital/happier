@@ -82,7 +82,8 @@ export function SessionPullRequests(props: Readonly<{ sessionId: string; metadat
     const snapshot = useSessionProjectScmSnapshot(props.sessionId);
     const links = readSessionPullRequestLinks(props.metadata);
     const autoArchiveDecision = autoArchiveEnabled && renderable
-        ? assessSessionAutoArchiveCandidate({ session: renderable, enabled: true, archivePending, accountId: activeScope?.accountId })
+        ? assessSessionAutoArchiveCandidate({ session: renderable, enabled: true, archivePending, accountId: activeScope?.accountId,
+            authenticatedOwnerAccountId: session?.authenticatedOwnerAccountId })
         : null;
     const autoArchiveSkip = autoArchiveDecision?.reason === 'work_unverified';
     const archivedAt = session ? session.archivedAt : renderable?.archivedAt;
