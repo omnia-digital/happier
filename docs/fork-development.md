@@ -60,6 +60,19 @@ This starts Metro and the scoped native app without starting a relay or daemon. 
 
 ### Current validation checkpoint
 
+At source checkpoint `85707119e5`, the complete canonical root `yarn test` finishes exit0 in
+5869.40s (`.project/logs/tests/oh4-root-unit-final-current.log`). Shared packages, UI including its
+post-unit checks, CLI including import-cycle checks, server and Stack all pass. Stack reports
+2069passed/6skipped/0failed; three skips are the Linux-only credential-broker cases on this Mac.
+Whole-repository `yarn typecheck` passes (`oh4-root-types-current.log`); the final UI fixture change
+also passes its UI typecheck (`oh4-ui-types-final-fixtures.log`). Commands use the checkout executor,
+both independent website discovery inputs and private CI-pinned Bun1.4.2, with inherited TMPDIR.
+Earlier failed and interrupted runs remain historical evidence. This clears the source unit/type
+gate; isolated source-CLI pairing/real agent acceptance, newer-feature native QA, provider tests,
+0.3 port and release/platform gates remain open. Daily CLI0.2.16/services are unchanged.
+
+The following earlier checkpoint explains the initial environment diagnosis:
+
 At source revision `410a7b0703`, eight previously failing CLI files pass unchanged: 86 tests covering Git checkout/materialization/reconciliation/status, review scope, capability probe cwd and build cleanup. The subprocess test environment uses `TMPDIR=/private/tmp` and `GIT_CONFIG_GLOBAL=/dev/null`, so disposable fixture repositories do not inherit the host's interactive signing configuration. Actual feature-branch commits retain configured signing and identity. All four server Sharp runtime checks also pass with canonical TMPDIR and the privately pinned Bun 1.4.2. Logs: `/tmp/happier-oh-4-cli-fixture-validation.log` and `/tmp/happier-oh-4-server-bun-validation.log`. These targeted reruns classify environment failures; the original full-root result remains failed.
 
 Parent `dev` was fetched again at `a487b2ec48`. Its macOS window-frame correction was selectively adopted as `d0ab118fb5`, with the native Rust window harness and affected checks passing. Same-process product tray reopen remains unverified. The remaining parent batch is not integrated: new Claude prompt-location settings are not understood by the installed CLI 0.2.16, and the desktop release bump retains upstream distribution identities. Validate mixed-version behavior and affected tests before adoption; do not replace the hosted relay or daily daemon to accommodate it.
@@ -350,7 +363,8 @@ override; do not replace the global Bun. Current whole-repository typecheck pass
 (`.project/logs/tests/oh4-root-types-current.log`). The original unit run finished exit1. A successor
 with website inputs alone was intentionally interrupted with exit130 after identifying its missing
 Bun override; `.project/logs/tests/oh4-root-unit-configured-current.log` preserves that partial attempt.
-The pinned-toolchain successor remains a required gate. Earlier `/tmp` log pathnames disappeared
+The pinned-toolchain successor now passes as recorded in the current validation checkpoint above.
+Earlier `/tmp` log pathnames disappeared
 during the original run; new logs use ignored repo `.project/logs/tests`.
 
 The installer failure is now corrected at `packages/cli-common/src/providers/install.ts`. The vendor recipe records CLI presence using the same execution environment before the entire command sequence. A nonzero command can recover only when the CLI was absent before that sequence and is available afterward. A previously installed CLI no longer masks a failed forced reinstall. Successful forced installs, default already-installed skipping, consent, timeout handling and newly-available recovery are retained.

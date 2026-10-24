@@ -163,6 +163,20 @@ configured successor are still required; no full-suite green or stable-release v
 
 ### Earlier selective adoption evidence
 
+Final current-source root unit gate is GREEN: source85707119e5, `yarn test` through hstack-exec,
+both independent website inputs and private pinned Bun1.4.2, inherited default TMPDIR. Root session
+95727 finishes exit0 in5869.40s. Durable log `.project/logs/tests/oh4-root-unit-final-current.log`
+contains no FAIL/failed-test/root-suite-failure result. All shared packages, UI unit and downstream
+checks, CLI shards/import cycles, server and Stack pass. Stack2069pass/6skip/0fail; three of those
+skips are Linux-only broker cases, so no Linux broker runtime proof is claimed. Whole-root types
+passed before the final fixture-only edits; final UI types also pass (`oh4-ui-types-final-fixtures.log`).
+No production source changed after the complete typecheck, and the only newly typed fixture was
+covered by that final UI check. Historical failed/interrupted runs remain in their original logs.
+This closes the scoped source validation gate, not OH-4's real isolated-agent/integration contract
+or a native/provider/0.3/release gate. A non-hotkey Mac QA idle-window question is pending; native
+hotkeys and Embedded Terminal remain explicitly user-deferred. Project refresh still contains44
+issues and no new item; current statuses and external prerequisites remain authoritative.
+
 Pinned configured run6240 finishes exit1, preserving its complete durable log
 `oh4-root-unit-pinned-current.log`. Shared packages, all CLI shards/import-cycle checks and server
 pass. UI has one MCP picker fixture failure (missing captured settingsScope); Stack has13 failures
