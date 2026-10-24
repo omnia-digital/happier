@@ -88,7 +88,7 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             const testing = await seed('OH60 Testing', 3);
             const production = await seed('OH60 Production', 4);
             const unavailable = await seed('OH60 Unavailable', 5);
-            for (let index = 0; index < 16; index++) await seed('OH60 unlinked filler ' + index);
+            for (let index = 0; index < 32; index++) await seed('OH60 unlinked filler ' + index);
             const noTicket = await seed('OH60 No ticket');
             const publish = async (sessionId: string, thinking: boolean) => {
                 const { socket } = await createMachineBoundSessionScopedSocketCollector({ baseUrl: server!.baseUrl, token: access.token, sessionId,
@@ -104,15 +104,19 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             const workingPublisher = await publish(working, true);
             await publish(testing, false); await publish(production, false); await publish(unavailable, false);
             const catalog = await fetchSessionsV2(server.baseUrl, access.token, { limit: 50 });
-            expect(catalog.sessions).toHaveLength(22);
+            expect(catalog.sessions).toHaveLength(38);
             expect(catalog.sessions.every(session => typeof session.dataEncryptionKey === 'string')).toBe(true);
             await gotoDomContentLoadedWithRetries(page, baseUrl, 120_000);
+            await page.getByTestId('machine-monitoring-toggle').click();
             const choose = async (id: string) => {
                 await page.getByTestId('session-list-ordering-menu-trigger').first().click();
                 await page.getByTestId(id).click();
             };
             const row = (id: string) => page.getByTestId('session-list-item-' + id);
-            const visibleIds = () => page.locator('[data-testid^="session-list-item-"]').evaluateAll(nodes => nodes.map(node => node.getAttribute('data-testid')!.slice('session-list-item-'.length)));
+            // Virtualized DOM pools retain hidden/recycled nodes and need not follow visual order.
+            const visibleIds = () => page.locator('[data-testid^="session-list-item-"]').evaluateAll(nodes => nodes.map(node => ({
+                id: node.getAttribute('data-testid')!.slice('session-list-item-'.length), rect: node.getBoundingClientRect(),
+            })).filter(row => row.rect.width > 0 && row.rect.height > 0).sort((left, right) => left.rect.top - right.rect.top).map(row => row.id));
             const position = async (id: string) => (await visibleIds()).indexOf(id);
             await expect(page.getByTestId('session-list-ordering-menu-trigger').first()).toBeVisible({ timeout: 120_000 });
             await expect(row(noTicket)).toBeVisible();

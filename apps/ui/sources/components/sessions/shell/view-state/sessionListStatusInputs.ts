@@ -10,7 +10,7 @@ import { sessionListStatusRowKey } from './projectSessionListStatusView';
 export function createSessionListStatusInputsSelector(items: readonly SessionListViewItem[], activeServerId: string | null | undefined, now: () => number, includeAgent: boolean) {
     const rows = items.filter((item): item is Extract<SessionListViewItem, { type: 'session' }> => item.type === 'session');
     const selectRows = createSessionListRowStoreStateSelector(rows.map(row => ({ sessionId: row.session.id, serverId: row.serverId })), activeServerId);
-    let previous: { agentStatuses: ReadonlyMap<string, SessionListVisualStatus>; ticketAssociations: ReadonlyMap<string, SessionTicketAssociationV1 | null>; nextWakeAt: number | null } | undefined;
+    let previous: { agentStatuses: ReadonlyMap<string, SessionListVisualStatus>; ticketAssociations: ReadonlyMap<string, SessionTicketAssociationV1 | null | undefined>; nextWakeAt: number | null } | undefined;
     let signature = '';
     let previousInputs: Parameters<typeof selectRows>[0] | undefined;
     let previousAt: number | undefined;
@@ -31,13 +31,13 @@ export function createSessionListStatusInputsSelector(items: readonly SessionLis
         if (previous && sameClock && overlay === previousOverlay) return previous;
         previousOverlay = overlay;
         const agentStatuses = new Map<string, SessionListVisualStatus>();
-        const ticketAssociations = new Map<string, SessionTicketAssociationV1 | null>();
+        const ticketAssociations = new Map<string, SessionTicketAssociationV1 | null | undefined>();
         let nextWakeAt: number | null = null;
         for (const row of rows) {
             const key = sessionListStatusRowKey(row);
             const live = selectSessionListRowStateSnapshot(overlay, { sessionId: row.session.id, serverId: row.serverId });
             const session = live.renderable ?? row.session;
-            ticketAssociations.set(key, session.metadata?.sessionTicketV1 ?? null);
+            ticketAssociations.set(key, session.metadata == null ? undefined : session.metadata.sessionTicketV1 ?? null);
             if (includeAgent) {
                 const status = resolveSessionListRowStatus({ session: row.session, state: live, nowMs: at });
                 agentStatuses.set(key, status.visualStatus);
@@ -45,7 +45,7 @@ export function createSessionListStatusInputsSelector(items: readonly SessionLis
                 if (wake !== null) nextWakeAt = nextWakeAt === null ? wake : Math.min(nextWakeAt, wake);
             }
         }
-        const nextSignature = JSON.stringify([[...agentStatuses], [...ticketAssociations], nextWakeAt]);
+        const nextSignature = JSON.stringify([[...agentStatuses], [...ticketAssociations].map(([key, association]) => [key, association === undefined ? 'unhydrated' : association]), nextWakeAt]);
         if (previous && nextSignature === signature) return previous;
         signature = nextSignature;
         previous = { agentStatuses, ticketAssociations, nextWakeAt };

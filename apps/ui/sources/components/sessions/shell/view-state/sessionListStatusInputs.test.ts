@@ -5,6 +5,15 @@ import { createSessionListStatusInputsSelector } from './sessionListStatusInputs
 import { createSessionMessagesFixture } from '@/dev/testkit/fixtures/transcriptFixtures';
 
 describe('narrow status inputs overlay frozen structural rows', () => {
+    it('publishes confirmed unlinked metadata after an unknown catalog row hydrates', () => {
+        const pending = buildSessionListRenderableFromSession(createSessionFixture({ id: 'pending', metadata: null }));
+        const selector = createSessionListStatusInputsSelector([{ type: 'session', serverId: 'home', session: pending }], 'home', () => 100_000, false);
+        const unknown = selector({ sessionListRenderables: { pending } });
+        expect(unknown.ticketAssociations.get('home:pending')).toBeUndefined();
+        const ready = selector({ sessionListRenderables: { pending: { ...pending, metadata: { path: '/repo', host: 'fixture' } } } });
+        expect(ready).not.toBe(unknown);
+        expect(ready.ticketAssociations.get('home:pending')).toBeNull();
+    });
     it('does no classifier work for 500 unchanged rows over 100 unrelated storage notifications', () => {
         let thinkingReads = 0;
         const sessions = Object.fromEntries(Array.from({ length: 500 }, (_, index) => {

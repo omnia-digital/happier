@@ -425,7 +425,8 @@ export function useSessionListViewState({
     // Loaded, filtered candidates create ticket demand before row visibility or generated collapse.
     const agentStatusActive = sessionListStatusGrouping === 'agent' || sessionListStatusSorting === 'agent';
     const statusInputs = useSessionListStatusInputs(selectionScopeListItems, selection.activeServerId,
-        sessionListSurfaceDataActive && statusOrganizationActive, agentStatusActive);
+        sessionListSurfaceDataActive && statusOrganizationActive, agentStatusActive,
+        sessionListStatusGrouping === 'ticket' || sessionListStatusSorting === 'ticket');
     const runtimeNowMs = statusInputs.runtimeNowMs;
     const ticketDemands = React.useMemo(() => (selectionScopeListItems ?? []).flatMap(item => {
         if (item.type !== 'session') return [];
@@ -434,18 +435,19 @@ export function useSessionListViewState({
     }), [selectionScopeListItems, statusInputs.ticketAssociations]);
     const ticketProjection = useSessionTicketStatuses(ticketDemands,
         sessionListSurfaceDataActive && (sessionListStatusGrouping === 'ticket' || sessionListStatusSorting === 'ticket'));
+    const ticketStates = React.useMemo(() => new Map([...statusInputs.metadataStates, ...ticketProjection.states]), [statusInputs.metadataStates, ticketProjection.states]);
     const statusPresentedItems = React.useMemo(() => {
         if (!filteredListItems) return filteredListItems;
         const projected = projectSessionListStatusView({ items: filteredListItems, grouping: sessionListStatusGrouping,
-            sorting: sessionListStatusSorting, ticketStatuses: ticketProjection.states, nowMs: runtimeNowMs,
+            sorting: sessionListStatusSorting, ticketStatuses: ticketStates, nowMs: runtimeNowMs,
             agentStatuses: statusInputs.agentStatuses, ticketAssociations: statusInputs.ticketAssociations });
         return sessionListStatusGrouping === 'none' || headerFiltersActive ? projected : filterCollapsedSessionListItems(projected, collapsedGroupKeysV1);
-    }, [filteredListItems, sessionListStatusGrouping, sessionListStatusSorting, ticketProjection.states, runtimeNowMs, headerFiltersActive, collapsedGroupKeysV1, statusInputs.agentStatuses, statusInputs.ticketAssociations]);
+    }, [filteredListItems, sessionListStatusGrouping, sessionListStatusSorting, ticketStates, runtimeNowMs, headerFiltersActive, collapsedGroupKeysV1, statusInputs.agentStatuses, statusInputs.ticketAssociations]);
     const statusSelectionScopeListItems = React.useMemo(() => selectionScopeListItems && statusOrganizationActive
         ? projectSessionListStatusView({ items: selectionScopeListItems, grouping: sessionListStatusGrouping,
-            sorting: sessionListStatusSorting, ticketStatuses: ticketProjection.states, nowMs: runtimeNowMs,
+            sorting: sessionListStatusSorting, ticketStatuses: ticketStates, nowMs: runtimeNowMs,
             agentStatuses: statusInputs.agentStatuses, ticketAssociations: statusInputs.ticketAssociations }) : selectionScopeListItems,
-    [selectionScopeListItems, statusOrganizationActive, sessionListStatusGrouping, sessionListStatusSorting, ticketProjection.states, runtimeNowMs, statusInputs.agentStatuses, statusInputs.ticketAssociations]);
+    [selectionScopeListItems, statusOrganizationActive, sessionListStatusGrouping, sessionListStatusSorting, ticketStates, runtimeNowMs, statusInputs.agentStatuses, statusInputs.ticketAssociations]);
 
     const folderBreadcrumbRootTitle = React.useMemo(() => {
         if (focusedFolderState.folderBreadcrumbs.length === 0 || !filteredListItems) return null;
