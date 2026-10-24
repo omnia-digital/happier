@@ -369,40 +369,44 @@ describe('startUiWeb baseUrl resolution', () => {
   });
 
   it('rebuilds the exported web bundle when UI source files change under the same env', async () => {
-    vi.resetModules();
-    const { startUiWeb } = await import('./uiWeb');
-    const exportNamespace = buildUniqueUiWebExportNamespace('source-change');
-    const markerDir = await mkdtemp(join(resolve(repoRootDir(), 'apps/ui/sources'), 'uiweb-source-change-'));
-    const markerPath = join(markerDir, 'marker.ts');
-
-    const testDirA = await mkdtemp(join(tmpdir(), 'happier-uiweb-'));
-    const testDirB = await mkdtemp(join(tmpdir(), 'happier-uiweb-'));
-
-    const startedA = await startUiWeb({
-      testDir: testDirA,
-      env: {
-        HAPPIER_E2E_UI_WEB_EXPORT_NAMESPACE: exportNamespace,
-        EXPO_PUBLIC_POSTHOG_KEY: 'phc-source-change',
-      },
-    });
-
-    await writeFile(markerPath, `export const marker = ${Date.now()};\n`, 'utf8');
-    vi.resetModules();
-    const { startUiWeb: startUiWebAfterChange } = await import('./uiWeb');
-    const startedB = await startUiWebAfterChange({
-      testDir: testDirB,
-      env: {
-        HAPPIER_E2E_UI_WEB_EXPORT_NAMESPACE: exportNamespace,
-        EXPO_PUBLIC_POSTHOG_KEY: 'phc-source-change',
-      },
-    });
-
+    const fixtureRoot = await mkdtemp(join(tmpdir(), 'happier-uiweb-source-root-'));
+    const markerPath = join(fixtureRoot, 'apps/ui/sources/marker.ts');
+    await mkdir(dirname(markerPath), { recursive: true });
+    await writeFile(markerPath, 'export const marker = 1;\n', 'utf8');
+    vi.doMock('../paths', () => ({ repoRootDir: () => fixtureRoot }));
+    const stops: Array<() => Promise<void>> = [];
     try {
+      vi.resetModules();
+      const { startUiWeb } = await import('./uiWeb');
+      const exportNamespace = buildUniqueUiWebExportNamespace('source-change');
+      const testDirA = await mkdtemp(join(tmpdir(), 'happier-uiweb-'));
+      const testDirB = await mkdtemp(join(tmpdir(), 'happier-uiweb-'));
+      const startedA = await startUiWeb({
+        testDir: testDirA,
+        env: {
+          HAPPIER_E2E_UI_WEB_EXPORT_NAMESPACE: exportNamespace,
+          EXPO_PUBLIC_POSTHOG_KEY: 'phc-source-change',
+        },
+      });
+      stops.push(startedA.stop);
+
+      await writeFile(markerPath, 'export const marker = 2;\n', 'utf8');
+      vi.resetModules();
+      const { startUiWeb: startUiWebAfterChange } = await import('./uiWeb');
+      const startedB = await startUiWebAfterChange({
+        testDir: testDirB,
+        env: {
+          HAPPIER_E2E_UI_WEB_EXPORT_NAMESPACE: exportNamespace,
+          EXPO_PUBLIC_POSTHOG_KEY: 'phc-source-change',
+        },
+      });
+      stops.push(startedB.stop);
       expect(runLoggedCalls).toHaveLength(2);
     } finally {
-      await startedA.stop();
-      await startedB.stop();
-      await rm(markerDir, { recursive: true, force: true });
+      for (const stop of stops) await stop();
+      vi.doUnmock('../paths');
+      vi.resetModules();
+      await rm(fixtureRoot, { recursive: true, force: true });
     }
   });
 

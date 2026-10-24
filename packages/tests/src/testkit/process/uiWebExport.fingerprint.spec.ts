@@ -56,6 +56,8 @@ describe('UI web export source fingerprint', () => {
     const before = resolveUiWebExportSourceFingerprint();
     await put(root, 'apps/ui/sources/feature.test.ts', 'test("feature", () => {});\n');
     await put(root, 'apps/ui/sources/__tests__/helper.ts', 'export const testHelper = 1;\n');
+    await put(root, 'apps/ui/sources/dist/generated.js', 'export const generated = 1;\n');
+    await put(root, 'apps/ui/sources/.project/output.js', 'export const output = 1;\n');
     await put(root, 'packages/protocol/src/feature.spec.ts', 'test("protocol", () => {});\n');
     await put(root, 'packages/unrelated/src/index.ts', 'export const unrelated = 2;\n');
     expect(resolveUiWebExportSourceFingerprint()).toBe(before);
@@ -77,6 +79,24 @@ describe('UI web export source fingerprint', () => {
     const afterManifest = resolveUiWebExportSourceFingerprint();
     expect(afterManifest).not.toBe(before);
     await put(root, 'yarn.lock', 'protocol-dependency@1.0.0:\n  version "1.0.0"\n');
-    expect(resolveUiWebExportSourceFingerprint()).not.toBe(afterManifest);
+    const afterLock = resolveUiWebExportSourceFingerprint();
+    expect(afterLock).not.toBe(afterManifest);
+    await put(root, 'packages/release-runtime/releaseRings.cjs', 'module.exports = { ring: "internaldev" };\n');
+    const afterReleaseRing = resolveUiWebExportSourceFingerprint();
+    expect(afterReleaseRing).not.toBe(afterLock);
+
+    await put(root, 'packages/protocol/package.json', JSON.stringify({
+      name: '@happier-dev/protocol',
+      exports: { '.': './dist/changed.js' },
+      dependencies: { '@happier-dev/agents': '0.0.0' },
+    }));
+    const whileDependencyMissing = resolveUiWebExportSourceFingerprint();
+    expect(whileDependencyMissing).not.toBe(afterReleaseRing);
+    await put(root, 'packages/agents/package.json', JSON.stringify({ name: '@happier-dev/agents' }));
+    await put(root, 'packages/agents/src/index.ts', 'export const agent = 1;\n');
+    const afterDependencyAdded = resolveUiWebExportSourceFingerprint();
+    expect(afterDependencyAdded).not.toBe(whileDependencyMissing);
+    await put(root, 'packages/agents/src/index.ts', 'export const agent = 2;\n');
+    expect(resolveUiWebExportSourceFingerprint()).not.toBe(afterDependencyAdded);
   });
 });
