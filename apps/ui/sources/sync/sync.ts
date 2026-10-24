@@ -2525,6 +2525,70 @@ class Sync {
         }
     }
 
+    private async applyAcknowledgedOutgoingMessage(params: Readonly<{
+        sessionId: string;
+        localId: string;
+        ack: Extract<MessageAckResponse, { ok: true }>;
+        rawRecord: RawRecord;
+        isCurrent: () => boolean;
+    }>): Promise<void> {
+        if (!params.isCurrent()) return;
+
+        let createdAt = params.ack.createdAt;
+        if (createdAt === undefined) {
+            try {
+                const response = await apiSocket.request(
+                    `/v2/sessions/${encodeURIComponent(params.sessionId)}/messages/by-local-id/${encodeURIComponent(params.localId)}`,
+                );
+                if (!params.isCurrent()) return;
+                if (!response.ok) throw new Error(`Stored message lookup returned ${response.status}`);
+                const body: unknown = await response.json();
+                if (!params.isCurrent()) return;
+                const message = body && typeof body === 'object' && !Array.isArray(body)
+                    ? (body as { message?: unknown }).message
+                    : null;
+                const stored = message && typeof message === 'object' && !Array.isArray(message)
+                    ? message as Record<string, unknown>
+                    : null;
+                if (
+                    stored?.id !== params.ack.id
+                    || stored.seq !== params.ack.seq
+                    || stored.localId !== params.localId
+                    || typeof stored.createdAt !== 'number'
+                    || !Number.isSafeInteger(stored.createdAt)
+                    || stored.createdAt < 0
+                ) {
+                    throw new Error('Stored message lookup did not match the acknowledged message');
+                }
+                createdAt = stored.createdAt;
+            } catch (error) {
+                if (!params.isCurrent()) return;
+                // The ACK proves persistence, but an older server does not provide its stored time.
+                // Keep the accepted projection until ordinary transcript catch-up supplies the row.
+                const pending = storage.getState().sessionPending[params.sessionId]?.messages
+                    ?.find((message) => message.id === params.localId);
+                if (pending) {
+                    storage.getState().upsertPendingMessage(params.sessionId, {
+                        ...pending,
+                        deliveryStatus: 'accepted',
+                        sendState: undefined,
+                        updatedAt: nowServerMs(),
+                    });
+                }
+                console.warn('[sync] Stored message time unavailable after ACK; retaining accepted projection', error);
+                return;
+            }
+        }
+
+        if (!params.isCurrent()) return;
+        const committed = normalizeRawMessage(params.ack.id, params.localId, createdAt, params.rawRecord, { seq: params.ack.seq });
+        if (committed) {
+            // The store atomically retires the pending projection when its committed twin arrives.
+            this.applyMessages(params.sessionId, [committed]);
+            this.markSessionAckedMessageSeq(params.sessionId, params.ack.seq);
+        }
+    }
+
     async sendMessage(
         sessionId: string,
         text: string,
@@ -2764,23 +2828,14 @@ class Sync {
                 throw new Error(ack.error || 'Message send rejected');
             }
 
-            // Message is committed. Insert it into the canonical transcript without waiting for
-            // broadcast updates, which can be missed on backgrounded devices. `applyMessages`
-            // retires the matching pending projection in the SAME store update, so the transcript
-            // never publishes a frame with neither row; a standalone removal here would be a
-            // second writer for the same retirement.
-            const committed = normalizeRawMessage(ack.id, localId, ack.createdAt ?? createdAt, content, { seq: ack.seq });
-            if (committed) {
-                this.applyMessages(sessionId, [committed]);
-            } else {
-                storage.getState().removePendingMessage(sessionId, localId);
-            }
-            this.markSessionAckedMessageSeq(sessionId, ack.seq);
+            const isSendScopeCurrent = () => isPermissionPublicationScopeCurrent()
+                && areServerAccountScopesEqual(getActiveServerAccountScope(), permissionPublicationScope);
+            await this.applyAcknowledgedOutgoingMessage({ sessionId, localId, ack, rawRecord: content, isCurrent: isSendScopeCurrent });
 
             // If we miss the broadcast socket update, we still need to advance session.seq so
             // catch-up (`afterSeq`) works correctly across reconnects.
             const currentSession = storage.getState().sessions[sessionId];
-            if (currentSession) {
+            if (currentSession && isSendScopeCurrent()) {
                 this.applySessions([
                     {
                         ...currentSession,
@@ -2979,6 +3034,10 @@ class Sync {
                 permissionMode: 'default',
                 messageRole: 'user' as const,
             };
+            const retryScope = getActiveServerAccountScope();
+            const isRetryScopeCurrent = this.createServerScopeGuard();
+            const isCurrent = () => isRetryScopeCurrent()
+                && areServerAccountScopesEqual(getActiveServerAccountScope(), retryScope);
 
             let terminalAuthFailure = false;
             const rawAck = await (async () => {
@@ -3013,17 +3072,16 @@ class Sync {
             const ack = rawAck ? MessageAckResponseSchema.safeParse(rawAck) : null;
 
             if (ack?.success && ack.data.ok === true) {
-                // `applyMessages` retires the matching pending projection in the same store update.
-                const committed = normalizeRawMessage(ack.data.id, params.localId, ack.data.createdAt ?? pending.createdAt, rawRecord, { seq: ack.data.seq });
-                if (committed) {
-                    this.applyMessages(params.sessionId, [committed]);
-                } else {
-                    storage.getState().removePendingMessage(params.sessionId, params.localId);
-                }
-                this.markSessionAckedMessageSeq(params.sessionId, ack.data.seq);
+                await this.applyAcknowledgedOutgoingMessage({
+                    sessionId: params.sessionId,
+                    localId: params.localId,
+                    ack: ack.data,
+                    rawRecord,
+                    isCurrent,
+                });
 
                 const currentSession = storage.getState().sessions[params.sessionId];
-                if (currentSession) {
+                if (currentSession && isCurrent()) {
                     this.applySessions([
                         {
                             ...currentSession,
