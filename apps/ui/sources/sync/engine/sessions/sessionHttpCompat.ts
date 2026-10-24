@@ -237,15 +237,14 @@ function coerceLegacySessionRecord(raw: unknown): V2SessionRecord | null {
         thinking: readOptionalBoolean(raw.thinking),
         thinkingAt: readNumber(raw.thinkingAt) ?? undefined,
         dataEncryptionKey: readNullableString(raw.dataEncryptionKey) ?? null,
-        share:
-            shareAccessLevel && typeof shareCanApprovePermissions === 'boolean'
+        share: raw.share === null
+            ? null
+            : shareAccessLevel === 'view' || shareAccessLevel === 'edit' || shareAccessLevel === 'admin'
                 ? {
-                    accessLevel: shareAccessLevel === 'view' || shareAccessLevel === 'edit' || shareAccessLevel === 'admin'
-                        ? shareAccessLevel
-                        : 'view',
-                    canApprovePermissions: shareCanApprovePermissions,
+                    accessLevel: shareAccessLevel,
+                    canApprovePermissions: shareCanApprovePermissions === true,
                 }
-                : null,
+                : undefined,
     };
 }
 
