@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createSessionFixture } from '@/dev/testkit';
 import { buildSessionListRenderableFromSession } from '../listing/sessionListRenderable';
-import { assessSessionAutoArchiveCandidate, assessVerifiedSessionPullRequests } from './sessionAutoArchiveEligibility';
+import { assessSessionAutoArchiveCandidate, assessSessionAutoArchiveHydrationCandidate, assessVerifiedSessionPullRequests } from './sessionAutoArchiveEligibility';
 
 const first = { providerKind: 'github' as const, providerBaseUrl: 'https://github.com', repository: 'owner/one', number: 7, url: 'https://github.com/owner/one/pull/7' };
 const second = { providerKind: 'github' as const, providerBaseUrl: 'https://github.com', repository: 'owner/two', number: 7, url: 'https://github.com/owner/two/pull/7' };
@@ -26,6 +26,16 @@ describe('session autoarchive eligibility', () => {
         expect(assessSessionAutoArchiveCandidate({ session, enabled: false, archivePending: false, accountId: 'account-a' }).eligible).toBe(false);
         expect(assessSessionAutoArchiveCandidate({ session: { ...session, metadata: null }, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(false);
         expect(assessSessionAutoArchiveCandidate({ session, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(true);
+    });
+
+    it('admits an inactive catalog shell to metadata-only hydration before links and live counts are known', () => {
+        const session = idleSession();
+        const cold = { ...session, metadata: null, metadataUnavailable: true };
+        const warm = { ...session, metadata: { ...session.metadata!, agentActivityCounts: undefined } };
+        expect(assessSessionAutoArchiveHydrationCandidate({ session: cold, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(true);
+        expect(assessSessionAutoArchiveHydrationCandidate({ session: warm, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(true);
+        expect(assessSessionAutoArchiveCandidate({ session: warm, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(false);
+        expect(assessSessionAutoArchiveHydrationCandidate({ session: { ...cold, active: true }, enabled: true, archivePending: false, accountId: 'account-a' }).eligible).toBe(false);
     });
 
     it('skips active, live-host, pending, working, unknown and already-archived sessions', () => {

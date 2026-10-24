@@ -652,6 +652,9 @@ export const pl: TranslationStructure = {
         checking: 'Sprawdzanie…',
         checked: 'Sprawdzono teraz',
         stale: 'Nieaktualny',
+        autoArchiveWorkUnverified: 'Automatyczna archiwizacja czeka na potwierdzenie bezczynności sesji, braku aktywności i oczekujących zadań. Starsze hosty mogą nie zgłaszać tych sygnałów.',
+        autoArchived: 'Zarchiwizowano automatycznie',
+        autoArchivedReason: 'Potwierdzono scalenie wszystkich powiązanych PR',
     },
     sessionTickets: {
         link: "Połącz zgłoszenie",

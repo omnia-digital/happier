@@ -656,6 +656,9 @@ export const ru: TranslationStructure = {
         checking: 'Проверка…',
         checked: 'Проверено сейчас',
         stale: 'Устарело',
+        autoArchiveWorkUnverified: 'Автоматическая архивация ждёт подтверждения неактивности сеанса, простоя и отсутствия ожидающей работы. Старые хосты могут не передавать эти сигналы.',
+        autoArchived: 'Архивировано автоматически',
+        autoArchivedReason: 'Подтверждено слияние всех связанных PR',
     },
     sessionTickets: {
         link: "Привязать задачу",

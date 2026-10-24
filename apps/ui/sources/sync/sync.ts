@@ -2175,8 +2175,8 @@ class Sync {
                     const doc = (globalThis as { document?: { visibilityState?: string } }).document;
                     return doc?.visibilityState !== 'hidden';
                 },
-                ensureMetadata: async (sessionId, serverId, shouldContinue) => {
-                    const [result] = await this.ensureSessionListMetadata([{ sessionId, serverId }], shouldContinue);
+                ensureMetadata: async (sessionId, serverId, shouldContinue, forceRefresh) => {
+                    const [result] = await this.ensureSessionListMetadata([{ sessionId, serverId, forceRefresh }], shouldContinue);
                     return result?.kind === 'available';
                 },
             });
@@ -2286,7 +2286,7 @@ class Sync {
 
         /** Status views need metadata before a catalog row becomes visible. Reuse the scoped shell loader. */
         public ensureSessionListMetadata = async (
-            candidates: readonly Readonly<{ sessionId: string; serverId?: string | null }>[],
+            candidates: readonly Readonly<{ sessionId: string; serverId?: string | null; forceRefresh?: boolean }>[],
             shouldContinue: () => boolean,
         ): Promise<Array<EnsureSessionVisibleForRouteResult | null>> => {
             const generation = this.serverScopeGeneration;
@@ -2296,7 +2296,10 @@ class Sync {
                 // Foreign Home lists are already fully hydrated by concurrentSessionCache. Its
                 // scoped list publication must never enter the active session/route store here.
                 if (candidate.serverId && !areServerProfileIdentifiersEquivalent(candidate.serverId, activeServerId)) return null;
-                return this.ensureSessionVisibleForMessageRoute(candidate.sessionId, { serverId: candidate.serverId ?? undefined, refreshMessages: false });
+                return this.ensureSessionVisibleForMessageRoute(candidate.sessionId, {
+                    serverId: candidate.serverId ?? undefined, refreshMessages: false,
+                    forceRefresh: candidate.forceRefresh === true,
+                });
             })));
         };
 

@@ -690,6 +690,9 @@ export const pt: TranslationStructure = {
         checking: 'Verificando…',
         checked: 'Verificado agora',
         stale: 'Desatualizado',
+        autoArchiveWorkUnverified: 'O arquivamento automático aguarda a confirmação de que a sessão está inativa, ociosa e sem trabalho pendente. Máquinas antigas podem não informar esses sinais.',
+        autoArchived: 'Arquivada automaticamente',
+        autoArchivedReason: 'Todas as PRs vinculadas foram verificadas como mescladas',
     },
     sessionTickets: {
         link: "Vincular tarefa",

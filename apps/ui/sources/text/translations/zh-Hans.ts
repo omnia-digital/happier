@@ -639,6 +639,9 @@ export const zhHans: TranslationStructure = {
         checking: '正在检查…',
         checked: '刚刚检查',
         stale: '已过期',
+        autoArchiveWorkUnverified: '自动归档会等待确认会话已停用、处于空闲状态且没有待处理工作。旧版主机可能不会报告这些状态。',
+        autoArchived: '已自动归档',
+        autoArchivedReason: '已验证所有关联 PR 均已合并',
     },
     sessionTickets: {
         link: "关联工单",

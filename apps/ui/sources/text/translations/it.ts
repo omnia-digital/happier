@@ -639,6 +639,9 @@ export const it: TranslationStructure = {
         checking: 'Verifica in corso…',
         checked: 'Verificato ora',
         stale: 'Obsoleto',
+        autoArchiveWorkUnverified: 'L’archiviazione automatica attende la verifica che la sessione sia inattiva, a riposo e senza lavoro in sospeso. Gli host meno recenti potrebbero non segnalare questi stati.',
+        autoArchived: 'Archiviata automaticamente',
+        autoArchivedReason: 'Tutte le PR collegate sono state verificate come unite',
     },
     sessionTickets: {
         link: "Collega un ticket",
