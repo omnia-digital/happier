@@ -145,8 +145,11 @@ of the selected session, using their chosen names, icons and colors. Each machin
 needs a connected fork CLI that provides host metrics; updating the app alone does
 not add telemetry to older CLIs.
 
-Expand a machine to see metric definitions, sample time, GPU device identities and
-the measured storage volume. CPU is overall utilization across logical cores;
+Each machine has one compact summary line. Select it to expand the full readings,
+metric definitions, sample time, GPU device identities and measured storage volume;
+select it again to collapse. Keyboard users can focus the row and press Enter or
+Space. Long summaries stay on one line, with the full name and readings available
+in the expanded details. CPU is overall utilization across logical cores;
 memory and storage show capacity used. Storage measures space occupied, not disk
 I/O activity. Load average shows the 1-, 5- and 15-minute values where supported;
 Windows reports it unavailable. GPU utilization appears per device when a supported
