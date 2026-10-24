@@ -1061,7 +1061,7 @@ describe('runClaude fast-start', () => {
     autoSessionReady = false;
     initResolved = false;
     backendInitDelayMs = 0;
-    getOrCreateSessionSpy.mockImplementation(async () => ({ id: 'sess_daemon_remote', metadataVersion: 1 }));
+    getOrCreateSessionSpy.mockImplementation(async () => ({ id: 'sess_daemon_remote', metadataVersion: 1, creationResolution: 'created', creationAccountId: 'account-a' }));
     const notificationResults: unknown[] = [];
     reportSessionToDaemonIfRunningSpy.mockImplementation(async () => {
       const controls = getLastRuntimeSessionClient()?.registerSessionRuntimeControls.mock.calls.at(-1)?.[0];
@@ -1111,6 +1111,8 @@ describe('runClaude fast-start', () => {
       expect(reportSessionToDaemonIfRunningSpy).toHaveBeenCalledTimes(1);
       expect(reportSessionToDaemonIfRunningSpy).toHaveBeenLastCalledWith(expect.objectContaining({
         sessionId: 'sess_daemon_remote',
+        creationResolution: 'created',
+        creationAccountId: 'account-a',
         requireDaemonAck: true,
       }));
 

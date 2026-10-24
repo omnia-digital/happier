@@ -64,8 +64,8 @@ import {
 import type { ScmFilesystemAccessPolicy } from '@/scm/runtime';
 import type { ScmConnectedAccountCredentialResolver } from '@/scm/types';
 import { recordHostCreatedWorktree } from '@/daemon/worktreeCreationCustody';
-import { configuration } from '@/configuration';
 import { logger } from '@/ui/logger';
+import type { PublicReleaseRingId } from '@happier-dev/release-runtime/releaseRings';
 
 import { registerScmPullRequestHandlers } from './scm/registerScmPullRequestHandlers';
 import { registerScmRepositoryProvisioningHandlers } from './scm/registerScmRepositoryProvisioningHandlers';
@@ -77,7 +77,13 @@ export function registerScmHandlers(
     deps?: Readonly<{
         accessPolicy?: ScmFilesystemAccessPolicy;
         connectedAccounts?: ScmConnectedAccountCredentialResolver;
-        getCreationCustodyScope?: () => Promise<{ homeDir: string; accountId: string; machineId: string } | null>;
+        getCreationCustodyScope?: () => Promise<{
+            homeDir: string;
+            activeServerDir: string;
+            ring: PublicReleaseRingId;
+            accountId: string;
+            machineId: string;
+        } | null>;
     }>
 ): void {
     const routeBase: ScmHandlerRouteBase = {
@@ -369,9 +375,9 @@ export function registerScmHandlers(
                                 if (scope) {
                                     await recordHostCreatedWorktree({
                                         ...scope,
-                                        ring: configuration.publicReleaseRing,
                                         launchNonce: request.launchNonce,
                                         worktreePath: result.worktreePath,
+                                        expectedBranchName: result.branchName,
                                         branchCreatedHere: request.branchMode !== 'existing',
                                     });
                                 }

@@ -177,8 +177,9 @@ export function createOnHappySessionWebhook(params: Readonly<{
   onTrackedSessionCreationReported?: (tracked: TrackedSession, report: Readonly<{
     sessionId: string;
     serverResolution?: 'created' | 'existing';
+    creationAccountId?: string;
   }>) => Promise<void> | void;
-}>): (sessionId: string, sessionMetadata: Metadata, serverResolution?: 'created' | 'existing') => Promise<void> {
+}>): (sessionId: string, sessionMetadata: Metadata, serverResolution?: 'created' | 'existing', creationAccountId?: string) => Promise<void> {
   const {
     pidToTrackedSession,
     pidToAwaiter,
@@ -194,7 +195,7 @@ export function createOnHappySessionWebhook(params: Readonly<{
   const correlateTrackedReport = (pid: number, metadata: Metadata): TrackedSession | null =>
     correlateTrackedSessionReport({ pidToTrackedSession, pidToAwaiter, pid, metadata, getParentPidFn });
 
-  return async (sessionId: string, sessionMetadata: Metadata, serverResolution?: 'created' | 'existing') => {
+  return async (sessionId: string, sessionMetadata: Metadata, serverResolution?: 'created' | 'existing', creationAccountId?: string) => {
     const normalizedPath = expandHomeDirPath(sessionMetadata.path, process.env);
     const normalizedMetadata =
       normalizedPath === sessionMetadata.path ? sessionMetadata : { ...sessionMetadata, path: normalizedPath };
@@ -272,11 +273,10 @@ export function createOnHappySessionWebhook(params: Readonly<{
         }
       }
       if (!isPlaceholderSessionId) {
-        if (trackedForPid.startedBy === 'daemon' && normalizedMetadata.startedBy === 'daemon'
+        if (onTrackedSessionCreationReported && trackedForPid.startedBy === 'daemon' && normalizedMetadata.startedBy === 'daemon'
           && trackedForPid.happySessionId === sessionId) {
           try {
-            void Promise.resolve(onTrackedSessionCreationReported?.(trackedForPid, { sessionId, serverResolution }))
-              .catch((error) => logger.debug('[DAEMON RUN] Worktree creation custody report failed', error));
+            await onTrackedSessionCreationReported(trackedForPid, { sessionId, serverResolution, creationAccountId });
           } catch (error) {
             logger.debug('[DAEMON RUN] Worktree creation custody report failed', error);
           }

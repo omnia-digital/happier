@@ -479,11 +479,13 @@ export async function notifyDaemonSessionStarted(
   metadata: Metadata,
   options: DaemonControlRequestOptions = {},
   creationResolution?: 'created' | 'existing',
+  creationAccountId?: string,
 ): Promise<{ error?: string } | any> {
   return await daemonPost('/session-started', {
     sessionId,
     metadata,
     ...(creationResolution ? { creationResolution } : {}),
+    ...(creationAccountId ? { creationAccountId } : {}),
   }, options);
 }
 
