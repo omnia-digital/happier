@@ -64,6 +64,7 @@ describe('concurrentSessionCache teardown ordering', () => {
         vi.doMock('@/auth/storage/tokenStorage', () => ({
             TokenStorage: {
                 getCredentialsForServerUrl: vi.fn(async () => ({ token: 'token-b', secret: 'secret-b' })),
+                subscribeCredentialChanges: () => () => {},
             },
             isLegacyAuthCredentials: () => true,
         }));

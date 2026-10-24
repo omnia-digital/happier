@@ -3,9 +3,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const boundary = vi.hoisted(() => ({
     reachability: new Map<string, (state: any) => void>(),
     requests: [] as string[],
+    requestAccounts: [] as string[],
     account: 'account-a',
     holdCursor: null as string | null,
     releaseHeldPage: null as (() => void) | null,
+    holdCredentialLookup: false,
+    releaseCredentialLookup: null as (() => void) | null,
     secureStore: new Map<string, string>(),
 }));
 
@@ -55,9 +58,12 @@ function sessionRow(id: string, name: string) {
 }
 
 vi.mock('@/sync/runtime/connectivity/serverReachabilityRuntimeFetch', () => ({
-    runtimeFetchWithServerReachability: async ({ url }: { url: string }) => {
+    runtimeFetchWithServerReachability: async ({ url, token }: { url: string; token: string }) => {
         const path = new URL(url).pathname + new URL(url).search;
         boundary.requests.push(path);
+        if (path.startsWith('/v2/sessions?')) {
+            boundary.requestAccounts.push(JSON.parse(atob(token.split('.')[1]!)).sub);
+        }
         if (path === '/v2/sessions?limit=50') {
             return new Response(JSON.stringify({
                 sessions: Array.from({ length: 50 }, (_, index) => sessionRow(`recent-${index}`, `Recent ${index}`)),
@@ -85,7 +91,7 @@ vi.mock('@/sync/runtime/connectivity/serverReachabilityRuntimeFetch', () => ({
     },
 }));
 
-async function setup() {
+async function setup(options: { holdInitialCredentialLookup?: boolean } = {}) {
     const { TokenStorage } = await import('@/auth/storage/tokenStorage');
     const { storage } = await import('@/sync/domains/state/storageStore');
     const profiles = await import('@/sync/domains/server/serverProfiles');
@@ -104,17 +110,25 @@ async function setup() {
             serverSelectionActiveTargetId: 'both',
         },
     }));
-    vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockImplementation(async (url) =>
-        url.includes('remote')
-            ? { token: `header.${btoa(JSON.stringify({ sub: boundary.account }))}.signature` }
-            : null,
-    );
+    vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockImplementation(async (url) => {
+        if (!url.includes('remote')) return null;
+        const requestAccount = boundary.account;
+        if (boundary.holdCredentialLookup) {
+            await new Promise<void>((resolve) => { boundary.releaseCredentialLookup = resolve; });
+        }
+        return { token: `header.${btoa(JSON.stringify({ sub: requestAccount }))}.signature` };
+    });
     expect(owner.resolveConcurrentTargets({
         activeServerId: active.id,
         profiles: profiles.listServerProfiles(),
         settings: storage.getState().settings,
     })).toEqual(expect.arrayContaining([expect.objectContaining({ id: 'srv_oh56_remote' })]));
+    boundary.holdCredentialLookup = options.holdInitialCredentialLookup === true;
     owner.startConcurrentSessionCacheSync();
+    if (options.holdInitialCredentialLookup) {
+        await vi.waitFor(() => expect(boundary.releaseCredentialLookup).not.toBeNull());
+        return { storage, owner, active };
+    }
     await vi.waitFor(() => expect(boundary.reachability.size).toBe(1));
     for (const callback of boundary.reachability.values()) callback({ phase: 'online' });
     await vi.waitFor(() => expect(storage.getState().sessionListViewDataByServerId['srv_oh56_remote']?.filter((item) => item.type === 'session').length).toBe(50), { timeout: 10_000 });
@@ -125,9 +139,13 @@ afterEach(async () => {
     boundary.releaseHeldPage?.();
     boundary.reachability.clear();
     boundary.requests = [];
+    boundary.requestAccounts = [];
     boundary.account = 'account-a';
     boundary.holdCursor = null;
     boundary.releaseHeldPage = null;
+    boundary.releaseCredentialLookup?.();
+    boundary.holdCredentialLookup = false;
+    boundary.releaseCredentialLookup = null;
     boundary.secureStore.clear();
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
@@ -186,6 +204,25 @@ describe('selected-Home command palette title paging', () => {
                     id: 'target', metadata: expect.objectContaining({ name: 'account-a older title' }),
                 }) }),
             ]));
+            expect(boundary.requestAccounts).toContain('account-a');
+            expect(boundary.requestAccounts).toContain('account-b');
+        } finally {
+            owner.stopConcurrentSessionCacheSync();
+        }
+    });
+
+    it('does not create a selected Home from credentials resolved after an account event', async () => {
+        const { storage, owner } = await setup({ holdInitialCredentialLookup: true });
+        try {
+            const { TokenStorage } = await import('@/auth/storage/tokenStorage');
+            boundary.account = 'account-b';
+            boundary.holdCredentialLookup = false;
+            expect(await TokenStorage.setCredentials({ token: `header.${btoa(JSON.stringify({ sub: boundary.account }))}.signature`, secret: 'test-secret' })).toBe(true);
+            boundary.releaseCredentialLookup?.();
+            await vi.waitFor(() => expect(boundary.reachability.size).toBe(1));
+            for (const callback of boundary.reachability.values()) callback({ phase: 'online' });
+            await vi.waitFor(() => expect(storage.getState().sessionListViewDataByServerId['srv_oh56_remote']?.filter((item) => item.type === 'session').length).toBe(50));
+            expect(boundary.requestAccounts).toEqual(['account-b']);
         } finally {
             owner.stopConcurrentSessionCacheSync();
         }

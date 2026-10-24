@@ -630,15 +630,16 @@ export function startConcurrentSessionCacheSync(): void {
     if (started) return;
     started = true;
 
-    let lastConfigKey = '';
+    const selectionConfigKey = (settings: Settings) => JSON.stringify({
+        serverSelectionGroups: Array.isArray(settings.serverSelectionGroups)
+            ? settings.serverSelectionGroups
+            : [],
+        serverSelectionActiveTargetKind: settings.serverSelectionActiveTargetKind ?? null,
+        serverSelectionActiveTargetId: settings.serverSelectionActiveTargetId ?? null,
+    });
+    let lastConfigKey = selectionConfigKey(storage.getState().settings);
     storageUnsubscribe = storage.subscribe((state) => {
-        const key = JSON.stringify({
-            serverSelectionGroups: Array.isArray(state.settings.serverSelectionGroups)
-                ? state.settings.serverSelectionGroups
-                : [],
-            serverSelectionActiveTargetKind: state.settings.serverSelectionActiveTargetKind ?? null,
-            serverSelectionActiveTargetId: state.settings.serverSelectionActiveTargetId ?? null,
-        });
+        const key = selectionConfigKey(state.settings);
         if (key === lastConfigKey) return;
         lastConfigKey = key;
         scheduleReconcile();
