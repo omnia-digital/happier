@@ -83,14 +83,13 @@ function buildRows(
   running: readonly RunningDaemonEntry[],
 ): Row[] {
   // Fold running-daemon info into the managing-service row when they
-  // represent the same physical slot (service's `managedServerIds`
-  // includes the daemon's real serverId). Otherwise the user sees two
-  // rows for what is actually one daemon: the service entry AND the
-  // running daemon that the service is managing.
+  // represent the same physical slot (the daemon was service-started and
+  // its real serverId is in the service's `managedServerIds`). A manually
+  // started daemon on that profile is separate from an installed service.
   const consumed = new Set<number>(); // indexes of running daemons folded into a service row
   const rows: Row[] = automatic.map((e) => {
     const managed = e.managedServerIds ?? [e.serverId];
-    const matchIdx = running.findIndex((d) => managed.includes(d.serverId));
+    const matchIdx = running.findIndex((d) => d.startedBy === 'automatic-startup' && managed.includes(d.serverId));
     if (matchIdx >= 0) consumed.add(matchIdx);
     return rowFromAutomaticStartup(e, matchIdx >= 0 ? running[matchIdx] : null);
   });
