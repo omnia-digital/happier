@@ -55,10 +55,26 @@ describe('session pull request links', () => {
     });
 
     it('never trusts a same-number response from an older CLI or a missing provider result', async () => {
+        storage.setState({ profileScope: { serverId: 'home-a', accountId: 'account-a' }, sessions: {
+            s1: { id: 's1', serverId: 'home-a', metadata: { path: '/work', host: 'machine' } } as any,
+        } });
         getMock.mockResolvedValue({ success: true, pullRequest: wrongRepo });
         await expect(readLinkedPullRequest('s1', link)).rejects.toThrow(/different pull request identity/);
-        expect(getMock).toHaveBeenCalledWith('s1', { prReference: { number: 51 }, linkedIdentity: link });
+        expect(getMock).toHaveBeenCalledWith('s1', { prReference: { number: 51 }, linkedIdentity: link }, { serverId: 'home-a', accountId: 'account-a' });
         getMock.mockResolvedValue({ success: true, pullRequest: null });
         await expect(readLinkedPullRequest('s1', link)).resolves.toBeNull();
+    });
+
+    it('drops a held provider result after the Home account changes', async () => {
+        storage.setState({ profileScope: { serverId: 'home-a', accountId: 'account-a' }, sessions: {
+            s1: { id: 's1', serverId: 'home-a', metadata: { path: '/work', host: 'machine' } } as any,
+        } });
+        let release!: (value: unknown) => void;
+        getMock.mockReturnValue(new Promise((resolve) => { release = resolve; }));
+        const reading = readLinkedPullRequest('s1', link);
+        expect(getMock.mock.calls[0][2]).toEqual({ serverId: 'home-a', accountId: 'account-a' });
+        storage.setState({ profileScope: { serverId: 'home-a', accountId: 'account-b' } });
+        release({ success: true, pullRequest: { ...wrongRepo, provider: { ...wrongRepo.provider, nameWithOwner: link.repository }, url: link.url } });
+        await expect(reading).rejects.toThrow(/account.*changed/i);
     });
 });

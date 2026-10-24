@@ -55,10 +55,12 @@ export async function captureSessionPullRequestFromSummary(sessionId: string, su
 
 /** A fresh call; the open-list cache and local checkout number are never proof for this identity. */
 export async function readLinkedPullRequest(sessionId: string, link: SessionPullRequestLinkV1): Promise<ScmPullRequestSummary | null> {
+    const scope = captureMutationScope(sessionId);
     const response = await sessionScmPullRequestGet(sessionId, {
         prReference: { number: link.number },
         linkedIdentity: link,
-    });
+    }, { serverId: scope.serverId, accountId: scope.accountId });
+    if (!scope.shouldContinue()) throw new Error('The session Home account changed while checking this pull request.');
     if (!response.success) throw new Error(response.error);
     if (!response.pullRequest) return null;
     const returned = sessionPullRequestLinkFromSummary(response.pullRequest);
