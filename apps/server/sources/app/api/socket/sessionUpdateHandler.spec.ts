@@ -750,6 +750,7 @@ describe("sessionUpdateHandler", () => {
             id: "m-agent",
             seq: 10,
             localId: "local-agent-1",
+            createdAt: createdAt.getTime(),
             didWrite: true,
         });
     });
@@ -796,8 +797,8 @@ describe("sessionUpdateHandler", () => {
                 seq: 10,
                 content: { t: "plain", v: { type: "user", text: "hi" } },
                 localId: "local-1",
-                createdAt: 1_000,
-                updatedAt: 1_000,
+                createdAt: new Date(1_000),
+                updatedAt: new Date(1_000),
             },
             participantCursors: [{ accountId: "user-1", cursor: 11 }],
             badgeAttentionChanged: true,
