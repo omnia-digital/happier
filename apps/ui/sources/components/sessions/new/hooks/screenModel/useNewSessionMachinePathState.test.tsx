@@ -93,6 +93,8 @@ describe('useNewSessionMachinePathState', () => {
             recentMachinePaths: [{ machineId: 'machine-shared', path: '/a/repo' }],
             machineIdParam: null,
             pathParam: null,
+            persistedMachineId: 'machine-shared',
+            persistedPath: '/a/repo',
         };
         const hook = await renderMachinePathState({
             ...shared,

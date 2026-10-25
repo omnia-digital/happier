@@ -16,6 +16,7 @@ import { gotoDomContentLoadedWithRetries } from '../../src/testkit/uiE2e/pageNav
 import { fakeClaudeFixturePath } from '../../src/testkit/fakeClaude';
 import { createIsolatedCliTestEnv } from '../../src/testkit/process/cliTestEnv';
 import { parseRpcCallFrame } from '../../src/testkit/uiE2e/desktopSetup/relayMachineRpcTap';
+import { readUiE2eScopedAccountSettings } from '../../src/testkit/uiE2e/scopedAccountSettingsStorage';
 import type { StartedDaemon } from '../../src/testkit/daemon/daemon';
 
 const run = createRunDirs({ runLabel: 'ui-e2e' });
@@ -186,6 +187,15 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/new?spawnServerId=${encodeURIComponent(serverAId)}`, 120_000);
     await expect(page.getByText(new URL(serverA.baseUrl).host, { exact: true }).first()).toBeVisible();
     await expect(page.getByTestId('agent-input-root').getByText(new URL(serverA.baseUrl).host, { exact: true })).toBeVisible();
+    await page.getByTestId('agent-input-path-chip').click();
+    const pathPopover = page.getByTestId('agent-input-content-popover');
+    await pathPopover.getByTestId('path-selection-list:header:input').fill(`${suiteDir}/`);
+    const aDirectoryRow = pathPopover.getByTestId(`path-selection-list:path-root:option:in-folder:${browseDir}`);
+    await expect(aDirectoryRow).toBeVisible();
+    await aDirectoryRow.getByRole('button', { name: 'Add to favorites' }).click();
+    await expect(pathPopover.getByTestId(`path-selection-list:path-root:option:favorite:${browseDir}`)).toBeVisible();
+    await pathPopover.getByTestId('path-selection-list:header:input').press('Escape');
+    await expect(pathPopover).toHaveCount(0);
     await page.getByTestId('agent-input-machine-chip').click();
     // The active A snapshot must be present; otherwise the active-only selector can
     // temporarily fall back to B's last canonical machine and mask this defect.
@@ -201,16 +211,37 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
     await machineBOption.click();
 
     await page.getByTestId('agent-input-path-chip').click();
-    const pathPopover = page.getByTestId('agent-input-content-popover');
     await expect(pathPopover.getByTestId('path-selection-list:open-tree-browser')).toBeVisible();
+    await expect(pathPopover.getByTestId(`path-selection-list:path-root:option:favorite:${browseDir}`)).toHaveCount(0);
     const browseCallStart = observedRpcCalls.length;
     await pathPopover.getByTestId('path-selection-list:header:input').fill(`${suiteDir}/`);
-    await expect(pathPopover.getByTestId(`path-selection-list:path-root:option:in-folder:${browseDir}`)).toBeVisible();
+    const bDirectoryRow = pathPopover.getByTestId(`path-selection-list:path-root:option:in-folder:${browseDir}`);
+    await expect(bDirectoryRow).toBeVisible();
     await expect.poll(() => observedRpcCalls.slice(browseCallStart).filter((call) => (
       call.method.endsWith(':daemon.filesystem.listDirectory')
     ))).toContainEqual({
       host: new URL(serverB.baseUrl).host,
       method: `${machineBId}:daemon.filesystem.listDirectory`,
     });
+    await bDirectoryRow.getByRole('button', { name: 'Add to favorites' }).click();
+    await expect(pathPopover.getByTestId(`path-selection-list:path-root:option:favorite:${browseDir}`)).toBeVisible();
+    await expect.poll(async () => {
+      const settings = await readUiE2eScopedAccountSettings({ page });
+      const raw = settings.machinePathPreferencesByTargetV1;
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+      const matching = Object.entries(raw).flatMap(([key, value]) => {
+        const tuple: unknown = JSON.parse(key);
+        if (!Array.isArray(tuple) || tuple.length !== 3) return [];
+        const favorites = value && typeof value === 'object' && 'favorites' in value ? value.favorites : null;
+        return Array.isArray(favorites) && favorites.includes(browseDir)
+          ? [{ serverId: tuple[0], machineId: tuple[2] }]
+          : [];
+      });
+      return {
+        count: matching.length,
+        distinctServers: new Set(matching.map((entry) => entry.serverId)).size,
+        machineIds: matching.map((entry) => entry.machineId).sort(),
+      };
+    }).toEqual({ count: 2, distinctServers: 2, machineIds: [machineAId, machineBId].sort() });
   });
 });

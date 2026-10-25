@@ -74,8 +74,12 @@ export function useNewSessionMachinePathState(params: Readonly<{
         return machine?.metadata?.homeDir ?? '';
     }, [params.machines, resolveRecentPathsForMachine]);
 
+    const hasChangedCacheScopeRef = React.useRef(false);
     const getPersistedPathForMachine = React.useCallback((machineId: string | null): string => {
         if (!machineId) return '';
+        // The draft's path was a seed for its original target. A later Home or
+        // Account selection owns a new path even when it reuses the machine ID.
+        if (hasChangedCacheScopeRef.current) return '';
         const persistedMachineId = normalizeMachineIdParam(params.persistedMachineId);
         if (!persistedMachineId || persistedMachineId !== machineId) {
             return '';
@@ -163,6 +167,7 @@ export function useNewSessionMachinePathState(params: Readonly<{
         }
         if (nextScopeKey === previousCacheScopeKeyRef.current) return;
         previousCacheScopeKeyRef.current = nextScopeKey;
+        hasChangedCacheScopeRef.current = true;
         if (!selectedMachineId || normalizePathParam(params.pathParam) || hasUserEditedPathRef.current) return;
         applyCommittedSelectedPath(getBestPathForMachine(selectedMachineId));
     }, [applyCommittedSelectedPath, getBestPathForMachine, params.cacheScopeKey, params.pathParam, selectedMachineId]);
