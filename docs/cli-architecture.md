@@ -1240,6 +1240,14 @@ Tmux host creation selects the requested `TMUX_TMPDIR` for the tmux client/serve
 and the launched child's environment. The shared `TmuxUtilities.spawnInTmux`
 owner creates a missing socket root; the daemon delegates to it. The existing
 host handle records that same root as `socketDir` for later control and disposal.
+Persisted tmux targets retain `session:window` or `session:@windowId`. At command
+execution, the canonical identifier formatter selects the exact `=session:` owner
+for liveness, control, disposal and attach. Liveness resolves target existence
+before reading pane fields because tmux can expand a missing target to another
+current pane. `killWindow` requires the owning session and rejects bare window IDs;
+the daemon supplies that session when disposing an unbound host. Attach preflight
+selects the exact window before opening a client, and printed manual attach hints
+quote valid session/window names through the existing POSIX command builder.
 Terminal creation submission is distinct from confirmed readiness. A tmux creation
 reply that cannot identify the accepted window does not authorize an ordinary-runner
 fallback: only proven non-creation with complete cleanup permits that fallback.

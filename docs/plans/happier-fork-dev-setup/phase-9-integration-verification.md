@@ -581,6 +581,37 @@ owning-session target intent `8c7e2f91a3` remains unadopted; missing verified0.3
 destination still blocks this batch's forward-port disposition. No full upstream
 merge or release claim follows from this source correction.
 
+### October 25 follow-up: exact tmux owning-session targets
+
+Upstream `8c7e2f91a3` is adapted through RED checkpoint `2d89c87f43`, source
+`79293c4df1`, bare-ID bypass removal `8aae8243da` and valid-attach proof
+`d873477e23`. The canonical identifier formatter now owns exact-session execution
+for the adapter's liveness/control/disposal, shared killWindow, terminal attach plan
+and shell-quoted manual hints. Daemon unbound disposal supplies its session.
+The stale bare-ID kill shortcut is removed after a real regression demonstrates
+it can destroy the fixture's other-owner window. The initial persisted target
+writer remains unprefixed; both prior `session:window` and `session:@id` reader
+shapes remain supported. These are command-boundary corrections, not a new handle
+format, identity generation, coordination mechanism or protocol migration.
+
+Real REDs prove a recycled window ID admitted under the wrong session, a missing
+window admitted through another live pane, stale attach preflight falsely succeeding
+and bare-ID destruction. Final targeted real checks pass4/4;115owner and60adjacent
+tests plus final CLI TS7 typecheck pass. The valid attach neighbor also succeeds.
+Root reviews the final source/caller sweep and independently reruns5/5 real cases
+including batch1 socket-root creation (`.project/logs/tests/oh12-tmux-owner-root-review.log`),
+with13unselected cases. The stale preflight's expected rejection diagnostic is
+present in the passing log; no interactive native client is opened. Earlier unit
+fixture failures after command/probe changes remain distinct from the meaningful
+OS-level REDs. Manual space-containing hint RED/GREEN is in the existing owner test.
+
+Both live killWindow callers are migrated. The remaining single-window attach
+utility operates on its newly created temporary session and is not a persisted
+host-window ownership bypass. No second formatter or active bare-ID destruction
+path remains in this corridor. Native app/daily runtime, Linux/Windows, Unicode
+and the broader real suite remain unverified for the reasons recorded above.
+The0.3destination is still absent. No merge, deployment or release was performed.
+
 ### OH-72 sidebar provider usage
 
 Source through `11e451172e` adds the authenticated account-owned usage collection
