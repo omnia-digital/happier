@@ -334,7 +334,7 @@ test.describe('sidebar provider subscription usage', () => {
         for (const profileId of ['personal', 'work']) {
             await writeConnectedClaudeProfile({ baseUrl: server.baseUrl, ...auth, profileId });
         }
-        await writeNativeUsage({ baseUrl: server.baseUrl, ...auth,
+        const personalRecordId = await writeNativeUsage({ baseUrl: server.baseUrl, ...auth,
             providerId: 'claude', accountSubjectId: 'fixture-personal', accountLabel: 'Connected Personal',
             quotaScope: 'organization', quotaScopeId: 'fixture-org-personal',
             remaining: 20, connectedProfileId: 'personal' });
@@ -355,5 +355,12 @@ test.describe('sidebar provider subscription usage', () => {
         await page.getByTestId('sidebar-provider-usage-choice:claude').click();
         await expect(page.getByTestId('sidebar-provider-usage-accounts:claude')).toContainText('Native');
         await expect(page.getByTestId('sidebar-provider-usage-accounts:claude')).toContainText('Connected');
+        await page.getByTestId(`sidebar-provider-usage-option:claude:native:${personalRecordId}`).click();
+        await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('20');
+        await expect(page.getByTestId('sidebar-provider-usage-choice:claude')).toContainText('Native · Connected Personal');
+        await page.getByTestId('sidebar-provider-usage-choice:claude').click();
+        await page.getByTestId('sidebar-provider-usage-option:claude:connected:claude-subscription:work').click();
+        await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('73');
+        await expect(page.getByTestId('sidebar-provider-usage-choice:claude')).toContainText('Connected · Connected Work');
     });
 });
