@@ -58,9 +58,13 @@ what is running on each computer. Repository grouping brings matching checkouts
 together across machines while retaining each session's real machine and path.
 
 Selecting **Group by repository** discovers repository information through the
-connected machines. Use **Refresh repositories** after remotes or checkouts
-change. Restoring the saved view does not start another scan. If a machine cannot
-be reached, existing associations remain available; retry Refresh when it reconnects.
+connected machines. New sessions launched from the app are matched automatically
+using their `origin` repository, so a new worktree joins its repository group
+while retaining its own working directory. While this view is open, new sessions
+arriving from other clients are also matched.
+Manual repository choices are preserved. Use **Refresh repositories** after
+remotes change. Restoring the saved view does not start another scan. If a machine
+cannot be reached, existing associations remain available; retry Refresh when it reconnects.
 Repositories with matching folder names alone are kept separate.
 
 For a local checkout or remote alias that cannot be matched automatically, open

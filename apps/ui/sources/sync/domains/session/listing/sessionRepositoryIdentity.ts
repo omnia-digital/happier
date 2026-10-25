@@ -67,9 +67,15 @@ export function readRepositoryAssociation(associations: SessionRepositoryAssocia
 
 export function withRepositoryAssociation(associations: SessionRepositoryAssociations, workspace: RepositoryWorkspace, discovered: SessionRepositoryAssociation): SessionRepositoryAssociations {
     const key = associationKeysForWorkspace(associations, workspace)[0] ?? repositoryWorkspaceKey(workspace);
-    const previous = associations[key];
+    let previous: SessionRepositoryAssociation | undefined = associations[key];
+    if (!previous) {
+        for (const path of [discovered.rootPath, ...discovered.worktreePaths]) {
+            previous = readRepositoryAssociation(associations, { ...workspace, path }) ?? undefined;
+            if (previous) break;
+        }
+    }
     const next = { ...discovered, ...(previous?.manual ? { manual: previous.manual } : {}) };
-    return JSON.stringify(previous) === JSON.stringify(next) ? associations : { ...associations, [key]: next };
+    return JSON.stringify(associations[key]) === JSON.stringify(next) ? associations : { ...associations, [key]: next };
 }
 
 /** A worktree choice belongs to its discovered physical repository on this scoped machine. */

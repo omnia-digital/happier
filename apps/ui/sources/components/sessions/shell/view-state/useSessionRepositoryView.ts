@@ -10,7 +10,7 @@ import type { SessionListOrderingModeV1, SessionListOrderingSectionMode } from '
 import type { SessionListFolderSortModeV1 } from '@/sync/domains/session/listing/sessionListFolderSortMode';
 import { areServerProfileIdentifiersEquivalent, resolveServerProfileScopeIdForIdentifier } from '@/sync/domains/server/serverProfiles';
 import type { SessionListGroupOrderScope } from '../commit/persistSessionListGroupOrder';
-import { discoverSessionRepositories, type RepositoryDiscoveryFailure } from './sessionRepositoryDiscovery';
+import { discoverSessionRepositories, type RepositoryDiscoveryFailure, type RepositoryDiscoveryWorkspace } from './sessionRepositoryDiscovery';
 import { collectRepositoryDiscoveryWorkspaces, projectSessionListRepositoryView } from './projectSessionListRepositoryView';
 
 export type SessionListViewMode = 'original' | 'machine' | 'repository';
@@ -27,18 +27,22 @@ type Input = Readonly<{
     folderSortMode?: SessionListFolderSortModeV1;
 }>;
 
-/** Read local identity on restore; only explicit selection/Refresh discovers repositories. */
+/** Read local identity on restore; repository discovery follows explicit intent and new workspaces. */
 export function useSessionRepositoryView(input: Input) {
     const activeScope = useActiveServerAccountScope();
     const associations = useLocalSetting('sessionRepositoryAssociationsV1');
     const serverIdsKey = React.useMemo(() => JSON.stringify([...new Set((input.items ?? []).map(item => item.serverId ?? activeScope?.serverId ?? '').filter(Boolean))].sort()), [input.items, activeScope?.serverId]);
-    const contextKey = JSON.stringify([activeScope, serverIdsKey]);
+    const scopeReadKey = JSON.stringify([activeScope, serverIdsKey]);
+    // The visible Home set changes as sessions arrive. It does not invalidate
+    // an authenticated discovery already in flight for another Home.
+    const contextKey = JSON.stringify(activeScope);
+    const arrivalScopeKey = JSON.stringify(activeScope ? [activeScope.serverId, activeScope.accountId] : null);
     const inputRef = React.useRef(input); inputRef.current = input;
     const modeRef = React.useRef(input.mode); modeRef.current = input.mode;
     const contextRef = React.useRef(contextKey); contextRef.current = contextKey;
     const [resolvedScopes, setResolvedScopes] = React.useState<{ contextKey: string; values: Scopes } | null>(null);
     const scopes = React.useMemo((): Scopes => {
-        const result: Record<string, ServerAccountScope | undefined> = resolvedScopes?.contextKey === contextKey ? { ...resolvedScopes.values } : {};
+        const result: Record<string, ServerAccountScope | undefined> = resolvedScopes?.contextKey === scopeReadKey ? { ...resolvedScopes.values } : {};
         if (activeScope) {
             result[''] = activeScope;
             result[activeScope.serverId] = activeScope;
@@ -47,8 +51,11 @@ export function useSessionRepositoryView(input: Input) {
             }
         }
         return result;
-    }, [activeScope, contextKey, resolvedScopes, serverIdsKey]);
-    const jobRef = React.useRef<{ contextKey: string; cancelled: boolean; promise: Promise<void> } | null>(null);
+    }, [activeScope, scopeReadKey, resolvedScopes, serverIdsKey]);
+    const jobRef = React.useRef<{ contextKey: string; cancelled: boolean; followUpWorkspaces: RepositoryDiscoveryWorkspace[]; promise: Promise<void> } | null>(null);
+    const scopesRef = React.useRef(scopes); scopesRef.current = scopes;
+    const runRef = React.useRef<(refresh: boolean, newWorkspaces?: readonly RepositoryDiscoveryWorkspace[]) => Promise<void>>(() => Promise.resolve());
+    const observedWorkspacesRef = React.useRef<{ contextKey: string; mode: SessionListViewMode; keys: Set<string> } | null>(null);
     const [refreshing, setRefreshing] = React.useState(false);
     React.useEffect(() => {
         if (input.mode !== 'repository') return;
@@ -62,7 +69,7 @@ export function useSessionRepositoryView(input: Input) {
             void Promise.all((JSON.parse(serverIdsKey) as string[]).map(async serverId => {
                 try { return [serverId, await scmRepositoryService.resolveScopeForServer(serverId) ?? undefined] as const; }
                 catch (error) { console.warn('Repository view could not read the local Home account scope', error); return [serverId, undefined] as const; }
-            })).then(entries => { if (current) setResolvedScopes({ contextKey, values: Object.fromEntries(entries) }); });
+            })).then(entries => { if (current) setResolvedScopes({ contextKey: scopeReadKey, values: Object.fromEntries(entries) }); });
         };
         const unsubscribe = TokenStorage.subscribeCredentialChanges(() => {
             if (jobRef.current) jobRef.current.cancelled = true;
@@ -71,7 +78,7 @@ export function useSessionRepositoryView(input: Input) {
         });
         readScopes();
         return () => { cancelRead(); unsubscribe(); };
-    }, [contextKey, input.mode, serverIdsKey]);
+    }, [input.mode, scopeReadKey, serverIdsKey]);
 
     React.useEffect(() => () => { if (jobRef.current) jobRef.current.cancelled = true; }, []);
     React.useEffect(() => {
@@ -81,24 +88,45 @@ export function useSessionRepositoryView(input: Input) {
             setRefreshing(false);
         }
     }, [contextKey, input.mode]);
-    const run = React.useCallback((refresh: boolean): Promise<void> => {
+    const run = React.useCallback((refresh: boolean, newWorkspaces?: readonly RepositoryDiscoveryWorkspace[]): Promise<void> => {
         if (modeRef.current !== 'repository') return Promise.resolve();
         const capturedContext = contextRef.current;
         if (jobRef.current && !jobRef.current.cancelled && jobRef.current.contextKey === capturedContext) return jobRef.current.promise;
         if (jobRef.current) jobRef.current.cancelled = true;
-        const job = { contextKey: capturedContext, cancelled: false, promise: Promise.resolve() };
+        const job = { contextKey: capturedContext, cancelled: false, followUpWorkspaces: [] as RepositoryDiscoveryWorkspace[], promise: Promise.resolve() };
         jobRef.current = job;
         setRefreshing(true);
         job.promise = discoverSessionRepositories({
-            workspaces: collectRepositoryDiscoveryWorkspaces(inputRef.current.items ?? [], scopes), refresh,
+            workspaces: newWorkspaces ?? collectRepositoryDiscoveryWorkspaces(inputRef.current.items ?? [], scopes),
+            refresh, verifyNewWorkspace: newWorkspaces !== undefined,
             isCurrent: () => !job.cancelled && modeRef.current === 'repository' && contextRef.current === capturedContext,
         }).then(failures => {
             if (!job.cancelled && contextRef.current === capturedContext && failures.length > 0) inputRef.current.onFailure(failures);
         }).finally(() => {
+            const shouldFollowUp = job.followUpWorkspaces.length > 0 && !job.cancelled && contextRef.current === capturedContext && modeRef.current === 'repository';
             if (jobRef.current === job) { jobRef.current = null; if (!job.cancelled) setRefreshing(false); }
+            if (shouldFollowUp) void runRef.current(false, job.followUpWorkspaces);
         });
         return job.promise;
     }, [scopes]);
+    runRef.current = run;
+    React.useEffect(() => {
+        if (input.items === null) return;
+        const workspacesByKey = new Map(collectRepositoryDiscoveryWorkspaces(input.items ?? [], scopesRef.current)
+            .map(workspace => [JSON.stringify([workspace.serverId, workspace.machineId, workspace.path]), workspace] as const));
+        const keys = new Set(workspacesByKey.keys());
+        const observed = observedWorkspacesRef.current;
+        if (!observed || observed.contextKey !== arrivalScopeKey || observed.mode !== input.mode) {
+            observedWorkspacesRef.current = { contextKey: arrivalScopeKey, mode: input.mode, keys };
+            return;
+        }
+        const arrivals = [...workspacesByKey].filter(([key]) => !observed.keys.has(key)).map(([, workspace]) => workspace);
+        for (const key of keys) observed.keys.add(key);
+        if (input.mode !== 'repository' || arrivals.length === 0) return;
+        const job = jobRef.current;
+        if (job && !job.cancelled && job.contextKey === contextKey) job.followUpWorkspaces.push(...arrivals);
+        else void runRef.current(false, arrivals);
+    }, [contextKey, input.items, input.mode]);
     const selectMode = React.useCallback((mode: SessionListViewMode) => {
         modeRef.current = mode;
         if (mode !== 'repository' && jobRef.current) { jobRef.current.cancelled = true; setRefreshing(false); }
