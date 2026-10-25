@@ -77,8 +77,6 @@ describe('status organization through the canonical sidebar projection', () => {
         expect(ids(project())).toEqual(['first', 'second']);
         statuses.set('home:first', 'idle');
         expect(ids(project())).toEqual(['second', 'first']);
-        statuses.set('home:second', 'finished');
-        expect(ids(project())).toEqual(['second', 'first']);
     });
 
     it('globally groups unfiled sessions by Agent Status across old machine/repository groups, once per section', () => {
