@@ -1,4 +1,6 @@
 import type { Machine, MachineMetadata } from '@/sync/domains/state/storageTypes';
+import { areServerProfileIdentifiersEquivalent, resolveServerProfileScopeIdForIdentifier } from '@/sync/domains/server/serverProfiles';
+import type { MachineCollection } from './identity/machineCollection';
 
 export interface MachineDisplayMetadata {
     displayName?: string | null;
@@ -28,6 +30,26 @@ export function buildMachineDisplayMetadata(metadata: MachineMetadata | null | u
         host: typeof metadata.host === 'string' ? metadata.host : null,
         homeDir: typeof metadata.homeDir === 'string' ? metadata.homeDir : null,
     };
+}
+
+const EMPTY_MACHINE_DISPLAYS: Readonly<Record<string, MachineDisplayRenderable>> = {};
+
+/** Historical display retains retired machines and replacement chains, unlike launch selection. */
+export function resolveMachineDisplayScope(input: Readonly<{
+    serverId?: string | null;
+    activeServerId?: string | null;
+    machines: Readonly<Record<string, MachineDisplayRenderable>>;
+    machineListByServerId?: Readonly<Record<string, readonly MachineDisplayRenderable[] | null | undefined>>;
+}>): Readonly<{ isActive: boolean; machines: MachineCollection<MachineDisplayRenderable> }> {
+    const serverId = input.serverId?.trim();
+    const isActive = !serverId || Boolean(input.activeServerId && areServerProfileIdentifiersEquivalent(serverId, input.activeServerId));
+    if (isActive) return { isActive, machines: input.machines };
+    const lists = input.machineListByServerId ?? {};
+    const canonicalId = resolveServerProfileScopeIdForIdentifier(serverId);
+    const key = Object.hasOwn(lists, canonicalId) ? canonicalId
+        : Object.hasOwn(lists, serverId) ? serverId
+        : Object.keys(lists).find(id => areServerProfileIdentifiersEquivalent(id, canonicalId));
+    return { isActive: false, machines: key ? lists[key] ?? EMPTY_MACHINE_DISPLAYS : EMPTY_MACHINE_DISPLAYS };
 }
 
 export function buildMachineDisplayRenderableFromMachine(machine: Machine): MachineDisplayRenderable {

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { act } from 'react-test-renderer';
 
-import { createSessionFixture, renderHook, standardCleanup } from '@/dev/testkit';
+import { createMachineFixture, createSessionFixture, renderHook, standardCleanup } from '@/dev/testkit';
 
 import { useAllMachines, useFirstVisibleMachineId, useLaunchSelectionMachines, useMachineCliDetectionTarget, useMachineDisplayById, useMachineListByServerId, useSessionChatFooterState, useSessionForkSupportSource } from '@/sync/domains/state/storage';
 import { storage } from '@/sync/domains/state/storageStore';
@@ -12,6 +12,62 @@ afterEach(() => {
 });
 
 describe('useAllMachines', () => {
+    it('presents foreign sessions from their Home even when active machine and session ids collide', async () => {
+        const { buildSessionListReachabilityModels, createSessionListReachabilityModelsCache } = await import('@/components/sessions/shell/sessionListReachabilityModels');
+        const { projectSessionListMachineView } = await import('@/components/sessions/shell/view-state/projectSessionListMachineView');
+        const { useSessionWorkspacePresentation } = await import('@/components/sessions/model/useSessionWorkspacePresentation');
+        const { useSessionMachineDisplayLists } = await import('@/sync/store/hooks');
+        const previousState = storage.getState();
+        const machine = createMachineFixture();
+        const activeMachine = createMachineFixture({ id: 'shared-machine', replacedByMachineId: 'a-successor' });
+        const aSuccessor = createMachineFixture({ id: 'a-successor', metadata: { ...machine.metadata!, displayName: 'A machine', homeDir: '/a' } });
+        const bOld = createMachineFixture({ id: 'shared-machine', replacedByMachineId: 'b-successor', revokedAt: 1 });
+        const bSuccessor = createMachineFixture({ id: 'b-successor', metadata: { ...machine.metadata!, displayName: 'B machine', homeDir: '/b' } });
+        const bOnly = createMachineFixture({ id: 'b-only', metadata: { ...machine.metadata!, displayName: 'B only', homeDir: '/b' } });
+        const session = createSessionFixture({ id: 'shared-session', metadata: { ...createSessionFixture().metadata!, machineId: 'shared-machine', path: '/b/repo', homeDir: '/b' } });
+        const items = [{ type: 'session' as const, serverId: 'home-b', session }];
+        const machinesById = { [activeMachine.id]: activeMachine, [aSuccessor.id]: aSuccessor };
+        const cache = createSessionListReachabilityModelsCache();
+        try {
+            storage.setState({
+                profileScope: { serverId: 'home-a', accountId: 'account-a' },
+                machines: machinesById,
+                machineDisplayById: machinesById,
+                machineListByServerId: { 'home-b': [bOld, bSuccessor, bOnly] },
+                sessions: { [session.id]: createSessionFixture({ id: session.id, metadata: { ...session.metadata!, machineId: 'a-successor', path: '/a/wrong' } }) },
+            });
+            const input = { items, machinesById, workspaceLabelsV1: {}, cache };
+            let headerRenders = 0;
+            const headerHook = await renderHook(() => {
+                headerRenders += 1;
+                return useSessionWorkspacePresentation({ serverId: 'home-b', sessionId: session.id, metadata: session.metadata });
+            });
+            const listsHook = await renderHook(() => useSessionMachineDisplayLists());
+            expect(headerHook.getCurrent()).toMatchObject({ machineId: 'b-successor', machineLabel: 'B machine', displayPath: '~/repo' });
+            const settledHeaderRenders = headerRenders;
+            const firstLists = listsHook.getCurrent();
+            const first = buildSessionListReachabilityModels(input);
+            expect(first.reachableSessionDisplayByKey.get('home-b:shared-session')).toMatchObject({ machineId: 'b-successor', machineLabel: 'B machine', workspaceSubtitle: 'repo' });
+            const header = projectSessionListMachineView(items, machinesById).find(item => item.type === 'header' && item.headerKind === 'machine');
+            expect(header).toMatchObject({ title: 'B machine', machine: { id: 'b-successor' } });
+            await act(async () => {
+                storage.setState({ machines: { ...machinesById, 'a-successor': { ...aSuccessor, metadata: { ...aSuccessor.metadata!, displayName: 'A renamed' } } },
+                    machineListByServerId: { 'home-b': [bOld, { ...bSuccessor, activeAt: bSuccessor.activeAt + 1000 }, bOnly] },
+                });
+            });
+            expect(headerRenders).toBe(settledHeaderRenders);
+            expect(listsHook.getCurrent()).toBe(firstLists);
+            expect(buildSessionListReachabilityModels(input)).toBe(first);
+            for (const [machineId, expectedLabel] of [['b-only', 'B only'], ['unavailable', 'unavailable']]) {
+                const result = buildSessionListReachabilityModels({ ...input, cache: undefined, items: [{ ...items[0], session: { ...session, metadata: { ...session.metadata!, machineId } } }] });
+                expect(result.reachableSessionDisplayByKey.get('home-b:shared-session')).toMatchObject({ machineId, machineLabel: expectedLabel, workspaceSubtitle: 'repo' });
+            }
+            await headerHook.unmount();
+            await listsHook.unmount();
+        } finally {
+            storage.setState(previousState);
+        }
+    });
     it('tracks the first visible machine id only while demanded', async () => {
         const previousState = storage.getState();
         const activeServerId = String(getActiveServerSnapshot().serverId ?? '').trim();

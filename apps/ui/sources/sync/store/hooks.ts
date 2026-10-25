@@ -1329,6 +1329,35 @@ export function useMachineDisplayById(): Record<string, MachineDisplayRenderable
   return getStorage()(useShallow((state) => state.machineDisplayById ?? EMPTY_MACHINE_DISPLAY_BY_ID));
 }
 
+/** Stable display-only projection of the existing authenticated Home snapshots. */
+export function useSessionMachineDisplayLists(): Readonly<Record<string, readonly MachineDisplayRenderable[] | null>> {
+  const selector = React.useMemo(() => {
+    let source: StorageState['machineListByServerId'] | undefined;
+    let result: Readonly<Record<string, readonly MachineDisplayRenderable[] | null>> = {};
+    return (state: StorageState) => {
+      if (source === state.machineListByServerId) return result;
+      const next: Record<string, readonly MachineDisplayRenderable[] | null> = {};
+      for (const [serverId, machines] of Object.entries(state.machineListByServerId ?? {})) {
+        const previous = result[serverId];
+        const unchanged = previous === machines || (Array.isArray(previous) && Array.isArray(machines)
+          && previous.length === machines.length && machines.every((machine, index) => {
+            const old = previous[index];
+            return old.id === machine.id && old.replacedByMachineId === machine.replacedByMachineId
+              && old.metadata?.displayName === machine.metadata?.displayName
+              && old.metadata?.host === machine.metadata?.host
+              && old.metadata?.homeDir === machine.metadata?.homeDir;
+          }));
+        next[serverId] = unchanged ? previous : machines;
+      }
+      source = state.machineListByServerId;
+      if (Object.keys(next).length !== Object.keys(result).length
+        || Object.keys(next).some(key => next[key] !== result[key])) result = next;
+      return result;
+    };
+  }, []);
+  return getStorage()(selector);
+}
+
 const EMPTY_MACHINE_LIST_BY_SERVER_ID: Record<string, Machine[] | null> = {};
 
 export function useMachineListByServerId(): Record<string, Machine[] | null> {

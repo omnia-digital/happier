@@ -1,5 +1,6 @@
 import { type MachineDisplayRenderable } from '@/sync/domains/machines/machineDisplayRenderable';
 import { resolveCanonicalMachineId } from '@/sync/domains/machines/identity/resolveCanonicalMachineId';
+import { findMachineInCollection, type MachineCollection } from '@/sync/domains/machines/identity/machineCollection';
 import { formatPathRelativeToHome } from '@/utils/sessions/formatPathRelativeToHome';
 import { normalizeNonEmptyString } from '@/utils/strings/normalizeNonEmptyString';
 
@@ -79,7 +80,7 @@ function resolveWorkspaceBasename(path: string): string {
 
 export function resolveSessionWorkspacePresentation(params: Readonly<{
     metadata: SessionWorkspacePresentationMetadata;
-    machines: Readonly<Record<string, MachineDisplayRenderable>>;
+    machines: MachineCollection<MachineDisplayRenderable>;
     target?: SessionWorkspacePresentationTarget;
     workspaceLabelsV1?: unknown;
     workspacePathDisplayModeV1?: WorkspacePathDisplayModeV1 | null;
@@ -95,7 +96,7 @@ export function resolveSessionWorkspacePresentation(params: Readonly<{
         ? rawDisplayMachineId
         : canonical?.machineId ?? rawDisplayMachineId;
     const displayPathInput = targetPath ?? normalizeNonEmptyString(params.metadata?.path);
-    const directMachine = displayMachineId ? params.machines[displayMachineId] : undefined;
+    const directMachine = displayMachineId ? findMachineInCollection(params.machines, displayMachineId) : undefined;
     const homeDir = normalizeNonEmptyString(directMachine?.metadata?.homeDir) ?? parts.homeDir;
     const pathKey = normalizeSessionPathForProjectGrouping(displayPathInput, homeDir);
     const machineGroupId = displayMachineId ? `id:${displayMachineId}` : parts.machineGroupId;
@@ -109,7 +110,7 @@ export function resolveSessionWorkspacePresentation(params: Readonly<{
         : resolveWorkspaceBasename(displayPath || pathKey);
     const displayMachine = (() => {
         if (displayMachineId) {
-            return params.machines[displayMachineId] ?? makeUnknownMachine(displayMachineId);
+            return directMachine ?? makeUnknownMachine(displayMachineId);
         }
         return makeUnknownMachine('unknown');
     })();

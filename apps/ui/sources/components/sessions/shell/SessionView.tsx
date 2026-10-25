@@ -227,7 +227,7 @@ import {
 import { submitSessionUserMessage } from '@/sync/domains/session/input/submitSessionUserMessage';
 import { createSyncBackedSubmitPort } from '@/sync/domains/session/input/syncBackedSubmitPort';
 import { isSessionLocallyAttached } from '@/sync/domains/session/control/sessionLocalControl';
-import { resolveSessionWorkspacePresentation } from '@/sync/domains/session/listing/sessionWorkspacePresentation';
+import { useSessionWorkspacePresentation } from '@/components/sessions/model/useSessionWorkspacePresentation';
 import { isModelSelectableForSession, type SessionModelOptionsContext } from '@/sync/domains/models/modelOptions';
 import { getInactiveSessionUiState } from '@/components/sessions/model/inactiveSessionUi';
 import { useSessionMachineReachability } from '@/components/sessions/model/useSessionMachineReachability';
@@ -1638,14 +1638,6 @@ export const SessionView = React.memo((props: SessionViewProps) => {
                 lastErrorMessage: null,
             };
     const syncError = useSyncError();
-    const allMachines = useLaunchSelectionMachines();
-    const machinesById = React.useMemo(() => {
-        const next: Record<string, (typeof allMachines)[number]> = {};
-        for (const machine of allMachines) {
-            next[machine.id] = machine;
-        }
-        return next;
-    }, [allMachines]);
     const sessionOrganizationProjection = useSessionOrganizationProjection(currentSessionRouteServerId);
     const organizationListViewState = React.useMemo(() => buildSessionOrganizationListViewState({
         serverId: currentSessionRouteServerId,
@@ -1653,19 +1645,13 @@ export const SessionView = React.memo((props: SessionViewProps) => {
     }), [currentSessionRouteServerId, sessionOrganizationProjection]);
     const workspaceLabelsV1 = organizationListViewState.workspaceLabelsV1;
     const workspacePathDisplayModeV1 = useSetting('workspacePathDisplayModeV1');
-    const sessionWorkspacePresentation = React.useMemo(() => {
-        if (!stableSessionForHeader) return null;
-        return resolveSessionWorkspacePresentation({
-            metadata: stableSessionForHeader.metadata ?? null,
-            machines: machinesById,
-            target: readDisplayMachineTargetForSession({
-                sessionId: stableSessionForHeader.id,
-                metadata: stableSessionForHeader.metadata ?? null,
-            }),
-            workspaceLabelsV1,
-            workspacePathDisplayModeV1,
-        });
-    }, [machinesById, stableSessionForHeader, workspaceLabelsV1, workspacePathDisplayModeV1]);
+    const sessionWorkspacePresentation = useSessionWorkspacePresentation({
+        serverId: currentSessionRouteServerId,
+        sessionId: stableSessionForHeader?.id,
+        metadata: stableSessionForHeader?.metadata ?? null,
+        workspaceLabelsV1,
+        workspacePathDisplayModeV1,
+    });
     const sessionEncryptionMode: 'e2ee' | 'plain' = (session?.encryptionMode ?? 'e2ee');
     const isEncryptedSessionLocked = Boolean(session && sessionEncryptionMode === 'e2ee' && !hasAuthCredentials);
     const showTopHeader = !(isLandscape && deviceType === 'phone' && Platform.OS !== 'web');

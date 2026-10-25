@@ -11,6 +11,10 @@ import { resolveSessionDisplayTarget } from '@/sync/domains/machines/identity/re
 import { storage } from '@/sync/domains/state/storage';
 import type { Machine } from '@/sync/domains/state/storageTypes';
 import type { MachineDisplayRenderable } from '@/sync/domains/machines/machineDisplayRenderable';
+import { resolveMachineDisplayScope } from '@/sync/domains/machines/machineDisplayRenderable';
+import type { MachineCollection } from '@/sync/domains/machines/identity/machineCollection';
+import { getActiveServerId } from '@/sync/domains/server/serverProfiles';
+import { resolveSessionWorkspacePresentation, type WorkspacePathDisplayModeV1 } from '@/sync/domains/session/listing/sessionWorkspacePresentation';
 import { resolveSessionMachineId } from '@/sync/domains/session/directSessions/resolveSessionMachineId';
 import { normalizeKnownProjectMachineId } from '@/sync/runtime/orchestration/projectKeyIdentity';
 import { resolvePathRelativeToRoot } from '@/utils/path/resolvePathRelativeToRoot';
@@ -41,6 +45,47 @@ type MachineTargetLikeState = Readonly<{
 }>;
 
 export type SessionMachineTargetState = MachineTargetLikeState;
+
+export type SessionWorkspacePresentationState = SessionMachineTargetState & Readonly<{
+  profileScope?: ServerAccountScope | null;
+  machineListByServerId?: Readonly<Record<string, readonly MachineDisplayRenderable[] | null | undefined>>;
+}>;
+
+export function resolveSessionWorkspacePresentationFromState(input: Readonly<{
+  state: SessionWorkspacePresentationState;
+  sessionId?: string | null;
+  metadata?: SessionTargetMetadataLike;
+  serverId?: string | null;
+  machines?: Readonly<Record<string, MachineDisplayRenderable>>;
+  machineListByServerId?: SessionWorkspacePresentationState['machineListByServerId'];
+  workspaceLabelsV1?: unknown;
+  workspacePathDisplayModeV1?: WorkspacePathDisplayModeV1 | null;
+}>) {
+  const scope = resolveMachineDisplayScope({
+    serverId: input.serverId,
+    activeServerId: input.state.profileScope?.serverId ?? getActiveServerId(),
+    machines: input.machines ?? input.state.machineDisplayById ?? input.state.machines ?? {},
+    machineListByServerId: input.machineListByServerId ?? input.state.machineListByServerId,
+  });
+  // Foreign snapshots belong to their authenticated Home. Active projects, sessions with the
+  // same id, and replacement decisions must not participate in their display identity.
+  const target = resolveDisplayMachineTargetForSessionFromState({
+    state: scope.isActive ? { ...input.state, machines: scope.machines } : { machines: scope.machines },
+    sessionId: input.sessionId,
+    metadata: input.metadata,
+  });
+  return resolveSessionWorkspacePresentation({
+    metadata: input.metadata,
+    machines: scope.machines,
+    target,
+    workspaceLabelsV1: input.workspaceLabelsV1,
+    workspacePathDisplayModeV1: input.workspacePathDisplayModeV1,
+  });
+}
+
+export function readSessionWorkspacePresentation(input: Omit<Parameters<typeof resolveSessionWorkspacePresentationFromState>[0], 'state'>) {
+  return resolveSessionWorkspacePresentationFromState({ ...input, state: storage.getState() });
+}
 
 export type SessionMachineControlTarget = Readonly<{
   machineId: string;
@@ -320,7 +365,7 @@ export function readMachineControlTargetForSession(
 }
 
 export function resolveDisplayMachineTargetForSessionFromState(input: Readonly<{
-  state: SessionMachineTargetState;
+  state: Omit<SessionMachineTargetState, 'machines'> & { machines?: MachineCollection<MachineDisplayRenderable> };
   sessionId?: string | null;
   metadata?: SessionTargetMetadataLike;
 }>): { machineId: string; basePath: string } | null {
