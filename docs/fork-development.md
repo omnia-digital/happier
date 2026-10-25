@@ -129,7 +129,14 @@ Planning lives in Linear team **Happier (OH)**, in [Happier fork — development
 
 Josh requires every work item on this fork to have an OH task before work starts. Reuse the owning issue for its implementation, investigation, testing and review; create a task first for work outside existing issue scope. Keep its status and actual verification evidence current. Current priority is OH-19 machine identifiers throughout the sidebar and detail header, plus OH-14's machine grouping view, following Josh's pinned-list screenshot.
 
-Current external-write policy allows Linear planning and git pushes to the task's feature/PR branch. GitHub UI/API writes, including PR creation, merges, settings and workflow dispatch, remain user-owned unless separately authorized.
+Current external-write policy allows Linear planning, ordinary feature-branch
+checkpoints, and creating or updating the fork's PR when work is ready. Josh's
+October 25 replacement instructions explicitly authorize that PR handoff; target
+`dev`. GitHub API/UI operations still use the required `happier-bot` transport.
+Merges, releases, repository settings/secrets and workflow dispatch are separate
+actions and remain user-owned unless explicitly authorized. The bot authentication
+preflight currently exits 2 for a missing credential; no personal-token fallback
+or GitHub write has been attempted.
 
 - `origin`: `https://github.com/omnia-digital/happier.git`
 - `upstream`: `https://github.com/happier-dev/happier.git`
@@ -258,7 +265,15 @@ The existing `.github/workflows/tests.yml` is the read-only PR validation entry 
 
 The parent Tauri configurations still contain upstream application identifiers, updater public key and `happier-dev/happier` update feeds, while the release workflow publishes under its invoking repository. Choose the fork's identity, key and feed together before distribution. Keeping the hosted API URL is intentional for UI-only adoption; retaining the installed CLI also avoids changing its installer/update ownership now.
 
-Linear reports no OH release pipelines. Its current release documentation requires a pipeline-specific access key, not a personal API key. Create pipelines for independently built/shipped products and channels; stages are for one immutable build advancing through gates. Add reporting to the actual successful build/publication path, never merely a source push or a local debug launch. Pipeline creation, secure key installation and an actual reported build/release event remain pending. GitHub writes are still limited to this task's feature-branch pushes, so repository settings, secrets, merges and workflow dispatch remain user-owned. No CI dispatch, release record, signing identity or pipeline key was created during this audit.
+Linear still reports no OH release pipelines on October 25. Its release
+documentation requires a pipeline-specific access key, not a personal API key.
+Create pipelines for independently shipped products/channels; stages belong to one
+immutable build progressing through gates. Reporting belongs on the successful
+build/publication path, rather than a push or local debug launch. Pipeline creation,
+secure key installation and an actual reported event remain pending. The standing
+PR authorization above does not authorize repository settings/secrets, merge,
+workflow dispatch or release actions. No CI dispatch, release record, signing
+identity or pipeline key was created during this audit.
 
 ## Initial verification record — 2026-10-22
 
