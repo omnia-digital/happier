@@ -399,14 +399,18 @@ export function createVoiceToolHandlers(
       { surface: 'voice_tool', serverId: targetServerId, defaultSessionId: deps.resolveSessionId(null) },
     );
     if (!res.ok) {
-      voiceActivityController.appendError(sessionId, resolveAdapterId(), 'send_failed', 'send_failed');
-      return jsonError(res.errorCode ?? 'send_failed', res.error ?? 'send_failed', { sessionId });
+      const errorCode = res.errorCode ?? 'send_failed';
+      const errorMessage = res.error ?? 'send_failed';
+      voiceActivityController.appendError(sessionId, resolveAdapterId(), errorCode, errorMessage);
+      return jsonError(errorCode, errorMessage, { sessionId });
     }
 
     const inner: any = res.result;
     if (inner && typeof inner === 'object' && (inner as any).ok === false) {
-      voiceActivityController.appendError(sessionId, resolveAdapterId(), 'send_failed', 'send_failed');
-      return jsonError(String((inner as any).errorCode ?? 'send_failed'), String((inner as any).errorMessage ?? 'send_failed'), { sessionId });
+      const errorCode = String((inner as any).errorCode ?? 'send_failed');
+      const errorMessage = String((inner as any).errorMessage ?? 'send_failed');
+      voiceActivityController.appendError(sessionId, resolveAdapterId(), errorCode, errorMessage);
+      return jsonError(errorCode, errorMessage, { sessionId });
     }
 
     voiceActivityController.appendActionExecuted(
@@ -456,8 +460,10 @@ export function createVoiceToolHandlers(
     );
 
     if (!res.ok) {
-      voiceActivityController.appendError(sessionId, resolveAdapterId(), 'permission_update_failed', 'permission_update_failed');
-      return jsonError('permission_update_failed', 'permission_update_failed', { sessionId, requestId });
+      const errorCode = res.errorCode ?? 'permission_update_failed';
+      const errorMessage = res.error ?? 'permission_update_failed';
+      voiceActivityController.appendError(sessionId, resolveAdapterId(), errorCode, errorMessage);
+      return jsonError(errorCode, errorMessage, { sessionId, requestId });
     }
     const nestedFailure = getNestedActionFailure((res as any).result);
     if (nestedFailure) {
@@ -552,8 +558,10 @@ export function createVoiceToolHandlers(
       { surface: 'voice_tool', serverId: targetServerId, defaultSessionId: deps.resolveSessionId(null) },
     );
     if (!res.ok) {
-      voiceActivityController.appendError(sessionId, resolveAdapterId(), 'permission_update_failed', 'permission_update_failed');
-      return jsonError(res.errorCode ?? 'permission_update_failed', res.error ?? 'permission_update_failed', { sessionId, requestId });
+      const errorCode = res.errorCode ?? 'permission_update_failed';
+      const errorMessage = res.error ?? 'permission_update_failed';
+      voiceActivityController.appendError(sessionId, resolveAdapterId(), errorCode, errorMessage);
+      return jsonError(errorCode, errorMessage, { sessionId, requestId });
     }
     const nestedFailure = getNestedActionFailure((res as any).result);
     if (nestedFailure) {

@@ -2,8 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createStorageModuleStub } from '../../../dev/testkit/mocks/storage';
 import { installVoiceToolActionImplCommonModuleMocks } from './voiceToolActionImplTestHelpers';
 
-const getActiveServerSnapshot = vi.hoisted(() => vi.fn());
-const getServerProfileById = vi.hoisted(() => vi.fn());
+const { getActiveServerSnapshot, getServerProfileById } = vi.hoisted(() => ({
+    getActiveServerSnapshot: vi.fn(),
+    getServerProfileById: vi.fn(),
+}));
 const state = vi.hoisted(() => ({
     settings: {
         voice: {

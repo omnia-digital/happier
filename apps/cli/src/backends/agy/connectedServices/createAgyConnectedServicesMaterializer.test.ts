@@ -81,8 +81,8 @@ describe('Antigravity connected-service materialization through the catalog', ()
         expect(new Uint8Array(await readFile(join(home, 'antigravity-acp', path)))).toEqual(bytes);
         expect(new Uint8Array(await readFile(join(native, 'antigravity-acp', path)))).toEqual(bytes);
       }
-      expect(await realpath(join(home, 'antigravity-acp', 'conversations'))).toBe(join(native, 'antigravity-acp', 'conversations'));
-      expect(await realpath(join(home, 'antigravity-acp', 'brain'))).toBe(join(native, 'antigravity-acp', 'brain'));
+      expect(await realpath(join(home, 'antigravity-acp', 'conversations'))).toBe(await realpath(join(native, 'antigravity-acp', 'conversations')));
+      expect(await realpath(join(home, 'antigravity-acp', 'brain'))).toBe(await realpath(join(native, 'antigravity-acp', 'brain')));
       expect(await readFile(join(native, 'antigravity-acp', 'acp_token.json'), 'utf8')).toBe('native credential');
       await expect(lstat(join(native, 'antigravity-acp', 'unknown-private.json'))).rejects.toMatchObject({ code: 'ENOENT' });
       expect(JSON.parse(await readFile(join(home, 'antigravity-acp', 'acp_token.json'), 'utf8'))).toMatchObject({ refresh_token: 'fixture-refresh' });
@@ -262,8 +262,8 @@ describe('Antigravity connected-service materialization through the catalog', ()
         processEnv: { HOME: cwd, GEMINI_HOME: native }, recordsByServiceId: new Map([['antigravity', record]]),
       });
       expect(result).not.toBeNull();
-      await expect(realpath(join(result!.env.GEMINI_HOME, 'antigravity-acp', 'conversations'))).resolves.toBe(join(native, 'antigravity-acp', 'conversations'));
-      await expect(realpath(join(result!.env.GEMINI_HOME, 'antigravity-acp', 'brain'))).resolves.toBe(join(native, 'antigravity-acp', 'brain'));
+      await expect(realpath(join(result!.env.GEMINI_HOME, 'antigravity-acp', 'conversations'))).resolves.toBe(await realpath(join(native, 'antigravity-acp', 'conversations')));
+      await expect(realpath(join(result!.env.GEMINI_HOME, 'antigravity-acp', 'brain'))).resolves.toBe(await realpath(join(native, 'antigravity-acp', 'brain')));
     });
   });
   it('keeps the auth parent private while inheriting config and sharing conversation sidecars and brain', async () => {

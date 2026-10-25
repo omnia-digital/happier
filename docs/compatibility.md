@@ -567,6 +567,45 @@ opt-out restores previews; users can disable them again from an updated client. 
 the flag and retain their existing reduced hints. There is no new server operation,
 migration, duplicate settings owner, or client-update requirement.
 
+### Foreground permission notifications (Omnia development fork)
+
+The development fork gives each pending CLI permission occurrence an opaque `occurrenceId`.
+The canonical request store preserves it while that occurrence remains active and replaces it
+when the request is replaced. The CLI waits for agent-state publication before sending the
+notification. Its remote push transport stamps `accountId` from the authenticated token subject,
+alongside the existing client-facing server URL; caller-supplied account identity cannot override it.
+
+Foreground notification responses use `session.permission.respondToOccurrence.v1` only with a
+request occurrence and a matching saved server/account credential. The settlement owner checks
+the occurrence and returns an application acknowledgement. Missing identity, mismatched accounts,
+stale occurrences or an unsupported method never downgrade to request-id-only approval: the user
+opens the app to review. Existing UI-local alerts omit these identities and remain review-only.
+The cached response returned at app startup is also review-only, even when both identities are
+present. Only a fresh foreground callback can submit a decision. The installed Expo Notifications
+0.32.16 async getter wraps a synchronous native snapshot; the hook classifies that snapshot before
+subscribing, ignores late callbacks after disposal, and reports read/clear failures by default.
+Delayed denial recovery checks the original occurrence before changing local request state, and
+Stop retains its captured account scope.
+
+The released `permission` operation remains available through the same settlement owner for
+ordinary in-app controls and older clients; it does not gain occurrence guarantees. Source comparison
+uses daily CLI `cli-v0.2.16` at `b8d1c449c46ab4dfa8637db36b66f643d149e66d`, stable
+`cli-v0.2.17` and preview `cli-v0.2.17-preview.1` at
+`a2c45c86804b24e60ac0b76146a3ef36dfcaa15b`, and stable `ui-web-v0.2.19` and preview
+`ui-web-v0.2.19-preview.25` at `63829e3cd6a8f1f48b10891af0c8b2313e51ac7e`. Their published
+GitHub release assets establish release provenance, not the installed or deployed version.
+Older UI readers discard unknown notification/request fields and keep their released behavior.
+
+The `server-v0.2.17` relay at `a2c45c86804b24e60ac0b76146a3ef36dfcaa15b` can forward the
+new method for an owning account, but its delegated/shared-session allowlist does not include it.
+That direction requires in-app review on the older relay rather than a legacy notification approval.
+Current-source encrypted RPC tests exercise publication, settlement, stale/duplicate rejection and
+the retained legacy operation; released binary peers and deployed relays were not exercised.
+
+This batch adds no Android background execution capability. Native notification delivery/callback
+acceptance and the required 0.3 destination disposition remain unverified; daily installations are
+unchanged.
+
 ## Migration history
 
 Migration source has a stricter authoring boundary than ordinary internal code:

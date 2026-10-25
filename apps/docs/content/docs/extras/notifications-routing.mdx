@@ -50,13 +50,29 @@ User-action requests include cases such as:
 
 Happier does **not** currently try to send freeform or multiple-choice answers directly from the notification itself. The action button is a fast path back into the correct session.
 
+### Foreground actions in the Omnia development fork
+
+**Development-only:** automatic permission responses also require the notification to identify the
+receiving account and the specific pending request. Happier checks both before responding. Older
+notifications and local alerts without those details open the app for review; a replaced request or
+changed account cannot be approved through the old notification.
+
+A saved notification response restored when the app starts always opens the request for review.
+It cannot resend an earlier approval or denial. A fresh foreground action can still respond when
+the account and pending request match.
+
+If an older relay cannot route a notification response for a shared session, review the request in
+the app instead. Ordinary in-app permission controls remain available with older CLIs. These checks
+do not add app-closed background actions; native delivery and action callbacks still need acceptance
+testing for the fork.
+
 ## Server-aware safety rules
 
 ### 1) Server is already active
 
 If the notification targets the server that is already active:
 
-- Happier performs the action immediately (for example `Allow` / `Deny`)
+- Happier performs an eligible action (for example `Allow` / `Deny`)
 - then opens the session
 
 ### 2) Server is saved, but not active

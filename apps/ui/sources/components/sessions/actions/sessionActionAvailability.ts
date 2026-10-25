@@ -7,9 +7,11 @@ import {
     SESSION_ACTION_MOVE_TO_FOLDER_ID,
     SESSION_ACTION_RENAME_ID,
     SESSION_ACTION_RESUME_ID,
+    SESSION_ACTION_PIN_ID,
     SESSION_ACTION_SET_ATTENTION_STANDING_ID,
     SESSION_ACTION_STOP_ID,
     SESSION_ACTION_UNARCHIVE_ID,
+    SESSION_ACTION_UNPIN_ID,
 } from './sessionActionIds';
 import type { SessionActionId, SessionActionSurface, SessionActionTarget } from './sessionActionTypes';
 
@@ -46,6 +48,10 @@ export function listVisibleSessionActionIds(params: Readonly<{
 
     if (target.canRename) {
         ids.push(SESSION_ACTION_RENAME_ID);
+    }
+
+    if (surface === 'sessionHeader' && target.serverId && !target.isArchived) {
+        ids.push(target.isPinned ? SESSION_ACTION_UNPIN_ID : SESSION_ACTION_PIN_ID);
     }
 
     if (surface === 'sessionHeader' && target.canResume) {

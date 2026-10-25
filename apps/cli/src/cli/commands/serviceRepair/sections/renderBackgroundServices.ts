@@ -37,14 +37,7 @@ function rowFromAutomaticStartup(
   entry: AutomaticStartupEntry,
   matchedDaemon: RunningDaemonEntry | null,
 ): Row {
-  // Prefer the live daemon's data when one is present — `runningCliVersion`
-  // from the inventory can lag (it's read from the plist; a fresh takeover
-  // doesn't rewrite the plist, but the daemon's `startedWithCliVersion`
-  // IS up to date). pid/running are also authoritative from the daemon.
-  const raw = matchedDaemon?.startedWithCliVersion
-    ?? entry.runningCliVersion
-    ?? entry.configuredCliVersion
-    ?? null;
+  const raw = entry.runningCliVersion ?? entry.configuredCliVersion ?? null;
   const isRunning = matchedDaemon !== null || entry.running === true;
   return {
     sortKey: isRunning ? 0 : 1,
@@ -89,17 +82,28 @@ function buildRows(
   automatic: readonly AutomaticStartupEntry[],
   running: readonly RunningDaemonEntry[],
 ): Row[] {
-  // Fold running-daemon info into the managing-service row when they
-  // represent the same physical slot (service's `managedServerIds`
-  // includes the daemon's real serverId). Otherwise the user sees two
-  // rows for what is actually one daemon: the service entry AND the
-  // running daemon that the service is managing.
+  // The daemon snapshot has no service mode or installed path. A shared
+  // profile alone cannot identify its owner when multiple services qualify.
+  const daemonCandidates = running.map((daemon) => {
+    if (daemon.startedBy !== 'automatic-startup') return [];
+    return automatic.flatMap((service, index) => {
+      const managed = service.managedServerIds ?? [service.serverId];
+      return service.running === true
+        && service.happierHomeDir !== null
+        && !service.isForeignHome
+        && (daemon.startedWithReleaseChannel === null || service.releaseChannel === daemon.startedWithReleaseChannel)
+        && managed.includes(daemon.serverId)
+        ? [index]
+        : [];
+    });
+  });
   const consumed = new Set<number>(); // indexes of running daemons folded into a service row
-  const rows: Row[] = automatic.map((e) => {
-    const managed = e.managedServerIds ?? [e.serverId];
-    const matchIdx = running.findIndex((d) => managed.includes(d.serverId));
+  const rows: Row[] = automatic.map((service, serviceIndex) => {
+    const matches = daemonCandidates.flatMap((candidates, daemonIndex) =>
+      candidates.length === 1 && candidates[0] === serviceIndex ? [daemonIndex] : []);
+    const matchIdx = matches.length === 1 ? matches[0] : -1;
     if (matchIdx >= 0) consumed.add(matchIdx);
-    return rowFromAutomaticStartup(e, matchIdx >= 0 ? running[matchIdx] : null);
+    return rowFromAutomaticStartup(service, matchIdx >= 0 ? running[matchIdx] : null);
   });
   for (let i = 0; i < running.length; i += 1) {
     if (consumed.has(i)) continue;
@@ -193,8 +197,8 @@ function subLine(row: Row, findings: readonly RepairFinding[]): string | null {
     switch (primary.kind) {
       case 'automatic_startup_version_stale': {
         const current = compactVersion(primary.currentCliVersion);
-        const configured = entry.configuredCliVersion ? compactVersion(entry.configuredCliVersion) : '(unknown)';
-        return `configured CLI ${configured} — newer CLI ${current} installed, restart to pick it up`;
+        const running = primary.entry.runningCliVersion ? compactVersion(primary.entry.runningCliVersion) : '(unknown)';
+        return `running CLI ${running} — CLI ${current} installed, restart to pick it up`;
       }
       case 'automatic_startup_stale_definition':
         return 'service definition drifted — reinstalling brings it back in sync';
@@ -224,7 +228,7 @@ function subLine(row: Row, findings: readonly RepairFinding[]): string | null {
         const fromChannel = daemon.startedWithReleaseChannel ?? 'another channel';
         return `${fromChannel} daemon on this CLI's profile — take over and run on ${primary.currentCliReleaseChannel} · ${target}`;
       }
-      return `older than this CLI — restart to pick up ${target}`;
+      return `different CLI version — restart to pick up ${target}`;
     }
     if (primary.kind === 'running_daemon_duplicate_profile') {
       return `duplicate — two daemons own the same relay profile (pid ${daemon.pid})`;
@@ -240,7 +244,7 @@ function subLine(row: Row, findings: readonly RepairFinding[]): string | null {
       const fromChannel = row.mergedDaemon.startedWithReleaseChannel ?? 'another channel';
       return `${fromChannel} daemon on this CLI's profile — take over and run on ${primary.currentCliReleaseChannel} · ${target}`;
     }
-    return `older than this CLI — restart to pick up ${target}`;
+    return `different CLI version — restart to pick up ${target}`;
   }
 
   return null;

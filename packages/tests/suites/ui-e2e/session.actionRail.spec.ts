@@ -239,7 +239,7 @@ test.describe('ui e2e: session action rail', () => {
       const sessionUrl = `${uiBaseUrl}/session/${sessionId}`;
 
       await mutateUiE2eScopedAccountSettings({ page, experiments: true, featureToggles: { 'terminal.embeddedPty': true } });
-      await mutateUiE2eLocalSettings({ page, settingsPatch: { themePreference: 'light', embeddedTerminalDockLocation: 'bottom', uiContentWidthMode: 'compact', uiFontScale: 1.5 } });
+      await mutateUiE2eLocalSettings({ page, settingsPatch: { themePreference: 'light', embeddedTerminalDockLocation: 'bottom', uiContentWidthMode: 'compact', uiFontScale: 1.5, devModeEnabled: false } });
       await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
       const rail = page.getByTestId('session-action-rail');
       const review = page.getByTestId('session-action-rail:review');
@@ -271,6 +271,30 @@ test.describe('ui e2e: session action rail', () => {
       await send.click();
       await expect(page.getByText('FAKE_CLAUDE_OK_1').first()).toBeVisible({ timeout: 180_000 });
       await expect(page.locator('[data-testid^="transcript-message-"]').first()).toBeVisible({ timeout: 60_000 });
+
+      await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new URL(uiBaseUrl).origin });
+      await page.getByTestId('session-header-action-menu-trigger').click();
+      const pinAction = page.getByTestId('dropdown-option-ui_session_pin');
+      await expect(pinAction).toBeVisible();
+      const pinResponsePromise = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return response.request().method() === 'PUT'
+          && url.pathname === `/v2/session-organization/pins/${encodeURIComponent(sessionId)}`;
+      });
+      await pinAction.click();
+      const pinResponse = await pinResponsePromise;
+      expect(pinResponse.status()).toBe(200);
+      expect(pinResponse.request().postDataJSON()).toEqual({ pinned: true });
+      expect(await pinResponse.json()).toMatchObject({ pin: { sessionId } });
+      await page.goto(uiBaseUrl, { waitUntil: 'domcontentloaded' });
+      await waitForInitialAppUi({ page, browserDiagnostics });
+      await expect(page.getByTestId('session-list-header:pinned-v1')).toBeVisible({ timeout: 60_000 });
+      await page.goto(sessionUrl, { waitUntil: 'domcontentloaded' });
+      await expect(page.getByTestId('session-header-action-menu-trigger')).toBeVisible({ timeout: 60_000 });
+      await page.getByTestId('session-header-action-menu-trigger').click();
+      await expect(page.getByTestId('dropdown-option-ui_session_unpin')).toBeVisible();
+      await page.getByTestId('dropdown-option-session_copyDebugInformation').click();
+      await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toContain(`Happier session ID: ${sessionId}`);
 
       await test.step('stored message timestamps stay visible and accessible in compact large text', async () => {
         await page.setViewportSize({ width: 390, height: 844 });

@@ -1,6 +1,6 @@
 import { type AuthCredentials } from '@/auth/storage/tokenStorage';
 import { setSessionAttentionStanding as setSessionAttentionStandingApi } from '@/sync/api/session/sessionOrganizationApi';
-import { resolveSessionOrganizationMutationScope } from '@/sync/domains/session/organization/mutationScope';
+import { createSessionOrganizationMutationPublisher, resolveSessionOrganizationMutationScope } from '@/sync/domains/session/organization/mutationScope';
 import { getStorage } from '@/sync/domains/state/storageStore';
 import { resolvePreferredServerIdForSessionId } from '@/sync/runtime/orchestration/serverScopedRpc/resolvePreferredServerIdForSessionId';
 
@@ -11,7 +11,10 @@ export async function setSessionAttentionStanding(params: Readonly<{
     sessionId: string;
     standing?: boolean | null;
     remindAt?: number | null;
+    /** Recheck a caller-owned precondition after the publisher's credential read. */
+    precondition?: () => boolean;
 }>): Promise<void> {
+    const publish = createSessionOrganizationMutationPublisher(params);
     const previousStanding = getStorage().getState().sessionOrganizationAttentionStandingsBySessionKey[`${params.serverId}:${params.sessionId}`];
     const optimisticStanding = params.standing === null
         ? null
@@ -22,7 +25,16 @@ export async function setSessionAttentionStanding(params: Readonly<{
                 : previousStanding == null
                     ? null
                     : { sessionId: params.sessionId, standing: previousStanding.standing, updatedAt: Date.now() };
-    const recordId = getStorage().getState().setSessionAttentionStandingOptimistic(params.serverId, params.sessionId, optimisticStanding);
+    let recordId: string | null = null;
+    let shouldSend = true;
+    await publish(() => {
+        if (params.precondition && !params.precondition()) {
+            shouldSend = false;
+            return;
+        }
+        recordId = getStorage().getState().setSessionAttentionStandingOptimistic(params.serverId, params.sessionId, optimisticStanding);
+    });
+    if (!shouldSend) return;
     try {
         const response = await setSessionAttentionStandingApi({
             credentials: params.credentials,
@@ -30,10 +42,12 @@ export async function setSessionAttentionStanding(params: Readonly<{
             sessionId: params.sessionId,
             request: params.standing !== undefined ? { standing: params.standing } : { remindAt: params.remindAt ?? null },
         });
-        getStorage().getState().confirmSessionAttentionStandingOptimistic(recordId, params.sessionId, response.standing);
+        if (recordId) await publish(() => getStorage().getState().confirmSessionAttentionStandingOptimistic(recordId!, params.sessionId, response.standing));
     } catch (error) {
-        getStorage().getState().rollbackSessionOrganizationOptimistic(recordId);
+        if (recordId) await publish(() => getStorage().getState().rollbackSessionOrganizationOptimistic(recordId!));
         throw error;
+    } finally {
+        if (recordId) getStorage().getState().commitSessionOrganizationOptimistic(recordId);
     }
 }
 

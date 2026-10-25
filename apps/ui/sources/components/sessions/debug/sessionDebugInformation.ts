@@ -1,3 +1,7 @@
+import { resolveAgentIdFromSessionMetadata } from '@happier-dev/agents';
+import { DEFAULT_AGENT_ID, getAgentCore } from '@/agents/catalog/catalog';
+import { t } from '@/text';
+
 type SessionDebugMetadata = unknown;
 
 export type SessionDebugInformationSession = Readonly<{
@@ -88,4 +92,17 @@ export function buildSessionDebugInformation(params: Readonly<{
         happierSessionLogPath,
         providerSessionArtifactPath: providerSessionArtifactPath ?? null,
     };
+}
+
+export function buildSessionDebugInformationForSession(session: SessionDebugInformationSession): SessionDebugInformation {
+    const agentId = resolveAgentIdFromSessionMetadata(session.metadata) ?? DEFAULT_AGENT_ID;
+    const agentCore = getAgentCore(agentId);
+    return buildSessionDebugInformation({
+        session,
+        providerDisplayName: t(agentCore.displayNameKey),
+        providerSessionId: resolveProviderSessionIdForDebug({
+            metadata: session.metadata,
+            vendorResumeIdField: agentCore.resume.vendorResumeIdField,
+        }),
+    });
 }

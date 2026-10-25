@@ -97,15 +97,13 @@ import {
 } from '@/sync/domains/session/folders';
 import {
     setSessionFolderAssignment as setSessionOrganizationFolderAssignment,
-    setSessionPin as setSessionOrganizationPin,
     setSessionTagLabels as setSessionOrganizationTagLabels,
 } from '@/sync/ops/sessionOrganization';
 import { buildSessionOrganizationListViewState } from '@/sync/domains/session/organization/viewState';
 import { Icon } from '@/components/ui/icons/Icon';
 import {
-    buildSessionDebugInformation,
+    buildSessionDebugInformationForSession,
     isSessionDebugInformationEnabled,
-    resolveProviderSessionIdForDebug,
 } from '@/components/sessions/debug/sessionDebugInformation';
 import { resolveSessionOrganizationMutationScope } from '@/sync/domains/session/organization/mutationScope';
 
@@ -575,17 +573,7 @@ function SessionInfoContent({ session, sessionServerId, sourceMachineIdForHandof
         return getAgentVendorResumeId(session.metadata, agentId);
     }, [agentId, session.metadata]);
     const providerDisplayName = React.useMemo(() => t(core.displayNameKey), [core.displayNameKey]);
-    const providerSessionIdForDebug = React.useMemo(() => {
-        return resolveProviderSessionIdForDebug({
-            metadata: session.metadata,
-            vendorResumeIdField: core.resume.vendorResumeIdField,
-        });
-    }, [core.resume.vendorResumeIdField, session.metadata]);
-    const sessionDebugInformation = React.useMemo(() => buildSessionDebugInformation({
-        session,
-        providerDisplayName,
-        providerSessionId: providerSessionIdForDebug,
-    }), [providerDisplayName, providerSessionIdForDebug, session]);
+    const sessionDebugInformation = React.useMemo(() => buildSessionDebugInformationForSession(session), [session]);
     const providerSessionArtifactPath = sessionDebugInformation.providerSessionArtifactPath;
 
     const profileLabel = React.useMemo(() => {
@@ -764,20 +752,8 @@ function SessionInfoContent({ session, sessionServerId, sourceMachineIdForHandof
         await executeSessionAction({
             actionId: isPinnedSession ? SESSION_ACTION_UNPIN_ID : SESSION_ACTION_PIN_ID,
             target: sessionActionTarget,
-            context: {
-                operations: {
-                    setPinned: async (_sessionId, pinned) => {
-                        const mutation = await getOrganizationMutationContext();
-                        await setSessionOrganizationPin({
-                            ...mutation,
-                            sessionId: session.id,
-                            pinned,
-                        });
-                    },
-                },
-            },
         });
-    }, [getOrganizationMutationContext, isPinnedSession, session.id, sessionActionTarget, sessionSettingsKey]);
+    }, [isPinnedSession, sessionActionTarget, sessionSettingsKey]);
     const [pinningSession, performTogglePinned] = useHappyAction(handleTogglePinned);
 
     const handleEditTags = useCallback(async () => {
@@ -1108,14 +1084,12 @@ function SessionInfoContent({ session, sessionServerId, sourceMachineIdForHandof
                         icon={<Icon name="copy" size={29} color={theme.colors.accent.blue} />}
                         onPress={handleNewSessionSameSetup}
                     />
-                    {devModeEnabled ? (
-                        <Item
-                            testID="session-info-copy-debug-information"
-                            title={t('sessionInfo.copyDebugInformation')}
-                            icon={<Icon name="copy" size={29} color={theme.colors.accent.blue} />}
-                            copy={sessionDebugInformation.text}
-                        />
-                    ) : null}
+                    <Item
+                        testID="session-info-copy-debug-information"
+                        title={t('sessionInfo.copyDebugInformation')}
+                        icon={<Icon name="copy" size={29} color={theme.colors.accent.blue} />}
+                        copy={sessionDebugInformation.text}
+                    />
                     {!session.accessLevel && handoffActionEnabled && handoffSupported && (
                         <Item
                             title={handoffActionSpec.title}

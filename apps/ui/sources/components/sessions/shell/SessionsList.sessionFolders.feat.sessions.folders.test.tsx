@@ -197,7 +197,7 @@ vi.mock('@/auth/storage/tokenStorage', async (importOriginal) => {
 });
 
 vi.mock('@/sync/domains/server/serverProfiles', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('@/sync/domains/server/serverProfiles')>()),
+    ...await importOriginal<typeof import('@/sync/domains/server/serverProfiles')>(),
     resolveServerProfileScopeId: (profile: { id: string; serverIdentityId?: string | null }) => (
         profile.serverIdentityId ?? profile.id
     ),

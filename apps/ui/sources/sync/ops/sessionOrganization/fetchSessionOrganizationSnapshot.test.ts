@@ -1,16 +1,16 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { TokenStorage } from '@/auth/storage/tokenStorage';
+import { setServerProfileIdentityForUrl, upsertServerProfile } from '@/sync/domains/server/serverProfiles';
 
 const mocks = vi.hoisted(() => ({
     createEncryptionFromAuthCredentials: vi.fn(),
     fetchAccountEncryptionMode: vi.fn(),
-    resolveServerProfileScopeIdForIdentifier: vi.fn(),
     serverFetch: vi.fn(),
 }));
 
-vi.mock('@/sync/domains/server/serverProfiles', async (importOriginal) => ({
-    ...await importOriginal<typeof import('@/sync/domains/server/serverProfiles')>(),
-    resolveServerProfileScopeIdForIdentifier: mocks.resolveServerProfileScopeIdForIdentifier,
-}));
+const SERVER_URL = 'https://server-a.example';
+const SERVER_ID = 'srv_snapshot_a';
+const credentials = { token: `header.${Buffer.from(JSON.stringify({ sub: 'account-a' })).toString('base64')}.signature`, secret: 'secret-a' };
 
 vi.mock('@/auth/encryption/createEncryptionFromAuthCredentials', () => ({
     createEncryptionFromAuthCredentials: mocks.createEncryptionFromAuthCredentials,
@@ -33,19 +33,20 @@ function jsonResponse(body: unknown): Response {
 
 describe('fetchAndApplySessionOrganizationSnapshot', () => {
     beforeEach(async () => {
+        upsertServerProfile({ serverUrl: SERVER_URL });
+        setServerProfileIdentityForUrl(SERVER_URL, SERVER_ID);
+        vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue(credentials);
         mocks.createEncryptionFromAuthCredentials.mockReset();
         mocks.createEncryptionFromAuthCredentials.mockResolvedValue({
             getContentPrivateKey: () => new Uint8Array(32).fill(9),
         });
         mocks.fetchAccountEncryptionMode.mockReset();
         mocks.fetchAccountEncryptionMode.mockResolvedValue({ mode: 'e2ee', updatedAt: 0 });
-        mocks.resolveServerProfileScopeIdForIdentifier.mockReset();
-        mocks.resolveServerProfileScopeIdForIdentifier.mockImplementation((serverId: string) => serverId);
         mocks.serverFetch.mockReset();
         const { getStorage } = await import('@/sync/domains/state/storageStore');
-        getStorage().getState().clearSessionOrganizationForServer('server-a');
-        getStorage().getState().clearSessionOrganizationForServer('server-a-before-identity');
+        getStorage().getState().clearSessionOrganizationForServer(SERVER_ID);
     });
+    afterEach(() => vi.restoreAllMocks());
 
     it('applies scoped snapshot data and marks missing requested assignments as unassigned', async () => {
         const { getStorage } = await import('@/sync/domains/state/storageStore');
@@ -64,9 +65,9 @@ describe('fetchAndApplySessionOrganizationSnapshot', () => {
             },
         }));
 
-        await fetchAndApplySessionOrganizationSnapshot({
-            credentials: { token: 'token-a', secret: 'secret-a' },
-            serverId: 'server-a',
+        const applied = await fetchAndApplySessionOrganizationSnapshot({
+            credentials,
+            serverId: SERVER_ID,
             request: {
                 includeFolders: false,
                 includeTags: false,
@@ -75,17 +76,18 @@ describe('fetchAndApplySessionOrganizationSnapshot', () => {
             },
         });
 
+        expect(applied).toBe(true);
         const state = getStorage().getState();
-        expect(state.sessionOrganizationPinsBySessionKey['server-a:s1']?.sortKey).toBe('rank-a');
+        expect(state.sessionOrganizationPinsBySessionKey[`${SERVER_ID}:s1`]?.sortKey).toBe('rank-a');
         expect(state.sessionFolderAssignmentsBySessionKey).toMatchObject({
-            'server-a:s1': 'folder-a',
-            'server-a:s2': null,
+            [`${SERVER_ID}:s1`]: 'folder-a',
+            [`${SERVER_ID}:s2`]: null,
         });
         expect(state.sessionOrganizationTagAssignmentsBySessionKey).toMatchObject({
-            'server-a:s1': ['tag-a'],
-            'server-a:s2': [],
+            [`${SERVER_ID}:s1`]: ['tag-a'],
+            [`${SERVER_ID}:s2`]: [],
         });
-        expect(state.sessionOrganizationLoadingByServerId['server-a']).toBe(false);
+        expect(state.sessionOrganizationLoadingByServerId[SERVER_ID]).toBe(false);
     });
 
     it('opens encrypted display envelopes before applying snapshots', async () => {
@@ -93,10 +95,10 @@ describe('fetchAndApplySessionOrganizationSnapshot', () => {
         const { prepareSessionOrganizationDisplayEnvelope } = await import('./sessionOrganizationDisplayEnvelope');
         const { fetchAndApplySessionOrganizationSnapshot } = await import('./fetchSessionOrganizationSnapshot');
         const display = await prepareSessionOrganizationDisplayEnvelope({
-            credentials: { token: 'token-a', secret: 'secret-a' },
+            credentials,
             value: {
                 name: 'Encrypted folder',
-                workspace: { t: 'workspaceScope', serverId: 'server-a', machineId: 'machine-a', rootPath: '/repo' },
+                workspace: { t: 'workspaceScope', serverId: SERVER_ID, machineId: 'machine-a', rootPath: '/repo' },
             },
         });
         mocks.serverFetch.mockResolvedValueOnce(jsonResponse({
@@ -124,18 +126,18 @@ describe('fetchAndApplySessionOrganizationSnapshot', () => {
         }));
 
         await fetchAndApplySessionOrganizationSnapshot({
-            credentials: { token: 'token-a', secret: 'secret-a' },
-            serverId: 'server-a',
+            credentials,
+            serverId: SERVER_ID,
             request: {
                 includeFolders: true,
             },
         });
 
-        expect(getStorage().getState().sessionOrganizationFoldersByFolderKey['server-a:folder-a']?.display).toEqual({
+        expect(getStorage().getState().sessionOrganizationFoldersByFolderKey[`${SERVER_ID}:folder-a`]?.display).toEqual({
             t: 'plain',
             v: {
                 name: 'Encrypted folder',
-                workspace: { t: 'workspaceScope', serverId: 'server-a', machineId: 'machine-a', rootPath: '/repo' },
+                workspace: { t: 'workspaceScope', serverId: SERVER_ID, machineId: 'machine-a', rootPath: '/repo' },
             },
         });
     });
@@ -143,10 +145,10 @@ describe('fetchAndApplySessionOrganizationSnapshot', () => {
     it('applies an in-flight snapshot under the current profile scope after server identity discovery', async () => {
         const { getStorage } = await import('@/sync/domains/state/storageStore');
         const { fetchAndApplySessionOrganizationSnapshot } = await import('./fetchSessionOrganizationSnapshot');
-        let resolvedServerId = 'server-a-before-identity';
-        mocks.resolveServerProfileScopeIdForIdentifier.mockImplementation(() => resolvedServerId);
+        setServerProfileIdentityForUrl(SERVER_URL, null);
+        const localProfileId = upsertServerProfile({ serverUrl: SERVER_URL }).id;
         mocks.serverFetch.mockImplementationOnce(async () => {
-            resolvedServerId = 'server-a';
+            setServerProfileIdentityForUrl(SERVER_URL, SERVER_ID);
             return jsonResponse({
                 snapshot: {
                     schemaVersion: 1,
@@ -173,16 +175,16 @@ describe('fetchAndApplySessionOrganizationSnapshot', () => {
         });
 
         await fetchAndApplySessionOrganizationSnapshot({
-            credentials: { token: 'token-a', secret: 'secret-a' },
-            serverId: 'server-a-before-identity',
+            credentials,
+            serverId: localProfileId,
             request: { includeFolders: true },
         });
 
         const state = getStorage().getState();
-        expect(state.sessionOrganizationFoldersByFolderKey['server-a:folder-after-identity']).toBeDefined();
-        expect(state.sessionOrganizationFoldersByFolderKey['server-a-before-identity:folder-after-identity']).toBeUndefined();
-        expect(state.sessionOrganizationLoadingByServerId['server-a-before-identity']).toBe(false);
-        expect(state.sessionOrganizationLoadingByServerId['server-a']).toBe(false);
+        expect(state.sessionOrganizationFoldersByFolderKey[`${SERVER_ID}:folder-after-identity`]).toBeDefined();
+        expect(state.sessionOrganizationFoldersByFolderKey[`${localProfileId}:folder-after-identity`]).toBeUndefined();
+        expect(state.sessionOrganizationLoadingByServerId[localProfileId]).not.toBe(true);
+        expect(state.sessionOrganizationLoadingByServerId[SERVER_ID]).toBe(false);
     });
 
     it('does not apply a snapshot if the scope is cancelled after display envelopes are opened', async () => {
@@ -190,10 +192,10 @@ describe('fetchAndApplySessionOrganizationSnapshot', () => {
         const { prepareSessionOrganizationDisplayEnvelope } = await import('./sessionOrganizationDisplayEnvelope');
         const { fetchAndApplySessionOrganizationSnapshot } = await import('./fetchSessionOrganizationSnapshot');
         const display = await prepareSessionOrganizationDisplayEnvelope({
-            credentials: { token: 'token-a', secret: 'secret-a' },
+            credentials,
             value: {
                 name: 'Stale folder',
-                workspace: { t: 'workspaceScope', serverId: 'server-a', machineId: 'machine-a', rootPath: '/repo' },
+                workspace: { t: 'workspaceScope', serverId: SERVER_ID, machineId: 'machine-a', rootPath: '/repo' },
             },
         });
         mocks.serverFetch.mockResolvedValueOnce(jsonResponse({
@@ -221,9 +223,9 @@ describe('fetchAndApplySessionOrganizationSnapshot', () => {
         }));
         let checks = 0;
 
-        await fetchAndApplySessionOrganizationSnapshot({
-            credentials: { token: 'token-a', secret: 'secret-a' },
-            serverId: 'server-a',
+        const applied = await fetchAndApplySessionOrganizationSnapshot({
+            credentials,
+            serverId: SERVER_ID,
             request: {
                 includeFolders: true,
             },
@@ -233,7 +235,8 @@ describe('fetchAndApplySessionOrganizationSnapshot', () => {
             },
         });
 
+        expect(applied).toBe(false);
         expect(checks).toBeGreaterThanOrEqual(2);
-        expect(getStorage().getState().sessionOrganizationFoldersByFolderKey['server-a:folder-stale']).toBeUndefined();
+        expect(getStorage().getState().sessionOrganizationFoldersByFolderKey[`${SERVER_ID}:folder-stale`]).toBeUndefined();
     });
 });

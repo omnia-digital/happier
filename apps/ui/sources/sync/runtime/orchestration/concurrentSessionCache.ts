@@ -345,7 +345,7 @@ async function refreshConcurrentOrganization(entry: ManagedConcurrentServer): Pr
             targetServerId: entry.id, targetServerUrl: entry.serverUrl, targetAccountId,
         });
         try {
-            await fetchAndApplySessionOrganizationSnapshot({
+            const applied = await fetchAndApplySessionOrganizationSnapshot({
                 credentials: entry.credentials,
                 serverId: entry.id,
                 serverUrl: entry.serverUrl,
@@ -353,7 +353,7 @@ async function refreshConcurrentOrganization(entry: ManagedConcurrentServer): Pr
                 shouldContinue: () => isManagedServerActive(entry),
                 canApplySnapshot: isContextCurrent,
             });
-            if (!await isContextCurrent() || !isManagedServerActive(entry)) return;
+            if (!applied || !await isContextCurrent() || !isManagedServerActive(entry)) return;
             persistSessionOrganizationWarmCache(entry.id, entry.accountId, buildOrganizationProjectionForServer(storage.getState(), entry.id));
         } catch (error) {
             console.warn('[concurrentSessionCache] Organization refresh failed', error);

@@ -147,6 +147,7 @@ describe('happier attach', () => {
       readSettingsFn: async (): Promise<Settings> => ({ machineId: 'machine-local' } as Settings),
       fetchSessionByIdFn: async () => rawSession,
       readTerminalAttachmentInfoFn: async () => null,
+      isTmuxAvailableFn: async () => true,
       runProviderAttachFn: vi.fn(async () => false),
       runTmuxAttachFn: vi.fn(async () => 0),
     })).rejects.toThrow('process.exit(1)');

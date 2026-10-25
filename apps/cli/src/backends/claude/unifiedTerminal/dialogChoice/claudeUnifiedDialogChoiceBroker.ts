@@ -338,7 +338,7 @@ export class ClaudeUnifiedDialogChoiceBroker {
   ): Promise<PermissionRpcConsumerOutcome> {
     const requestId = typeof payload?.id === 'string' ? payload.id : '';
     if (!requestId) return false;
-    const context = this.permissionCoordinator.getResponseContext(requestId);
+    const context = this.permissionCoordinator.getResponseContext(requestId, payload.occurrenceId);
     if (!isDialogChoiceContext(context)) return false;
     if (context.status !== 'live') {
       void this.completeSourceOwnedCancellation(requestId, 'claude_unified_dialog_choice_no_live_waiter').catch(() => {
@@ -402,6 +402,7 @@ export class ClaudeUnifiedDialogChoiceBroker {
     try {
       completion = await this.permissionCoordinator.completeRpcResponse({
         context,
+        expectedOccurrenceId: payload.occurrenceId,
         completion: {
           result: decision,
           completedRequest: {

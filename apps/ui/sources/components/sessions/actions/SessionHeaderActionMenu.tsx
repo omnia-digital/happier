@@ -53,17 +53,22 @@ import {
   SESSION_ACTION_CLEAR_ATTENTION_STANDING_ID,
   SESSION_ACTION_MARK_READ_ID,
   SESSION_ACTION_MARK_UNREAD_ID,
+  SESSION_ACTION_PIN_ID,
   SESSION_ACTION_RENAME_ID,
   SESSION_ACTION_RESUME_ID,
   SESSION_ACTION_SET_ATTENTION_STANDING_ID,
   SESSION_ACTION_STOP_ID,
   SESSION_ACTION_UNARCHIVE_ID,
+  SESSION_ACTION_UNPIN_ID,
 } from '@/components/sessions/actions/sessionActionIds';
 import { buildSessionMetadataStabilitySignature } from '@/sync/domains/session/metadata/sessionMetadataStability';
 import { getSessionName } from '@/utils/sessions/sessionUtils';
 import { resolveSessionHeaderActionTargetPx, SESSION_HEADER_ICON_SIZE_PX } from '@/components/sessions/actions/sessionHeaderIconMetrics';
 import { Icon } from '@/components/ui/icons/Icon';
 import { emitSessionResumeRequest } from '@/components/sessions/model/sessionResumeRequests';
+import { buildSessionDebugInformationForSession } from '@/components/sessions/debug/sessionDebugInformation';
+import { copySessionDebugInformationToClipboard } from '@/components/sessions/debug/sessionDebugClipboard';
+import { createCopySessionDebugInformationMenuItem, SESSION_COPY_DEBUG_INFORMATION_MENU_ITEM_ID } from '@/components/sessions/debug/sessionDebugMenuItem';
 
 type SessionHeaderActionMenuProps = Readonly<{
   sessionId: string;
@@ -204,24 +209,26 @@ function SessionHeaderActionMenuInner(props: SessionHeaderActionMenuProps) {
   const attentionStanding = useSessionAttentionStandingInputs(
     organizationListViewState.attentionStandingOverridesBySessionKey,
   );
-  const sessionAttentionStandingKey = typeof sessionServerId === 'string' && sessionServerId.trim()
+  const sessionOrganizationKey = typeof sessionServerId === 'string' && sessionServerId.trim()
     ? sessionTagKey(sessionServerId, props.sessionId)
     : null;
-  const attentionStandingEnabled = attentionStanding.actionEnabled && sessionAttentionStandingKey != null;
-  const isAttentionStandingSession = sessionAttentionStandingKey != null
-    && resolveSessionAttentionStanding(attentionStanding.policy, sessionAttentionStandingKey);
+  const attentionStandingEnabled = attentionStanding.actionEnabled && sessionOrganizationKey != null;
+  const isAttentionStandingSession = sessionOrganizationKey != null
+    && resolveSessionAttentionStanding(attentionStanding.policy, sessionOrganizationKey);
+  const isPinnedSession = sessionOrganizationKey != null
+    && organizationListViewState.pinnedSessionKeysV1.includes(sessionOrganizationKey);
   const sessionActionTarget = React.useMemo(
     () => createSessionActionTarget({
       session,
       serverId: sessionServerId ?? null,
       currentUserId: !session.accessLevel && typeof session.owner === 'string' ? session.owner : null,
       isConnected: session.active === true,
-      isPinned: false,
+      isPinned: isPinnedSession,
       attentionStandingEnabled,
       attentionStanding: isAttentionStandingSession,
       resumeCapabilityOptions: { accountSettings: settings },
     }),
-    [attentionStandingEnabled, isAttentionStandingSession, readStateSignature, session, sessionServerId, settings],
+    [attentionStandingEnabled, isAttentionStandingSession, isPinnedSession, readStateSignature, session, sessionServerId, settings],
   );
   const reachableMachineId = useSessionMachineTarget(props.sessionId)?.machineId ?? null;
   const sourceMachineId = React.useMemo(
@@ -299,6 +306,10 @@ function SessionHeaderActionMenuInner(props: SessionHeaderActionMenuProps) {
       }
     }
 
+    if (!existingActionIds.has(SESSION_COPY_DEBUG_INFORMATION_MENU_ITEM_ID)) {
+      out.push(createCopySessionDebugInformationMenuItem({ iconColor: theme.colors.chrome.header.foreground }));
+    }
+
     if (showTeleportAction) {
       out.push({
         id: 'voice.teleport',
@@ -333,6 +344,21 @@ function SessionHeaderActionMenuInner(props: SessionHeaderActionMenuProps) {
       onSelect={(actionId) => {
         setOpen(false);
         if (props.onSelectExtraItem?.(actionId) === true) return;
+        if (actionId === SESSION_COPY_DEBUG_INFORMATION_MENU_ITEM_ID) {
+          const currentSession = readCurrentSessionForOpenMenu(props.sessionId, session);
+          fireAndForget(copySessionDebugInformationToClipboard(buildSessionDebugInformationForSession(currentSession)), {
+            tag: 'SessionHeaderActionMenu.execute.copyInformation',
+            onError: () => Modal.alert(t('common.error'), t('sessionInfo.failedToCopyMetadata')),
+          });
+          return;
+        }
+        if (actionId === SESSION_ACTION_PIN_ID || actionId === SESSION_ACTION_UNPIN_ID) {
+          fireAndForget(executeSessionAction({ actionId, target: sessionActionTarget }), {
+            tag: 'SessionHeaderActionMenu.execute.sessionPin',
+            onError: (error) => Modal.alert(t('common.error'), error instanceof Error ? error.message : t('errors.unknownError')),
+          });
+          return;
+        }
         if (actionId === 'header.openRuns') {
           router.push((`/session/${props.sessionId}/runs`) as any);
           return;
