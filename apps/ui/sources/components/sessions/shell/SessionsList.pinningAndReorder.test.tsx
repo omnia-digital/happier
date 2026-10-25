@@ -141,17 +141,6 @@ installSessionShellCommonModuleMocks({
                     connectedServiceCredentialRevisionsV1: [],
                 }),
                 useAllMachines: () => mockMachinesState.current,
-                useMachineDisplayById: () => Object.fromEntries(mockMachinesState.current.map((machine) => [
-                    machine.id,
-                    {
-                        updatedAt: 0,
-                        active: true,
-                        activeAt: 0,
-                        revokedAt: null,
-                        metadataVersion: 1,
-                        ...machine,
-                    },
-                ])),
                 useSettingMutable: (key: string) => {
                     if (key === 'hideInactiveSessions') return [hideInactiveSessions, vi.fn()];
                     if (key === 'pinnedSessionKeysV1') return [pinnedSessionKeysV1, setPinnedSessionKeysV1];
@@ -248,6 +237,7 @@ vi.mock('@/sync/domains/server/serverProfiles', async (importOriginal) => {
     const actual = await importOriginal<typeof import('@/sync/domains/server/serverProfiles')>();
     return {
         ...actual,
+        getActiveServerId: () => 'server_a',
         getServerProfileById: (serverId: string) => {
             if (serverId !== 'server_a') return null;
             return {
@@ -439,6 +429,7 @@ describe('SessionsList pinning + per-group ordering', () => {
             profileScope: { serverId: 'server_a', accountId: 'account_a' },
             sessions: {},
             machines: {},
+            machineDisplayById: {},
         });
         mockMachinesState.current = [];
         sessionOrganizationProjection = createEmptySessionOrganizationProjection();
@@ -804,6 +795,10 @@ describe('SessionsList pinning + per-group ordering', () => {
         } as any;
 
         storage.setState({
+            machineDisplayById: Object.fromEntries(mockMachinesState.current.map((machine) => [
+                machine.id,
+                { id: machine.id, updatedAt: 0, active: true, activeAt: 0, metadataVersion: 1, metadata: machine.metadata },
+            ])),
             sessions: {
                 sess_live_1: { ...sess1, metadata: { machineId: 'machine-live-1', path: '/home/u/live-a', homeDir: '/home/u' } },
                 sess_live_2: { ...sess2, metadata: { machineId: 'machine-live-2', path: '/home/u/live-b', homeDir: '/home/u' } },
@@ -886,6 +881,10 @@ describe('SessionsList pinning + per-group ordering', () => {
         } as any;
 
         storage.setState({
+            machineDisplayById: Object.fromEntries(mockMachinesState.current.map((machine) => [
+                machine.id,
+                { id: machine.id, updatedAt: 0, active: true, activeAt: 0, metadataVersion: 1, metadata: machine.metadata },
+            ])),
             sessions: {
                 sess_live_1: { ...sess1, metadata: { machineId: 'machine-live-1', path: '/home/u/live-a', homeDir: '/home/u' } },
                 sess_live_2: { ...sess2, metadata: { machineId: 'machine-live-2', path: '/home/u/live-b', homeDir: '/home/u' } },

@@ -17,7 +17,11 @@ describe('session reachability display invalidation', () => {
         const session = createSessionFixture();
         const machine = createMachineFixture();
         machine.metadata = { ...machine.metadata!, displayName: 'Laptop' };
-        storage.setState({ sessions: { [session.id]: session }, machines: { [machine.id]: machine } });
+        storage.setState({
+            profileScope: { serverId: 'server-a', accountId: 'account-a' },
+            sessions: { [session.id]: session },
+            machines: { [machine.id]: machine },
+        });
         const cache = createSessionListReachabilityModelsCache();
         const items: SessionListViewItem[] = [{ type: 'session', serverId: 'server-a', session }];
         const workspaceLabelsV1 = {};

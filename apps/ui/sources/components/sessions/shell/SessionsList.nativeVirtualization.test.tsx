@@ -236,6 +236,7 @@ function useLocalSettingMutableMock<K extends keyof LocalSettings>(
 function createNativeStorageState() {
     return {
     profileScope: { serverId: 'server_a', accountId: 'account_a' },
+    machineDisplayById,
     sessions: {
         sess_a: {
             active: true,
@@ -298,6 +299,7 @@ type NativeVirtualizationStorageStore = ReturnType<typeof import('@/dev/testkit/
 let nativeVirtualizationStorageStore: NativeVirtualizationStorageStore | null = null;
 
 function syncNativeVirtualizationStorageState() {
+    storageState.machineDisplayById = machineDisplayById;
     nativeVirtualizationStorageStore?.setState(storageState);
 }
 
@@ -542,7 +544,10 @@ installSessionShellCommonModuleMocks({
                 },
                 useHasUnreadMessages: () => false,
                 useAllMachines: () => allMachines,
-                useMachineDisplayById: () => machineDisplayById,
+                // The storage facade is replaced for this renderer; subscribe the real machine
+                // display inputs to that same boundary store instead of a parallel fixture var.
+                useMachineDisplayById: () => reactiveStore((state) => state.machineDisplayById),
+                useSessionMachineDisplayLists: () => reactiveStore((state) => state.machineListByServerId),
                 useSessionOrganizationProjection: () => buildOrganizationProjectionFromLegacyState(),
                 useSettingMutable: (key: string) => {
                     if (key === 'pinnedSessionKeysV1') return [pinnedSessionKeysV1, setPinnedSessionKeysV1];
@@ -612,7 +617,13 @@ vi.mock('@/sync/ops/sessionMachineTarget', async (importOriginal) => {
         ...actual,
         readSessionWorkspacePresentation: (input: Parameters<typeof actual.readSessionWorkspacePresentation>[0]) => {
             if (typeof input.sessionId === 'string') sessionWorkspacePresentationCalls.push(input.sessionId);
-            return actual.readSessionWorkspacePresentation(input);
+            if (!nativeVirtualizationStorageStore) throw new Error('native list storage fixture is not initialized');
+            // The facade is replaced at the store boundary; feed its snapshot to the real
+            // presentation owner rather than letting importOriginal read the global store.
+            return actual.resolveSessionWorkspacePresentationFromState({
+                ...input,
+                state: nativeVirtualizationStorageStore.getState(),
+            });
         },
     };
 });
@@ -641,6 +652,7 @@ vi.mock('@/sync/domains/server/serverProfiles', async (importOriginal) => {
     const actual = await importOriginal<typeof import('@/sync/domains/server/serverProfiles')>();
     return {
         ...actual,
+        getActiveServerId: () => mockActiveServerId,
         getServerProfileById: (serverId: string) => ({
             id: serverId,
             serverUrl: 'https://server.example.test',
@@ -866,8 +878,6 @@ describe('SessionsList (native virtualization)', () => {
         sessionFolderAssignmentsBySessionKey = {};
         rememberLastProjectSessionSelections = null;
         organizationProjectionCache = null;
-        storageState = createNativeStorageState();
-        syncNativeVirtualizationStorageState();
         machineDisplayById = {
             'machine-target': {
                 id: 'machine-target',
@@ -906,6 +916,8 @@ describe('SessionsList (native virtualization)', () => {
                 metadata: { displayName: 'Previous workstation', host: 'stale.local', homeDir: '/Users/test' },
             },
         };
+        storageState = createNativeStorageState();
+        syncNativeVirtualizationStorageState();
         setPinnedSessionKeysV1.mockClear();
         setSessionMruOrderV1.mockClear();
         setDefaultLocalSettingValue.mockClear();
@@ -1061,8 +1073,8 @@ describe('SessionsList (native virtualization)', () => {
         const screen = await renderSessionsList();
 
         expect(screen.findAllByTestId('session-list-search-trigger')).toHaveLength(1);
-        expect(screen.findAllByTestId('session-list-group-menu-trigger')).toHaveLength(1);
-        expect(screen.findAllByTestId('session-list-sort-menu-trigger')).toHaveLength(1);
+        expect(screen.findAllByTestId('session-list-group-menu-trigger').filter((node) => typeof node.type === 'string')).toHaveLength(1);
+        expect(screen.findAllByTestId('session-list-sort-menu-trigger').filter((node) => typeof node.type === 'string')).toHaveLength(1);
     });
 
     it.each([
@@ -1093,8 +1105,8 @@ describe('SessionsList (native virtualization)', () => {
         const screen = await renderSessionsList();
 
         expect(screen.findAllByTestId('session-list-search-trigger')).toHaveLength(1);
-        expect(screen.findAllByTestId('session-list-group-menu-trigger')).toHaveLength(1);
-        expect(screen.findAllByTestId('session-list-sort-menu-trigger')).toHaveLength(1);
+        expect(screen.findAllByTestId('session-list-group-menu-trigger').filter((node) => typeof node.type === 'string')).toHaveLength(1);
+        expect(screen.findAllByTestId('session-list-sort-menu-trigger').filter((node) => typeof node.type === 'string')).toHaveLength(1);
     });
 
     it('keeps the header search control anchored to the section that opened it', async () => {
@@ -2501,14 +2513,31 @@ describe('SessionsList (native virtualization)', () => {
             pendingRequestObservedAt: 10,
         };
 
-        await renderSessionsListWithSurfaceOwnership({
+        const screen = await renderSessionsListWithSurfaceOwnership({
             ownerKey: 'phone-root',
             visible: true,
             interactive: false,
             dataActive: false,
         });
 
+        // First-mounted inactive rows take one frozen scoped snapshot for half-swipe continuity.
+        // The runtime-priority selector itself has no scopes while the surface is inactive.
+        expect(sessionListRenderableReadSpy.mock.calls.map(([id]) => id)).toEqual(['sess_a', 'sess_b']);
+        const frozenRowModel = findSessionItem(screen, 'sess_b')?.props.rowModel;
+        sessionListRenderableReadSpy.mockClear();
+        nativeVirtualizationStorageStore?.setState({
+            sessionListRenderables: new Proxy({
+                ...sessionListRenderablesForSubscriptionTests,
+                sess_b: { ...sessionListRenderablesForSubscriptionTests.sess_b, hasPendingUserActionRequests: false },
+            }, {
+                get: (target, property, receiver) => {
+                    if (typeof property === 'string') sessionListRenderableReadSpy(property);
+                    return Reflect.get(target, property, receiver);
+                },
+            }),
+        });
         expect(sessionListRenderableReadSpy).not.toHaveBeenCalled();
+        expect(findSessionItem(screen, 'sess_b')?.props.rowModel).toBe(frozenRowModel);
     });
 
     it('does not expose a load-more handler when the surface is not data-active', async () => {
@@ -3374,7 +3403,7 @@ describe('SessionsList (native virtualization)', () => {
         mockVisibleSessionListViewData = [
             {
                 type: 'header',
-                title: '/home/coder/repo',
+                title: '/Users/test/repo',
                 headerKind: 'project',
                 groupKey: 'server:server_a:active:project:abc',
                 workspaceKey: 'wl_abc',
@@ -3382,7 +3411,7 @@ describe('SessionsList (native virtualization)', () => {
                 workspaceScopeHint: {
                     serverId: 'server_a',
                     machineId: 'machine-target',
-                    rootPath: '/home/coder/repo',
+                    rootPath: '/Users/test/repo',
                 },
                 serverId: 'server_a',
                 serverName: 'Server A',
