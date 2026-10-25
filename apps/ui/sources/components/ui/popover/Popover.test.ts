@@ -1477,6 +1477,9 @@ describe('Popover (web)', () => {
         });
         const style = flattenStyle(findPopoverContentView(screen)?.props?.style);
         expect(style.paddingVertical).toBe(8);
+        if (typeof style.top !== 'number' || typeof style.paddingVertical !== 'number') {
+            throw new Error('Expected numeric viewport geometry for the portaled content');
+        }
         expect(style.top + style.paddingVertical).toBeGreaterThanOrEqual(8);
         expect(style.top + measuredOuterHeight - style.paddingVertical).toBeLessThanOrEqual(792);
     });
