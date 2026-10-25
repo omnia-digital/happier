@@ -199,6 +199,9 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         const scroll = popover.getByTestId('path-selection-list:bodyScroll');
         const lastFavorite = popover.getByTestId(`path-selection-list:path-root:option:favorite:${dirs.at(-1)}`);
         await expect(lastFavorite).toHaveCount(1);
+        await scroll.hover();
+        await page.mouse.wheel(0, -1600);
+        await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBe(0);
         const before = await scroll.evaluate((element) => ({
             top: element.scrollTop,
             client: element.clientHeight,
@@ -207,7 +210,6 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         }));
         await page.screenshot({ path: testInfo.outputPath('oh73-path-scroll-before.png') });
         expect(before.content - before.client).toBeGreaterThan(100);
-        await scroll.hover();
         await page.mouse.wheel(0, 600);
         await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(before.top);
         expect(await page.evaluate(() => window.scrollY)).toBe(before.page);
