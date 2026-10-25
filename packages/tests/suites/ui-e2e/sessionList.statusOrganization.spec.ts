@@ -261,8 +261,19 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
                 document: document.scrollingElement?.scrollTop ?? 0,
             }));
             const pageBeforeWheel = await pageOffsets();
+            const logScrollGeometry = async (phase: string) => {
+                console.log('OH71 scroll geometry', JSON.stringify({
+                    phase,
+                    host: await sidebarScrollHost.evaluate((host) => host instanceof HTMLElement
+                        ? { connected: host.isConnected, top: host.scrollTop, height: host.clientHeight, scrollHeight: host.scrollHeight }
+                        : null),
+                    trigger: await page.getByTestId('session-list-group-menu-trigger').first().boundingBox(),
+                }));
+            };
+            await logScrollGeometry('before-open');
             await page.getByTestId('session-list-group-menu-trigger').first().click();
             await expect(page.getByTestId('session-view-flat')).toBeVisible();
+            await logScrollGeometry('after-open');
             const groupMenuMetrics = () => page.getByTestId('session-view-flat').evaluate((item) => {
                 let scrollHost = item.parentElement;
                 while (scrollHost && !(scrollHost.scrollHeight > scrollHost.clientHeight + 8 && /auto|scroll/.test(getComputedStyle(scrollHost).overflowY))) {
@@ -281,6 +292,7 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await page.mouse.wheel(0, 580);
             await expect.poll(async () => (await groupMenuMetrics()).scrollTop).toBeGreaterThan(0);
             const wheelOffset = (await groupMenuMetrics()).scrollTop;
+            await logScrollGeometry('after-wheel');
             expect(await sidebarOffset()).toBe(sidebarBeforeWheel);
             expect(await pageOffsets()).toEqual(pageBeforeWheel);
             await page.mouse.wheel(0, 580);
