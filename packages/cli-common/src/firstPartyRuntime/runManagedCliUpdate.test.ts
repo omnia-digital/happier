@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   installVersionedPayload,
@@ -15,6 +15,25 @@ import {
   watchLastCliUpdateResult,
   withFirstPartyPayloadMutationLock,
 } from './index.js';
+
+const watchBoundary = vi.hoisted(() => ({
+  replaceEvents: false,
+  emit: null as ((filename: string | null) => void) | null,
+}));
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  return {
+    ...actual,
+    watch: (path: string, options: { persistent?: boolean }, listener: (event: string, filename: string | Buffer | null) => void) => {
+      if (watchBoundary.replaceEvents) {
+        watchBoundary.emit = (filename) => listener('rename', filename);
+        return actual.watch(path, options, () => {});
+      }
+      return actual.watch(path, options, listener);
+    },
+  };
+});
 
 const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
 if (!originalPlatformDescriptor) throw new Error('process.platform descriptor is required for this test');
@@ -56,6 +75,8 @@ describe('runManagedCliUpdate — the one CLI update transaction', () => {
     env = { ...process.env, HAPPIER_HOME_DIR: homeDir };
   });
   afterEach(async () => {
+    watchBoundary.replaceEvents = false;
+    watchBoundary.emit = null;
     await rm(homeDir, { recursive: true, force: true });
   });
 
@@ -338,6 +359,35 @@ describe('runManagedCliUpdate — the one CLI update transaction', () => {
       stop?.();
     }
     expect(watchLastCliUpdateResult({ channel: 'preview', processEnv: env, onChange: () => {} })).toBeNull();
+  });
+
+  it('notifies from a directory event without a filename after the outcome is recorded', async () => {
+    await installInitial('1.0.0');
+    watchBoundary.replaceEvents = true;
+    let notifications = 0;
+    const stop = watchLastCliUpdateResult({
+      channel: 'stable', processEnv: env,
+      onChange: () => { notifications += 1; },
+    });
+    expect(stop).not.toBeNull();
+    try {
+      watchBoundary.emit?.(null);
+      expect(notifications).toBe(0);
+      await expect(runManagedCliUpdate({
+        channel: 'stable', processEnv: env,
+        preparePayload: async () => { throw new Error('offline'); },
+        readVersion: readFixtureVersion,
+        restartServiceDaemon: null,
+      })).rejects.toThrow('offline');
+      expect(readLastCliUpdateResult({ channel: 'stable', processEnv: env })).toMatchObject({ outcome: 'failed' });
+      expect(watchBoundary.emit).not.toBeNull();
+      watchBoundary.emit?.('unrelated.tmp');
+      expect(notifications).toBe(0);
+      watchBoundary.emit?.(null);
+      expect(notifications).toBe(1);
+    } finally {
+      stop?.();
+    }
   });
 
   it('admits an attempt (both locks held) before it downloads, and refuses a concurrent one before any download', async () => {
