@@ -297,6 +297,12 @@ export const LOCAL_SETTING_DEFINITIONS = defineSettingDefinitions({
         storageScope: 'local',
         analytics: { trackCurrentState: true, trackChanges: true, valueKind: 'boolean', privacy: 'safe', identityScope: 'device_user' },
     },
+    sidebarProviderUsageChoiceByProviderId: {
+        schema: z.record(z.string(), z.string()),
+        default: {},
+        description: 'Account shown in the desktop sidebar subscription usage for each provider',
+        storageScope: 'local',
+    },
     sidebarWidthPx: {
         schema: z.number(),
         default: 320,

@@ -18,10 +18,10 @@ import { connectedServiceQuotaGaugeFormatter } from '@/sync/domains/connectedSer
 import { isQuotaGaugeWindowMode } from '@/sync/domains/connectedServices/quotaGaugeWindows';
 import { selectProviderUsageDisplaySnapshot } from '@/sync/domains/connectedServices/accountUsage/selectors';
 import { nowServerMs } from '@/sync/runtime/time';
-import { useIsDataReady, useProfile, useSetting } from '@/sync/store/hooks';
+import { useIsDataReady, useLocalSettingMutable, useProfile, useSetting } from '@/sync/store/hooks';
 import { t } from '@/text';
 import type { ProviderAccountUsageRecordSummaryV1 } from '@happier-dev/protocol';
-import { selectSidebarProviderUsageAccount, type SidebarProviderUsageOption } from './selectSidebarProviderUsageAccount';
+import { formatSidebarNativeUsageIdentity, selectSidebarProviderUsageAccount, type SidebarProviderUsageOption } from './selectSidebarProviderUsageAccount';
 
 type ProviderId = 'claude' | 'codex';
 const PROVIDERS = [
@@ -40,7 +40,8 @@ function ProviderUsageTile(props: Readonly<{
     profileReady: boolean;
 }>) {
     const styles = stylesheet;
-    const [choiceKey, setChoiceKey] = React.useState<string | null>(null);
+    const [choiceByProviderId, setChoiceByProviderId] = useLocalSettingMutable('sidebarProviderUsageChoiceByProviderId');
+    const choiceKey = choiceByProviderId[props.providerId] ?? null;
     const [choiceOpen, setChoiceOpen] = React.useState(false);
     const choiceAnchorRef = React.useRef<View | null>(null);
     const defaultProfileByServiceId = useSetting('connectedServicesDefaultProfileByServiceId');
@@ -80,7 +81,8 @@ function ProviderUsageTile(props: Readonly<{
             labelsByKey: profileLabelsByKey, serviceId: selected.serviceId, profileId: selected.profileId,
         }) ?? connectedSnapshot?.accountLabel ?? selected.profileId
         : selected?.kind === 'native'
-            ? native.snapshotsByRecordId[selected.recordId]?.accountLabel ?? selected.record.recordKey.accountSubjectId
+            ? formatSidebarNativeUsageIdentity(selected.record,
+                native.snapshotsByRecordId[selected.recordId]?.accountLabel ?? selected.record.recordKey.accountSubjectId)
             : null;
     const windowMode = isQuotaGaugeWindowMode(legacyWindowMode) ? legacyWindowMode : 'most_constrained';
     const gauge = snapshotSource ? computeConnectedServiceQuotaGaugeViewModel({
@@ -116,7 +118,8 @@ function ProviderUsageTile(props: Readonly<{
         ? `${t('connectedServices.detail.profiles.connected')} · ${resolveConnectedServiceProfileLabel({
             labelsByKey: profileLabelsByKey, serviceId: option.serviceId, profileId: option.profileId,
         }) ?? option.profileId}`
-        : `${t('sidebar.providerUsage.native')} · ${native.snapshotsByRecordId[option.recordId]?.accountLabel ?? option.record.recordKey.accountSubjectId}`;
+        : `${t('sidebar.providerUsage.native')} · ${formatSidebarNativeUsageIdentity(option.record,
+            native.snapshotsByRecordId[option.recordId]?.accountLabel ?? option.record.recordKey.accountSubjectId)}`;
 
     return (
         <View testID={`sidebar-provider-usage:${props.providerId}`} style={styles.tile}>
@@ -174,7 +177,10 @@ function ProviderUsageTile(props: Readonly<{
                                 accessibilityLabel={optionLabel(option)}
                                 accessibilityState={{ selected: selected?.key === option.key }}
                                 active={selected?.key === option.key}
-                                onPress={() => { setChoiceKey(option.key); setChoiceOpen(false); }}
+                                onPress={() => {
+                                    setChoiceByProviderId({ ...choiceByProviderId, [props.providerId]: option.key });
+                                    setChoiceOpen(false);
+                                }}
                                 style={styles.option}
                                 focusRingRadius={8}
                                 webTooltip={optionLabel(option)}

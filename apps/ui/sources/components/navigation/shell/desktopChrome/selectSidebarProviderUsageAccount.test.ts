@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildProviderAccountUsageRecordId, type ProviderAccountUsageRecordSummaryV1 } from '@happier-dev/protocol';
-import { selectSidebarProviderUsageAccount } from './selectSidebarProviderUsageAccount';
+import { formatSidebarNativeUsageIdentity, selectSidebarProviderUsageAccount } from './selectSidebarProviderUsageAccount';
 
 function native(accountSubjectId: string): ProviderAccountUsageRecordSummaryV1 {
     const recordKey = { providerId: 'claude', accountSubjectId, subjectKind: 'account', quotaScope: 'account' } as const;
@@ -27,5 +27,13 @@ describe('selectSidebarProviderUsageAccount', () => {
             defaultProfileByServiceId: { 'claude-subscription': 'work' }, choiceKey: null };
         expect(selectSidebarProviderUsageAccount(input).selected).toMatchObject({ kind: 'connected', profileId: 'work' });
         expect(selectSidebarProviderUsageAccount(input).options).toHaveLength(3);
+    });
+
+    it('distinguishes account and organization scopes for the same provider account', () => {
+        const account = native('shared-account');
+        const organizationKey = { ...account.recordKey, quotaScope: 'organization' as const, quotaScopeId: 'org-1' };
+        const organization = { ...account, recordId: buildProviderAccountUsageRecordId(organizationKey), recordKey: organizationKey };
+        expect(formatSidebarNativeUsageIdentity(account, 'Claude Personal')).toBe('Claude Personal · account');
+        expect(formatSidebarNativeUsageIdentity(organization, 'Claude Personal')).toBe('Claude Personal · organization · org-1');
     });
 });

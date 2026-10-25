@@ -3,6 +3,7 @@ import * as React from 'react';
 import { useAuth } from '@/auth/context/AuthContext';
 import { resolveAuthCredentialsScopeKey } from '@/auth/storage/resolveAuthCredentialsScopeKey';
 import { useFeatureEnabled } from '@/hooks/server/useFeatureEnabled';
+import { useFeatureDecision } from '@/hooks/server/useFeatureDecision';
 import {
   readProviderAccountUsageSnapshotFromCache,
   subscribeProviderAccountUsageSnapshotCache,
@@ -26,6 +27,7 @@ import {
 import { useCredentialScopedAccountModeResolver } from './useCredentialScopedAccountModeResolver';
 
 const DISABLED_DISCOVERY = { status: 'disabled', records: null } as const;
+const PENDING_DISCOVERY = { status: 'loading', records: null } as const;
 
 function normalizeRecordIds(recordIds: ReadonlyArray<string>): ProviderAccountUsageRecordId[] {
   const ids = new Set<ProviderAccountUsageRecordId>();
@@ -85,7 +87,8 @@ export function useProviderAccountUsageSnapshots(
 
 export function useProviderAccountUsageDiscovery(): AccountUsageDiscovery | Readonly<{ status: 'disabled'; records: null }> {
   const credentials = useAuth().credentials;
-  const enabled = useFeatureEnabled('connectedServices.quotas');
+  const decision = useFeatureDecision('connectedServices.quotas');
+  const enabled = decision?.state === 'enabled';
   const scope = enabled && credentials ? resolveAuthCredentialsScopeKey(credentials) : '';
   const resolveAccountMode = useCredentialScopedAccountModeResolver({ credentials, credentialScope: scope });
   const context = React.useMemo(() => credentials && scope
@@ -95,8 +98,9 @@ export function useProviderAccountUsageDiscovery(): AccountUsageDiscovery | Read
     scope ? subscribeAccountUsageDiscovery(scope, listener) : () => {}
   ), [scope]);
   const getSnapshot = React.useCallback(() => (
-    scope ? getAccountUsageDiscovery(scope) : DISABLED_DISCOVERY
-  ), [scope]);
+    scope ? getAccountUsageDiscovery(scope)
+      : decision && decision.state !== 'enabled' ? DISABLED_DISCOVERY : PENDING_DISCOVERY
+  ), [decision, scope]);
   const discovery = React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   React.useEffect(() => context ? retainAccountUsageDiscovery(context) : undefined, [context]);
   return discovery;

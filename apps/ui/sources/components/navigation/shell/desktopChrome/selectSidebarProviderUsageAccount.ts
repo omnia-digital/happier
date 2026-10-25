@@ -7,6 +7,13 @@ export type SidebarProviderUsageOption =
     | Readonly<{ kind: 'connected'; key: string; serviceId: string; profileId: string }>
     | Readonly<{ kind: 'native'; key: string; recordId: string; record: ProviderAccountUsageRecordSummaryV1 }>;
 
+export function formatSidebarNativeUsageIdentity(record: ProviderAccountUsageRecordSummaryV1, accountLabel: string): string {
+    const { subjectKind, quotaScope, quotaScopeId } = record.recordKey;
+    return [accountLabel, subjectKind !== 'account' && subjectKind !== quotaScope ? subjectKind : null, quotaScope, quotaScopeId]
+        .filter((part): part is string => Boolean(part))
+        .join(' · ');
+}
+
 export function selectSidebarProviderUsageAccount(input: Readonly<{
     providerId: ProviderId;
     connectedProfiles: ReadonlyArray<{ profileId: string; status?: unknown }>;

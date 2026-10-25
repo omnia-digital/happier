@@ -56,13 +56,16 @@ async function writeNativeUsage(params: Readonly<{
     accountSubjectId: string;
     accountLabel: string;
     remaining: number;
+    quotaScope?: 'account' | 'organization';
+    quotaScopeId?: string;
 }>): Promise<string> {
     const now = Date.now();
     const recordKey = {
         providerId: params.providerId,
         accountSubjectId: params.accountSubjectId,
         subjectKind: 'account' as const,
-        quotaScope: 'account' as const,
+        quotaScope: params.quotaScope ?? 'account',
+        ...(params.quotaScopeId ? { quotaScopeId: params.quotaScopeId } : {}),
     };
     const recordId = buildProviderAccountUsageRecordId(recordKey);
     const snapshot = ProviderAccountUsageSnapshotV1Schema.parse({
@@ -144,6 +147,9 @@ test.describe('sidebar provider subscription usage', () => {
             providerId: 'claude', accountSubjectId: 'claude-personal', accountLabel: 'Claude Personal', remaining: 29 });
         const work = await writeNativeUsage({ baseUrl: server.baseUrl, ...auth,
             providerId: 'claude', accountSubjectId: 'claude-work', accountLabel: 'Claude Work', remaining: 66 });
+        const organization = await writeNativeUsage({ baseUrl: server.baseUrl, ...auth,
+            providerId: 'claude', accountSubjectId: 'claude-personal', accountLabel: 'Claude Personal',
+            quotaScope: 'organization', quotaScopeId: 'org-1', remaining: 12 });
         await writeNativeUsage({ baseUrl: server.baseUrl, ...auth,
             providerId: 'codex', accountSubjectId: 'codex-personal', accountLabel: 'Codex Personal', remaining: 0 });
 
@@ -152,6 +158,8 @@ test.describe('sidebar provider subscription usage', () => {
         await expect(page.getByTestId('sidebar-provider-usage-state:claude')).toContainText('Choose account');
         await expect(page.getByTestId('sidebar-provider-usage:codex-value')).toHaveText('0');
         await page.getByTestId('sidebar-provider-usage-choice:claude').click();
+        await expect(page.getByTestId(`sidebar-provider-usage-option:claude:native:${personal}`)).toContainText('claude-personal · account');
+        await expect(page.getByTestId(`sidebar-provider-usage-option:claude:native:${organization}`)).toContainText('claude-personal · organization · org-1');
         await page.getByTestId(`sidebar-provider-usage-option:claude:native:${personal}`).click();
         await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('29');
         await expect(page.getByTestId('sidebar-provider-usage-choice:claude')).toContainText('Claude Personal');
@@ -181,5 +189,19 @@ test.describe('sidebar provider subscription usage', () => {
         await expect(page.getByTestId('collapsed-sidebar-provider-usage-button')).toBeVisible();
         await page.getByTestId('collapsed-sidebar-provider-usage-button').click();
         await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('66');
+    });
+
+    test('labels unsupported native discovery without declaring the provider unconnected', async ({ page }) => {
+        test.setTimeout(240_000);
+        if (!uiBaseUrl) throw new Error('Missing isolated UI fixture');
+        await page.route('**/v3/connect/provider-account-usage', async (route) => {
+            await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'not_found' }) });
+        });
+        await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+        await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+        await ensureAccountReadyForConnect({ page, timeoutMs: 120_000 });
+        await enableUsageUi(page, uiBaseUrl);
+        await expect(page.getByTestId('sidebar-provider-usage-state:claude')).toContainText('unavailable');
+        await expect(page.getByTestId('sidebar-provider-usage-state:codex')).toContainText('unavailable');
     });
 });
