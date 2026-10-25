@@ -137,6 +137,26 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
                 await page.getByTestId(id).click();
             };
             const row = (id: string) => page.getByTestId('session-list-item-' + id);
+            const expectTicketRowContentInsideCard = async (id: string, title: string) => {
+                const item = row(id);
+                const ticket = item.getByTestId('session-ticket-row-status:' + id);
+                await expect(item).toBeVisible();
+                await expect(ticket).toBeVisible();
+                const [cardBox, titleBox, machineBox, ticketBox] = await Promise.all([
+                    item.boundingBox(),
+                    item.getByText(title, { exact: true }).boundingBox(),
+                    item.getByTestId('session-list-machine-identity-' + id).boundingBox(),
+                    ticket.boundingBox(),
+                ]);
+                if (!cardBox || !titleBox || !machineBox || !ticketBox) throw new Error('Ticket row geometry unavailable');
+                const geometry = JSON.stringify({ cardBox, titleBox, machineBox, ticketBox });
+                expect(titleBox.y, geometry).toBeGreaterThanOrEqual(cardBox.y + 1);
+                expect(machineBox.y, geometry).toBeGreaterThanOrEqual(cardBox.y + 1);
+                expect(ticketBox.y, geometry).toBeGreaterThanOrEqual(cardBox.y + 1);
+                expect(titleBox.y + titleBox.height, geometry).toBeLessThanOrEqual(ticketBox.y + 1);
+                expect(machineBox.y + machineBox.height, geometry).toBeLessThanOrEqual(ticketBox.y + 1);
+                expect(ticketBox.y + ticketBox.height, geometry).toBeLessThanOrEqual(cardBox.y + cardBox.height - 1);
+            };
             // Virtualized DOM pools retain hidden/recycled nodes and need not follow visual order.
             const visibleIds = () => page.locator('[data-testid^="session-list-item-"]').evaluateAll(nodes => nodes.map(node => ({
                 id: node.getAttribute('data-testid')!.slice('session-list-item-'.length), rect: node.getBoundingClientRect(),
@@ -175,6 +195,8 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             // Keep every ticket candidate visible while exercising runtime group movement below.
             await page.getByTestId('session-list-search-trigger').first().click();
             await page.getByTestId('session-list-search-input').first().fill('OH60');
+            await expectTicketRowContentInsideCard(idle, 'OH60 QA idle');
+            await expectTicketRowContentInsideCard(working, 'OH60 QA working');
             await page.mouse.move(1000, 400);
             await page.screenshot({ path: testInfo.outputPath('oh60-ticket-groups-agent-sort.png') });
             await choose('session-list-status-group-agent');
@@ -213,6 +235,8 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await expect(page.getByTestId('machine-monitoring-toggle')).toHaveCount(0);
             await expect(statusHeaders.filter({ hasText: 'Ready for Prod' }).first()).toBeVisible({ timeout: 60_000 });
             await expect(row(unavailable).getByText('Status unavailable', { exact: true })).toBeVisible({ timeout: 60_000 });
+            await expectTicketRowContentInsideCard(idle, 'OH60 QA idle');
+            await expectTicketRowContentInsideCard(unavailable, 'OH60 Unavailable');
             await page.mouse.move(385, 2);
             await page.screenshot({ path: testInfo.outputPath('oh60-compact-status-organization.png') });
             await page.setViewportSize({ width: 1360, height: 900 });
@@ -320,6 +344,11 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await page.reload();
             await expect(page.getByTestId('session-list-group-menu-trigger').first()).toBeVisible({ timeout: 120_000 });
             await expect(page.getByTestId('session-list-sort-menu-trigger').first()).toBeVisible();
+            await page.getByTestId('session-list-search-trigger').first().click();
+            await page.getByTestId('session-list-search-input').first().fill('OH60 QA');
+            await expectTicketRowContentInsideCard(idle, 'OH60 QA idle');
+            await page.screenshot({ path: testInfo.outputPath('oh60-ticket-row-dark-large-narrow.png') });
+            await page.getByTestId('session-list-search-clear').first().click();
             await expect(page.getByTestId('session-list-group-menu-trigger').first()).toHaveAttribute('aria-label', 'Group');
             await expect(page.getByTestId('session-list-sort-menu-trigger').first()).toHaveAttribute('aria-label', 'Sort');
             await page.getByTestId('session-list-sort-menu-trigger').first().click();
