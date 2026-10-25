@@ -90,6 +90,23 @@ export const ProviderAccountUsageRecordKeyV1Schema = z.object({
 }).strict();
 export type ProviderAccountUsageRecordKeyV1 = z.infer<typeof ProviderAccountUsageRecordKeyV1Schema>;
 
+// Account-owned discovery contains identity and freshness only. Payloads remain
+// behind the existing exact-record readers for the account's storage mode.
+export const ProviderAccountUsageRecordSummaryV1Schema = z.object({
+  recordId: ProviderAccountUsageRecordIdSchema,
+  recordKey: ProviderAccountUsageRecordKeyV1Schema,
+  payloadMode: z.enum(['plain_json_v1', 'sealed_account_scoped_v1']),
+  status: z.enum(['ok', 'unavailable', 'estimated', 'error', 'refresh_requested']),
+  fetchedAt: z.number().int().nonnegative().nullable(),
+  staleAfterMs: z.number().int().nonnegative().nullable(),
+}).strict();
+export type ProviderAccountUsageRecordSummaryV1 = z.infer<typeof ProviderAccountUsageRecordSummaryV1Schema>;
+
+export const ProviderAccountUsageRecordListV1Schema = z.object({
+  records: z.array(ProviderAccountUsageRecordSummaryV1Schema),
+}).strict();
+export type ProviderAccountUsageRecordListV1 = z.infer<typeof ProviderAccountUsageRecordListV1Schema>;
+
 export type ProviderAccountUsageOrganizationContext = Readonly<{
   providerAccountId: string | null;
   providerOrganizationId: string | null;

@@ -4,6 +4,8 @@ import { db } from "@/storage/db";
 import { prismaRuntime, type TransactionClient } from "@/storage/prisma";
 import {
     ProviderAccountUsageRecordKeyV1Schema,
+    ProviderAccountUsageRecordSummaryV1Schema,
+    type ProviderAccountUsageRecordSummaryV1,
     ProviderAccountUsageSnapshotV1Schema,
     SealedProviderAccountUsageSnapshotV1Schema,
     ProviderAccountSubscriptionV1Schema,
@@ -304,6 +306,31 @@ export async function readProviderAccountUsageRecord(params: Readonly<{
         },
     });
     return row ? parseStoredProviderAccountUsageRecord(row) : null;
+}
+
+export async function listProviderAccountUsageRecords(params: Readonly<{
+    accountId: string;
+}>, client: ProviderAccountUsageRecordClient = db): Promise<ProviderAccountUsageRecordSummaryV1[]> {
+    const rows = await client.providerAccountUsageRecord.findMany({
+        where: { accountId: params.accountId },
+        orderBy: [{ providerId: "asc" }, { recordId: "asc" }],
+        select: {
+            recordId: true,
+            recordKeyJson: true,
+            payloadMode: true,
+            status: true,
+            fetchedAt: true,
+            staleAfterMs: true,
+        },
+    });
+    return rows.map((row) => ProviderAccountUsageRecordSummaryV1Schema.parse({
+        recordId: row.recordId,
+        recordKey: ProviderAccountUsageRecordKeyV1Schema.parse(row.recordKeyJson),
+        payloadMode: row.payloadMode,
+        status: row.status,
+        fetchedAt: row.fetchedAt?.getTime() ?? null,
+        staleAfterMs: row.staleAfterMs,
+    }));
 }
 
 export async function requestProviderAccountUsageRefresh(params: Readonly<{
