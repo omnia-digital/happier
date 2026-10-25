@@ -148,7 +148,7 @@ export const AgentInputProviderUsageBadge = React.memo(function AgentInputProvid
 ) {
     const styles = stylesheet;
     const testIDPrefix = props.testIDPrefix ?? 'agent-input-provider-usage';
-    const anchorRef = React.useRef<any>(null);
+    const anchorRef = React.useRef<View | null>(null);
     const [isPinnedOpen, setIsPinnedOpen] = React.useState(false);
     const [isHovered, setIsHovered] = React.useState(false);
     const open = isPinnedOpen || isHovered;
@@ -167,7 +167,10 @@ export const AgentInputProviderUsageBadge = React.memo(function AgentInputProvid
     const title = props.viewModel.providerDisplayName
         ? t('agentInput.providerUsage.titleForProvider', { provider: props.viewModel.providerDisplayName })
         : t('agentInput.providerUsage.title');
-    const accessibilityLabel = `${title}, ${props.viewModel.activeAccountDisplayLabel ?? ''}, ${usageAccessibilityLabel}`;
+    const staleLabel = props.viewModel.isStale ? t('agentInput.providerUsage.duration.outdated') : null;
+    const accessibilityLabel = [title, props.viewModel.activeAccountDisplayLabel, usageAccessibilityLabel, staleLabel]
+        .filter((part): part is string => Boolean(part))
+        .join(', ');
     const recoveryCreditSummary = props.viewModel.recoveryCreditSummary;
 
     return (
@@ -209,7 +212,8 @@ export const AgentInputProviderUsageBadge = React.memo(function AgentInputProvid
                             <TokenUsageRing
                                 used={ring.usedPct}
                                 limit={100}
-                                label={rings.length === 1 ? accessibilityLabel : ringAccessibilityValues[index]}
+                                label={rings.length === 1 ? accessibilityLabel
+                                    : [ringAccessibilityValues[index], staleLabel].filter(Boolean).join(', ')}
                                 value={ring.ringValueLabel}
                                 tone={mapQuotaToneToTokenTone(ring.tone)}
                                 ringTestID={`${testIDPrefix}-ring${testIdSuffix}`}
@@ -239,6 +243,9 @@ export const AgentInputProviderUsageBadge = React.memo(function AgentInputProvid
                             <Text style={styles.popoverAccount}>
                                 {t('agentInput.providerUsage.activeAccount', { account: props.viewModel.activeAccountDisplayLabel })}
                             </Text>
+                        ) : null}
+                        {staleLabel ? (
+                            <Text testID={`${testIDPrefix}-stale`} style={styles.popoverAccount}>{staleLabel}</Text>
                         ) : null}
                         {props.viewModel.subscription ? (
                             <View testID={`${testIDPrefix}-subscription`} style={styles.subscription}>

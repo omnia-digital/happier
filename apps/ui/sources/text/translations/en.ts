@@ -6836,7 +6836,6 @@ export const en = {
             discoveryError: "Native usage could not refresh",
             chooseAccount: "Choose account",
             notConnected: "No usage account found",
-            stale: "Stale",
             lastKnownRefreshFailed: "Last known · refresh failed",
             openUsage: "Show subscription usage",
         },

@@ -1,6 +1,7 @@
 import type { ProviderAccountUsageRecordSummaryV1 } from '@happier-dev/protocol';
 import { resolveConnectedServiceDefaultProfileId } from '@/sync/domains/connectedServices/connectedServiceProfilePreferences';
 import { shouldHideQuotaForCredentialStatus } from '@/sync/domains/connectedServices/shouldHideQuotaForCredentialStatus';
+import { resolveDefaultServiceIdForProvider } from '@/sync/domains/connectedServices/accountUsage/projection';
 
 type ProviderId = 'claude' | 'codex';
 export type SidebarProviderUsageOption =
@@ -21,7 +22,8 @@ export function selectSidebarProviderUsageAccount(input: Readonly<{
     defaultProfileByServiceId: Readonly<Record<string, string | undefined>>;
     choiceKey: string | null;
 }>): Readonly<{ options: readonly SidebarProviderUsageOption[]; selected: SidebarProviderUsageOption | null }> {
-    const serviceId = input.providerId === 'claude' ? 'claude-subscription' : 'openai-codex';
+    const serviceId = resolveDefaultServiceIdForProvider(input.providerId);
+    if (!serviceId) return { options: [], selected: null };
     const connected = input.connectedProfiles
         .filter((profile) => !shouldHideQuotaForCredentialStatus(profile.status))
         .map((profile): SidebarProviderUsageOption => ({

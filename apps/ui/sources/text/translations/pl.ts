@@ -7223,7 +7223,6 @@ export const pl: TranslationStructure = {
           discoveryError: "Nie udało się odświeżyć natywnego użycia",
           chooseAccount: "Wybierz konto",
           notConnected: "Nie znaleziono konta użycia",
-          stale: "Nieaktualne",
           lastKnownRefreshFailed: "Ostatnie dane · odświeżanie nie powiodło się",
           openUsage: "Pokaż wykorzystanie subskrypcji",
       },

@@ -6995,7 +6995,6 @@ export const zhHans: TranslationStructure = {
           discoveryError: "无法刷新原生用量",
           chooseAccount: "选择账户",
           notConnected: "未找到用量账户",
-          stale: "已过期",
           lastKnownRefreshFailed: "上次数据 · 刷新失败",
           openUsage: "显示订阅用量",
       },

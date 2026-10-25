@@ -17,6 +17,7 @@ import { computeConnectedServiceQuotaGaugeViewModel } from '@/sync/domains/conne
 import { connectedServiceQuotaGaugeFormatter } from '@/sync/domains/connectedServices/connectedServiceQuotaGaugeFormatter';
 import { isQuotaGaugeWindowMode } from '@/sync/domains/connectedServices/quotaGaugeWindows';
 import { selectProviderUsageDisplaySnapshot } from '@/sync/domains/connectedServices/accountUsage/selectors';
+import { resolveDefaultServiceIdForProvider } from '@/sync/domains/connectedServices/accountUsage/projection';
 import { nowServerMs } from '@/sync/runtime/time';
 import { useIsDataReady, useLocalSettingMutable, useProfile, useSetting } from '@/sync/store/hooks';
 import { t } from '@/text';
@@ -25,8 +26,8 @@ import { formatSidebarNativeUsageIdentity, selectSidebarProviderUsageAccount, ty
 
 type ProviderId = 'claude' | 'codex';
 const PROVIDERS = [
-    { id: 'claude' as const, name: 'Claude', serviceId: 'claude-subscription' },
-    { id: 'codex' as const, name: 'Codex', serviceId: 'openai-codex' },
+    { id: 'claude' as const, name: 'Claude' },
+    { id: 'codex' as const, name: 'Codex' },
 ];
 
 type Discovery = ReturnType<typeof useProviderAccountUsageDiscovery>;
@@ -149,9 +150,9 @@ function ProviderUsageTile(props: Readonly<{
                         viewModel={gauge}
                         testIDPrefix={`sidebar-provider-usage:${props.providerId}`}
                     />
-                    {gauge.isStale || error ? (
+                    {error ? (
                         <Text testID={`sidebar-provider-usage-state:${props.providerId}`} style={styles.status}>
-                            {error ? t('sidebar.providerUsage.lastKnownRefreshFailed') : t('sidebar.providerUsage.stale')}
+                            {t('sidebar.providerUsage.lastKnownRefreshFailed')}
                         </Text>
                     ) : null}
                 </View>
@@ -215,7 +216,7 @@ export function DesktopSidebarProviderUsage() {
                     key={provider.id}
                     providerId={provider.id}
                     providerName={provider.name}
-                    connectedProfiles={services.find((service) => service.serviceId === provider.serviceId)?.profiles ?? []}
+                    connectedProfiles={services.find((service) => service.serviceId === resolveDefaultServiceIdForProvider(provider.id))?.profiles ?? []}
                     records={discovery.records ?? []}
                     discoveryStatus={discovery.status}
                     profileReady={profileReady}

@@ -99,6 +99,32 @@ async function writeNativeUsage(params: Readonly<{
     return recordId;
 }
 
+async function createNativeUsageSession(params: Readonly<{
+    baseUrl: string;
+    token: string;
+    recordId: string;
+}>): Promise<string> {
+    const response = await fetchJson<{ session?: { id?: unknown } }>(`${params.baseUrl}/v1/sessions`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${params.token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            tag: `oh72-native-usage-${run.runId}`,
+            metadata: JSON.stringify({
+                v: 1, name: 'Claude Work session', path: '/tmp/oh72-native-usage', flavor: 'claude',
+                providerAccountUsageRefsV1: { v: 1, recordIds: [params.recordId] },
+            }),
+            agentState: null,
+            dataEncryptionKey: null,
+            encryptionMode: 'plain',
+        }),
+        timeoutMs: 20_000,
+    });
+    const sessionId = response.data?.session?.id;
+    expect(response.status).toBe(200);
+    if (typeof sessionId !== 'string') throw new Error('Native usage fixture session was not created');
+    return sessionId;
+}
+
 test.describe('sidebar provider subscription usage', () => {
     let server: StartedServer | null = null;
     let ui: StartedUiWeb | null = null;
@@ -200,6 +226,21 @@ test.describe('sidebar provider subscription usage', () => {
         await expect(page.getByTestId('collapsed-sidebar-provider-usage-button')).toBeVisible();
         await page.getByTestId('collapsed-sidebar-provider-usage-button').click();
         await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('66');
+
+        await page.getByTestId('sidebar-provider-usage-choice:claude').click();
+        await page.getByTestId(`sidebar-provider-usage-option:claude:native:${personal}`).click();
+        await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('29');
+        const workSessionId = await createNativeUsageSession({ baseUrl: server.baseUrl, token: auth.token, recordId: work });
+        await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/session/${workSessionId}?happier_hmr=0`, 180_000);
+        await expect(page.getByTestId('agent-input-provider-usage-value')).toHaveText('66', { timeout: 60_000 });
+        await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('29');
+        await page.getByTestId('sidebar-provider-usage-choice:claude').click();
+        await page.getByTestId(`sidebar-provider-usage-option:claude:native:${work}`).click();
+        await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('66');
+        await expect(page.getByTestId('agent-input-provider-usage-value')).toHaveText('66');
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('66');
+        await expect(page.getByTestId('agent-input-provider-usage-value')).toHaveText('66');
     });
 
     test('labels unsupported native discovery without declaring the provider unconnected', async ({ page }) => {

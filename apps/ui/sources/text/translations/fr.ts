@@ -6791,7 +6791,6 @@ export const fr: TranslationStructure = {
             discoveryError: "Impossible d'actualiser l'utilisation native",
             chooseAccount: "Choisir un compte",
             notConnected: "Aucun compte d'utilisation trouvé",
-            stale: "Périmé",
             lastKnownRefreshFailed: "Dernière donnée · actualisation échouée",
           openUsage: "Afficher l’utilisation des abonnements",
         },
