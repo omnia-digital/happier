@@ -86,6 +86,12 @@ export {
   type PendingActivationFailureResponseV1,
 } from './sessionControl/pendingActivationAuthorizationV1.js';
 export {
+  SessionPermissionResponseSchema,
+  SessionPermissionResponseToOccurrenceV1Schema,
+  type SessionPermissionResponse,
+  type SessionPermissionResponseToOccurrenceV1,
+} from './sessionControl/sessionPermissionResponse.js';
+export {
   computeCanonicalDomainSeparatedDigest,
   encodeCanonicalLengthDelimited,
 } from './crypto/canonicalDigest.js';
@@ -3705,6 +3711,14 @@ export {
   type SessionPullRequestLinkV1,
   type SessionPullRequestsV1,
 } from './sessionMetadata/sessionPullRequestsV1.js';
+export {
+  SessionAutoArchiveHistoryEventV1Schema,
+  SessionAutoArchiveHistoryV1Schema,
+  appendSessionAutoArchiveHistory,
+  readSessionAutoArchiveHistory,
+  type SessionAutoArchiveHistoryEventV1,
+  type SessionAutoArchiveHistoryV1,
+} from './sessionMetadata/sessionArchiveHistoryV1.js';
 
 export {
   TICKET_READER_CAPABILITY_ID,

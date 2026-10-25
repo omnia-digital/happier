@@ -127,6 +127,23 @@ describe('createEndpointSupervisedRequest', () => {
         expect(message).not.toContain('hdr.eyJ');
     });
 
+    it('checks caller admission after endpoint readiness without dispatching the write', async () => {
+        const reportFailure = vi.fn();
+        const supervisor = {
+            getState: () => onlineState(), reportFailure,
+        } as unknown as ManagedEndpointSupervisor;
+        const { createEndpointSupervisedRequest } = await import('./createEndpointSupervisedRequest');
+        const request = createEndpointSupervisedRequest({
+            serverId: 'server-a', serverUrl: 'https://a.example.test', token: 'token-1',
+            endpointSupervisor: supervisor,
+            assertCurrent: () => { const error = new Error('Archive admission is no longer current'); error.name = 'AbortError'; throw error; },
+        });
+        await expect(request('/v2/sessions/s1/archive', { method: 'POST' }))
+            .rejects.toThrow('Archive admission is no longer current');
+        expect(runtimeFetchMock.mock.calls.filter(([url]) => String(url).includes('/v2/sessions/s1/archive'))).toHaveLength(0);
+        expect(reportFailure).not.toHaveBeenCalled();
+    });
+
     it('reports authenticated 401 responses directly to the endpoint supervisor', async () => {
         getCredentialsForServerUrlMock.mockResolvedValue(null);
         runtimeFetchMock.mockResolvedValue(new Response('{}', { status: 401, headers: new Headers() }));

@@ -44,6 +44,54 @@ it('projects ticket association and observes changes without subscribing rows to
     expect(areSessionListRenderablesEqual(previous, { ...previous, metadata: { ...previous.metadata!, sessionTicketV1: structuredClone(ticketAssociation) } })).toBe(true);
 });
 
+it('replaces a catalog projection when a linked PR is corrected or removed', () => {
+    const first = { providerKind: 'github' as const, providerBaseUrl: 'https://github.com', repository: 'owner/one', number: 7, url: 'https://github.com/owner/one/pull/7' };
+    const second = { ...first, repository: 'owner/two', url: 'https://github.com/owner/two/pull/7' };
+    const before = buildSessionListRenderableFromSession(createSessionFixture({ metadata: { path: '/repo', host: 'host', sessionPullRequestsV1: { v: 1, links: [first] } } }));
+    const corrected = buildSessionListRenderableFromSession(createSessionFixture({ metadata: { path: '/repo', host: 'host', sessionPullRequestsV1: { v: 1, links: [second] } } }));
+    const removed = buildSessionListRenderableFromSession(createSessionFixture({ metadata: { path: '/repo', host: 'host', sessionPullRequestsV1: { v: 1, links: [] } } }));
+    expect(areSessionListRenderablesEqual(before, corrected)).toBe(false);
+    expect(areSessionListRenderablesEqual(corrected, removed)).toBe(false);
+    expect(areSessionListRenderablesEqual(before, { ...before, metadata: structuredClone(before.metadata) })).toBe(true);
+});
+
+it('projects canonical goal lifecycle metadata and invalidates rows when it changes or clears', () => {
+    const activeGoal = {
+        v: 1,
+        backendId: 'codex',
+        updatedAt: 2,
+        primaryItemId: 'goal:codex',
+        items: [{
+            id: 'goal:codex',
+            kind: 'goal',
+            origin: 'vendor',
+            status: 'active',
+            title: 'Finish the feature',
+            updatedAt: 2,
+        }],
+    };
+    const completedGoal = {
+        ...activeGoal,
+        updatedAt: 3,
+        items: [{ ...activeGoal.items[0], status: 'complete', updatedAt: 3 }],
+    };
+    const active = buildSessionListRenderableFromSession(createSessionFixture({
+        metadata: { path: '/repo', host: 'host', sessionWorkStateV1: activeGoal },
+    }));
+    const completed = buildSessionListRenderableFromSession(createSessionFixture({
+        metadata: { path: '/repo', host: 'host', sessionWorkStateV1: completedGoal },
+    }));
+    const cleared = buildSessionListRenderableFromSession(createSessionFixture({ metadata: { path: '/repo', host: 'host' } }));
+
+    expect(active.metadata?.sessionWorkStateV1).toEqual(activeGoal);
+    expect(areSessionListRenderablesEqual(active, {
+        ...active,
+        metadata: structuredClone(active.metadata),
+    })).toBe(true);
+    expect(areSessionListRenderablesEqual(active, completed)).toBe(false);
+    expect(areSessionListRenderablesEqual(active, cleared)).toBe(false);
+});
+
 vi.mock('@/sync/domains/state/storage', async () => {
     const { createStorageModuleStub } = await import('@/dev/testkit/mocks/storage');
     return createStorageModuleStub({

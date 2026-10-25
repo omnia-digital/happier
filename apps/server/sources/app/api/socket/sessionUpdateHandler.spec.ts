@@ -750,6 +750,7 @@ describe("sessionUpdateHandler", () => {
             id: "m-agent",
             seq: 10,
             localId: "local-agent-1",
+            createdAt: createdAt.getTime(),
             didWrite: true,
         });
     });
@@ -796,8 +797,8 @@ describe("sessionUpdateHandler", () => {
                 seq: 10,
                 content: { t: "plain", v: { type: "user", text: "hi" } },
                 localId: "local-1",
-                createdAt: 1_000,
-                updatedAt: 1_000,
+                createdAt: new Date(1_000),
+                updatedAt: new Date(1_000),
             },
             participantCursors: [{ accountId: "user-1", cursor: 11 }],
             badgeAttentionChanged: true,
@@ -1125,7 +1126,11 @@ describe("sessionUpdateHandler", () => {
         expect(buildNewMessageUpdate).toHaveBeenCalledWith(expect.anything(), "s-1", 10, expect.any(String));
         expect(buildUpdateSessionUpdate).not.toHaveBeenCalled();
         expect(emitUpdate).toHaveBeenCalledTimes(1);
-        expect(callback).toHaveBeenCalledWith(expect.objectContaining({ ok: true, didWrite: true }));
+        expect(callback).toHaveBeenCalledWith(expect.objectContaining({
+            ok: true,
+            didWrite: true,
+            createdAt: createdAt.getTime(),
+        }));
     });
 
     it("does not forward caller-supplied attention overrides from the public socket event", async () => {

@@ -1,5 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawn, execFileSync } from 'node:child_process';
+import { once } from 'node:events';
 
 import {
   createListenerOwnershipObservationScope,
@@ -8,6 +10,90 @@ import {
   resolveStackOwnedListenPid,
   resolveStackPidOwnership,
 } from './listener_ownership.mjs';
+
+const windowsListenerCode = [
+  "const net = require('node:net');",
+  "const server = net.createServer();",
+  "server.listen(0, '127.0.0.1', () => process.send({ port: server.address().port, pid: process.pid }));",
+  "process.on('message', (message) => { if (message === 'stop') server.close(() => process.exit(0)); });",
+].join('\n');
+
+const windowsWrapperCode = [
+  "const { spawn } = require('node:child_process');",
+  `const child = spawn(process.execPath, ['-e', ${JSON.stringify(windowsListenerCode)}], { stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });`,
+  "child.on('message', (message) => process.send(message));",
+  "process.on('message', (message) => { if (message === 'stop') child.send('stop'); });",
+  'child.on(\'exit\', () => process.exit(0));',
+].join('\n');
+
+async function startWindowsListenerFixture() {
+  const wrapper = spawn(process.execPath, ['-e', windowsWrapperCode], {
+    stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+    windowsHide: true,
+  });
+  try {
+    const [listener] = await once(wrapper, 'message', { signal: AbortSignal.timeout(10_000) });
+    assert.ok(Number.isInteger(listener?.port) && listener.port > 0);
+    assert.ok(Number.isInteger(listener?.pid) && listener.pid > 1);
+    return { wrapper, listener };
+  } catch (error) {
+    wrapper.kill();
+    throw error;
+  }
+}
+
+function readWindowsProcessParentPid(pid) {
+  const script = [
+    `$p = Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}" -ErrorAction Stop`,
+    'if ($null -eq $p) { exit 3 }',
+    '$p.ParentProcessId',
+  ].join('; ');
+  const output = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+    encoding: 'utf8',
+    windowsHide: true,
+    timeout: 5_000,
+  });
+  return Number(output.trim());
+}
+
+async function stopWindowsListenerFixture({ wrapper, listener }) {
+  if (wrapper.exitCode !== null) return;
+  if (wrapper.connected) wrapper.send('stop');
+  try {
+    await once(wrapper, 'exit', { signal: AbortSignal.timeout(5_000) });
+  } catch {
+    // These PIDs came from this disposable fixture; do not kill by port.
+    try { process.kill(listener.pid); } catch { /* already exited */ }
+    wrapper.kill();
+  }
+}
+
+test('Windows spawned listener proof accepts a live child and rejects an independent listener', {
+  skip: process.platform !== 'win32',
+  timeout: 25_000,
+}, async () => {
+  const owned = await startWindowsListenerFixture();
+  const foreign = await startWindowsListenerFixture();
+  try {
+    assert.equal(readWindowsProcessParentPid(owned.listener.pid), owned.wrapper.pid);
+    assert.equal(readWindowsProcessParentPid(foreign.listener.pid), foreign.wrapper.pid);
+    assert.notEqual(foreign.wrapper.pid, owned.wrapper.pid);
+
+    assert.equal(await resolveSpawnedProcessGroupListenPid(
+      { port: owned.listener.port, spawnedPid: owned.wrapper.pid },
+      { listenerOwnershipTimeoutMs: 4_000 },
+    ), owned.listener.pid);
+    await assert.rejects(
+      resolveSpawnedProcessGroupListenPid(
+        { port: foreign.listener.port, spawnedPid: owned.wrapper.pid },
+        { listenerOwnershipTimeoutMs: 4_000 },
+      ),
+      /not owned|another process|process group unavailable/,
+    );
+  } finally {
+    await Promise.all([stopWindowsListenerFixture(owned), stopWindowsListenerFixture(foreign)]);
+  }
+});
 
 test('spawned listener ownership timeout defaults for load and accepts a bounded Stack override', () => {
   assert.equal(resolveSpawnedListenerOwnershipTimeoutMs({}), 60_000);
@@ -134,6 +220,7 @@ test('spawned listener proof rejects a listener from a foreign process group', a
       {
         listenerOwnershipTimeoutMs: 200,
         listenerOwnershipRetryDelayMs: 0,
+        platform: 'linux',
         listListenPidsWithStatusImpl: async (_port, options) => options.processGroupId
           ? { status: 'ok', supported: true, pids: [] }
           : { status: 'ok', supported: true, pids: [999] },

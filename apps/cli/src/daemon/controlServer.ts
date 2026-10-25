@@ -379,7 +379,7 @@ export function createDaemonControlApp({
   resolveSpawnSessionByNonce?: (spawnNonce: string) => Promise<SpawnSessionNonceResolution> | SpawnSessionNonceResolution;
   requestShutdown: () => void;
   beforeShutdown?: () => Promise<void>;
-  onHappySessionWebhook: (sessionId: string, metadata: Metadata) => Promise<void> | void;
+  onHappySessionWebhook: (sessionId: string, metadata: Metadata, creationResolution?: 'created' | 'existing', creationAccountId?: string) => Promise<void> | void;
   controlToken: string;
   // Run-materialization bridge: given a run-scoped selection, the daemon (sole CS owner) resolves +
   // materializes + registers the run PID and returns the env map (paths only, no secrets).
@@ -746,6 +746,8 @@ export function createDaemonControlApp({
       body: z.object({
         sessionId: z.string(),
         metadata: z.any(), // Metadata type from API
+        creationResolution: z.enum(['created', 'existing']).optional(),
+        creationAccountId: z.string().min(1).optional(),
       }),
       response: {
         200: z.object({
@@ -760,12 +762,12 @@ export function createDaemonControlApp({
     },
     preHandler: requireAuth,
   }, async (request, reply) => {
-    const { sessionId, metadata } = request.body;
+    const { sessionId, metadata, creationResolution, creationAccountId } = request.body;
 
     logger.debug(`[CONTROL SERVER] Session started: ${sessionId}`);
     let readiness: Promise<void>;
     try {
-      readiness = Promise.resolve(onHappySessionWebhook(sessionId, metadata));
+      readiness = Promise.resolve(onHappySessionWebhook(sessionId, metadata, creationResolution, creationAccountId));
     } catch (error) {
       logger.warn('[CONTROL SERVER] Session startup webhook intake failed', {
         sessionId,
@@ -2240,7 +2242,7 @@ export function startDaemonControlServer({
   resolveSpawnSessionByNonce?: (spawnNonce: string) => Promise<SpawnSessionNonceResolution> | SpawnSessionNonceResolution;
   requestShutdown: () => void;
   beforeShutdown?: () => Promise<void>;
-  onHappySessionWebhook: (sessionId: string, metadata: Metadata) => Promise<void> | void;
+  onHappySessionWebhook: (sessionId: string, metadata: Metadata, creationResolution?: 'created' | 'existing', creationAccountId?: string) => Promise<void> | void;
   controlToken: string;
   handleExecutionRunConnectedServiceMaterialize?: (input: Readonly<{
     runId: string;

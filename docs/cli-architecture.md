@@ -474,6 +474,17 @@ target before activation and shares the explicit update's service observation/re
    record that cannot be written never blocks recovery; it is reported on stderr (the updater's log
    for a remote update).
 
+In current development source, post-update service assessment runs through the activated managed
+CLI whenever a service is installed for the same Home and channel, even if the old CLI found no
+repair work. Migration and no-service cases retain their existing skip behavior. A successful update
+ends the invoking guided repair walk, discarding its remaining stale findings and pending plan and
+directing the user to rerun repair against the updated CLI.
+
+The service row displays the same inventory version used by the report's findings. A daemon joins
+that row only when it is service-started and the existing Home/channel/profile facts identify one
+eligible active service. Manual daemons and ambiguous matches stay separate with their own PID and
+version; a stopped service does not inherit a running manual daemon's identity.
+
 **What recovery covers — and what it does not.** Recovery covers activation and restart failures
 this process catches. It does **not** cover the updater itself being killed or the machine losing
 power mid-transaction (a set-aside directory may then be the only copy of a launcher, which is why
@@ -586,6 +597,13 @@ layout boundary (`isManagedCliDaemonServiceLauncher`: a managed shim or a payloa
 install root) either way — leaves the definition as it is and starts what is installed, so the
 desktop's quiet start of a stopped service (D6) runs the CLI the service already runs and any switch
 goes through the install dry-run's consent and the strict install.
+
+In current development source, systemd definition comparison ignores only the
+inherited value of a standalone `PATH` environment assignment. Invoking repair
+from a different shell therefore does not by itself mark the service definition
+as drifted. A missing `PATH`, extra assignments, launcher or command changes,
+other environment values and lifecycle directives still count as drift. The
+existing launchd comparison and runtime-replacement consent remain unchanged.
 
 **One CLI per computer (plan R12).** That consent is asked at most once per decision: when the
 executor has asked "Let Happier manage it / Keep my own" (prompt `setup.cliChoice`, before any write;

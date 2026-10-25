@@ -20,6 +20,12 @@ import {
   prepareFirstPartyComponentPayloadFromGitHubRelease,
 } from './prepareFirstPartyComponentPayloadFromGitHubRelease';
 
+// Lookup failures still need configured publisher trust before acquisition can reach GitHub.
+const { publicKey: lookupFixtureKey } = generateKeyPairSync('ed25519');
+const lookupMinisignPubkeyFile = `untrusted comment: lookup fixture\n${Buffer.concat([
+  Buffer.from('Ed'), Buffer.alloc(8), Buffer.from(lookupFixtureKey.export({ format: 'jwk' }).x!, 'base64url'),
+]).toString('base64')}\n`;
+
 describe('normalizeReleaseAssetArch', () => {
   it.each([
     ['aarch64', 'arm64'],
@@ -73,6 +79,7 @@ describe('prepareFirstPartyComponentPayloadFromGitHubRelease', () => {
       channel: 'preview',
       os: 'darwin',
       arch: 'arm64',
+      minisignPubkeyFile: lookupMinisignPubkeyFile,
       artifactSource: {
         kind: 'github-release',
         githubRepo: 'acme/private-happier',
@@ -141,6 +148,7 @@ describe('optional runtime release pinning', () => {
     ].map((name) => ({ name, browser_download_url: 'data:text/plain,invalid-signature' })) });
     await expect(prepareFirstPartyComponentPayloadFromGitHubRelease({
       componentId, channel: 'preview', versionId: '0.2.12-preview.1', os: 'linux', arch: 'x64',
+      minisignPubkeyFile: lookupMinisignPubkeyFile,
     })).rejects.toThrow(/version.*0\.2\.12-preview\.1.*0\.2\.12-preview\.2/i);
     expect(fetchGitHubReleaseByTagMock).toHaveBeenCalledWith(expect.objectContaining({ tag: 'cli-v0.2.12-preview.1' }));
   });

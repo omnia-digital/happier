@@ -4,6 +4,7 @@ import {
     omitGoalItemFromSnapshot,
     resolveCurrentGoalItem,
     resolveEditableGoalItem,
+    resolveSidebarGoalItem,
     resolveGoalCreationControlsVisible,
     resolveGoalManagementControlsVisible,
 } from './sessionGoalSelectors';
@@ -69,6 +70,27 @@ describe('resolveCurrentGoalItem', () => {
     it('does not treat paused/cancelled/completed goals as current', () => {
         for (const status of ['paused', 'cancelled', 'complete'] as const) {
             expect(resolveCurrentGoalItem(snapshot([item({ id: 'goal:claude', kind: 'goal', status })]))).toBeNull();
+        }
+    });
+});
+
+describe('resolveSidebarGoalItem', () => {
+    it('retains active and completed goals, keeps other known states truthful, and hides cleared goals', () => {
+        for (const status of ['active', 'complete', 'paused', 'pending', 'blocked', 'unknown'] as const) {
+            const goal = item({ id: `goal:${status}`, kind: 'goal', status });
+            expect(resolveSidebarGoalItem(snapshot([goal]))).toEqual(goal);
+        }
+        expect(resolveSidebarGoalItem(snapshot([item({ id: 'goal:cleared', kind: 'goal', status: 'cancelled' })]))).toBeNull();
+        expect(resolveSidebarGoalItem(snapshot([item({ id: 'todo:1', kind: 'todo', status: 'active' })]))).toBeNull();
+    });
+
+    it('shows the actual active goal when a retained terminal goal is still the edit target', () => {
+        const active = item({ id: 'goal:active', kind: 'goal', status: 'active', backendId: 'codex' });
+        for (const status of ['complete', 'cancelled'] as const) {
+            const retained = item({ id: 'goal:retained', kind: 'goal', status, backendId: 'claude' });
+            const state = snapshot([retained, active], retained.id);
+            expect(resolveCurrentGoalItem(state)).toEqual(active);
+            expect(resolveSidebarGoalItem(state)).toEqual(active);
         }
     });
 });

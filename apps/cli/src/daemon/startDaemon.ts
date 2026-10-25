@@ -34,6 +34,7 @@ import { deriveConnectedServiceBrokerRefreshToken } from './connectedServices/br
 import { createConnectedServiceCredentialApi } from '@/api/connectedServices/connectedServiceCredentialApi';
 import { resolveRoutedUsageLimitRecoveryResumePromptMode } from '@/session/usageLimitRecoveryControls/resolveRoutedUsageLimitRecoveryResumePromptMode';
 import type { ApiMachineClient } from '@/api/apiMachine';
+import { bindTrackedWorktreeCreation } from './sessions/bindTrackedWorktreeCreation';
 import { fetchAccountProfile } from '@/api/accountProfile';
 import { applyInitialTranscriptAfterSeqToAttachPayload } from '@/daemon/sessionEncryption/applyInitialTranscriptAfterSeqToAttachPayload';
 import { TrackedSession } from './types';
@@ -2895,6 +2896,21 @@ export async function startDaemon(options: Readonly<{ takeover?: boolean }> = {}
         const onHappySessionWebhook = createOnHappySessionWebhook({
           pidToTrackedSession,
           pidToAwaiter,
+          onTrackedSessionCreationReported: async (tracked, report) => {
+            const metadata = tracked.happySessionMetadataFromLocalWebhook;
+            if (!metadata) return;
+            try {
+              const owner = await apiMachine?.getWorktreeCreationOwnerScope();
+              if (!owner) return;
+              await bindTrackedWorktreeCreation({
+                owner, tracked, metadata, sessionId: report.sessionId,
+                serverResolution: report.serverResolution,
+                creationAccountId: report.creationAccountId,
+              });
+            } catch (error) {
+              logger.warn('[DAEMON RUN] Worktree creation custody remains unclaimed after session report', error);
+            }
+          },
           onTrackedSessionReady: async (tracked) => {
             const sessionId = typeof tracked.happySessionId === 'string' ? tracked.happySessionId.trim() : '';
             if (!sessionId) return;

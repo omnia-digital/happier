@@ -14,7 +14,7 @@ import {
     writeHappierCliChoice,
 } from './index.js';
 
-const posixOnly = process.platform === 'win32' ? describe.skip : describe;
+const posixIt = process.platform === 'win32' ? it.skip : it;
 const tempDirs: string[] = [];
 
 async function createHome(): Promise<string> {
@@ -66,8 +66,8 @@ describe('the computer-scoped CLI choice (R12)', () => {
     });
 });
 
-posixOnly('a happier this app did not install (R12)', () => {
-    it('is found on PATH, and the managed shim or an installer link to it is not foreign', async () => {
+describe('a happier this app did not install (R12)', () => {
+    posixIt('is found on PATH, and the managed shim or an installer link to it is not foreign', async () => {
         const homeDir = await createHome();
         const binDir = join(homeDir, '.happier', 'bin');
         const npmBin = join(homeDir, 'npm-global', 'bin');
@@ -102,21 +102,22 @@ posixOnly('a happier this app did not install (R12)', () => {
         const npmDir = join(homeDir, 'AppData', 'Roaming', 'npm');
         await mkdir(binDir, { recursive: true });
         await mkdir(npmDir, { recursive: true });
-        await writeExecutable(join(binDir, 'happier.exe'));
+        // Resolution checks path identity; the fixture never launches this file.
+        await writeFile(join(binDir, 'happier.exe'), 'managed CLI fixture\n');
         await writeFile(join(npmDir, 'happier.cmd'), '@ECHO off\r\n', 'utf8');
         const realPlatform = process.platform;
         Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
         try {
             // `Path` spelled the Windows way; the delimiter is this host's, as node:path reports it.
-            expect(resolveForeignHappierCli({ binDir, processEnv: { Path: `${binDir}${delimiter}${npmDir}`, PATHEXT: '.EXE;.CMD' } }))
-                .toBe(join(npmDir, 'happier.cmd'));
+            expect(resolveForeignHappierCli({ binDir, processEnv: { Path: `${binDir}${delimiter}${npmDir}`, PATHEXT: '.EXE;.CMD' } })?.toLowerCase())
+                .toBe(join(npmDir, 'happier.cmd').toLowerCase());
             expect(resolveForeignHappierCli({ binDir, processEnv: { Path: binDir, PATHEXT: '.EXE;.CMD' } })).toBeNull();
         } finally {
             Object.defineProperty(process, 'platform', { value: realPlatform, configurable: true });
         }
     });
 
-    it('says which happier a new terminal runs first, and whether a managed one got there through what Desktop can take back (RV3-1)', async () => {
+    posixIt('says which happier a new terminal runs first, and whether a managed one got there through what Desktop can take back (RV3-1)', async () => {
         const homeDir = await createHome();
         const binDir = join(homeDir, '.happier', 'bin');
         const npmBin = join(homeDir, 'npm-global', 'bin');
@@ -134,14 +135,17 @@ posixOnly('a happier this app did not install (R12)', () => {
         expect(terminal(`${binDir}:${npmBin}`)).toEqual({ command: join(binDir, 'happier'), managed: true, desktopExposed: true });
         // The installer's link is not Desktop's to remove.
         expect(terminal(`${localBin}:${npmBin}`)).toEqual({ command: join(localBin, 'happier'), managed: true, desktopExposed: false });
-        expect(terminal('/nonexistent')).toBeNull();
+        // A Dock-launched macOS app also searches the user's home bins, even with an empty process PATH.
+        expect(terminal('/nonexistent')).toEqual(process.platform === 'darwin'
+            ? { command: join(localBin, 'happier'), managed: true, desktopExposed: false }
+            : null);
     });
 
     it('on Windows counts the managed bin dir as Desktop\'s only when Desktop recorded adding or moving it (RV3-1)', async () => {
         const homeDir = await createHome();
         const binDir = join(homeDir, '.happier', 'bin');
         await mkdir(binDir, { recursive: true });
-        await writeExecutable(join(binDir, 'happier.exe'));
+        await writeFile(join(binDir, 'happier.exe'), 'managed CLI fixture\n');
         const realPlatform = process.platform;
         Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
         try {
@@ -155,7 +159,7 @@ posixOnly('a happier this app did not install (R12)', () => {
         }
     });
 
-    it('names an npm global install by its real package name, with the commands that remove and update it', async () => {
+    posixIt('names an npm global install by its real package name, with the commands that remove and update it', async () => {
         const homeDir = await createHome();
         const prefix = join(homeDir, 'npm-global');
         const packageRoot = join(prefix, 'lib', 'node_modules', '@happier-dev', 'cli');
@@ -173,7 +177,7 @@ posixOnly('a happier this app did not install (R12)', () => {
         });
     });
 
-    it('names an npm-generated Windows command shim by the package it launches', async () => {
+    posixIt('names an npm-generated Windows command shim by the package it launches', async () => {
         const homeDir = await createHome();
         const npmDir = join(homeDir, 'AppData', 'Roaming', 'npm');
         const packageRoot = join(npmDir, 'node_modules', '@happier-dev', 'cli');
@@ -192,7 +196,7 @@ posixOnly('a happier this app did not install (R12)', () => {
         });
     });
 
-    it('names a Homebrew install by its formula', async () => {
+    posixIt('names a Homebrew install by its formula', async () => {
         const homeDir = await createHome();
         const cellarBin = join(homeDir, 'homebrew', 'Cellar', 'happier', '0.2.13', 'bin');
         await mkdir(cellarBin, { recursive: true });
@@ -211,7 +215,7 @@ posixOnly('a happier this app did not install (R12)', () => {
         });
     });
 
-    it('names anything else by its path only, offering no command it cannot vouch for', async () => {
+    posixIt('names anything else by its path only, offering no command it cannot vouch for', async () => {
         const homeDir = await createHome();
         const manual = join(homeDir, 'bin', 'happier');
         await mkdir(join(homeDir, 'bin'), { recursive: true });

@@ -62,6 +62,7 @@ let permissionRpcConsumerSequence = 0;
  */
 export interface PermissionResponse {
     id: string;
+    occurrenceId?: string;
     approved: boolean;
     decision?: 'approved' | 'approved_for_session' | 'approved_execpolicy_amendment' | 'denied' | 'abort';
     // When the user chooses "don't ask again (session)", the UI may send a tool allowlist.
@@ -365,7 +366,7 @@ export abstract class BasePermissionHandler {
         const hasStructuredAnswers = response.answers !== undefined || response.structuredAnswersV1 !== undefined;
         const candidateContext = hasStructuredAnswers
             ? null
-            : this.requestCoordinator.getResponseContext(response.id);
+            : this.requestCoordinator.getResponseContext(response.id, response.occurrenceId);
         const requiresLocalQuestionOwner = hasStructuredAnswers
             || (candidateContext !== null && this.isStructuredQuestionContext(candidateContext));
         const context = requiresLocalQuestionOwner
@@ -468,6 +469,7 @@ export abstract class BasePermissionHandler {
         };
         const completed = await this.requestCoordinator.completeRpcResponse({
             context, completion: { result, completedRequest }, onAdmitted,
+            expectedOccurrenceId: response.occurrenceId,
         });
         if (!completed && (structuredAnswers || context.status === 'live')) return false;
         if (completed) this.pendingRequests.delete(response.id);

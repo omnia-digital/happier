@@ -1,4 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { TokenStorage } from '@/auth/storage/tokenStorage';
+import { upsertServerProfile } from '@/sync/domains/server/serverProfiles';
+
+const credentials = {
+    token: `header.${Buffer.from(JSON.stringify({ sub: 'account-a' })).toString('base64')}.signature`,
+    secret: 'secret-a',
+};
 
 const mocks = vi.hoisted(() => ({
     serverFetch: vi.fn(),
@@ -40,10 +47,13 @@ function organizationSnapshotResponse(assignments: unknown[]) {
 
 describe('fetchAndApplySessionFolderAssignments', () => {
     beforeEach(async () => {
+        expect(upsertServerProfile({ serverUrl: 'https://server-a' }).id).toBe('server-a');
+        vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue(credentials);
         mocks.serverFetch.mockReset();
         const { getStorage } = await import('@/sync/domains/state/storageStore');
-        getStorage().getState().clearSessionFolderAssignmentsForServer('server-a');
+        getStorage().getState().clearSessionOrganizationForServer('server-a');
     });
+    afterEach(() => vi.restoreAllMocks());
 
     it('applies fetched assignments to the session folder store', async () => {
         const { getStorage } = await import('@/sync/domains/state/storageStore');
@@ -53,7 +63,7 @@ describe('fetchAndApplySessionFolderAssignments', () => {
         ])));
 
         await fetchAndApplySessionFolderAssignments({
-            credentials: { token: 'token-a', secret: 'secret-a' },
+            credentials,
             serverId: 'server-a',
             sessionIds: ['s1'],
         });
@@ -73,7 +83,7 @@ describe('fetchAndApplySessionFolderAssignments', () => {
         ])));
 
         await fetchAndApplySessionFolderAssignments({
-            credentials: { token: 'token-a', secret: 'secret-a' },
+            credentials,
             serverId: 'server-a',
             sessionIds: ['s1', 's2'],
             fetchPolicy: 'missing',
@@ -96,7 +106,7 @@ describe('fetchAndApplySessionFolderAssignments', () => {
         ])));
 
         await fetchAndApplySessionFolderAssignments({
-            credentials: { token: 'token-a', secret: 'secret-a' },
+            credentials,
             serverId: 'server-a',
             sessionIds: ['s1', 's2', 's3'],
             fetchPolicy: 'missing',
@@ -118,7 +128,7 @@ describe('fetchAndApplySessionFolderAssignments', () => {
         }));
 
         const fetchPromise = fetchAndApplySessionFolderAssignments({
-            credentials: { token: 'token-a', secret: 'secret-a' },
+            credentials,
             serverId: 'server-a',
             sessionIds: ['s1'],
             fetchPolicy: 'missing',
@@ -145,13 +155,13 @@ describe('fetchAndApplySessionFolderAssignments', () => {
         });
 
         const firstFetch = fetchAndApplySessionFolderAssignments({
-            credentials: { token: 'token-a', secret: 'secret-a' },
+            credentials,
             serverId: 'server-a',
             sessionIds: ['s1', 's2'],
             fetchPolicy: 'missing',
         });
         const secondFetch = fetchAndApplySessionFolderAssignments({
-            credentials: { token: 'token-a', secret: 'secret-a' },
+            credentials,
             serverId: 'server-a',
             sessionIds: ['s1', 's2'],
             fetchPolicy: 'missing',
@@ -175,7 +185,7 @@ describe('fetchAndApplySessionFolderAssignments', () => {
         ]);
 
         await fetchAndApplySessionFolderAssignments({
-            credentials: { token: 'token-a', secret: 'secret-a' },
+            credentials,
             serverId: 'server-a',
             sessionIds: ['s1'],
             fetchPolicy: 'missing',
@@ -193,7 +203,7 @@ describe('fetchAndApplySessionFolderAssignments', () => {
         ])));
 
         await fetchAndApplySessionFolderAssignments({
-            credentials: { token: 'token-a', secret: 'secret-a' },
+            credentials,
             serverId: 'server-a',
             sessionIds: ['s1'],
             shouldContinue: () => false,
@@ -210,7 +220,7 @@ describe('fetchAndApplySessionFolderAssignments', () => {
         }, 404));
 
         await expect(fetchAndApplySessionFolderAssignments({
-            credentials: { token: 'token-a', secret: 'secret-a' },
+            credentials,
             serverId: 'server-a',
             sessionIds: ['s1'],
         })).resolves.toBeUndefined();

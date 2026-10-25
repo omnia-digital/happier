@@ -34,12 +34,12 @@ describe('ClaudeLocalPermissionBridge push policy', () => {
       tool_input: { path: 'a' },
     });
 
-    bridge.dispose();
-    await p;
-
+    await vi.waitFor(() => expect(session.client.getAgentStateSnapshot?.()?.requests?.tool1).toBeDefined());
     await Promise.resolve();
     await Promise.resolve();
     expect(sendToAllDevicesAsync).not.toHaveBeenCalled();
+    bridge.dispose();
+    await p;
   });
 
   it('sends permission-request pushes when enabled in account settings', async () => {
@@ -58,12 +58,9 @@ describe('ClaudeLocalPermissionBridge push policy', () => {
       tool_input: { path: 'a' },
     });
 
+    await vi.waitFor(() => expect(sendToAllDevicesAsync).toHaveBeenCalledTimes(1));
     bridge.dispose();
     await p;
-
-    await Promise.resolve();
-    await Promise.resolve();
-    expect(sendToAllDevicesAsync).toHaveBeenCalledTimes(1);
     expect(sendToAllDevicesAsync).toHaveBeenCalledWith(
       'Refactor auth flow',
       expect.stringContaining('Claude Code CLI asks permission to use Read'),

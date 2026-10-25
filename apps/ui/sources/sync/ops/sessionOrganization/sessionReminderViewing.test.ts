@@ -21,6 +21,7 @@ const SERVER_ID = 'srv_reminder';
 const SESSION_ID = 'session';
 const KEY = `${SERVER_ID}:${SESSION_ID}`;
 const store = getStorage();
+const validCredentials = { token: `header.${Buffer.from(JSON.stringify({ sub: 'account-a' })).toString('base64')}.signature`, secret: 'secret' };
 
 function snapshot(record?: SessionAttentionStanding): SessionOrganizationSnapshot {
     return { schemaVersion: 1, version: 1, pins: [], folders: [], folderAssignments: [], tags: [],
@@ -76,7 +77,7 @@ describe('session reminder viewing', () => {
 
     it('clears at the due boundary with the canonical scope and only one write for concurrent panes', async () => {
         setRecord(1000);
-        vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue({ token: 'token', secret: 'secret' });
+        vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue(validCredentials);
         open(upsertServerProfile({ serverUrl: SERVER_URL }).id);
         open();
         await vi.waitFor(() => expect(store.getState().sessionOrganizationAttentionStandingsBySessionKey[KEY]).toBeUndefined());
@@ -93,11 +94,28 @@ describe('session reminder viewing', () => {
         open();
         if (kind === 'reschedule') setRecord(2000);
         else store.getState().applySettingsLocal({ sessionReminderAutoClearOnOpen: false });
-        credentials.resolve({ token: 'token', secret: 'secret' });
+        credentials.resolve(validCredentials);
         await credentials.promise;
         expect(api.setSessionAttentionStanding).not.toHaveBeenCalled();
         expect(store.getState().sessionOrganizationAttentionStandingsBySessionKey[KEY]?.remindAt)
             .toBe(kind === 'reschedule' ? 2000 : 1000);
+    });
+
+    it('preserves a replacement while the publication credential read is pending', async () => {
+        setRecord(1000);
+        const publicationCredentials = createDeferred<typeof validCredentials>();
+        const credentialsRead = vi.spyOn(TokenStorage, 'getCredentialsForServerUrl')
+            .mockResolvedValueOnce(validCredentials)
+            .mockReturnValueOnce(publicationCredentials.promise);
+        open();
+        await vi.waitFor(() => expect(credentialsRead).toHaveBeenCalledTimes(2));
+        setRecord(2000);
+        publicationCredentials.resolve(validCredentials);
+        await publicationCredentials.promise;
+        await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        expect(store.getState().sessionOrganizationOptimisticRecords).toEqual({});
+        expect(api.setSessionAttentionStanding).not.toHaveBeenCalled();
+        expect(store.getState().sessionOrganizationAttentionStandingsBySessionKey[KEY]?.remindAt).toBe(2000);
     });
 
     it('clears the opened reminder across an unrelated reminder refresh while credentials are loading', async () => {
@@ -113,12 +131,12 @@ describe('session reminder viewing', () => {
                 { sessionId: 'other-session', standing: false, remindAt: 2000, updatedAt: 2 },
             ],
         });
-        credentials.resolve({ token: 'token', secret: 'secret' });
+        credentials.resolve(validCredentials);
         await vi.waitFor(() => expect(store.getState().sessionOrganizationAttentionStandingsBySessionKey[KEY]).toBeUndefined());
     });
 
     it('acknowledges a due reminder from initial hydration and then stops observing', async () => {
-        vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue({ token: 'token', secret: 'secret' });
+        vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue(validCredentials);
         open();
         expect(api.setSessionAttentionStanding).not.toHaveBeenCalled();
         store.getState().applySessionOrganizationSnapshot(SERVER_ID, snapshot({
@@ -143,7 +161,7 @@ describe('session reminder viewing', () => {
 
     it('restores a failed clear, reports it, and retries on the next opening', async () => {
         setRecord(1000);
-        vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue({ token: 'token', secret: 'secret' });
+        vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue(validCredentials);
         const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
         api.setSessionAttentionStanding.mockRejectedValueOnce(new Error('offline'));
         open();
@@ -157,7 +175,7 @@ describe('session reminder viewing', () => {
 
     it.each(['success', 'failure'] as const)('does not overwrite a new reminder with an older clear %s', async (outcome) => {
         setRecord(1000);
-        const credentials = { token: 'token', secret: 'secret' };
+        const credentials = validCredentials;
         vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue(credentials);
         const clearResponse = createDeferred<{ standing: null }>();
         vi.spyOn(console, 'error').mockImplementation(() => {});

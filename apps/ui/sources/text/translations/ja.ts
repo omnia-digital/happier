@@ -624,6 +624,9 @@ export const ja: TranslationStructure = {
         checking: '確認中…',
         checked: '確認済み',
         stale: '古い情報',
+        autoArchiveWorkUnverified: 'セッションが非アクティブで、処理中または保留中の作業がないと確認できるまで自動アーカイブは待機します。古いホストではこれらの状態が報告されない場合があります。',
+        autoArchived: '自動的にアーカイブしました',
+        autoArchivedReason: 'リンクされたすべての PR のマージを確認しました',
     },
     sessionTickets: {
         link: "チケットをリンク",
@@ -5777,6 +5780,7 @@ localTailscale: {
         budgetReachedBody: "このゴールはトークン予算に達しました。続行するには予算を削除してください。",
         removeBudgetAndResume: "予算を削除して続行",
         statusInterrupted: "中断",
+        statusUnknown: "不明",
         tokenBudget: "トークン予算",
         budgetProgress: ({ used, budget }: { used: string; budget: string }) => `${used} / ${budget}`,
         budgetCaption: ({ budget }: { budget: string }) => `予算 ${budget} 中`,
@@ -8560,6 +8564,14 @@ localTailscale: {
     },
 
 settingsSession: {
+    archiveAutomation: {
+        title: '自動アーカイブ',
+        footer: 'この設定は現在の Home アカウントと同期されます。Happier を開いている間、自動確認は約 5 分ごとに行います。ローカルのクリーンアップにはホスト側の対応が必要です。リモートブランチは残り、アーカイブを解除しても削除済みのローカル資源は戻りません。',
+        autoArchiveTitle: '関連 PR のマージ後にアーカイブ',
+        autoArchiveSubtitle: '関連するすべての PR のマージが新しい確認結果で証明された場合にのみ、非アクティブなセッションをアーカイブします。',
+        cleanupTitle: 'アーカイブ後にローカル資源を整理',
+        cleanupSubtitle: '所有マシンで安全に整理するための選択を保存します。このビルドでは整理機能はまだ利用できません。',
+    },
     terminalHostTitle: '新しいセッションのターミナルホスト',
     terminalHostNone: 'ターミナルホストなし',
     newSessionDraftEntry: {

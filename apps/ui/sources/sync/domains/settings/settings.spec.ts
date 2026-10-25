@@ -41,6 +41,21 @@ describe('settings', () => {
     });
 
     describe('settingsParse', () => {
+        it('keeps archive cleanup and merged-PR autoarchive independent and off by default', () => {
+            for (const cleanup of [false, true]) {
+                for (const autoArchive of [false, true]) {
+                    const parsed = settingsParse({
+                        cleanupLocalResourcesOnArchive: cleanup,
+                        autoArchiveAfterLinkedPullRequestsMerge: autoArchive,
+                    });
+                    expect(parsed.cleanupLocalResourcesOnArchive).toBe(cleanup);
+                    expect(parsed.autoArchiveAfterLinkedPullRequestsMerge).toBe(autoArchive);
+                }
+            }
+            expect(settingsParse({}).cleanupLocalResourcesOnArchive).toBe(false);
+            expect(settingsParse({}).autoArchiveAfterLinkedPullRequestsMerge).toBe(false);
+        });
+
         it('should return defaults when given invalid input', () => {
             expect(settingsParse(null)).toEqual(settingsDefaults);
             expect(settingsParse(undefined)).toEqual(settingsDefaults);
@@ -1078,7 +1093,7 @@ describe('settings', () => {
             expect((parsed as any).transcriptTurnToolCallsGroupStrategy).toBe('consecutive_tools');
             expect((parsed as any).transcriptToolCallsCollapsedPreviewCount).toBe(3);
             expect((parsed as any).transcriptToolCallsGroupShowBackground).toBe(true);
-            expect((parsed as any).transcriptMessageTimestampDisplayMode).toBe('hover_web_hidden_mobile');
+            expect((parsed as any).transcriptMessageTimestampDisplayMode).toBe('always');
             expect((parsed as any).transcriptMessageTimestampsEnabled).toBeUndefined();
             expect((parsed as any).transcriptTurnGroupToolCalls).toBeUndefined();
             expect((parsed as any).transcriptTurnToolCallsCollapsedPreviewCount).toBeUndefined();

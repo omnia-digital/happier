@@ -204,7 +204,7 @@ describe("sessionUpdateHandler (AccountChange integration)", () => {
 
         expect(emitUpdate).toHaveBeenCalledTimes(2);
         expect(socketMessageAckInc).toHaveBeenCalledWith({ result: "ok", error: "none" });
-        expect(callback).toHaveBeenCalledWith({ ok: true, id: "m1", seq: 55, localId: "l1", didWrite: true });
+        expect(callback).toHaveBeenCalledWith({ ok: true, id: "m1", seq: 55, localId: "l1", createdAt: 1, didWrite: true });
     });
 
     it("emits message-updated when upserting an existing message row", async () => {
@@ -249,7 +249,7 @@ describe("sessionUpdateHandler (AccountChange integration)", () => {
             attentionImpact: { affectsMeaningfulActivity: true, affectsUnread: true },
         });
         expect(emitUpdate).toHaveBeenCalledTimes(2);
-        expect(callback).toHaveBeenCalledWith({ ok: true, id: "m1", seq: 55, localId: "l1", didWrite: false, didUpdate: true });
+        expect(callback).toHaveBeenCalledWith({ ok: true, id: "m1", seq: 55, localId: "l1", createdAt: 1, didWrite: false, didUpdate: true });
     });
 
     it("forwards sidechainId to session message writes", async () => {

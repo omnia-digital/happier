@@ -43,6 +43,7 @@ vi.mock('@/track', () => ({
 }));
 
 const requestMock = vi.hoisted(() => vi.fn());
+const providerGet = vi.hoisted(() => vi.fn());
 const runtimeFetchMock = vi.hoisted(() => vi.fn());
 const getCredentialsForServerUrlMock = vi.hoisted(() => vi.fn());
 const createEncryptionFromAuthCredentialsMock = vi.hoisted(() => vi.fn());
@@ -58,6 +59,7 @@ vi.mock('@/sync/api/session/apiSocket', () => ({
         initialize: vi.fn(),
     },
 }));
+vi.mock('@/sync/ops/sessionScm', () => ({ sessionScmPullRequestGet: providerGet }));
 
 vi.mock('@/utils/system/runtimeFetch', () => ({
     runtimeFetch: runtimeFetchMock,
@@ -114,6 +116,7 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
         storage.setState(initialStorageState, true);
         appStateAddListener.mockClear();
         requestMock.mockReset();
+        providerGet.mockReset();
         runtimeFetchMock.mockReset();
         getCredentialsForServerUrlMock.mockReset();
         createEncryptionFromAuthCredentialsMock.mockReset();
@@ -146,6 +149,105 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
         for (const candidate of candidates) expect(storage.getState().sessions[candidate.sessionId]?.metadata?.name).toBe(candidate.sessionId);
         expect(requestMock.mock.calls.map(call => call[0])).toEqual(candidates.map(candidate => `/v2/sessions/${candidate.sessionId}`));
         expect(peak).toBeLessThanOrEqual(owner.syncTuning.sessionListHydrationConcurrencyLimit);
+    });
+
+    it.each(['warm', 'cold', 'hydrated'] as const)('lets a %s encrypted catalog row reach the observer through the real metadata-only Sync loader', async (cacheKind) => {
+        const { createSessionFixture } = await import('@/dev/testkit');
+        const { Encryption } = await import('./encryption/encryption');
+        const { fetchAndApplySessions } = await import('./engine/sessions/sessionSnapshot');
+        const { buildSessionListRenderableFromSession } = await import('./domains/session/listing/sessionListRenderable');
+        const { buildSessionListCacheEntryFromRenderable } = await import('./domains/state/warmCacheAdapters');
+        const { createSessionAutoArchiveObserver } = await import('./engine/sessions/sessionAutoArchiveObserver');
+        const activeServer = upsertServerProfile({ serverUrl: `https://autoarchive-${cacheKind}.example.test` });
+        setActiveServerId(activeServer.id);
+        const id = `autoarchive-${cacheKind}`;
+        const link = { providerKind: 'github' as const, providerBaseUrl: 'https://github.com', repository: 'owner/repo',
+            number: 7, url: 'https://github.com/owner/repo/pull/7' };
+        const metadata = { path: '/fixture', host: 'fixture', agentActivityCounts: { live: 0 },
+            sessionPullRequestsV1: { v: 1 as const, links: [link] } };
+        const encryption = await Encryption.create(new Uint8Array(32).fill(7));
+        const dataKey = new Uint8Array(32).fill(8);
+        await encryption.initializeSessions(new Map([[id, dataKey]]), { serverId: activeServer.id });
+        const sessionEncryption = encryption.getSessionEncryption(id)!;
+        const row = {
+            id, seq: 0, createdAt: 1, updatedAt: 2, meaningfulActivityAt: 2, active: false, activeAt: 2, archivedAt: null,
+            encryptionMode: 'e2ee' as const, metadata: await sessionEncryption.encryptMetadata(metadata), metadataVersion: 1,
+            agentState: await sessionEncryption.encryptAgentState({}), agentStateVersion: 1,
+            dataEncryptionKey: encodeBase64(await encryption.encryptEncryptionKey(dataKey), 'base64'), share: null,
+            pendingCount: 0, pendingBlockedCount: 0, pendingPermissionRequestCount: 0, pendingUserActionRequestCount: 0,
+            latestTurnStatus: 'completed' as const, runtimeActivityState: 'idle' as const, runtimeActivityActiveCount: 0,
+            runtimeActivityObservedAt: 2, runtimeActivityRevision: 1, thinking: false,
+        };
+        const { V2SessionRecordSchema, readSessionPullRequestLinks } = await import('@happier-dev/protocol');
+        expect(V2SessionRecordSchema.safeParse(row).success).toBe(true);
+        const { sync } = await import('./sync');
+        const owner = sync as unknown as { credentials: unknown; encryption: Awaited<ReturnType<typeof Encryption.create>>; sessionDataKeys: Map<string, Uint8Array>;
+            ensureSessionListMetadata: (candidates: readonly { sessionId: string; serverId: string; forceRefresh: boolean }[], current: () => boolean) => Promise<Array<{ kind: string } | null>> };
+        owner.credentials = { token: buildTokenWithSub('account-a'), secret: 'fixture-secret' };
+        owner.encryption = encryption;
+        owner.sessionDataKeys = new Map();
+        storage.setState((state) => ({ profileScope: { serverId: activeServer.id, accountId: 'account-a' },
+            settingsScope: { serverId: activeServer.id, accountId: 'account-a' },
+            settings: { ...state.settings, autoArchiveAfterLinkedPullRequestsMerge: false } }));
+        const cached = cacheKind === 'warm' ? buildSessionListCacheEntryFromRenderable(buildSessionListRenderableFromSession(
+            createSessionFixture({ id, owner: 'account-a', active: false, metadataVersion: 1, metadata }),
+        )) : undefined;
+        await fetchAndApplySessions({ serverId: activeServer.id, credentials: owner.credentials as any, encryption,
+            sessionDataKeys: owner.sessionDataKeys, cachedSessionListEntries: cached ? { [id]: cached } : {},
+            sessionListEagerHydrationCount: cacheKind === 'hydrated' ? 1 : 0, sessionListBackgroundHydrationMaxRows: 0,
+            requiredHydrationSessionIds: cacheKind === 'hydrated' ? [id] : [],
+            awaitSessionListHydration: cacheKind === 'hydrated',
+            request: async () => new Response(JSON.stringify({ sessions: [row], hasNext: false, nextCursor: null }), { status: 200 }),
+            getExistingSession: (sessionId) => storage.getState().sessions[sessionId] ?? null,
+            getCurrentSessionListRenderable: (sessionId) => storage.getState().sessionListRenderables[sessionId] ?? null,
+            applySessionListRenderables: (rows) => storage.getState().mergeSessionListRenderables(rows),
+            applySessionListRenderablePatches: (patches) => storage.getState().applySessionListRenderablePatches(patches),
+            applySessions: (sessions) => storage.getState().applySessions(sessions),
+            repairInvalidReadStateV1: async () => {}, log: { log: () => {} },
+        });
+        const { createSessionActionTarget } = await import('@/components/sessions/actions/sessionActionContext');
+        const { listVisibleSessionActionIds } = await import('@/components/sessions/actions/sessionActionAvailability');
+        const snapshotTarget = createSessionActionTarget({ session: storage.getState().sessionListRenderables[id]! });
+        expect(snapshotTarget.isOwnedByCurrentUser).toBe(true);
+        expect(listVisibleSessionActionIds({ target: snapshotTarget, surface: 'sessionInfo' })).toContain('ui.session.delete');
+        expect(storage.getState().sessionListRenderables[id]?.accessLevel).toBeUndefined();
+        if (cacheKind !== 'hydrated') {
+            expect(storage.getState().sessions[id]).toBeUndefined();
+            expect(storage.getState().sessionListRenderables[id]?.metadata?.agentActivityCounts).toBeUndefined();
+        } else {
+            expect(readSessionPullRequestLinks(storage.getState().sessions[id]?.metadata)).toEqual([link]);
+            expect(storage.getState().sessions[id]?.authenticatedOwnerAccountId).toBeUndefined();
+        }
+        expect(storage.getState().sessionListRenderables[id]?.metadata?.sessionPullRequestsV1?.links).toEqual(cacheKind !== 'cold' ? [link] : undefined);
+        const { assessSessionAutoArchiveHydrationCandidate } = await import('./domains/session/archive/sessionAutoArchiveEligibility');
+        expect(assessSessionAutoArchiveHydrationCandidate({ session: storage.getState().sessionListRenderables[id]!, enabled: true,
+            archivePending: false, accountId: 'account-a' })).toEqual({ eligible: true, reason: 'ready' });
+        requestMock.mockImplementation(async (path: string) => {
+            if (path === `/v2/sessions/${id}`) return new Response(JSON.stringify({ session: row }), { status: 200 });
+            throw new Error(`Unexpected fixture request: ${path}`);
+        });
+        providerGet.mockResolvedValue({ success: true, pullRequest: null });
+        const observer = createSessionAutoArchiveObserver({ isForeground: () => true,
+            ensureMetadata: async (sessionId, serverId, shouldContinue, forceRefresh) =>
+                (await owner.ensureSessionListMetadata([{ sessionId, serverId, forceRefresh }], shouldContinue))[0]?.kind === 'available',
+            checkIntervalMs: 300_000, maxConcurrentCandidates: 4 });
+        try {
+            expect(requestMock).not.toHaveBeenCalled();
+            storage.setState((state) => ({ settings: { ...state.settings, autoArchiveAfterLinkedPullRequestsMerge: true } }));
+            await vi.waitFor(() => expect(requestMock).toHaveBeenCalledTimes(1));
+            await vi.waitFor(() => expect(storage.getState().sessions[id]).toBeDefined());
+            await vi.waitFor(() => expect(providerGet).toHaveBeenCalledTimes(1));
+            expect(requestMock.mock.calls.map(([path]) => path)).toEqual([`/v2/sessions/${id}`]);
+            expect(readSessionPullRequestLinks(storage.getState().sessions[id]?.metadata)).toEqual([link]);
+            const hydratedTarget = createSessionActionTarget({ session: storage.getState().sessions[id]! });
+            expect(hydratedTarget.isOwnedByCurrentUser).toBe(true);
+            expect(listVisibleSessionActionIds({ target: hydratedTarget, surface: 'sessionInfo' })).toContain('ui.session.delete');
+            expect(storage.getState().sessions[id]?.accessLevel).toBeUndefined();
+            await new Promise((resolve) => setTimeout(resolve, 20));
+            expect(providerGet).toHaveBeenCalledTimes(1);
+        } finally {
+            observer.dispose();
+        }
     });
 
     it('drops queued metadata demand on release and refuses held publication after a scope retires', async () => {

@@ -33,6 +33,9 @@ export function mapGithubPullRequest(provider: ScmHostingProvider, raw: unknown)
     if (!number || !title || !url || !base || !head) return null;
     const headSha = (isRecord(raw.head) ? readGithubString(raw.head.sha) : null)
         ?? readGithubString(raw.headRefOid);
+    const headRepository = (isRecord(raw.head) && isRecord(raw.head.repo)
+        ? readGithubString(raw.head.repo.full_name) : null)
+        ?? (isRecord(raw.headRepository) ? readGithubString(raw.headRepository.nameWithOwner) : null);
     return {
         provider,
         number,
@@ -44,5 +47,6 @@ export function mapGithubPullRequest(provider: ScmHostingProvider, raw: unknown)
         ...(typeof raw.draft === 'boolean' ? { draft: raw.draft }
             : typeof raw.isDraft === 'boolean' ? { draft: raw.isDraft } : {}),
         ...(headSha && /^[0-9a-f]{40,64}$/i.test(headSha) ? { headSha } : {}),
+        ...(headRepository ? { headRepository } : {}),
     };
 }

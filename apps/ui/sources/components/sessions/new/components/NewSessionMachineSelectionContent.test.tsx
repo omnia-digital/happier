@@ -156,6 +156,15 @@ function getOption(
     return option!;
 }
 
+function readMachineGlyphProps(option: SelectionListOption): Readonly<{
+    serverId?: unknown;
+    machineId?: unknown;
+    size?: unknown;
+}> | null {
+    if (!React.isValidElement(option.icon)) return null;
+    return option.icon.props as Readonly<{ serverId?: unknown; machineId?: unknown; size?: unknown }>;
+}
+
 describe('NewSessionMachineSelectionContent', () => {
     beforeEach(() => {
         capturedSelectionLists.length = 0;
@@ -235,6 +244,18 @@ describe('NewSessionMachineSelectionContent', () => {
 
         const recentOption = getOption(recentSection, 'm-recent');
         expect(recentOption.testID).toBe('new-session-machine-option:m-recent');
+        expect(readMachineGlyphProps(recentOption)).toMatchObject({
+            serverId: 'server-a',
+            machineId: 'm-recent',
+            size: 24,
+        });
+
+        const favoriteOption = getOption(favoritesSection, 'm-fav');
+        expect(readMachineGlyphProps(favoriteOption)).toMatchObject({
+            serverId: 'server-a',
+            machineId: 'm-fav',
+            size: 24,
+        });
 
         const offlineOption = getOption(allSection, 'm-offline');
         expect(offlineOption.disabled).toBe(true);

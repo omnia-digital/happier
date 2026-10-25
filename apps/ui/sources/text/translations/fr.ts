@@ -457,6 +457,9 @@ export const fr: TranslationStructure = {
         checking: 'Vérification…',
         checked: 'Vérifié à l’instant',
         stale: 'Périmé',
+        autoArchiveWorkUnverified: 'L’archivage automatique attend de pouvoir vérifier que la session est inactive, au repos et sans travail en attente. Les anciens hôtes peuvent ne pas transmettre ces signaux.',
+        autoArchived: 'Archivée automatiquement',
+        autoArchivedReason: 'Toutes les PR liées ont été vérifiées comme fusionnées',
     },
     sessionTickets: {
         link: "Lier un ticket",
@@ -5156,6 +5159,7 @@ export const fr: TranslationStructure = {
                 budgetReachedBody: 'Cet objectif a atteint son budget de jetons. Retirez le budget pour continuer.',
                 removeBudgetAndResume: 'Retirer le budget et continuer',
                 statusInterrupted: 'Interrompu',
+                statusUnknown: 'Inconnu',
                 tokenBudget: 'Budget de tokens',
                 budgetProgress: ({ used, budget }: { used: string; budget: string }) => `${used} / ${budget}`,
                 budgetCaption: ({ budget }: { budget: string }) => `sur ${budget} de budget`,
@@ -7852,6 +7856,14 @@ export const fr: TranslationStructure = {
     },
 
 settingsSession: {
+    archiveAutomation: {
+        title: 'Archivage automatique',
+        footer: 'Ces choix se synchronisent avec ce compte Home. Quand Happier est ouvert, la vérification automatique a lieu environ toutes les 5 minutes. Le nettoyage local nécessite la prise en charge de la machine ; les branches distantes restent. Désarchiver ne restaure pas les ressources locales supprimées.',
+        autoArchiveTitle: 'Archiver après la fusion des PR liées',
+        autoArchiveSubtitle: 'Archive les sessions inactives uniquement si chaque PR liée est vérifiée comme fusionnée.',
+        cleanupTitle: 'Nettoyer les ressources locales après archivage',
+        cleanupSubtitle: 'Enregistre ton choix pour un nettoyage sûr sur la machine propriétaire. Le nettoyage n’est pas encore disponible dans cette version.',
+    },
     terminalHostTitle: 'Hôte de terminal pour les nouvelles sessions',
     terminalHostNone: 'Aucun hôte de terminal',
     newSessionDraftEntry: {

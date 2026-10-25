@@ -18,6 +18,7 @@ export type ParsedGitStatusV2Z = {
     stashCount: number;
     files: ParsedStatusEntry[];
     notAdded: string[];
+    ignored: string[];
 };
 
 export type ParsedNumStatFile = {
@@ -64,6 +65,7 @@ export function parseGitStatusPorcelainV2Z(statusOutput: string): ParsedGitStatu
         stashCount: 0,
         files: [],
         notAdded: [],
+        ignored: [],
     };
 
     for (let i = 0; i < tokens.length; i++) {
@@ -138,6 +140,10 @@ export function parseGitStatusPorcelainV2Z(statusOutput: string): ParsedGitStatu
         }
         if (token.startsWith('? ')) {
             parsed.notAdded.push(token.slice(2));
+            continue;
+        }
+        if (token.startsWith('! ')) {
+            parsed.ignored.push(token.slice(2));
             continue;
         }
     }

@@ -2,6 +2,7 @@ import {
   isSessionEncryptionModeAllowedByClientRequirement,
   listCompletedSessionTurns,
   SessionTurnsProjectionV1Schema,
+  V2SessionByIdResponseSchema,
   type SessionTurnsProjectionV1,
   type V2SessionByIdResponse,
   type ClientEncryptionRequirement,
@@ -9,6 +10,7 @@ import {
 
 import type { Metadata, Session } from '@/sync/domains/state/storageTypes';
 import type { AuthCredentials } from '@/auth/storage/tokenStorage';
+import { parseToken } from '@/utils/auth/parseToken';
 import { syncPerformanceTelemetry } from '@/sync/runtime/syncPerformanceTelemetry';
 import { reportNewAgentRequestsFromSessionTransition } from '@/voice/context/reportNewAgentRequestsFromSessionTransition';
 import {
@@ -18,6 +20,7 @@ import {
 } from '@/sync/runtime/connectivity/authErrors';
 
 import { parsePlainSessionAgentState, parsePlainSessionMetadata } from './parsePlainSessionPayload';
+import { resolveSessionAccessLevelFromV2Share } from './sessionAccessLevel';
 import { resolveSessionRuntimeActivityProjectionFields } from './sessionRuntimeActivityProjection';
 import {
   looksLikeCurrentV2SessionNotFound404,
@@ -220,6 +223,19 @@ export async function fetchAndApplySessionById(params: Readonly<{
     return { ok: false, session: null, errorCode: 'network_error' };
   }
 
+  // Only the direct, successful v2 detail query proves ownership from share:null:
+  // its visibility filter and user-filtered shares are read together. List selection can
+  // race share revocation, and legacy coercion/fallback must not manufacture this proof.
+  const directV2Detail = responseOk ? V2SessionByIdResponseSchema.safeParse(body) : null;
+  let authenticatedOwnerAccountId: string | undefined;
+  if (directV2Detail?.success && directV2Detail.data.session.id === sessionId && directV2Detail.data.session.share === null) {
+    try {
+      authenticatedOwnerAccountId = parseToken(params.credentials.token);
+    } catch {
+      params.log.log('[sessionById] Ownership unavailable: authenticated token has no readable account subject');
+    }
+  }
+
   if (!responseOk) {
     if (isAuthenticationResponseStatus(responseStatus)) {
       throw createNotAuthenticatedError();
@@ -325,8 +341,7 @@ export async function fetchAndApplySessionById(params: Readonly<{
       sessionEncryption!.decryptAgentState(row.agentStateVersion, row.agentState),
     ]);
 
-  const accessLevel = row.share?.accessLevel;
-  const normalizedAccessLevel = accessLevel === 'view' || accessLevel === 'edit' || accessLevel === 'admin' ? accessLevel : undefined;
+  const normalizedAccessLevel = resolveSessionAccessLevelFromV2Share(row.share);
   const sessionTurns = params.includeTurnsProjection === false
     ? null
     : await fetchSessionTurnsProjection({
@@ -350,6 +365,7 @@ export async function fetchAndApplySessionById(params: Readonly<{
     metadata,
     agentState,
     accessLevel: normalizedAccessLevel,
+    authenticatedOwnerAccountId,
     canApprovePermissions: row.share?.canApprovePermissions ?? undefined,
     ...(sessionTurns ? { sessionTurns } : {}),
     rollbackEligibleTurnStarts: rollbackEligibleTurnStarts ? [...rollbackEligibleTurnStarts] : undefined,

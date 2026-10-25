@@ -67,7 +67,6 @@ describe('registerMachineDirectSessionsRpcHandlers', () => {
     const configDir = join(root, '.claude');
     const sessionFile = join(configDir, 'projects', 'proj-a', 'sess-claude-direct.jsonl');
     await mkdir(join(configDir, 'projects', 'proj-a'), { recursive: true });
-    const resolvedConfigDir = await realpath(configDir).catch(() => configDir);
     await writeFile(
       sessionFile,
       [
@@ -153,7 +152,7 @@ describe('registerMachineDirectSessionsRpcHandlers', () => {
         resume: 'sess-claude-direct',
         approvedNewDirectoryCreation: true,
         transcriptStorage: 'direct',
-        environmentVariables: { CLAUDE_CONFIG_DIR: resolvedConfigDir },
+        environmentVariables: { CLAUDE_CONFIG_DIR: configDir },
       }),
     );
   });

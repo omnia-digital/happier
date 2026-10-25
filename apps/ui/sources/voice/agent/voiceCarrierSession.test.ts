@@ -15,7 +15,6 @@ const state: any = {
   sessions: {},
   machines: {},
   machineListByServerId: {},
-  profileScope: { serverId: 'server-a', accountId: 'account-a' },
   settings: {
     lastUsedAgent: 'claude',
     recentMachinePaths: [{ machineId: 'm1', path: '/tmp/repo' }],
@@ -68,11 +67,9 @@ vi.mock('@/sync/sync', () => ({
 }));
 
 describe('voiceConversationSession', () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     const now = Date.now();
     vi.resetModules();
-    const { registerStorageStateReader } = await import('@/sync/domains/state/storageStateReaderBridge');
-    registerStorageStateReader(() => state);
     spawnSession.mockReset();
     refreshSessions.mockReset();
     patchSessionMetadataWithRetry.mockReset();
@@ -214,18 +211,22 @@ describe('voiceConversationSession', () => {
     );
   });
 
-  it('falls back to a recent path when the fixed machine target metadata is not hydrated yet', async () => {
+  it('falls back to a scoped recent path when the fixed machine target metadata is not hydrated yet', async () => {
     const { ensureVoiceConversationSessionId } = await import('@/voice/sessionBinding/voiceConversationSession');
+    const { registerStorageStateReader } = await import('@/sync/domains/state/storageStateReaderBridge');
 
     state.machines = {};
+    state.profileScope = { serverId: 'server-a', accountId: 'account-a' };
+    registerStorageStateReader(() => state);
     state.settings.voice.adapters.local_conversation.agent.machineTargetMode = 'fixed';
     state.settings.voice.adapters.local_conversation.agent.machineTargetId = 'm_fixed';
+    state.settings.recentMachinePaths = [
+      { machineId: 'm_fixed', path: '/tmp/legacy-unassigned-repo' },
+      { machineId: 'm_other', path: '/tmp/other-repo' },
+    ];
     state.settings.machinePathPreferencesByTargetV1 = {
       [JSON.stringify(['server-a', 'account-a', 'm_fixed'])]: {
         favorites: [], recentPaths: ['/tmp/fixed-repo'],
-      },
-      [JSON.stringify(['server-a', 'account-a', 'm_other'])]: {
-        favorites: [], recentPaths: ['/tmp/other-repo'],
       },
     };
 

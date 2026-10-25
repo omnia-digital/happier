@@ -455,6 +455,9 @@ export const en = {
         checking: 'Checking…',
         checked: 'Checked now',
         stale: 'Stale',
+        autoArchiveWorkUnverified: 'Automatic archive waits until inactivity, idle activity, and no pending work can all be verified. Older hosts may not report these signals.',
+        autoArchived: 'Archived automatically',
+        autoArchivedReason: 'All linked PRs were verified merged',
     },
     sessionTickets: {
         link: 'Link ticket',
@@ -5177,6 +5180,7 @@ export const en = {
                 budgetReachedBody: 'This goal has reached its token budget. Remove the budget to continue.',
                 removeBudgetAndResume: 'Remove budget and continue',
                 statusInterrupted: 'Interrupted',
+                statusUnknown: 'Unknown',
                 tokenBudget: 'Token budget',
                 budgetProgress: ({ used, budget }: { used: string; budget: string }) => `${used} / ${budget}`,
                 budgetCaption: ({ budget }: { budget: string }) => `of ${budget} budget`,
@@ -7897,6 +7901,14 @@ export const en = {
     },
 
 settingsSession: {
+    archiveAutomation: {
+        title: 'Archive automation',
+        footer: 'These choices sync with this Home account. While Happier is open, auto-archive checks run about every 5 minutes. Local cleanup needs host support; remote branches stay. Unarchiving cannot restore removed local resources.',
+        autoArchiveTitle: 'Archive after linked PRs merge',
+        autoArchiveSubtitle: 'Archive inactive sessions only when every linked PR is freshly verified merged.',
+        cleanupTitle: 'Clean up local resources after archive',
+        cleanupSubtitle: 'Save your choice for safe cleanup on the owning machine. Cleanup is not available in this build yet.',
+    },
     terminalHostTitle: 'Terminal host for new sessions',
     terminalHostNone: 'No terminal host',
     newSessionDraftEntry: {

@@ -1,9 +1,10 @@
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { CommandContext } from '@/cli/commandRegistry';
+import { getProviderCliRuntimeSpec } from '@happier-dev/agents';
 import { createEnvKeyScope } from '@/testkit/env/envScope';
 import { writeExecutableShimSync } from '@/testkit/fs/executableShim';
 import { writeTextFileSync } from '@/testkit/fs/fileHelpers';
@@ -14,6 +15,7 @@ const { execFileSyncSpy, runtimeState } = vi.hoisted(() => ({
   execFileSyncSpy: vi.fn(() => 'claude help output'),
   runtimeState: { isBun: false },
 }));
+const hiddenClaudeSystemPaths = vi.hoisted(() => new Set<string>());
 
 const envKeys = [
   'HOME',
@@ -27,9 +29,30 @@ const envKeys = [
 const TEMP_DIRS = new Set<string>();
 let envScope = createEnvKeyScope(envKeys);
 
+beforeEach(() => {
+  hiddenClaudeSystemPaths.clear();
+  for (const candidate of getProviderCliRuntimeSpec('claude').knownCommandCandidates ?? []) {
+    if (candidate.kind === 'absolutePath') hiddenClaudeSystemPaths.add(candidate.path);
+  }
+});
+
 vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:child_process')>();
   return { ...actual, execFileSync: execFileSyncSpy };
+});
+
+// Keep no-install help cases independent of a Claude binary installed on the test host.
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  return {
+    ...actual,
+    accessSync: (path: Parameters<typeof actual.accessSync>[0], mode?: number) => {
+      if (hiddenClaudeSystemPaths.has(String(path))) {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+      }
+      return actual.accessSync(path, mode);
+    },
+  };
 });
 
 vi.mock('@/utils/runtime', () => ({
@@ -46,6 +69,7 @@ afterEach(() => {
   envScope = createEnvKeyScope(envKeys);
   for (const dir of TEMP_DIRS) removeTempDirSync(dir);
   TEMP_DIRS.clear();
+  hiddenClaudeSystemPaths.clear();
 });
 
 function createTempRoot(prefix: string): string {

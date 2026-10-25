@@ -1,11 +1,13 @@
 import * as React from 'react';
 import { useUnistyles } from 'react-native-unistyles';
-import { readSessionPullRequestLinks, type ScmPullRequestSummary, type SessionPullRequestLinkV1 } from '@happier-dev/protocol';
+import { readSessionAutoArchiveHistory, readSessionPullRequestLinks, type ScmPullRequestSummary, type SessionPullRequestLinkV1 } from '@happier-dev/protocol';
 
 import { Icon } from '@/components/ui/icons/Icon';
 import { Item } from '@/components/ui/lists/Item';
 import { ItemGroup } from '@/components/ui/lists/ItemGroup';
-import { useActiveServerAccountScope, useSessionProjectScmSnapshot } from '@/sync/domains/state/storage';
+import { useActiveServerAccountScope, useSession, useSessionListRenderable, useSessionProjectScmSnapshot, useSetting } from '@/sync/domains/state/storage';
+import { assessSessionAutoArchiveCandidate } from '@/sync/domains/session/archive/sessionAutoArchiveEligibility';
+import { useSessionArchivePending } from '@/hooks/session/useSessionArchivePending';
 import { addSessionPullRequestLink, captureSessionPullRequestActionScope, parseSessionPullRequestUrl, readLinkedPullRequest, removeLinkedPullRequest, replaceSessionPullRequestLink, type SessionPullRequestActionScope } from '@/sync/ops/sessionPullRequestLinks';
 import { Modal } from '@/modal';
 import { t } from '@/text';
@@ -73,8 +75,20 @@ export function SessionPullRequests(props: Readonly<{ sessionId: string; metadat
     const { theme } = useUnistyles();
     const mountedRef = useMountedRef();
     const activeScope = useActiveServerAccountScope();
+    const autoArchiveEnabled = useSetting('autoArchiveAfterLinkedPullRequestsMerge');
+    const session = useSession(props.sessionId);
+    const renderable = useSessionListRenderable(props.sessionId);
+    const archivePending = useSessionArchivePending(props.sessionId, activeScope?.serverId);
     const snapshot = useSessionProjectScmSnapshot(props.sessionId);
     const links = readSessionPullRequestLinks(props.metadata);
+    const autoArchiveDecision = autoArchiveEnabled && renderable
+        ? assessSessionAutoArchiveCandidate({ session: renderable, enabled: true, archivePending, accountId: activeScope?.accountId,
+            authenticatedOwnerAccountId: session?.authenticatedOwnerAccountId })
+        : null;
+    const autoArchiveSkip = autoArchiveDecision?.reason === 'work_unverified';
+    const archivedAt = session ? session.archivedAt : renderable?.archivedAt;
+    const archiveHistory = archivedAt == null ? null
+        : readSessionAutoArchiveHistory(props.metadata).find((event) => event.archivedAt === archivedAt);
     const configuredProvider = snapshot?.hostingProvider?.kind === 'github' || snapshot?.hostingProvider?.kind === 'gitlab'
         ? { kind: snapshot.hostingProvider.kind, baseUrl: snapshot.hostingProvider.baseUrl }
         : undefined;
@@ -125,6 +139,8 @@ export function SessionPullRequests(props: Readonly<{ sessionId: string; metadat
         ]);
     };
     return <ItemGroup title={t('sessionPullRequests.title')}>
+        {autoArchiveSkip && <Item testID="session-pr-autoarchive-skipped" title={t('settingsSession.archiveAutomation.title')} subtitle={t('sessionPullRequests.autoArchiveWorkUnverified')} subtitleLines={0} icon={<Icon name="info" size={29} color={theme.colors.text.secondary} />} />}
+        {archiveHistory && <Item testID="session-pr-autoarchive-history" title={t('sessionPullRequests.autoArchived')} subtitle={`${t('sessionPullRequests.autoArchivedReason')} · ${archiveHistory.links.map((link) => `${link.repository} #${link.number}`).join(', ')}`} icon={<Icon name="archive" size={29} color={theme.colors.text.secondary} />} />}
         {links.map((link) => <LinkedPullRequest key={`${activeScope?.serverId ?? 'none'}:${activeScope?.accountId ?? 'none'}:${link.url}`} sessionId={props.sessionId} link={link} canEdit={props.canEdit} onChange={change} onRemove={remove} />)}
         {props.canEdit && <Item testID="session-pr-add" title={t('sessionPullRequests.add')} subtitle={t('sessionPullRequests.addSubtitle')} icon={<Icon name="link" size={29} color={theme.colors.accent.blue} />} onPress={() => { void add(); }} />}
     </ItemGroup>;

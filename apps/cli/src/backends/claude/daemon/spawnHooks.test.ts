@@ -1,7 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { chmod, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { accountSettingsParse } from '@happier-dev/protocol';
+import { getProviderCliRuntimeSpec } from '@happier-dev/agents';
 import { HAPPIER_CLAUDE_ENDPOINT_STATE_ENV_KEY } from '@/backends/claude/endpointRecovery/claudeEndpointArtifacts';
 
 import { createEnvKeyScope } from '@/testkit/env/envScope';
@@ -11,6 +12,28 @@ import { createTempDir, removeTempDir } from '@/testkit/fs/tempDir';
 const envKeys = ['PATH', 'HAPPIER_CLAUDE_PATH', 'HOME', 'HAPPIER_HOME_DIR', 'CLAUDE_CONFIG_DIR', 'HAPPIER_CLAUDE_CONFIG_DIR', 'IS_SANDBOX'] as const;
 const tempDirs = new Set<string>();
 let envScope = createEnvKeyScope(envKeys);
+const hiddenClaudeSystemPaths = vi.hoisted(() => new Set<string>());
+
+// Keep host-installed Claude binaries outside this fixture's PATH/HOME sandbox.
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  return {
+    ...actual,
+    accessSync: (path: Parameters<typeof actual.accessSync>[0], mode?: number) => {
+      if (hiddenClaudeSystemPaths.has(String(path))) {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+      }
+      return actual.accessSync(path, mode);
+    },
+  };
+});
+
+beforeEach(() => {
+  hiddenClaudeSystemPaths.clear();
+  for (const candidate of getProviderCliRuntimeSpec('claude').knownCommandCandidates ?? []) {
+    if (candidate.kind === 'absolutePath') hiddenClaudeSystemPaths.add(candidate.path);
+  }
+});
 
 async function createFakeBin(name: string): Promise<{ dir: string; binPath: string }> {
   const isWindows = process.platform === 'win32';
@@ -32,6 +55,7 @@ afterEach(async () => {
     await removeTempDir(dir);
   }
   tempDirs.clear();
+  hiddenClaudeSystemPaths.clear();
 });
 
 describe('claudeDaemonSpawnHooks.validateSpawn', () => {

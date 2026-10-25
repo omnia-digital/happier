@@ -10,7 +10,8 @@ import {
     sessionStopWithServerScope,
     sessionUnarchiveWithServerScope,
 } from '@/sync/ops';
-import { sessionSetAttentionStandingWithServerScope } from '@/sync/ops/sessionOrganization';
+import { sessionSetAttentionStandingWithServerScope, setSessionPin } from '@/sync/ops/sessionOrganization';
+import { resolveSessionOrganizationMutationScope } from '@/sync/domains/session/organization/mutationScope';
 import {
     archiveSessionWithPendingState,
     isSessionActiveArchiveResult,
@@ -78,7 +79,11 @@ function resolveSetManualReadState(context: SessionActionExecutionContext | unde
 }
 
 function resolveSetPinned(context: SessionActionExecutionContext | undefined) {
-    return context?.operations?.setPinned;
+    return context?.operations?.setPinned ?? (async (sessionId: string, pinned: boolean, opts?: Readonly<{ serverId?: string | null }>) => {
+        const resolved = await resolveSessionOrganizationMutationScope(opts?.serverId);
+        if (!resolved.ok) throw new HappyError(t('errors.unknownError'), false);
+        await setSessionPin({ ...resolved.scope, sessionId, pinned });
+    });
 }
 
 function resolveSetAttentionStanding(context: SessionActionExecutionContext | undefined) {
@@ -238,7 +243,6 @@ export async function executeSessionAction(params: Readonly<{
         case SESSION_ACTION_PIN_ID:
         case SESSION_ACTION_UNPIN_ID: {
             const setPinned = resolveSetPinned(params.context);
-            if (!setPinned) throwUnsupportedSingleTargetAction();
             throwIfFailed(
                 await setPinned(params.target.sessionId, params.actionId === SESSION_ACTION_PIN_ID, { serverId: params.target.serverId }),
                 t('errors.unknownError'),

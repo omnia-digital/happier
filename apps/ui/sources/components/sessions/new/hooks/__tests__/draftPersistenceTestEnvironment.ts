@@ -417,6 +417,12 @@ vi.mock('@/sync/store/hooks', async (importOriginal) => {
 });
 
 installNewSessionScreenModelCommonModuleMocks({
+    storage: async () => {
+        const { createStorageModuleStub } = await import('@/dev/testkit/mocks/storage');
+        return createStorageModuleStub({
+            useActiveServerAccountScope: () => activeServerAccountScopeState.value,
+        });
+    },
     reactNative: async () => {
         const { createReactNativeWebMock } = await import('@/dev/testkit/mocks/reactNative');
         return createReactNativeWebMock({

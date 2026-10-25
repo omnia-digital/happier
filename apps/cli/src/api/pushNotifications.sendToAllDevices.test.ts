@@ -4,6 +4,7 @@ import axios from 'axios';
 
 import { logger } from '@/ui/logger';
 import { PushNotificationClient } from './pushNotifications';
+import { buildAgentRequestNotificationContent } from '@/activity/notifications/buildAgentRequestNotificationContent';
 import { PUSH_NOTIFICATION_ANDROID_CHANNEL_IDS, PUSH_NOTIFICATION_CATEGORY_IDS } from '@happier-dev/protocol';
 
 type MockExpoPushTicket = Readonly<{
@@ -61,6 +62,22 @@ describe('PushNotificationClient.sendToAllDevicesAsync', () => {
     vi.mocked(logger.infoFile).mockClear();
     (axios as any).get.mockReset();
     (axios as any).delete.mockReset();
+  });
+
+  it('binds permission notifications to the authenticated sending account', async () => {
+    vi.mocked(axios.get).mockResolvedValueOnce({ data: { tokens: [{ id: '1', token: 'ExponentPushToken[a]' }] } })
+      .mockResolvedValueOnce({ data: { badgeCount: 1 } });
+    const token = `e30.${Buffer.from(JSON.stringify({ sub: 'account-a' })).toString('base64url')}.signature`;
+    const notification = buildAgentRequestNotificationContent({
+      kind: 'permission', sessionId: 'shared-session', requestId: 'request', occurrenceId: 'occurrence', toolName: 'Write',
+    });
+    await new PushNotificationClient(token, 'https://api.example.test').sendToAllDevicesAsync(
+      notification.title, notification.body, notification.data,
+    );
+    expect(sendPushNotificationsAsyncSpy.mock.calls[0]?.[0]?.[0]?.data).toMatchObject({
+      sessionId: 'shared-session', requestId: 'request', occurrenceId: 'occurrence',
+      serverUrl: 'https://api.example.test', accountId: 'account-a',
+    });
   });
 
   it('bounds the serialized outbound message while preserving Unicode and routing data', async () => {

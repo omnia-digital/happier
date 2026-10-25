@@ -31,6 +31,10 @@ describe('scmWorktrees protocol contracts', () => {
     });
   });
 
+  it('preserves an optional launch nonce for host-created checkout custody', () => {
+    expect(ScmWorktreeCreateRequestSchema.parse({ cwd: '/repo', launchNonce: 'attempt-1' }).launchNonce).toBe('attempt-1');
+  });
+
   it('requires a worktree path for remove requests', () => {
     expect(() => ScmWorktreeRemoveRequestSchema.parse({
       cwd: '/repo',

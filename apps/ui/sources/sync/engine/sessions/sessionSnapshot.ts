@@ -32,6 +32,7 @@ import {
 import type { EncryptionScopeInput } from '@/sync/encryption/encryption';
 
 import { parsePlainSessionAgentState, parsePlainSessionMetadata } from './parsePlainSessionPayload';
+import { resolveSessionAccessLevelFromV2Share } from './sessionAccessLevel';
 import { fetchSessionListPageCompat } from './sessionHttpCompat';
 import { resolveSessionRuntimeActivityProjectionFields } from './sessionRuntimeActivityProjection';
 import {
@@ -152,9 +153,6 @@ function buildSessionListInitialPath(params: {
     return query.length > 0 ? `/v2/sessions?${query.join('&')}` : undefined;
 }
 
-function normalizeAccessLevel(accessLevel: unknown): 'view' | 'edit' | 'admin' | undefined {
-    return accessLevel === 'view' || accessLevel === 'edit' || accessLevel === 'admin' ? accessLevel : undefined;
-}
 
 function normalizeLastViewedSessionSeq(value: number | null | undefined): number | null {
     return normalizeSessionListSeq(value);
@@ -202,7 +200,9 @@ function buildHydratedSessionFromDecryptedRow(
         metadata: decryptedState.metadata,
         agentState: decryptedState.agentState,
         metadataUnavailable: row.metadata != null && decryptedState.metadata == null,
-        accessLevel: normalizeAccessLevel(row.share?.accessLevel),
+        accessLevel: resolveSessionAccessLevelFromV2Share(row.share),
+        // A list row is not direct by-id ownership evidence, including passthrough wire fields.
+        authenticatedOwnerAccountId: undefined,
         canApprovePermissions: row.share?.canApprovePermissions ?? undefined,
         latestReadyEventSeq: normalizeSessionListSeq(row.latestReadyEventSeq ?? null),
         latestReadyEventAt: normalizeSessionListTimestamp(row.latestReadyEventAt ?? null),
@@ -252,8 +252,12 @@ function buildRenderableFromRowAndCache(
             host: cachedEntry.host ?? null,
             machineId: cachedEntry.machineId ?? null,
             flavor: cachedEntry.flavor ?? null,
+            sessionWorkStateV1: cachedEntry.sessionWorkStateV1,
+            sessionGoalV1: cachedEntry.sessionGoalV1,
+            codexGoalV1: cachedEntry.codexGoalV1,
             directSessionV1: cachedEntry.directSessionV1 ?? null,
             sessionTicketV1: cachedEntry.sessionTicketV1 ?? null,
+            sessionPullRequestsV1: cachedEntry.sessionPullRequestsV1 ?? null,
             hiddenSystemSession: cachedEntry.hiddenSystemSession === true,
         }
         : null;
@@ -387,7 +391,7 @@ function buildRenderableFromRowAndCache(
         rollbackEligibleTurnStarts: rowRecord.rollbackEligibleTurnStarts === undefined
             ? null
             : readRollbackEligibleTurnStarts(rowRecord.rollbackEligibleTurnStarts),
-        accessLevel: normalizeAccessLevel(row.share?.accessLevel),
+        accessLevel: resolveSessionAccessLevelFromV2Share(row.share),
         canApprovePermissions: row.share?.canApprovePermissions ?? undefined,
         hasPendingPermissionRequests,
         hasPendingUserActionRequests,

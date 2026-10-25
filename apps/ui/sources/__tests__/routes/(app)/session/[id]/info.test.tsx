@@ -524,6 +524,7 @@ describe('/session/[id]/info', () => {
 
     afterEach(() => {
         clearTempData();
+        vi.unstubAllGlobals();
         standardCleanup();
     });
 
@@ -657,6 +658,29 @@ describe('/session/[id]/info', () => {
         const activityStatusItem = screen.findAllByType('Item' as any)
             .find((node: any) => node.props?.title === 'sessionInfo.sessionStatus');
         expect(activityStatusItem?.props.detail).toBe('Connected');
+    });
+
+    it.each([false, true])('only retains archived activity when diagnostics are enabled (%s)', async (diagnosticsEnabled) => {
+        vi.stubGlobal('__DEV__', false);
+        localDevModeEnabled = diagnosticsEnabled;
+        mockSession = {
+            id: 'session-1234567890abcdef',
+            active: false,
+            accessLevel: null,
+            createdAt: 100,
+            updatedAt: 200,
+            archivedAt: 200,
+            seq: 1,
+            thinking: false,
+            metadata: {},
+        };
+
+        const screen = await renderInfoScreen();
+        const activityGroups = screen.findAllByType('ItemGroup')
+            .filter((node) => node.props.title === 'sessionInfo.activity');
+        expect(activityGroups).toHaveLength(diagnosticsEnabled ? 1 : 0);
+        expect(screen.findAllByType('Item').some((node) => node.props.title === 'sessionInfo.thinking')).toBe(diagnosticsEnabled);
+        expect(screen.findByTestId('session-info-activity-status')).toBeNull();
     });
 
     it('updates product activity status inputs when pending freshness projection changes', async () => {

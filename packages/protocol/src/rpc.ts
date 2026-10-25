@@ -287,6 +287,7 @@ export const RPC_ERROR_MESSAGES = {
 // Session-scoped RPC method names (used with `${sessionId}:${method}` over socket RPC).
 export const SESSION_RPC_METHODS = {
   SESSION_PERMISSION_RESPOND_LEGACY: 'permission',
+  SESSION_PERMISSION_RESPOND_TO_OCCURRENCE_V1: 'session.permission.respondToOccurrence.v1',
   SESSION_STRUCTURED_QUESTION_RESPOND_V1: 'session.structuredQuestion.respond.v1',
   SESSION_USER_MESSAGE_SEND: 'session.userMessage.send',
   SESSION_PENDING_QUEUE_MATERIALIZE_NEXT: 'session.pendingQueue.materializeNext',
@@ -328,6 +329,7 @@ export const SESSION_RPC_METHODS = {
 
 export function isDelegatedSessionApprovalRpcMethod(methodSuffix: string): boolean {
   return methodSuffix === SESSION_RPC_METHODS.SESSION_PERMISSION_RESPOND_LEGACY
+    || methodSuffix === SESSION_RPC_METHODS.SESSION_PERMISSION_RESPOND_TO_OCCURRENCE_V1
     || methodSuffix === SESSION_RPC_METHODS.SESSION_STRUCTURED_QUESTION_RESPOND_V1;
 }
 

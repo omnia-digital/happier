@@ -4,6 +4,9 @@ import { renderHook, standardCleanup } from '@/dev/testkit';
 import { scopedSessionLocalStateKey } from '@/sync/domains/state/sessionLocalStateKeys';
 import type { ManagedEndpointSupervisor } from '@happier-dev/connection-supervisor';
 import { createSocketIoAckTimeoutError } from '@/sync/runtime/socketIoAckTimeout';
+import type { MessageAckResponse } from '@happier-dev/protocol/updates';
+import type { SyncMessageTransport } from './sync';
+import { normalizeRawMessage } from './typesRaw';
 
 type EndpointSupervisorLookup = typeof import('@/sync/runtime/connectivity/endpointSupervisorPool').getEndpointSupervisorForServer;
 type EndpointSupervisorAcquire = typeof import('@/sync/runtime/connectivity/endpointSupervisorPool').acquireEndpointSupervisor;
@@ -130,6 +133,21 @@ function tokenForSub(sub: string): string {
         .replaceAll('/', '_')
         .replaceAll('=', '');
     return `e30.${payload}.signature`;
+}
+
+function mockStoredLookupResponse(response: Response | Promise<Response>) {
+    // HTTP transport boundary: exercise the real API response consumer and scope assertion.
+    return vi.spyOn(apiSocket, 'request').mockImplementation(async <T>(
+        _path: string,
+        _options: RequestInit | undefined,
+        consumeResponse: (response: Response) => Promise<T>,
+        assertCurrent: () => void,
+    ): Promise<T> => {
+        assertCurrent();
+        const settled = await response;
+        assertCurrent();
+        return consumeResponse(settled);
+    });
 }
 
 function pendingOutboxFixture(params: Readonly<{
@@ -403,6 +421,160 @@ describe('sync.sendMessage optimistic thinking', () => {
             createdAt: Date.now(),
         });
         expect(storage.getState().sessions[sessionId].optimisticThinkingAt ?? null).toBeNull();
+    });
+
+    it('uses the stored creation time in the acknowledged outgoing message', async () => {
+        const sessionId = 's_stored_message_time';
+        const storedCreatedAt = Date.now() - 120_000;
+        storage.getState().applySessions([createSession({ sessionId })]);
+
+        const encryption = await Encryption.create(new Uint8Array(32).fill(9));
+        await encryption.initializeSessions(new Map([[sessionId, null]]));
+
+        const { sync } = await import('./sync');
+        sync.encryption = encryption;
+        vi.spyOn(apiSocket, 'sessionRPC').mockRejectedValue(createRpcMethodNotAvailableError());
+        const ack: MessageAckResponse = {
+            ok: true,
+            id: 'm-stored-time',
+            seq: 1,
+            localId: 'local-stored-time',
+            createdAt: storedCreatedAt,
+            didWrite: true,
+        };
+        // The generic socket boundary returns the one ACK shape this test requests.
+        const emitWithAck: SyncMessageTransport['emitWithAck'] = async <T>() => ack as T;
+        sync.setMessageTransport({
+            emitWithAck,
+            send: vi.fn(),
+        });
+
+        await sync.sendMessage(sessionId, 'hello', undefined, undefined, { localId: 'local-stored-time' });
+        const transcript = storage.getState().sessionMessages[sessionId];
+        const user = transcript?.messageIdsOldestFirst
+            .map((id) => transcript.messagesById[id])
+            .find((message) => message?.kind === 'user-text');
+        expect(user?.createdAt).toBe(storedCreatedAt);
+    });
+
+    it('resolves an older server ACK to its stored message before showing a timestamp', async () => {
+        const sessionId = 's_old_ack_stored_time';
+        const localId = 'local-old-ack';
+        const storedCreatedAt = Date.now() - 120_000;
+        storage.getState().applySessions([createSession({ sessionId })]);
+        const encryption = await Encryption.create(new Uint8Array(32).fill(9));
+        await encryption.initializeSessions(new Map([[sessionId, null]]));
+
+        const { sync } = await import('./sync');
+        sync.encryption = encryption;
+        vi.spyOn(apiSocket, 'sessionRPC').mockRejectedValue(createRpcMethodNotAvailableError());
+        const lookup = mockStoredLookupResponse(Response.json({
+            message: { id: 'm-old-ack', seq: 1, localId, createdAt: storedCreatedAt },
+        }));
+        const ack: MessageAckResponse = { ok: true, id: 'm-old-ack', seq: 1, localId, didWrite: true };
+        // The generic socket boundary returns the older server's ACK shape.
+        const emitWithAck: SyncMessageTransport['emitWithAck'] = async <T>() => ack as T;
+        sync.setMessageTransport({ emitWithAck, send: vi.fn() });
+
+        await sync.sendMessage(sessionId, 'hello', undefined, undefined, { localId });
+
+        expect(lookup).toHaveBeenCalledWith(
+            `/v2/sessions/${sessionId}/messages/by-local-id/${localId}`,
+            undefined,
+            expect.any(Function),
+            expect.any(Function),
+        );
+        const transcript = storage.getState().sessionMessages[sessionId];
+        const user = transcript?.messageIdsOldestFirst
+            .map((id) => transcript.messagesById[id])
+            .find((message) => message?.kind === 'user-text');
+        expect(user?.createdAt).toBe(storedCreatedAt);
+    });
+
+    it.each(['unavailable', 'wrong-message', 'invalid-time'] as const)('keeps an accepted outgoing row unconfirmed when old-server history is %s', async (failure) => {
+        const sessionId = 's_old_ack_history_unavailable';
+        const localId = 'local-history-unavailable';
+        storage.getState().applySessions([createSession({ sessionId })]);
+        const encryption = await Encryption.create(new Uint8Array(32).fill(9));
+        await encryption.initializeSessions(new Map([[sessionId, null]]));
+
+        const { sync } = await import('./sync');
+        sync.encryption = encryption;
+        vi.spyOn(apiSocket, 'sessionRPC').mockRejectedValue(createRpcMethodNotAvailableError());
+        const ack: MessageAckResponse = { ok: true, id: 'm-history-unavailable', seq: 1, localId, didWrite: true };
+        if (failure === 'unavailable') {
+            vi.spyOn(apiSocket, 'request').mockRejectedValue(new Error('history unavailable'));
+        } else {
+            mockStoredLookupResponse(Response.json({
+                message: {
+                    id: ack.id,
+                    seq: ack.seq,
+                    localId: failure === 'wrong-message' ? 'another-local-id' : localId,
+                    createdAt: failure === 'invalid-time' ? -1 : Date.now() - 120_000,
+                },
+            }));
+        }
+        // The generic socket boundary returns the older server's ACK shape.
+        const emitWithAck: SyncMessageTransport['emitWithAck'] = async <T>() => ack as T;
+        sync.setMessageTransport({ emitWithAck, send: vi.fn() });
+
+        expect(await sync.sendMessage(sessionId, 'hello', undefined, undefined, { localId })).toMatchObject({
+            localId,
+            persistence: 'transcript_committed',
+        });
+        const transcript = storage.getState().sessionMessages[sessionId];
+        expect(transcript?.messageIdsOldestFirst ?? []).toEqual([]);
+        expect(storage.getState().sessionPending[sessionId]?.messages).toEqual([
+            expect.objectContaining({ id: localId, source: 'local_outbound', deliveryStatus: 'accepted' }),
+        ]);
+        const storedCreatedAt = Date.now() - 120_000;
+        const recovered = normalizeRawMessage('m-history-unavailable', localId, storedCreatedAt, {
+            role: 'user', content: { type: 'text', text: 'hello' }, meta: {},
+        }, { seq: 1 });
+        if (!recovered) throw new Error('Expected a renderable stored user message');
+        storage.getState().applyMessages(sessionId, [recovered]);
+        expect(storage.getState().sessionPending[sessionId]?.messages ?? []).toEqual([]);
+        const recoveredTranscript = storage.getState().sessionMessages[sessionId];
+        const user = recoveredTranscript.messageIdsOldestFirst
+            .map((id) => recoveredTranscript.messagesById[id])
+            .find((message) => message?.kind === 'user-text');
+        expect(user?.createdAt).toBe(storedCreatedAt);
+    });
+
+    it('does not apply an old-server lookup after the sending account changes', async () => {
+        const sessionId = 's_old_ack_account_switch';
+        const localId = 'local-account-switch';
+        storage.getState().applySessions([{
+            ...createSession({ sessionId, metadata: { machineId: 'm1', path: '/repo', host: 'host', flavor: 'codex' } }),
+            active: false,
+        }]);
+        const encryption = await Encryption.create(new Uint8Array(32).fill(9));
+        await encryption.initializeSessions(new Map([[sessionId, null]]));
+
+        const { sync } = await import('./sync');
+        sync.encryption = encryption;
+        vi.spyOn(apiSocket, 'sessionRPC').mockRejectedValue(createRpcMethodNotAvailableError());
+        let resolveLookup: (response: Response) => void = () => { throw new Error('Lookup did not start'); };
+        const lookup = mockStoredLookupResponse(new Promise<Response>((resolve) => {
+            resolveLookup = resolve;
+        }));
+        const ack: MessageAckResponse = { ok: true, id: 'm-account-switch', seq: 1, localId, didWrite: true };
+        // The generic socket boundary returns the older server's ACK shape.
+        const emitWithAck: SyncMessageTransport['emitWithAck'] = async <T>() => ack as T;
+        sync.setMessageTransport({ emitWithAck, send: vi.fn() });
+
+        const send = sync.sendMessage(sessionId, 'hello', undefined, undefined, { localId });
+        await vi.waitFor(() => expect(lookup).toHaveBeenCalledOnce());
+        storage.getState().activateProfileScope({
+            serverId: storage.getState().profileScope!.serverId,
+            accountId: 'different-account',
+        });
+        resolveLookup(Response.json({ message: { id: ack.id, seq: ack.seq, localId, createdAt: Date.now() - 120_000 } }));
+        await send;
+
+        const transcript = storage.getState().sessionMessages[sessionId];
+        expect(transcript?.messageIdsOldestFirst ?? []).toEqual([]);
+        expect(ensureSessionRuntimeForPendingInputMock).not.toHaveBeenCalled();
     });
 
     it('notifies local pending projection after the pending row exists', async () => {
@@ -1596,12 +1768,17 @@ describe('sync.sendMessage optimistic thinking', () => {
 
             await sync.sendMessage(sessionId, 'hello');
             expect(storage.getState().sessionPending[sessionId]?.messages?.length ?? 0).toBe(1);
+            const localId = storage.getState().sessionPending[sessionId].messages[0].id;
+            const lookup = mockStoredLookupResponse(Response.json({
+                message: { id: 'm_plain_retry_1', seq: 1, localId, createdAt: 42_000 },
+            }));
 
             await vi.advanceTimersByTimeAsync(1_000);
             await Promise.resolve();
 
             expect(getSessionEncryption).not.toHaveBeenCalled();
             expect(emitWithAck).toHaveBeenCalledTimes(2);
+            expect(lookup).toHaveBeenCalledTimes(1);
             expect(emitWithAck).toHaveBeenLastCalledWith(
                 'message',
                 expect.objectContaining({
@@ -1612,6 +1789,11 @@ describe('sync.sendMessage optimistic thinking', () => {
                 expect.anything(),
             );
             expect(storage.getState().sessionPending[sessionId]?.messages ?? []).toEqual([]);
+            const transcript = storage.getState().sessionMessages[sessionId];
+            const user = transcript?.messageIdsOldestFirst
+                .map((id) => transcript.messagesById[id])
+                .find((message) => message?.kind === 'user-text');
+            expect(user?.createdAt).toBe(42_000);
         } finally {
             vi.useRealTimers();
         }
@@ -1633,6 +1815,7 @@ describe('sync.sendMessage optimistic thinking', () => {
                 id: 'm1',
                 seq: 1,
                 localId: null,
+                createdAt: Date.now(),
                 didWrite: true,
             })) as any,
             send: vi.fn(),

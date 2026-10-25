@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { EventEmitter } from 'node:events';
 
 import { getProviderCliRuntimeSpec } from '@happier-dev/agents';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createEnvKeyScope } from '@/testkit/env/envScope';
 import { writeExecutableShimSync } from '@/testkit/fs/executableShim';
@@ -24,6 +24,28 @@ const TEMP_DIRS = new Set<string>();
 const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
 const originalExecPathDescriptor = Object.getOwnPropertyDescriptor(process, 'execPath');
 let envScope = createEnvKeyScope(envKeys);
+const hiddenClaudeSystemPaths = vi.hoisted(() => new Set<string>());
+
+beforeEach(() => {
+  hiddenClaudeSystemPaths.clear();
+  for (const candidate of getProviderCliRuntimeSpec('claude').knownCommandCandidates ?? []) {
+    if (candidate.kind === 'absolutePath') hiddenClaudeSystemPaths.add(candidate.path);
+  }
+});
+
+// Hide only manifest-declared absolute host installs; local fixture paths still use real filesystem checks.
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  return {
+    ...actual,
+    accessSync: (path: Parameters<typeof actual.accessSync>[0], mode?: number) => {
+      if (hiddenClaudeSystemPaths.has(String(path))) {
+        throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+      }
+      return actual.accessSync(path, mode);
+    },
+  };
+});
 
 function createTempRoot(prefix: string): string {
   const dir = createTempDirSync(prefix);
@@ -68,6 +90,7 @@ afterEach(() => {
   envScope = createEnvKeyScope(envKeys);
   for (const dir of TEMP_DIRS) removeTempDirSync(dir);
   TEMP_DIRS.clear();
+  hiddenClaudeSystemPaths.clear();
 });
 
 describe('Claude SDK utils - getDefaultClaudeCodePath', () => {
@@ -180,7 +203,8 @@ describe('Claude SDK utils - getDefaultClaudeCodePath', () => {
     const nativeClaudePath = join(localBin, 'claude.exe');
     writeTextFileSync(nativeClaudePath, 'MZ');
 
-    expect(getDefaultClaudeCodePath()).toBe(nativeClaudePath);
+    // The test simulates Windows path lookup on macOS, where the resolver may return different casing.
+    expect(getDefaultClaudeCodePath().toLowerCase()).toBe(nativeClaudePath.toLowerCase());
   });
 
   it('prefers HAPPIER_CLAUDE_PATH when set', () => {

@@ -16,6 +16,11 @@ function flattenStyle(style: unknown): Record<string, unknown> {
     return {};
 }
 
+function resolvePressableStyle(style: unknown): unknown {
+    if (typeof style !== 'function') return style;
+    return (style as (state: { pressed: boolean; hovered: boolean }) => unknown)({ pressed: false, hovered: false });
+}
+
 function readOpacity(style: unknown): number | undefined {
     const opacity = flattenStyle(style).opacity;
     if (typeof opacity === 'number') return opacity;
@@ -59,7 +64,15 @@ describe('MessageActionRow', () => {
         );
 
         expect(screen.findByTestId('transcript-message-actions-row:m1')).toBeTruthy();
-        expect(screen.findByTestId('transcript-message-timestamp:m1')?.props.children).toBe('May 19, 2026, 4:30 PM');
+        const timestamp = screen.findByTestId('transcript-message-timestamp:m1');
+        expect(timestamp?.props).toEqual(expect.objectContaining({
+            accessibilityRole: 'text',
+            accessibilityLabel: 'May 19, 2026, 4:30 PM',
+            focusable: true,
+            onFocus: expect.any(Function),
+            onHoverIn: expect.any(Function),
+        }));
+        expect(screen.findByTestId('transcript-message-timestamp-text:m1')?.props.children).toBe('May 19, 2026, 4:30 PM');
         expect(readOpacity(screen.findByTestId('transcript-message-actions:m1')?.props.style)).toBe(1);
         expect(screen.findByTestId('child-action')).toBeTruthy();
     });
@@ -132,7 +145,7 @@ describe('MessageActionRow', () => {
             flexDirection: 'row-reverse',
             pointerEvents: 'box-none',
         }));
-        expect(flattenStyle(timestamp?.props.style)).toEqual(expect.objectContaining({
+        expect(flattenStyle(resolvePressableStyle(timestamp?.props.style))).toEqual(expect.objectContaining({
             marginLeft: 12,
             marginRight: 0,
         }));

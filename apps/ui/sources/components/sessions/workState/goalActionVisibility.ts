@@ -6,12 +6,16 @@ export function resolveGoalStatusLabelKey(goal: SessionWorkStateItem | null):
     | 'session.workState.goal.statusComplete'
     | 'session.workState.goal.statusBudgetLimited'
     | 'session.workState.goal.statusInterrupted'
+    | 'session.workState.group.pending'
+    | 'session.workState.goal.statusUnknown'
     | 'session.workState.badge.goalBlocked' {
     if (goal?.statusReason === 'budgetLimited') return 'session.workState.goal.statusBudgetLimited';
     // A goal left active when its CLI session tore down gracefully is flagged `interrupted` (status
     // STAYS active); surface a muted "Interrupted" so it does not read as actively running (plan #9).
     if (goal?.statusReason === 'interrupted' && goal.status === 'active') return 'session.workState.goal.statusInterrupted';
     if (goal?.status === 'paused') return 'session.workState.goal.statusPaused';
+    if (goal?.status === 'pending') return 'session.workState.group.pending';
+    if (goal?.status === 'unknown') return 'session.workState.goal.statusUnknown';
     if (goal?.status === 'complete') return 'session.workState.goal.statusComplete';
     if (goal?.status === 'blocked') return 'session.workState.badge.goalBlocked';
     return 'session.workState.goal.statusActive';

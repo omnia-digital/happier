@@ -639,6 +639,9 @@ export const zhHans: TranslationStructure = {
         checking: '正在检查…',
         checked: '刚刚检查',
         stale: '已过期',
+        autoArchiveWorkUnverified: '自动归档会等待确认会话已停用、处于空闲状态且没有待处理工作。旧版主机可能不会报告这些状态。',
+        autoArchived: '已自动归档',
+        autoArchivedReason: '已验证所有关联 PR 均已合并',
     },
     sessionTickets: {
         link: "关联工单",
@@ -5322,6 +5325,7 @@ export const zhHans: TranslationStructure = {
         budgetReachedBody: "此目标已达到 Token 预算。移除预算后即可继续。",
         removeBudgetAndResume: "移除预算并继续",
         statusInterrupted: "已中断",
+        statusUnknown: "未知",
         tokenBudget: "Token 预算",
         budgetProgress: ({ used, budget }: { used: string; budget: string }) => `${used} / ${budget}`,
         budgetCaption: ({ budget }: { budget: string }) => `预算共 ${budget}`,
@@ -8060,6 +8064,14 @@ export const zhHans: TranslationStructure = {
     },
 
 settingsSession: {
+    archiveAutomation: {
+        title: '自动归档',
+        footer: '这些选项会与当前 Home 帐户同步。Happier 打开时约每 5 分钟自动检查一次。本地清理需要主机支持；远程分支会保留。取消归档无法恢复已删除的本地资源。',
+        autoArchiveTitle: '关联 PR 合并后归档',
+        autoArchiveSubtitle: '仅在最新验证确认所有关联 PR 均已合并时归档非活动会话。',
+        cleanupTitle: '归档后清理本地资源',
+        cleanupSubtitle: '保存你的选择，以便在所属机器上安全清理。此版本尚不提供清理功能。',
+    },
     terminalHostTitle: '新会话的终端宿主',
     terminalHostNone: '不使用终端宿主',
     newSessionDraftEntry: {

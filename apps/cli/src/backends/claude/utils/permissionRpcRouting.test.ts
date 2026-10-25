@@ -65,6 +65,28 @@ describe('permission RPC routing', () => {
     expect(result).toEqual({ behavior: 'allow', updatedInput: { command: 'npm --version' } });
   });
 
+  it('admits an occurrence-bound response only for the published request instance', async () => {
+    const { session, client } = createPermissionHandlerSessionStub('occurrence-rpc');
+    const { PermissionHandler } = await import('./permissionHandler');
+    const handler = new PermissionHandler(session);
+    handler.onMessage(bashToolUseMessage());
+    const pending = handler.handleToolCall('Bash', { command: 'npm --version' }, defaultMode, {
+      signal: new AbortController().signal,
+      toolUseId: 'toolu_1',
+    });
+    const publishedRequest = client.getAgentStateSnapshot().requests.toolu_1 as { occurrenceId?: unknown } | undefined;
+    const occurrenceId = publishedRequest?.occurrenceId;
+    if (typeof occurrenceId !== 'string') throw new Error('Published permission request has no occurrence identity');
+
+    const respond = client.rpcHandlerManager.getHandler('session.permission.respondToOccurrence.v1');
+    expect(respond).toBeDefined();
+    await expect(respond?.({ id: 'toolu_1', occurrenceId: 'older-occurrence', approved: true })).resolves.toMatchObject({ ok: false });
+    expect(client.getAgentStateSnapshot().requests.toolu_1).toBeDefined();
+
+    await expect(respond?.({ id: 'toolu_1', occurrenceId, approved: true })).resolves.toEqual({ ok: true });
+    await expect(pending).resolves.toEqual({ behavior: 'allow', updatedInput: { command: 'npm --version' } });
+  });
+
   it('does not let the local permission bridge steal remote approvals when it activates first', async () => {
     const { session, client } = createPermissionHandlerSessionStub('s1');
 
