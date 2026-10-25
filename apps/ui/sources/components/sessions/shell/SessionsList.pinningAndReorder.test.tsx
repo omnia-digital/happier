@@ -10,6 +10,7 @@ import {
     standardCleanup,
 } from '@/dev/testkit';
 import type { SessionOrganizationProjection } from '@/sync/domains/session/organization/types';
+import { storage } from '@/sync/domains/state/storageStore';
 import { HappyError } from '@/utils/errors/errors';
 import { installSessionShellCommonModuleMocks } from './sessionShellTestHelpers';
 
@@ -42,7 +43,6 @@ let sessionTagsV1: Record<string, string[]> = {};
 const setSessionTagsV1 = vi.fn();
 let workspaceLabelsV1: Record<string, string> = {};
 const setWorkspaceLabelsV1 = vi.fn();
-const readMachineTargetForSessionMock = vi.hoisted(() => vi.fn());
 const mockMachinesState = vi.hoisted(() => ({ current: [] as any[] }));
 const sessionOrganizationOps = vi.hoisted(() => ({
     deleteSessionFolder: vi.fn(async () => undefined),
@@ -59,6 +59,7 @@ const tokenStorageMocks = vi.hoisted(() => ({
 let sessionOrganizationProjection: SessionOrganizationProjection | null = null;
 
 const groupKey = 'server:server_a:day:2026-02-17';
+const initialStorageState = storage.getState();
 
 const sessionA = {
     id: 'sess_a',
@@ -274,11 +275,6 @@ vi.mock('@/sync/ops', async (importOriginal) => {
 
 vi.mock('@/sync/ops/sessionOrganization', () => sessionOrganizationOps);
 
-vi.mock('@/sync/ops/sessionMachineTarget', () => ({
-    readMachineTargetForSession: (sessionId: string) => readMachineTargetForSessionMock(sessionId),
-    readDisplayMachineTargetForSession: (params: { sessionId: string }) => readMachineTargetForSessionMock(params.sessionId),
-}));
-
 vi.mock('@/hooks/session/useNavigateToSession', () => ({
     useNavigateToSession: () => vi.fn(),
 }));
@@ -439,7 +435,11 @@ describe('SessionsList pinning + per-group ordering', () => {
         hideInactiveSessions = false;
         sessionListAttentionPromotionMode = null;
         sessionListAttentionStandingDefault = false;
-        readMachineTargetForSessionMock.mockReset();
+        storage.setState({
+            profileScope: { serverId: 'server_a', accountId: 'account_a' },
+            sessions: {},
+            machines: {},
+        });
         mockMachinesState.current = [];
         sessionOrganizationProjection = createEmptySessionOrganizationProjection();
         resetVisibleSessionListViewData();
@@ -447,6 +447,7 @@ describe('SessionsList pinning + per-group ordering', () => {
 
     afterEach(() => {
         standardCleanup();
+        storage.setState(initialStorageState, true);
     });
 
     it('carries the stored attention standing into every row model it builds', async () => {
@@ -802,14 +803,11 @@ describe('SessionsList pinning + per-group ordering', () => {
             metadata: { machineId: 'machine-stale-2', host: 'Old workstation 2', path: '/home/u/stale-b', homeDir: '/home/u' },
         } as any;
 
-        readMachineTargetForSessionMock.mockImplementation((sessionId: string) => {
-            if (sessionId === 'sess_live_1') {
-                return { machineId: 'machine-live-1', basePath: '/home/u/live-a' };
-            }
-            if (sessionId === 'sess_live_2') {
-                return { machineId: 'machine-live-2', basePath: '/home/u/live-b' };
-            }
-            return null;
+        storage.setState({
+            sessions: {
+                sess_live_1: { ...sess1, metadata: { machineId: 'machine-live-1', path: '/home/u/live-a', homeDir: '/home/u' } },
+                sess_live_2: { ...sess2, metadata: { machineId: 'machine-live-2', path: '/home/u/live-b', homeDir: '/home/u' } },
+            },
         });
 
         mockVisibleSessionListViewData = [
@@ -887,14 +885,11 @@ describe('SessionsList pinning + per-group ordering', () => {
             metadata: { machineId: 'machine-stale-2', host: 'Old workstation 2', path: '/home/u/stale-b', homeDir: '/home/u' },
         } as any;
 
-        readMachineTargetForSessionMock.mockImplementation((sessionId: string) => {
-            if (sessionId === 'sess_live_1') {
-                return { machineId: 'machine-live-1', basePath: '/home/u/live-a' };
-            }
-            if (sessionId === 'sess_live_2') {
-                return { machineId: 'machine-live-2', basePath: '/home/u/live-b' };
-            }
-            return null;
+        storage.setState({
+            sessions: {
+                sess_live_1: { ...sess1, metadata: { machineId: 'machine-live-1', path: '/home/u/live-a', homeDir: '/home/u' } },
+                sess_live_2: { ...sess2, metadata: { machineId: 'machine-live-2', path: '/home/u/live-b', homeDir: '/home/u' } },
+            },
         });
 
         mockVisibleSessionListViewData = [
