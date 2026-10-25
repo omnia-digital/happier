@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
-import { delimiter, dirname, join, resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 
 import { createRunDirs } from '../../src/testkit/runDir';
 import { startServerLight, type StartedServer } from '../../src/testkit/process/serverLight';
@@ -15,6 +14,8 @@ import { ensureAccountReadyForConnect } from '../../src/testkit/uiE2e/ensureAcco
 import { enableEnhancedSessionWizard } from '../../src/testkit/uiE2e/enableEnhancedSessionWizard';
 import { gotoDomContentLoadedWithRetries } from '../../src/testkit/uiE2e/pageNavigation';
 import { fakeClaudeFixturePath } from '../../src/testkit/fakeClaude';
+import { createIsolatedCliTestEnv } from '../../src/testkit/process/cliTestEnv';
+import { parseRpcCallFrame } from '../../src/testkit/uiE2e/desktopSetup/relayMachineRpcTap';
 import type { StartedDaemon } from '../../src/testkit/daemon/daemon';
 
 const run = createRunDirs({ runLabel: 'ui-e2e' });
@@ -30,33 +31,17 @@ function isolatedCliEnv(params: Readonly<{
   serverUrl: string;
   uiBaseUrl: string;
 }>): NodeJS.ProcessEnv {
-  // Pass only the test toolchain and disposable Home into the CLI process.
-  // In particular, provider credentials and native provider homes are not inherited.
-  const systemPath = process.platform === 'win32'
-    ? [dirname(process.execPath), process.env.SystemRoot ? join(process.env.SystemRoot, 'System32') : '']
-    : [dirname(process.execPath), '/usr/bin', '/bin'];
-  const yarnName = process.platform === 'win32' ? 'yarn.cmd' : 'yarn';
-  const yarnDir = (process.env.PATH ?? '').split(delimiter).find((path) => existsSync(join(path, yarnName)));
   return {
-    PATH: [...systemPath, yarnDir].filter(Boolean).join(delimiter),
-    ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
-    ...(process.env.HAPPIER_BUN_PATH ? { HAPPIER_BUN_PATH: process.env.HAPPIER_BUN_PATH } : {}),
-    HOME: params.cliHomeDir,
-    USERPROFILE: params.cliHomeDir,
-    HAPPIER_HOME_DIR: params.cliHomeDir,
+    ...createIsolatedCliTestEnv({ homeDir: params.cliHomeDir }),
     HAPPIER_SERVER_URL: params.serverUrl,
     HAPPIER_WEBAPP_URL: params.uiBaseUrl,
-    HAPPIER_DAEMON_SERVICE_USER_HOME_DIR: params.cliHomeDir,
-    HAPPIER_DAEMON_SERVICE_HAPPIER_HOME_DIR: params.cliHomeDir,
     HAPPIER_CLAUDE_CONFIG_DIR: resolve(join(params.cliHomeDir, 'claude')),
     CLAUDE_CONFIG_DIR: resolve(join(params.cliHomeDir, 'claude')),
     HAPPIER_CLAUDE_PATH: fakeClaudeFixturePath(),
     HAPPIER_E2E_FAKE_CLAUDE_LOG: params.fakeClaudeLogPath,
     HAPPIER_E2E_PROVIDER_USE_CLI_SOURCE_ENTRYPOINT: '1',
-    HAPPIER_CLI_DAEMON_INTEGRATION_BOOTSTRAP_AUTH: '0',
     HAPPIER_DISABLE_CAFFEINATE: '1',
     HAPPIER_VARIANT: 'dev',
-    CI: '1',
   };
 }
 
@@ -64,13 +49,15 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
   test.describe.configure({ mode: 'serial' });
 
   const suiteDir = run.testDir('new-session-foreign-home-launch-suite');
+  const cliHomeADir = resolve(join(suiteDir, 'cli-home-a'));
   const cliHomeDir = resolve(join(suiteDir, 'cli-home-b'));
-  const browseDir = resolve(join(suiteDir, 'only-on-b'));
+  const browseDir = resolve(join(suiteDir, 'target-browse'));
   const fakeClaudeLogPath = resolve(join(suiteDir, 'fake-claude-b.jsonl'));
 
   let serverA: StartedServer | null = null;
   let serverB: StartedServer | null = null;
   let ui: StartedUiWeb | null = null;
+  let daemonA: StartedDaemon | null = null;
   let daemonB: StartedDaemon | null = null;
 
   test.beforeAll(async () => {
@@ -78,10 +65,13 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
       ...process.env,
       EXPO_PUBLIC_DEBUG: '1',
       EXPO_PUBLIC_HAPPY_STORAGE_SCOPE: `e2e-oh64-foreign-${run.runId}`,
-      HAPPIER_E2E_UI_WEB_MODE: 'metro',
+      HAPPIER_E2E_UI_WEB_MODE: 'export',
+      HAPPIER_E2E_UI_WEB_EXPORT_NAMESPACE: `oh64-foreign-${run.runId}`,
       HAPPIER_E2E_PROVIDER_USE_CLI_SOURCE_ENTRYPOINT: '1',
+      EXPO_PUBLIC_HAPPIER_SOCKET_FORCE_WEBSOCKET: '1',
     };
     test.setTimeout(resolveUiWebBeforeAllTimeoutMs(uiEnv));
+    await mkdir(cliHomeADir, { recursive: true });
     await mkdir(cliHomeDir, { recursive: true });
     await mkdir(browseDir, { recursive: true });
     serverA = await startServerLight({ testDir: resolve(join(suiteDir, 'server-a')), dbProvider: 'sqlite' });
@@ -93,21 +83,59 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
   });
 
   test.afterAll(async () => {
+    await daemonA?.stop().catch(() => {});
     await daemonB?.stop().catch(() => {});
     await ui?.stop().catch(() => {});
     await serverB?.stop().catch(() => {});
     await serverA?.stop().catch(() => {});
   });
 
-  test('selects B while viewing A and browses a B-only directory', async ({ page }) => {
+  test('routes B directory browse while viewing and initially targeting A', async ({ page }) => {
     test.setTimeout(360_000);
     if (!serverA || !serverB || !ui) throw new Error('Missing isolated E2E fixtures');
     const uiBaseUrl = ui.baseUrl;
     await page.setViewportSize({ width: 1440, height: 900 });
+    const observedRpcCalls: Array<Readonly<{ host: string; method: string }>> = [];
+    page.on('websocket', (socket) => {
+      const host = new URL(socket.url()).host;
+      socket.on('framesent', ({ payload }) => {
+        const parsed = parseRpcCallFrame(typeof payload === 'string' ? payload : payload.toString('utf8'));
+        if (parsed) observedRpcCalls.push({ host, method: parsed.method });
+      });
+    });
 
     await gotoDomContentLoadedWithRetries(page, uiBaseUrl, 180_000);
     await ensureAccountReadyForConnect({ page, timeoutMs: 120_000 });
     const serverAId = serverIdFromUrl(serverA.baseUrl);
+    const daemonATestDir = resolve(join(suiteDir, 'daemon-a'));
+    await mkdir(daemonATestDir, { recursive: true });
+    const cliAEnv = isolatedCliEnv({
+      cliHomeDir: cliHomeADir,
+      fakeClaudeLogPath: resolve(join(suiteDir, 'fake-claude-a.jsonl')),
+      serverUrl: serverA.baseUrl,
+      uiBaseUrl,
+    });
+    const cliALogin = await startCliAuthLoginForTerminalConnect({
+      testDir: daemonATestDir,
+      cliHomeDir: cliHomeADir,
+      serverUrl: serverA.baseUrl,
+      webappUrl: uiBaseUrl,
+      env: cliAEnv,
+    });
+    try {
+      await page.goto(cliALogin.connectUrl, { waitUntil: 'domcontentloaded' });
+      await approveTerminalConnect({ page });
+      await cliALogin.waitForSuccess();
+      await acknowledgeTerminalConnectSuccessIfPresent(page);
+    } finally {
+      await cliALogin.stop().catch(() => {});
+    }
+    daemonA = await startTestDaemon({
+      testDir: daemonATestDir,
+      happyHomeDir: cliHomeADir,
+      env: cliAEnv,
+    });
+    const machineAId = await waitForDaemonMachineIdFromCliSettings({ cliHomeDir: cliHomeADir });
 
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/server`, 120_000);
     await page.getByTestId('server-settings-add-server-toggle').click();
@@ -143,6 +171,7 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
       env: cliEnv,
     });
     const machineBId = await waitForDaemonMachineIdFromCliSettings({ cliHomeDir });
+    expect(machineBId).not.toBe(machineAId);
 
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/server`, 120_000);
     await page.getByTestId(`saved-server-switch-${serverAId}`).click();
@@ -154,9 +183,18 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
     await groupName.locator('..').getByRole('button', { name: 'Save group' }).click();
 
     await enableEnhancedSessionWizard({ page, baseUrl: uiBaseUrl });
-    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/new`, 120_000);
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/new?spawnServerId=${encodeURIComponent(serverAId)}`, 120_000);
+    await expect(page.getByText(new URL(serverA.baseUrl).host, { exact: true }).first()).toBeVisible();
+    await expect(page.getByTestId('agent-input-root').getByText(new URL(serverA.baseUrl).host, { exact: true })).toBeVisible();
     await page.getByTestId('agent-input-machine-chip').click();
-    const machineBOption = page.locator(
+    // The active A snapshot must be present; otherwise the active-only selector can
+    // temporarily fall back to B's last canonical machine and mask this defect.
+    const machinePopover = page.getByTestId('agent-input-content-popover');
+    const machineAOption = machinePopover.locator(
+      `[data-testid="new-session-machine-option:${machineAId}"], [data-testid="new-session-machine:${machineAId}"]`,
+    );
+    await expect(machineAOption).toBeVisible({ timeout: 120_000 });
+    const machineBOption = machinePopover.locator(
       `[data-testid="new-session-machine-option:${machineBId}"], [data-testid="new-session-machine:${machineBId}"]`,
     );
     await expect(machineBOption).toBeVisible({ timeout: 120_000 });
@@ -165,7 +203,14 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
     await page.getByTestId('agent-input-path-chip').click();
     const pathPopover = page.getByTestId('agent-input-content-popover');
     await expect(pathPopover.getByTestId('path-selection-list:open-tree-browser')).toBeVisible();
+    const browseCallStart = observedRpcCalls.length;
     await pathPopover.getByTestId('path-selection-list:header:input').fill(`${suiteDir}/`);
     await expect(pathPopover.getByTestId(`path-selection-list:path-root:option:in-folder:${browseDir}`)).toBeVisible();
+    await expect.poll(() => observedRpcCalls.slice(browseCallStart).filter((call) => (
+      call.method.endsWith(':daemon.filesystem.listDirectory')
+    ))).toContainEqual({
+      host: new URL(serverB.baseUrl).host,
+      method: `${machineBId}:daemon.filesystem.listDirectory`,
+    });
   });
 });

@@ -186,6 +186,9 @@ const allMachinesState = vi.hoisted(() => ({
         { id: 'machine-2', metadata: { displayName: 'Machine Two', host: 'two', homeDir: '/home/two' } } as Parameters<typeof createMachineFixture>[0],
     ],
 }));
+const scopedMachineListsState = vi.hoisted(() => ({
+    value: {} as Record<string, Array<Parameters<typeof createMachineFixture>[0]>>,
+}));
 const machineMcpServersPreviewMock = vi.hoisted(() => vi.fn(async (_machineId: string, _request: unknown, _options?: unknown) => ({
     ok: true,
     builtIn: [{
@@ -540,7 +543,9 @@ vi.doMock('@/sync/domains/state/storage', async (importOriginal) => {
         useAllMachines: () => allMachinesState.value.map((machine) => createMachineFixture(machine)),
         useLaunchSelectionMachines: () => allMachinesState.value.map((machine) => createMachineFixture(machine)),
         useSessionRecentPathEntries: () => [],
-        useMachineListByServerId: () => ({}),
+        useMachineListByServerId: () => Object.fromEntries(Object.entries(scopedMachineListsState.value).map(
+            ([serverId, machines]) => [serverId, machines.map((machine) => createMachineFixture(machine))],
+        )),
         useMachineListStatusByServerId: () => ({}),
         storage: Object.assign((selector: (state: ReturnType<typeof getMockStorageState>) => unknown) => React.useSyncExternalStore(
             (listener: () => void) => {
@@ -1015,6 +1020,7 @@ export async function resetDraftPersistenceState(): Promise<void> {
         { id: 'machine-1', metadata: { displayName: 'Machine One', host: 'one', homeDir: '/home/one' } } as Parameters<typeof createMachineFixture>[0],
         { id: 'machine-2', metadata: { displayName: 'Machine Two', host: 'two', homeDir: '/home/two' } } as Parameters<typeof createMachineFixture>[0],
     ];
+    scopedMachineListsState.value = {};
     targetServerState.allowedTargetServerIds = [];
     targetServerState.targetServerId = null;
     targetServerState.targetServerName = null;
@@ -1412,6 +1418,7 @@ export {
     routerSetParamsMock,
     saveNewSessionDraftMock,
     searchParamsState,
+    scopedMachineListsState,
     storageSubscriptionState,
     targetServerState,
     tempSessionDataState,

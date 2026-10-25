@@ -35,6 +35,7 @@ export function useNewSessionMachinePathState(params: Readonly<{
 }>): Readonly<{
     selectedMachineId: string | null;
     setSelectedMachineId: React.Dispatch<React.SetStateAction<string | null>>;
+    selectMachine: (machineId: string, initialPath: string) => void;
     selectedPath: string;
     setSelectedPath: React.Dispatch<React.SetStateAction<string>>;
     setDraftSelectedPath: (path: string) => void;
@@ -131,6 +132,12 @@ export function useNewSessionMachinePathState(params: Readonly<{
             return resolved;
         });
     }, []);
+    const selectMachine = React.useCallback((machineId: string, initialPath: string) => {
+        hasUserSelectedMachineRef.current = true;
+        hasUserEditedPathRef.current = false;
+        setSelectedMachineIdState(machineId);
+        applyCommittedSelectedPath(initialPath);
+    }, [applyCommittedSelectedPath]);
     const setDraftSelectedPath = React.useCallback((path: string) => {
         hasUserEditedPathRef.current = true;
         selectedPathDraftRef.current = path;
@@ -143,6 +150,22 @@ export function useNewSessionMachinePathState(params: Readonly<{
         if (!machineId) return false;
         return params.machines.some((machine) => machine.id === machineId);
     }, [params.machines]);
+
+    const previousCacheScopeKeyRef = React.useRef(params.cacheScopeKey ?? null);
+    React.useEffect(() => {
+        const nextScopeKey = params.cacheScopeKey ?? null;
+        if (!nextScopeKey) return;
+        if (!previousCacheScopeKeyRef.current) {
+            // Initial account hydration is not a target change. A restored draft may
+            // legitimately name a path before its target account binding arrives.
+            previousCacheScopeKeyRef.current = nextScopeKey;
+            return;
+        }
+        if (nextScopeKey === previousCacheScopeKeyRef.current) return;
+        previousCacheScopeKeyRef.current = nextScopeKey;
+        if (!selectedMachineId || normalizePathParam(params.pathParam) || hasUserEditedPathRef.current) return;
+        applyCommittedSelectedPath(getBestPathForMachine(selectedMachineId));
+    }, [applyCommittedSelectedPath, getBestPathForMachine, params.cacheScopeKey, params.pathParam, selectedMachineId]);
 
     // Handle machine route param from picker screens (main's navigation pattern)
     React.useEffect(() => {
@@ -311,6 +334,7 @@ export function useNewSessionMachinePathState(params: Readonly<{
     return {
         selectedMachineId,
         setSelectedMachineId,
+        selectMachine,
         selectedPath,
         setSelectedPath,
         setDraftSelectedPath,
