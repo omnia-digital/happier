@@ -222,6 +222,11 @@ export const AgentInputProviderUsageBadge = React.memo(function AgentInputProvid
                         </View>
                     );
                 })}
+                {staleLabel ? (
+                    <Text testID={`${testIDPrefix}-stale-indicator`} style={styles.staleIndicator} numberOfLines={1}>
+                        {staleLabel}
+                    </Text>
+                ) : null}
             </Pressable>
             </View>
 
@@ -389,6 +394,10 @@ const stylesheet = StyleSheet.create((theme) => ({
     windowLabel: {
         minWidth: 0,
         flexShrink: 1,
+        ...Typography.pillLabel(),
+        color: theme.colors.text.secondary,
+    },
+    staleIndicator: {
         ...Typography.pillLabel(),
         color: theme.colors.text.secondary,
     },

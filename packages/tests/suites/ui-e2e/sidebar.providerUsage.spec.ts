@@ -204,7 +204,8 @@ test.describe('sidebar provider subscription usage', () => {
         await expect(page.getByTestId('sidebar-provider-usage-accounts:claude')).toBeVisible();
         await page.keyboard.press('Escape');
         await expect(page.getByTestId('sidebar-provider-usage-accounts:claude')).not.toBeVisible();
-        await page.mouse.move(1000, 700);
+        await page.locator('body').click({ position: { x: 1000, y: 700 } });
+        await expect(accountChoice).not.toBeFocused();
         await expect(page.getByRole('tooltip')).toHaveCount(0);
         await page.screenshot({ path: `${suiteDir}/sidebar-provider-usage-normal.png` });
 
