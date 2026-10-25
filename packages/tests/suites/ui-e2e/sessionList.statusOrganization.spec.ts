@@ -16,6 +16,7 @@ import { encryptDataKeyBase64, decryptDataKeyBase64 } from '../../src/testkit/rp
 import { readCliAccessKey } from '../../src/testkit/cliAccessKey';
 import { repoRootDir } from '../../src/testkit/paths';
 import { readUiE2eScopedAccountSettings } from '../../src/testkit/uiE2e/scopedAccountSettingsStorage';
+import { mutateUiE2eLocalSettings, readUiE2eLocalSettings } from '../../src/testkit/uiE2e/localSettingsStorage';
 import { createMachineBoundSessionScopedSocketCollector } from '../../src/testkit/sessionSocketBinding';
 import type { SocketCollector } from '../../src/testkit/socketClient';
 import { fetchJson } from '../../src/testkit/http';
@@ -40,7 +41,7 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
         await writeFile(statePath, JSON.stringify({ tickets: { 'DEV-1': { status: { name: 'Q/A - Dev', position: 20, workflowId: 'delivery' } }, 'DEV-2': { status: { name: 'Q/A - Dev', position: 20, workflowId: 'delivery' } }, 'DEV-3': { status: { name: 'Testing', position: 30, workflowId: 'delivery' } }, 'DEV-4': { status: { name: 'Ready for Prod', position: 40, workflowId: 'delivery' } }, 'DEV-5': { error: '401 invalid credential' } } }));
         await writeFile(readLog, '');
         server = await startServerLight({ testDir: suiteDir, dbProvider: 'sqlite', extraEnv: { HAPPIER_BUILD_FEATURES_DENY: 'sharing.contentKeys', HAPPIER_FEATURE_AUTH_LOGIN__KEY_CHALLENGE_ENABLED: '1' } });
-        ui = await startUiWeb({ testDir: suiteDir, env: { ...process.env, EXPO_PUBLIC_HAPPY_SERVER_URL: server.baseUrl, EXPO_PUBLIC_HAPPY_STORAGE_SCOPE: `oh60-${run.runId}`, HAPPIER_E2E_UI_WEB_EXPORT_NAMESPACE: 'oh60-status-organization' } });
+        ui = await startUiWeb({ testDir: suiteDir, env: { ...process.env, EXPO_PUBLIC_HAPPY_SERVER_URL: server.baseUrl, EXPO_PUBLIC_HAPPY_STORAGE_SCOPE: `oh71-${run.runId}`, HAPPIER_E2E_UI_WEB_EXPORT_NAMESPACE: 'oh71-group-sort' } });
     });
     test.afterAll(async () => { keepAlives.forEach(clearInterval); publishers.forEach(socket => socket.close()); await daemon?.stop().catch(() => {}); await ui?.stop().catch(() => {}); await server?.stop().catch(() => {}); });
     test('independently groups/sorts, refreshes live custom status, preserves selection and restores persisted layout', async ({ page }, testInfo) => {
@@ -129,7 +130,7 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await gotoDomContentLoadedWithRetries(page, baseUrl, 120_000);
             await page.getByTestId('machine-monitoring-toggle').click();
             const choose = async (id: string) => {
-                const trigger = id.includes('status-sort-') || id.includes('ordering-mode-')
+                const trigger = id.includes('status-sort-') || id.includes('ordering-mode-') || id.includes('folder-sort-mode-')
                     ? 'session-list-sort-menu-trigger'
                     : 'session-list-group-menu-trigger';
                 await page.getByTestId(trigger).first().click();
@@ -224,6 +225,68 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await expect(page.locator('[data-testid^="session-list-header:machine-view:"]').first()).toBeVisible();
             await expect(row(noTicket)).toHaveCount(1);
             const ids = await visibleIds(); expect(new Set(ids).size).toBe(ids.length);
+            // Flat is a persisted layout choice. It clears only grouping, leaving the chosen sort intact.
+            await choose('session-view-flat');
+            await expect(page.locator('[data-testid^="session-list-header:machine-view:"]')).toHaveCount(0);
+            await expect(statusHeaders).toHaveCount(0);
+            await expect.poll(async () => (await readUiE2eLocalSettings({ page })).sessionListMachineViewV1).toBe('flat');
+            expect((await readUiE2eScopedAccountSettings({ page })).sessionListStatusSortV1).toBe('agent');
+            await page.reload();
+            await expect(row(noTicket)).toBeVisible({ timeout: 120_000 });
+            expect((await readUiE2eLocalSettings({ page })).sessionListMachineViewV1).toBe('flat');
+            expect((await readUiE2eScopedAccountSettings({ page })).sessionListStatusSortV1).toBe('agent');
+
+            // The menu is genuinely taller than the old 320px cap but remains within a short viewport.
+            await page.setViewportSize({ width: 1000, height: 420 });
+            await page.getByTestId('session-list-group-menu-trigger').first().click();
+            await expect(page.getByTestId('session-view-flat')).toBeVisible();
+            const groupMenuMetrics = () => page.getByTestId('session-view-flat').evaluate((item) => {
+                let scrollHost = item.parentElement;
+                while (scrollHost && !(scrollHost.scrollHeight > scrollHost.clientHeight + 8 && /auto|scroll/.test(getComputedStyle(scrollHost).overflowY))) {
+                    scrollHost = scrollHost.parentElement;
+                }
+                if (!scrollHost) throw new Error('Group menu has no scrollable viewport');
+                const rect = scrollHost.getBoundingClientRect();
+                return { top: rect.top, bottom: rect.bottom, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2,
+                    scrollTop: scrollHost.scrollTop, clientHeight: scrollHost.clientHeight, scrollHeight: scrollHost.scrollHeight };
+            });
+            const initialMenu = await groupMenuMetrics();
+            expect(initialMenu.top).toBeGreaterThanOrEqual(0);
+            expect(initialMenu.bottom).toBeLessThanOrEqual(420);
+            expect(initialMenu.clientHeight).toBeGreaterThan(320);
+            await page.mouse.move(initialMenu.x, initialMenu.y);
+            await page.mouse.wheel(0, 580);
+            await expect.poll(async () => (await groupMenuMetrics()).scrollTop).toBeGreaterThan(0);
+            const wheelOffset = (await groupMenuMetrics()).scrollTop;
+            await page.screenshot({ path: testInfo.outputPath('oh71-group-menu-short-scrolled.png') });
+            // A live session revision must not undo a deliberate wheel position.
+            await publishActivity(idlePublisher, idle, true);
+            await expect(page.getByTestId('session-row-status-' + idle + '-working')).toBeVisible({ timeout: 60_000 });
+            await expect.poll(async () => (await groupMenuMetrics()).scrollTop).toBeGreaterThanOrEqual(wheelOffset);
+            // Keyboard navigation can still reach and activate the last option.
+            for (let index = 0; index < 12; index++) await page.keyboard.press('ArrowDown');
+            await page.keyboard.press('Enter');
+            await expect.poll(async () => (await readUiE2eScopedAccountSettings({ page })).hideInactiveSessions).toBe(true);
+            await choose('session-view-flat');
+            await expect.poll(async () => (await readUiE2eLocalSettings({ page })).sessionListMachineViewV1).toBe('flat');
+
+            // Large text, dark theme and a narrow viewport retain both labeled controls and a bounded menu.
+            await mutateUiE2eLocalSettings({ page, settingsPatch: { uiFontScale: 1.3, uiItemDensity: 'compact', themePreference: 'dark' } });
+            await page.setViewportSize({ width: 390, height: 420 });
+            await page.reload();
+            await expect(page.getByTestId('session-list-group-menu-trigger').first()).toBeVisible({ timeout: 120_000 });
+            await expect(page.getByTestId('session-list-sort-menu-trigger').first()).toBeVisible();
+            await expect(page.getByTestId('session-list-group-menu-trigger').first()).toHaveAttribute('aria-label', 'Group');
+            await expect(page.getByTestId('session-list-sort-menu-trigger').first()).toHaveAttribute('aria-label', 'Sort');
+            await page.getByTestId('session-list-sort-menu-trigger').first().click();
+            await expect(page.getByTestId('session-list-status-sort-agent')).toBeVisible();
+            await page.screenshot({ path: testInfo.outputPath('oh71-sort-menu-dark-large-narrow.png') });
+            await page.getByTestId('session-list-group-menu-trigger').first().click();
+            await expect(page.getByTestId('session-view-flat')).toBeVisible();
+            const narrowMenu = await groupMenuMetrics();
+            expect(narrowMenu.top).toBeGreaterThanOrEqual(0);
+            expect(narrowMenu.bottom).toBeLessThanOrEqual(420);
+            await page.screenshot({ path: testInfo.outputPath('oh71-group-menu-dark-large-narrow.png') });
             const persisted = await fetchSessionV2(server.baseUrl, access.token, idle);
             expect(decryptDataKeyBase64(persisted.metadata, sessionKeys.get(idle)!)).toMatchObject({ unknownOldCliField: { keep: 'preserved' }, sessionTicketV1: { ticket: { key: 'DEV-1' } } });
             // Keep publisher handles live until after the visible assertions and fixture teardown.
