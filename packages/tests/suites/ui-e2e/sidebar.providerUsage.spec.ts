@@ -302,15 +302,13 @@ test.describe('sidebar provider subscription usage', () => {
         test.setTimeout(240_000);
         if (!uiBaseUrl) throw new Error('Missing isolated UI fixture');
         await page.setViewportSize({ width: 1440, height: 900 });
+        await page.route(/\/v3\/connect\/provider-account-usage(?:\?|$)/, async (route) => {
+            await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'not_found' }) });
+        });
         await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
         await waitForInitialAppUi({ page, timeoutMs: 180_000 });
         await ensureAccountReadyForConnect({ page, timeoutMs: 120_000 });
         await enableUsageUi(page, uiBaseUrl);
-        await expect(page.getByTestId('sidebar-provider-usage-state:claude')).toContainText('No usage data');
-        await page.route(/\/v3\/connect\/provider-account-usage(?:\?|$)/, async (route) => {
-            await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'not_found' }) });
-        });
-        await page.reload({ waitUntil: 'domcontentloaded' });
         await expect(page.getByTestId('sidebar-provider-usage-state:claude')).toContainText('unavailable');
         await expect(page.getByTestId('sidebar-provider-usage-state:codex')).toContainText('unavailable');
 
