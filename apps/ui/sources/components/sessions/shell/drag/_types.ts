@@ -26,6 +26,7 @@ import type {
     SessionListTreeContainerMetadata,
     SessionListTreeDragSource,
     SessionListTreeRowMetadata,
+    SessionListTreeModel,
 } from '../drop-resolution/sessionListTreeTypes';
 
 // ---------------------------------------------------------------------------
@@ -92,6 +93,7 @@ export type SessionListDragTopology = Readonly<{
     dropZones: ReadonlyArray<SessionListDragTopologyDropZone>;
     rowMetadataById: ReadonlyMap<string, SessionListTreeRowMetadata>;
     containerMetadataById: ReadonlyMap<string, SessionListTreeContainerMetadata>;
+    homeOrderPositionsByRowId: SessionListTreeModel['homeOrderPositionsByRowId'];
 }>;
 
 // ---------------------------------------------------------------------------

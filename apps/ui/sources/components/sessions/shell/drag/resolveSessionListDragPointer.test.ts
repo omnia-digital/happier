@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { MMKV } from 'react-native-mmkv';
 
 import type { SessionListIndexItem } from '@/sync/domains/session/listing/sessionListIndex';
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
@@ -111,6 +112,33 @@ function snapshotFor(sourceSessionId: string) {
 }
 
 describe('resolveSessionListDragPointer', () => {
+    it.each([
+        { homes: ['a', 'a', 'b', 'b'], source: 0, y: 125, expected: 'reorder-before' },
+        { homes: ['a', 'a', 'b', 'b'], source: 0, y: 155, expected: 'blocked' },
+        { homes: ['a', 'a', 'b', 'b'], source: 3, y: 115, expected: 'reorder-after' },
+        { homes: ['a', 'b', 'a', 'a'], source: 3, y: 125, expected: 'blocked' },
+    ])('preserves Home positions without persistence reads for $homes, source $source at $y', ({ homes, source, y, expected }) => {
+        const items = [projectHeader(), ...homes.map((home, index) => ({ ...sessionIndexItem(`row-${index}`), serverId: `server-${home}` }))];
+        const snapshot = buildSessionListDragSnapshot({
+            items, viewItems: [], sessionDragKey: `server-${homes[source]}:row-${source}`,
+            folderSortMode: 'mixed', foldersFeatureEnabled: true,
+        });
+        const rows = contentRows().map((row, index) => index === 0 ? row : {
+            ...row, id: treeRowId.session(`server-${homes[index - 1]}`, `row-${index - 1}`),
+        });
+        const reads = vi.spyOn(MMKV.prototype, 'getString');
+        try {
+            const resolved = resolveSessionListDragPointer({
+                snapshot, registry: liveRegistry(rows), pointer: { x: 160, y },
+                viewport: { viewportWindowY: 0, viewportWindowX: 0, scrollOffsetY: 0, viewportHeight: 600 },
+            });
+            expect(resolved.result.instruction.kind).toBe(expected);
+            expect(reads).not.toHaveBeenCalled();
+        } finally {
+            reads.mockRestore();
+        }
+    });
+
     it('identifies the effective insertion slot across neighboring before/after targets', () => {
         const snapshot = snapshotFor('row-0');
         const resolveAt = (y: number) => resolveSessionListDragPointer({

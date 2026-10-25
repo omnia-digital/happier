@@ -416,5 +416,7 @@ export function buildSessionListTreeRows(params: BuildSessionListTreeRowsParams)
         dropZones,
         rowMetadataById,
         containerMetadataById,
+        homeOrderPositionsByRowId: buildSessionListHomeOrderPositions(rowMetadataById),
     };
 }
+import { buildSessionListHomeOrderPositions } from './isSessionListTreeDestinationCompatible';

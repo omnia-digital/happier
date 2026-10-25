@@ -169,6 +169,7 @@ function buildTopology(tree: SessionListTreeModel, sourceRowId: string): Session
         dropZones: buildTopologyDropZones(tree.containerMetadataById, tree.rowMetadataById),
         rowMetadataById: tree.rowMetadataById,
         containerMetadataById: tree.containerMetadataById,
+        homeOrderPositionsByRowId: tree.homeOrderPositionsByRowId,
     };
 }
 
