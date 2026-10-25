@@ -85,6 +85,19 @@ copy button to copy its contents. Diffs do not have a separate copy button;
 for a Markdown diff block, switch to **Code** to copy its source.
 iOS and web keep text selection.
 
+## Message timestamps
+
+In the unreleased Omnia development fork, user and assistant messages show their
+stored time beside the footer actions, even when the actions appear only on hover.
+Times use your locale and timezone; hover or focus a timestamp for its full date
+and time. An accepted outgoing message awaiting stored history can temporarily
+have no timestamp.
+
+The new default is **Always visible**. Existing saved visibility choices remain
+unchanged. Choose **Settings → Transcript → Show time and date below messages**
+to change it. Browser visibility and history checks pass; older-relay send-flow
+and native macOS acceptance remain open. This is not a stable-release claim.
+
 ## Turning the pieces on
 
 Selection and forwarding are configured under **Settings → Transcript →

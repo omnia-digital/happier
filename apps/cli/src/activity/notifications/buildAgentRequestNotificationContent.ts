@@ -12,6 +12,7 @@ export function buildAgentRequestNotificationContent(params: Readonly<{
   sessionTitle?: string | null;
   agentDisplayName?: string | null;
   requestId: string;
+  occurrenceId?: string;
   toolName: string;
   toolDetails?: string | null;
 }>): Readonly<{ title: string; body: string; data: Record<string, unknown> }> {
@@ -34,6 +35,7 @@ export function buildAgentRequestNotificationContent(params: Readonly<{
     data: {
       sessionId: params.sessionId,
       requestId: params.requestId,
+      ...(params.occurrenceId ? { occurrenceId: params.occurrenceId } : {}),
       tool: params.toolName,
       type,
       kind: params.kind,

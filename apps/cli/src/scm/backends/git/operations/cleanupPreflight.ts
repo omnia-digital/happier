@@ -83,7 +83,7 @@ export async function readGitPublishedMergeEvidence(input: Readonly<{
         projectKey: `cleanup-preflight:${input.gitEvidence.worktreeRealPath}`,
         detection: { isRepo: true, rootPath: input.gitEvidence.worktreeRealPath, mode: '.git' },
     };
-    const response = await (input.backend ?? createGitPullRequestBackend()).get({
+    const response = await (input.backend ?? createGitPullRequestBackend({ readOnlyGit: true })).get({
         context,
         request: { cwd: context.cwd, prReference: { number: input.link.number }, linkedIdentity: input.link },
     }).catch(() => null);
@@ -164,7 +164,7 @@ export async function readGitPublishedMergeEvidence(input: Readonly<{
             const sourceOid = input.gitEvidence.headOid;
             const targetOid = targetOids[0]!.toLowerCase();
             // Walk the complete local commit graph first; missing history and command errors never prove absence/presence.
-            const graph = await gitRead(['rev-list', '--parents', sourceOid, targetOid, '--']);
+            const graph = await gitRead(['rev-list', '--count', sourceOid, targetOid, '--']);
             if (graph.success) {
                 const ancestry = await gitRead(['merge-base', '--is-ancestor', sourceOid, targetOid]);
                 if (ancestry.success) integration = { kind: 'ancestor', sourceOid, targetOid,

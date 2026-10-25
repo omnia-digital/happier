@@ -11,10 +11,12 @@ import {
     SESSION_ACTION_DELETE_ID,
     SESSION_ACTION_MOVE_TO_FOLDER_ID,
     SESSION_ACTION_MARK_UNREAD_ID,
+    SESSION_ACTION_PIN_ID,
     SESSION_ACTION_RENAME_ID,
     SESSION_ACTION_RESUME_ID,
     SESSION_ACTION_SET_ATTENTION_STANDING_ID,
     SESSION_ACTION_STOP_ID,
+    SESSION_ACTION_UNPIN_ID,
 } from './sessionActionIds';
 import { listVisibleSessionActionIds } from './sessionActionAvailability';
 
@@ -42,6 +44,28 @@ function createOwnedRawSession(overrides: Partial<Session> = {}): Session {
 }
 
 describe('session action availability', () => {
+    it('offers the current pin direction in the header only for unarchived server sessions', () => {
+        const createTarget = (params: Readonly<{ serverId?: string | null; isPinned?: boolean; archivedAt?: number | null }>) =>
+            createSessionActionTarget({
+                session: createOwnedRawSession({ archivedAt: params.archivedAt }),
+                serverId: params.serverId,
+                currentUserId: 'current_user',
+                isConnected: false,
+                isPinned: params.isPinned,
+            });
+
+        expect(listVisibleSessionActionIds({ target: createTarget({ serverId: 'server-a' }), surface: 'sessionHeader' }))
+            .toContain(SESSION_ACTION_PIN_ID);
+        expect(listVisibleSessionActionIds({ target: createTarget({ serverId: 'server-a', isPinned: true }), surface: 'sessionHeader' }))
+            .toContain(SESSION_ACTION_UNPIN_ID);
+        expect(listVisibleSessionActionIds({ target: createTarget({ serverId: 'server-a', isPinned: true }), surface: 'sessionHeader' }))
+            .not.toContain(SESSION_ACTION_PIN_ID);
+        expect(listVisibleSessionActionIds({ target: createTarget({ isPinned: false }), surface: 'sessionHeader' }))
+            .not.toContain(SESSION_ACTION_PIN_ID);
+        expect(listVisibleSessionActionIds({ target: createTarget({ serverId: 'server-a', archivedAt: 1_700 }), surface: 'sessionHeader' }))
+            .not.toContain(SESSION_ACTION_PIN_ID);
+    });
+
     it('does not offer folder assignment for direct sessions', () => {
         const session: SessionListRenderableSession = {
             ...createOwnedRawSession(),

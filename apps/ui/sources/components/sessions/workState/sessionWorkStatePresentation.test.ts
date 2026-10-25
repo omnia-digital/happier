@@ -5,6 +5,7 @@ import {
     readSessionWorkStateFromMetadata,
     resolveActiveSessionGoalItem,
     resolvePrimarySessionWorkStateItem,
+    resolveSidebarGoalTone,
     resolveSessionWorkStateStatusBadgePresentation,
 } from './sessionWorkStatePresentation';
 
@@ -63,6 +64,31 @@ describe('sessionWorkStatePresentation goalCapabilities + active selector', () =
     });
 });
 
+describe('legacy goal lifecycle compatibility', () => {
+    it('keeps omitted legacy statuses active but presents an explicit future status as unknown', () => {
+        const legacyGoal = (goal: Record<string, unknown>) => readSessionWorkStateFromMetadata({
+            sessionGoalV1: { objective: 'Ship the feature', ...goal },
+        })?.items[0] ?? null;
+
+        expect(legacyGoal({})?.status).toBe('active');
+        expect(legacyGoal({ status: 'futureStatus' })?.status).toBe('unknown');
+    });
+});
+
+describe('sidebar goal tone', () => {
+    it('colors only pursuing goals blue and completed goals green; interrupted and waiting goals stay neutral', () => {
+        const item = (status: string, statusReason?: string) => snapshotWithGoal(status)?.items[0]
+            ? { ...snapshotWithGoal(status)!.items[0]!, ...(statusReason ? { statusReason: statusReason as 'interrupted' } : {}) }
+            : null;
+
+        expect(resolveSidebarGoalTone(item('active')!)).toBe('active');
+        expect(resolveSidebarGoalTone(item('complete')!)).toBe('complete');
+        expect(resolveSidebarGoalTone(item('active', 'interrupted')!)).toBe('neutral');
+        expect(resolveSidebarGoalTone(item('paused')!)).toBe('neutral');
+        expect(resolveSidebarGoalTone(item('blocked')!)).toBe('neutral');
+    });
+});
+
 describe('sessionWorkStatePresentation', () => {
     it('reads canonical sessionWorkStateV1 metadata and resolves primaryItemId first', () => {
         const snapshot = readSessionWorkStateFromMetadata({
@@ -81,6 +107,29 @@ describe('sessionWorkStatePresentation', () => {
         const primary = resolvePrimarySessionWorkStateItem(snapshot);
         expect(primary?.id).toBe('goal:codex');
         expect(formatSessionWorkStateBadgeLabel(primary, translate)).toBe('session.workState.badge.goal:Migrate plugin support');
+    });
+
+    it('keeps a future canonical goal status visible as unknown rather than dropping the goal', () => {
+        const snapshot = readSessionWorkStateFromMetadata({
+            sessionWorkStateV1: {
+                v: 1,
+                backendId: 'codex',
+                updatedAt: 10,
+                primaryItemId: 'goal:codex',
+                items: [{
+                    id: 'goal:codex',
+                    kind: 'goal',
+                    origin: 'vendor',
+                    status: 'provider_stopped',
+                    title: 'Preserve future status',
+                    updatedAt: 10,
+                }],
+            },
+        });
+        const goal = resolvePrimarySessionWorkStateItem(snapshot);
+
+        expect(goal).toMatchObject({ status: 'unknown', title: 'Preserve future status' });
+        expect(resolveSidebarGoalTone(goal!)).toBe('neutral');
     });
 
     it('renders no badge label for a cancelled (cleared) goal so a cleared goal is not shown as current', () => {

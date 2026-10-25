@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { TokenStorage } from '@/auth/storage/tokenStorage';
 
 import { readReactNativeMmkvStubValues } from '@/dev/testkit/mocks/mmkv';
 
@@ -259,6 +260,8 @@ function expectApiSocketInitialMessageRequest(params: {
 
 describe('sync socket offline tracking', () => {
   const initialStorageState = storage.getState();
+
+  afterEach(() => vi.restoreAllMocks());
 
   beforeEach(() => {
     platformOS.current = 'web';
@@ -878,6 +881,11 @@ describe('sync socket offline tracking', () => {
   });
 
   it('marks server-backed pinned rows as required hydration during session list fetches', async () => {
+    const localStorage = new MemoryWebStorage();
+    vi.stubGlobal('window', { localStorage });
+    vi.stubGlobal('document', {});
+    vi.stubGlobal('localStorage', localStorage);
+    vi.stubGlobal('sessionStorage', new MemoryWebStorage());
     const profile = upsertAndActivateServer({ serverUrl: 'http://localhost:53288', scope: 'tab' });
     storage.getState().applySessionOrganizationSnapshot(profile.id, {
       schemaVersion: 1,
@@ -959,7 +967,9 @@ describe('sync socket offline tracking', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
 
-    (sync as any).credentials = { token: 'hdr.eyJzdWIiOiJ0ZXN0In0.sig', secret: 'secret' };
+    const credentials = { token: 'hdr.eyJzdWIiOiJ0ZXN0In0.sig', secret: 'secret' };
+    vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue(credentials);
+    (sync as any).credentials = credentials;
     (sync as any).encryption = {
       decryptEncryptionKey: async () => null,
       decryptEncryptionKeys: async () => [],
@@ -982,6 +992,9 @@ describe('sync socket offline tracking', () => {
     await (sync as any).fetchSessions();
 
     expect(storage.getState().sessionOrganizationPinsBySessionKey[`${profile.id}:server-pinned-session`]?.sortKey).toBe('rank-a');
+    await vi.waitFor(() => {
+      expect(storage.getState().sessionOrganizationTagAssignmentsBySessionKey[`${profile.id}:server-pinned-session`]).toEqual(['tag-important']);
+    });
     expect(fetchMock.mock.calls.some((call) => {
       const input = call[0];
       const url = typeof input === 'string'

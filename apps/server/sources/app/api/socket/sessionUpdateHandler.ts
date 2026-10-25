@@ -842,6 +842,7 @@ export function sessionUpdateHandler(
                     id: result.message.id,
                     seq: result.message.seq,
                     localId: result.message.localId,
+                    createdAt: result.message.createdAt.getTime(),
                     didWrite: result.didWrite,
                     ...(result.didUpdate ? { didUpdate: true } : {}),
                 });

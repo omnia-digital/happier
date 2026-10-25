@@ -1,4 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { TokenStorage } from '@/auth/storage/tokenStorage';
+import { upsertServerProfile } from '@/sync/domains/server/serverProfiles';
+
+const credentials = { token: `header.${Buffer.from(JSON.stringify({ sub: 'account-a' })).toString('base64')}.signature`, secret: 'secret-a' };
 
 const mocks = vi.hoisted(() => ({
     serverFetch: vi.fn(),
@@ -33,10 +37,13 @@ function organizationSnapshotResponse(assignments: unknown[]) {
 
 describe('fetchAndApplySessionFolderAssignments', () => {
     beforeEach(async () => {
+        expect(upsertServerProfile({ serverUrl: 'https://server-a' }).id).toBe('server-a');
+        vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue(credentials);
         mocks.serverFetch.mockReset();
         const { getStorage } = await import('@/sync/domains/state/storageStore');
         getStorage().getState().clearSessionOrganizationForServer('server-a');
     });
+    afterEach(() => vi.restoreAllMocks());
 
     it('applies fetched assignments to the organization assignment cache', async () => {
         const { getStorage } = await import('@/sync/domains/state/storageStore');
@@ -46,7 +53,7 @@ describe('fetchAndApplySessionFolderAssignments', () => {
         ])));
 
         await fetchAndApplySessionFolderAssignments({
-            credentials: { token: 'token-a', secret: 'secret-a' },
+            credentials: credentials,
             serverId: 'server-a',
             sessionIds: ['s1'],
         });
@@ -67,7 +74,7 @@ describe('fetchAndApplySessionFolderAssignments', () => {
         ])));
 
         await fetchAndApplySessionFolderAssignments({
-            credentials: { token: 'token-a', secret: 'secret-a' },
+            credentials: credentials,
             serverId: 'server-a',
             sessionIds: ['s1'],
             fetchPolicy: 'missing',
@@ -89,7 +96,7 @@ describe('fetchAndApplySessionFolderAssignments', () => {
         ])));
 
         await fetchAndApplySessionFolderAssignments({
-            credentials: { token: 'token-a', secret: 'secret-a' },
+            credentials: credentials,
             serverId: 'server-a',
             sessionIds: ['s1', 's2', 's3'],
             fetchPolicy: 'missing',
@@ -111,7 +118,7 @@ describe('fetchAndApplySessionFolderAssignments', () => {
         }));
 
         const fetchPromise = fetchAndApplySessionFolderAssignments({
-            credentials: { token: 'token-a', secret: 'secret-a' },
+            credentials: credentials,
             serverId: 'server-a',
             sessionIds: ['s1'],
             fetchPolicy: 'missing',
@@ -138,13 +145,13 @@ describe('fetchAndApplySessionFolderAssignments', () => {
         });
 
         const firstFetch = fetchAndApplySessionFolderAssignments({
-            credentials: { token: 'token-a', secret: 'secret-a' },
+            credentials: credentials,
             serverId: 'server-a',
             sessionIds: ['s1', 's2'],
             fetchPolicy: 'missing',
         });
         const secondFetch = fetchAndApplySessionFolderAssignments({
-            credentials: { token: 'token-a', secret: 'secret-a' },
+            credentials: credentials,
             serverId: 'server-a',
             sessionIds: ['s1', 's2'],
             fetchPolicy: 'missing',
@@ -163,7 +170,6 @@ describe('fetchAndApplySessionFolderAssignments', () => {
     it('keeps missing-only assignment requests O(batches) across a full organization snapshot', async () => {
         const { getStorage } = await import('@/sync/domains/state/storageStore');
         const { fetchAndApplySessionFolderAssignments } = await import('./fetchSessionFolderAssignments');
-        const credentials = { token: 'token-a', secret: 'secret-a' };
         const sessionIds = Array.from({ length: 12 }, (_, index) => `s${index + 1}`);
         mocks.serverFetch.mockImplementation(async () => jsonResponse(organizationSnapshotResponse([
             { sessionId: 's1', folderId: 'folder-a' },
@@ -221,7 +227,6 @@ describe('fetchAndApplySessionFolderAssignments', () => {
     it('still fetches sessions a full organization snapshot never covered', async () => {
         const { getStorage } = await import('@/sync/domains/state/storageStore');
         const { fetchAndApplySessionFolderAssignments } = await import('./fetchSessionFolderAssignments');
-        const credentials = { token: 'token-a', secret: 'secret-a' };
         mocks.serverFetch.mockImplementation(async () => jsonResponse(organizationSnapshotResponse([])));
 
         await fetchAndApplySessionFolderAssignments({
@@ -264,7 +269,7 @@ describe('fetchAndApplySessionFolderAssignments', () => {
         mocks.serverFetch.mockImplementation(async () => jsonResponse(organizationSnapshotResponse([])));
 
         await fetchAndApplySessionFolderAssignments({
-            credentials: { token: 'token-a', secret: 'secret-a' },
+            credentials: credentials,
             serverId: 'server-a',
             sessionIds: ['s1'],
             fetchPolicy: 'missing',

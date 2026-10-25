@@ -70,6 +70,7 @@ async function publishedFixture() {
     };
     const provider = { result: summary as ScmPullRequestSummary | null };
     const backend = createGitPullRequestBackend({
+        readOnlyGit: true,
         githubCliAdapter: { ...githubCliScmHostingProviderAdapter, getPullRequest: async () => provider.result },
         detectGithubCliAuth: async () => ({ kind: 'authenticated', command: 'gh', host: 'github.com' }),
     });
@@ -167,6 +168,7 @@ describe('exact current-source default-target ancestry', () => {
         });
         const before = await snapshot();
         expect(await readGitWorktreeCleanupEvidence(f.expected)).toMatchObject({ kind: 'ok' });
+        expect(await snapshot()).toEqual(before);
         expect(await f.read()).toMatchObject({ integration: { kind: 'ancestor' } });
         expect(await snapshot()).toEqual(before);
     });
@@ -270,6 +272,7 @@ describe('current PR state and source publication evidence', () => {
             state: 'merged', draft: false, headSha: sourceOid, headRepository: link.repository,
         };
         const backend = createGitPullRequestBackend({
+            readOnlyGit: true,
             githubCliAdapter: { ...githubCliScmHostingProviderAdapter, getPullRequest: async () => summary },
             detectGithubCliAuth: async () => ({ kind: 'authenticated', command: 'gh', host: 'github.com' }),
         });
@@ -316,6 +319,7 @@ describe('current PR state and source publication evidence', () => {
         };
         let providerResult: ScmPullRequestSummary | null = summary;
         const backend = createGitPullRequestBackend({
+            readOnlyGit: true,
             githubCliAdapter: { ...githubCliScmHostingProviderAdapter, getPullRequest: async () => providerResult },
             detectGithubCliAuth: async () => ({ kind: 'authenticated', command: 'gh', host: 'github.com' }),
         });
@@ -388,6 +392,7 @@ describe('host claim and archived-session preflight', () => {
             runnerPath: f.worktree, serverResolution: 'created' });
         const otherLink = { ...f.input.link, number: 8, url: 'https://github.com/example/repo/pull/8' };
         const backend = createGitPullRequestBackend({
+            readOnlyGit: true,
             githubCliAdapter: { ...githubCliScmHostingProviderAdapter, getPullRequest: async ({ number }) => number === 8
                 ? { ...f.summary, number, url: otherLink.url, state: 'open' }
                 : f.provider.result },

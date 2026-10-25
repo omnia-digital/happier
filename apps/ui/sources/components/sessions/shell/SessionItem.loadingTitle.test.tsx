@@ -218,6 +218,7 @@ function createMetadataPendingRowModel(id: string): SessionListRowModel {
         pendingCount: 0,
         draft: null,
         agentActivityLabel: null,
+        goalIndicator: null,
         pendingBlockedCount: 0,
         tags: [],
         allKnownTags: [],

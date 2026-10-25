@@ -13,6 +13,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react-test-renderer';
 
 import { renderHook, standardCleanup } from '@/dev/testkit';
+import { TokenStorage } from '@/auth/storage/tokenStorage';
+import { upsertServerProfile } from '@/sync/domains/server/serverProfiles';
 import type { SessionListViewItem } from '@/sync/domains/state/storage';
 import { localSettingsDefaults, type LocalSettings } from '@/sync/domains/settings/localSettings';
 import type { SessionListRenderableSession } from '@/sync/domains/session/listing/sessionListRenderable';
@@ -106,20 +108,6 @@ vi.mock('@/hooks/server/useFeatureEnabled', () => ({
     useFeatureEnabled: () => sourceData.folderTree,
 }));
 
-vi.mock('@/sync/domains/server/serverProfiles', async (importOriginal) => ({
-    ...await importOriginal<typeof import('@/sync/domains/server/serverProfiles')>(),
-    getServerProfileById: (serverId: string) => (serverId === SERVER_ID
-        ? { id: SERVER_ID, serverUrl: 'https://server-a.test' }
-        : null),
-    resolveServerProfileScopeId: (profile: { id: string; serverIdentityId?: string | null }) => (
-        profile.serverIdentityId ?? profile.id
-    ),
-}));
-
-vi.mock('@/auth/storage/tokenStorage', () => ({
-    TokenStorage: { getCredentialsForServerUrl: vi.fn(async () => ({ token: 't', secret: 's' })) },
-}));
-
 vi.mock('@/sync/ops/sessionOrganization', () => ({
     fetchAndApplySessionFolderAssignments: vi.fn(async () => undefined),
 }));
@@ -146,6 +134,7 @@ describe('attention standing reaches the visible session list through the real s
         sourceData.folderTree = false;
         sourceData.setSessionAttentionStandingApi.mockReset();
         standardCleanup();
+        vi.restoreAllMocks();
     });
 
     it('moves an ungrouped, reason-less session into the attention band when the keep lands in the store', async () => {
@@ -191,6 +180,12 @@ describe('attention standing reaches the visible session list through the real s
     });
 
     it('moves a quiet session into an existing attention band when the REAL keep op runs (hidden inactive sessions on)', async () => {
+        expect(upsertServerProfile({ serverUrl: 'https://server-a' }).id).toBe(SERVER_ID);
+        const credentials = {
+            token: `header.${Buffer.from(JSON.stringify({ sub: 'account-a' })).toString('base64')}.signature`,
+            secret: 'secret-a',
+        };
+        vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue(credentials);
         sourceData.hideInactiveSessions = true;
         sourceData.activeData = [
             {

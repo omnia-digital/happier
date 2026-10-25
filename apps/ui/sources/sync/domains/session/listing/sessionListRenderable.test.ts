@@ -55,6 +55,43 @@ it('replaces a catalog projection when a linked PR is corrected or removed', () 
     expect(areSessionListRenderablesEqual(before, { ...before, metadata: structuredClone(before.metadata) })).toBe(true);
 });
 
+it('projects canonical goal lifecycle metadata and invalidates rows when it changes or clears', () => {
+    const activeGoal = {
+        v: 1,
+        backendId: 'codex',
+        updatedAt: 2,
+        primaryItemId: 'goal:codex',
+        items: [{
+            id: 'goal:codex',
+            kind: 'goal',
+            origin: 'vendor',
+            status: 'active',
+            title: 'Finish the feature',
+            updatedAt: 2,
+        }],
+    };
+    const completedGoal = {
+        ...activeGoal,
+        updatedAt: 3,
+        items: [{ ...activeGoal.items[0], status: 'complete', updatedAt: 3 }],
+    };
+    const active = buildSessionListRenderableFromSession(createSessionFixture({
+        metadata: { path: '/repo', host: 'host', sessionWorkStateV1: activeGoal },
+    }));
+    const completed = buildSessionListRenderableFromSession(createSessionFixture({
+        metadata: { path: '/repo', host: 'host', sessionWorkStateV1: completedGoal },
+    }));
+    const cleared = buildSessionListRenderableFromSession(createSessionFixture({ metadata: { path: '/repo', host: 'host' } }));
+
+    expect(active.metadata?.sessionWorkStateV1).toEqual(activeGoal);
+    expect(areSessionListRenderablesEqual(active, {
+        ...active,
+        metadata: structuredClone(active.metadata),
+    })).toBe(true);
+    expect(areSessionListRenderablesEqual(active, completed)).toBe(false);
+    expect(areSessionListRenderablesEqual(active, cleared)).toBe(false);
+});
+
 vi.mock('@/sync/domains/state/storage', async () => {
     const { createStorageModuleStub } = await import('@/dev/testkit/mocks/storage');
     return createStorageModuleStub({

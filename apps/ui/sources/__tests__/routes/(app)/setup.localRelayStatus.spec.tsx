@@ -3,22 +3,30 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createExpoRouterMock, renderScreen, standardCleanup } from '@/dev/testkit';
 
-const activeServerSnapshot = vi.hoisted(() => ({
-    serverId: 'relay-1',
-    serverUrl: 'https://relay.example.test/',
-    generation: 1,
+const {
+    activeServerSnapshot,
+    setPendingSetupIntentMock,
+    upsertServerProfileMock,
+    setActiveServerIdMock,
+    tauriDesktopState,
+} = vi.hoisted(() => ({
+    activeServerSnapshot: {
+        serverId: 'relay-1',
+        serverUrl: 'https://relay.example.test/',
+        generation: 1,
+    },
+    setPendingSetupIntentMock: vi.fn(),
+    upsertServerProfileMock: vi.fn((params: { serverUrl: string; source?: string; replaceEquivalentStoredUrl?: boolean }) => ({
+        id: `server:${params.serverUrl}`,
+        name: params.serverUrl,
+        serverUrl: params.serverUrl,
+        createdAt: 0,
+        updatedAt: 0,
+        lastUsedAt: 0,
+    })),
+    setActiveServerIdMock: vi.fn(),
+    tauriDesktopState: { value: true },
 }));
-const setPendingSetupIntentMock = vi.hoisted(() => vi.fn());
-const upsertServerProfileMock = vi.hoisted(() => vi.fn((params: { serverUrl: string; source?: string; replaceEquivalentStoredUrl?: boolean }) => ({
-    id: `server:${params.serverUrl}`,
-    name: params.serverUrl,
-    serverUrl: params.serverUrl,
-    createdAt: 0,
-    updatedAt: 0,
-    lastUsedAt: 0,
-})));
-const setActiveServerIdMock = vi.hoisted(() => vi.fn());
-const tauriDesktopState = vi.hoisted(() => ({ value: true }));
 
 const expoRouterMock = createExpoRouterMock({
     router: {

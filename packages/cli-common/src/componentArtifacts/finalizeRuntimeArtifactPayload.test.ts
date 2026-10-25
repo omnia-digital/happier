@@ -1,4 +1,4 @@
-import { chmod, cp, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { chmod, cp, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -359,7 +359,9 @@ describe('finalizeRuntimeArtifactPayload native target projection', () => {
       await expect(stat(join(root, pair.duplicate))).rejects.toMatchObject({ code: 'ENOENT' });
       await expect(readFile(join(root, pair.survivor, 'assets/runtime.bin'))).resolves.toEqual(Buffer.from(marker));
       const resolver = createRequire(join(root, dirname(pair.duplicate), 'resolver.cjs'));
-      expect(resolver.resolve(pair.packageName)).toBe(join(root, pair.survivor, 'index.js'));
+      const resolvedPath = await realpath(resolver.resolve(pair.packageName));
+      const expectedPath = await realpath(join(root, pair.survivor, 'index.js'));
+      expect(resolvedPath).toBe(expectedPath);
     }
     await expect(readFile(join(root, 'node_modules/unlisted-consumer/node_modules/zod/assets/runtime.bin')))
       .resolves.toEqual(Buffer.from(marker));
@@ -377,7 +379,9 @@ describe('finalizeRuntimeArtifactPayload native target projection', () => {
 
     await expect(readFile(join(root, duplicate, 'assets/runtime.bin'))).resolves.toEqual(Buffer.from([1]));
     const resolver = createRequire(join(root, 'node_modules/@happier-dev/protocol/node_modules/zod-to-json-schema/index.js'));
-    expect(resolver.resolve('zod')).toBe(join(root, duplicate, 'index.js'));
+    const resolvedPath = await realpath(resolver.resolve('zod'));
+    const expectedPath = await realpath(join(root, duplicate, 'index.js'));
+    expect(resolvedPath).toBe(expectedPath);
   });
 
   it('preserves the MCP SDK optional peer selected by its original package location', async () => {

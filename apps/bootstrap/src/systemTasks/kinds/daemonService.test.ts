@@ -82,6 +82,8 @@ async function collectResult(
 describe('daemonService system task handlers', () => {
   beforeEach(async () => {
     const home = mkdtempSync(join(tmpdir(), 'hsetup-daemon-service-'));
+    vi.stubEnv('HOME', home);
+    vi.stubEnv('USERPROFILE', home);
     vi.stubEnv('HAPPIER_HOME_DIR', home);
     vi.stubEnv('HAPPIER_BOOTSTRAP_CLI_PATH', '');
     vi.stubEnv('HAPPIER_BOOTSTRAP_HAPPIER_PATH', '');
@@ -102,6 +104,8 @@ describe('daemonService system task handlers', () => {
   it('reports acquisition explicitly and carries every ambient daemon fact the CLI emitted', async () => {
     // No stable CLI to adopt: only the app's preview channel is installed.
     const emptyHome = mkdtempSync(join(tmpdir(), 'hsetup-status-channel-'));
+    vi.stubEnv('HOME', emptyHome);
+    vi.stubEnv('USERPROFILE', emptyHome);
     vi.stubEnv('HAPPIER_HOME_DIR', emptyHome);
     vi.stubEnv('PATH', '');
     const cli = await installManagedCliFixture({ processEnv: process.env, releaseRing: 'preview' });

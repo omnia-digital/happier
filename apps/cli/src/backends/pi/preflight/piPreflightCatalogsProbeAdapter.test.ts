@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -106,7 +106,7 @@ describe('Pi native preflight catalogs', () => {
       ],
       skills: null,
     });
-    expect(trace).toMatchObject({ cwd: directory, selected: 'scoped-auth' });
+    expect(trace).toMatchObject({ cwd: realpathSync(directory), selected: 'scoped-auth' });
     expectStopped(trace);
   });
 

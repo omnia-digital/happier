@@ -30,6 +30,8 @@ import {
     formatSessionAgentActivityLabel,
     resolveSessionActivityComposerTranslate,
 } from '@/components/sessions/workState/sessionActivityPresentation';
+import { readSessionWorkStateFromMetadata } from '@/components/sessions/workState/sessionWorkStatePresentation';
+import { resolveSidebarGoalItem } from '@/components/sessions/workState/sessionGoalSelectors';
 import { formatShortRelativeTimeAt } from '@/utils/time/formatShortRelativeTime';
 import { t } from '@/text';
 import { sessionTagKey } from '../sessionTagUtils';
@@ -399,6 +401,7 @@ export function buildSessionListRowModel(input: BuildSessionListRowModelInput): 
             resolveSessionActivityComposerTranslate(),
         )
         : null;
+    const goalIndicator = resolveSidebarGoalItem(readSessionWorkStateFromMetadata(resolvedSession.metadata));
     const standingRecord = settings.attentionStandingPolicy.overridesBySessionKey[rowKey];
     const reminder = resolveSessionReminderPresentation(standingRecord, settings.runtimeNowMs);
     const reminderWakeAtMs = reminder?.state === 'scheduled' ? reminder.remindAt : null;
@@ -474,6 +477,7 @@ export function buildSessionListRowModel(input: BuildSessionListRowModelInput): 
         pendingBlockedCount,
         draft: input.state?.draft ?? null,
         agentActivityLabel,
+        goalIndicator,
         tags: settings.sessionTagsByKey[rowKey] ?? [],
         allKnownTags: settings.allKnownTags,
         tagsEnabled: settings.tagsEnabled,

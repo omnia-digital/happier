@@ -75,6 +75,17 @@ describe('resolveSessionTagPlacement', () => {
         })).toBe('below');
     });
 
+    it('moves compact tags below when the reserved action rail leaves too little room for the title', () => {
+        expect(resolveSessionTagPlacement({
+            density: 'compact',
+            tags: [{ label: 'v2' }],
+            rowWidth: 310,
+            hasTrailingMeta: true,
+            hasRowActions: false,
+            reservedActionRailWidth: 120,
+        })).toBe('below');
+    });
+
     it('keeps short compact tags inline even when they take modest title space', () => {
         expect(resolveSessionTagPlacement({
             density: 'compact',

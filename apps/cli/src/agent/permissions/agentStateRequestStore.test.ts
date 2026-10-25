@@ -26,12 +26,33 @@ class FakeSession {
     }
 
 
-    updateAgentState(updater: (state: AgentState) => AgentState) {
+    updateAgentState(updater: (state: AgentState) => AgentState): void | Promise<void> {
         this.agentState = updater(this.agentState);
     }
 }
 
 describe('AgentStateRequestStore', () => {
+    it('gives a replacement request a distinct occurrence and rejects settlement for the old one', async () => {
+        const session = new FakeSession();
+        const store = new AgentStateRequestStore({ session, logPrefix: '[Test]' });
+        const request = { requestId: 'reused', toolName: 'Write', toolInput: { path: '/workspace/file' }, createdAt: 10 };
+
+        store.publishRequest(request);
+        const firstOccurrenceId = session.agentState.requests?.reused?.occurrenceId;
+        expect(firstOccurrenceId).toEqual(expect.any(String));
+
+        store.publishRequest({ ...request, createdAt: 20 });
+        const replacement = session.agentState.requests?.reused;
+        expect(replacement?.occurrenceId).toEqual(expect.any(String));
+        expect(replacement?.occurrenceId).not.toBe(firstOccurrenceId);
+
+        await expect(store.completeRequest({
+            requestId: 'reused', status: 'approved', expectedOccurrenceId: firstOccurrenceId,
+            fallback: { toolName: request.toolName, toolInput: request.toolInput, createdAt: 20 },
+        })).rejects.toThrow('did not match');
+        expect(session.agentState.requests?.reused).toEqual(replacement);
+        expect(session.agentState.completedRequests?.reused).toBeUndefined();
+    });
     it.each(['claimed', 'replacement', 'missing'] as const)('rejects a %s occurrence before settlement admission', async (change) => {
         const session = new FakeSession();
         const request = { tool: 'Write', arguments: { path: '/workspace/original' }, createdAt: 10 };
@@ -119,6 +140,31 @@ describe('AgentStateRequestStore', () => {
             arguments: { questions: [{ question: 'private terminal context' }] },
         });
         expect(sendToAllDevicesAsync).not.toHaveBeenCalled();
+    });
+
+    it('sends a notification only after the actual request occurrence is published', async () => {
+        const session = new FakeSession();
+        let publish!: () => void;
+        session.updateAgentState = (updater) => new Promise<void>((resolve) => {
+            publish = () => { session.agentState = updater(session.agentState); resolve(); };
+        });
+        const sendToAllDevicesAsync = vi.fn(async (_title: string, _body: string, _data: Record<string, unknown>) => {});
+        const settings = accountSettingsParse({
+            notificationsSettingsV1: { v: 1, pushEnabled: true, ready: true, permissionRequest: true },
+        });
+        const store = new AgentStateRequestStore({
+            session, logPrefix: '[Test]', pushSender: { sendToAllDevicesAsync }, getAccountSettings: () => settings,
+        });
+
+        store.publishRequest({ requestId: 'delayed', toolName: 'Write', toolInput: { path: '/workspace/file' }, createdAt: Date.now() });
+        await Promise.resolve();
+        expect(sendToAllDevicesAsync).not.toHaveBeenCalled();
+
+        publish();
+        await vi.waitFor(() => expect(sendToAllDevicesAsync).toHaveBeenCalledTimes(1));
+        expect(sendToAllDevicesAsync.mock.calls[0]?.[2]).toMatchObject({
+            requestId: 'delayed', occurrenceId: session.agentState.requests?.delayed?.occurrenceId,
+        });
     });
 
     it('publishes and completes a request', () => {

@@ -372,6 +372,25 @@ describe('updates transcript vNext payloads', () => {
     expect(parsed.data.ok).toBe(true);
   });
 
+  it('accepts persisted creation time in new message ACKs and older ACKs without it', () => {
+    const newAck = MessageAckResponseSchema.parse({
+      ok: true,
+      id: 'm1',
+      seq: 1,
+      localId: 'l1',
+      createdAt: 42_000,
+    });
+    const oldAck = MessageAckResponseSchema.parse({
+      ok: true,
+      id: 'm1',
+      seq: 1,
+      localId: 'l1',
+    });
+
+    expect(newAck.ok && newAck.createdAt).toBe(42_000);
+    expect(oldAck.ok && oldAck.createdAt).toBeUndefined();
+  });
+
   it('parses message ack responses with forward-compatible extra fields', () => {
     const parsed = MessageAckResponseSchema.safeParse({
       ok: true,

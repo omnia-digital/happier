@@ -1,5 +1,5 @@
 import { logger } from '@/ui/logger';
-import { SESSION_RPC_METHODS, StructuredQuestionResponseV1Schema } from '@happier-dev/protocol';
+import { SESSION_RPC_METHODS, StructuredQuestionResponseV1Schema, SessionPermissionResponseToOccurrenceV1Schema } from '@happier-dev/protocol';
 import { PUBLIC_RPC_HANDLER_ERROR_CODES, PublicRpcHandlerError, isPublicRpcHandlerError } from '@happier-dev/protocol/rpcErrors';
 
 import type { SessionPermissionRpcPayload } from './sessionPermissionRpc';
@@ -40,6 +40,13 @@ export class SessionPermissionRpcRouter {
   constructor(private readonly rpcHandlerManager: RpcHandlerManagerLike) {
     this.rpcHandlerManager.registerHandler(SESSION_RPC_METHODS.SESSION_PERMISSION_RESPOND_LEGACY, async (payload) => {
       return this.dispatch(payload as SessionPermissionRpcPayload);
+    });
+    this.rpcHandlerManager.registerHandler(SESSION_RPC_METHODS.SESSION_PERMISSION_RESPOND_TO_OCCURRENCE_V1, async (payload) => {
+      const parsed = SessionPermissionResponseToOccurrenceV1Schema.safeParse(payload);
+      if (!parsed.success) {
+        return { ok: false, errorCode: 'permission_request_not_found', errorMessage: 'permission_request_not_found', requestId: '' } satisfies SessionPermissionRpcRouterResult;
+      }
+      return this.dispatch(parsed.data);
     });
     this.rpcHandlerManager.registerHandler(SESSION_RPC_METHODS.SESSION_STRUCTURED_QUESTION_RESPOND_V1, async (payload) => {
       const parsed = StructuredQuestionResponseV1Schema.safeParse(payload);
