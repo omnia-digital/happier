@@ -3529,10 +3529,10 @@ describe('SessionView (direct sessions)', () => {
     expect(agentInput.props.agentType).toBe('codex');
     // The composer still builds its own current-Agent rows: SessionView never hands it a
     // wholesale replacement projection. The in-session picker only *extends* that list and
-    // reports which row is armed — null here, because no continuation has been selected.
+    // reports the current engine row when no continuation is armed.
     expect(agentInput.props.agentPickerOptions).toBeUndefined();
     expect(agentInput.props.composeAgentPickerOptions).toBeTypeOf('function');
-    expect(agentInput.props.agentPickerSelectedOptionId).toBeNull();
+    expect(agentInput.props.agentPickerSelectedOptionId).toBe('engine:codex');
     expect(agentInput.props.agentPickerApplyLabel).toBeUndefined();
     expect(agentInput.props.metadata).toEqual(session.metadata);
     expect(typeof agentInput.props.onModelModeChange).toBe('function');
