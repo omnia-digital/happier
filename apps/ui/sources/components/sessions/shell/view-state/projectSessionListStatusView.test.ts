@@ -3,6 +3,7 @@ import type { SessionTicketAssociationV1 } from '@happier-dev/protocol';
 import { createSessionFixture } from '@/dev/testkit';
 import { buildSessionListRenderableFromSession } from '@/sync/domains/session/listing/sessionListRenderable';
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
+import type { SessionListVisualStatus } from '@/sync/domains/session/listing/deriveSessionListActivity';
 import type { SessionTicketStatus } from '@/sync/domains/session/tickets/sessionTicketStatus';
 import { buildSessionListSelectedItems } from '../sessionListSelectedItems';
 import { buildSessionListIndexFromViewData } from '@/sync/domains/session/listing/sessionListIndex';
@@ -71,7 +72,7 @@ describe('status organization through the canonical sidebar projection', () => {
 
     it('moves a session between Agent Status positions when the canonical live status changes', () => {
         const source = [row('first'), row('second')];
-        const statuses = new Map([['home:first', 'input' as const], ['home:second', 'working' as const]]);
+        const statuses = new Map<string, SessionListVisualStatus>([['home:first', 'input'], ['home:second', 'working']]);
         const project = () => projectSessionListStatusView({ items: source, grouping: 'none', sorting: 'agent', ticketStatuses: new Map(), nowMs: now, agentStatuses: statuses });
         expect(ids(project())).toEqual(['first', 'second']);
         statuses.set('home:first', 'idle');
