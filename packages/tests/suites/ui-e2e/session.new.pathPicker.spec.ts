@@ -315,6 +315,10 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         await page.setViewportSize({ width: 1200, height: 800 });
         await pathChip.click();
         await expect(popover).toHaveCount(1);
+        await expect.poll(async () => {
+            const rect = await popover.getByTestId('path-selection-list').boundingBox();
+            return rect?.y ?? Number.NEGATIVE_INFINITY;
+        }).toBeGreaterThanOrEqual(8);
         const normalPickerRect = await popover.getByTestId('path-selection-list').boundingBox();
         expect(normalPickerRect).not.toBeNull();
         expect(normalPickerRect!.y).toBeGreaterThanOrEqual(8);
