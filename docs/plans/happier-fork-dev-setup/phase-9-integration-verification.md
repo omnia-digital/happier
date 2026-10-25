@@ -488,3 +488,24 @@ filters to PR events, so it cannot prove push CI status. A smaller successful
 Linear query returns no OH release pipelines; the first broad pipeline query
 exceeded server complexity and supplies no result. No workflow dispatch, personal
 credential fallback, GitHub admin change or fictitious release was attempted.
+
+### October 25: tool-unpacker natural exit
+
+After the59-commit parent audit at `98c8b26691`, exactly its natural-exit intent
+is adapted through the existing `apps/cli/scripts/unpack-tools.cjs` direct entry
+and pushed as `0053d17620`. Successful unpacking drains the event loop; failure
+keeps the existing error and sets `process.exitCode = 1`. No extraction or runtime
+service policy changes. Verified human upstream author Leeroy Brun is credited;
+the upstream AI trailer is not carried forward.
+
+Tests execute the real child entry against tiny archive fixtures and record any
+forced exit: both cases meaningfully fail RED, then the owner slice passes9
+tests with2filtered archive checks. CLI typecheck passes. Root independently
+passes the two entry cases and the checked-in archive checksum check (3passed,
+8filtered; `.project/logs/tests/oh12-unpack-root-review.log`). Real shipped-archive
+extraction smoke remains unrun; the actual Node24 shutdown deadlock reported by
+upstream was not reproduced. Windows/Linux direct entry was not executed.
+Neither optional sibling0.3 destination exists, so local forward-port verification
+is blocked on its location; upstream describes this fix as already ported from
+0.3, which is not evidence of a verified local destination. The other58 parent
+commits remain unadopted, and no app, daemon, service or release changed.

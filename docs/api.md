@@ -94,6 +94,16 @@ account-sealed details beside the base ciphertext instead of readable metadata.
 See [quota recovery compatibility](compatibility.md#quota-recovery-details-02-development)
 and [encryption](encryption.md) for the owning wire and privacy boundaries.
 
+The unreleased Omnia development fork adds authenticated
+`GET /v3/connect/provider-account-usage` under the existing
+`connectedServices.quotas` gate. It lists the requesting account's record IDs,
+record keys, payload modes and freshness/status metadata, including native usage
+records without a connected-service binding. It does not return snapshots or
+ciphertext; consumers use the existing exact-record plain/sealed readers. An
+older relay without this operation returns 404, which means discovery is
+unavailable, not that the user has no subscription. Authentication and other
+request errors remain distinct. See [account usage discovery compatibility](compatibility.md#account-usage-discovery-omnia-development-fork).
+
 ### Push tokens
 - `POST /v1/push-tokens`
 - `DELETE /v1/push-tokens/:token`
