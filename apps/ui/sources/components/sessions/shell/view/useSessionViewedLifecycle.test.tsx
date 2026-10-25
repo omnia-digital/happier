@@ -73,7 +73,10 @@ describe('useSessionViewedLifecycle', () => {
 
     it('clears a due reminder on focused opening even without a transcript read cursor', async () => {
         const profile = upsertServerProfile({ serverUrl: 'https://reminder-lifecycle.example' });
-        vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue({ token: 'token', secret: 'secret' });
+        vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue({
+            token: `header.${Buffer.from(JSON.stringify({ sub: 'account-a' })).toString('base64')}.signature`,
+            secret: 'secret',
+        });
         const store = getStorage();
         const recordId = store.getState().setSessionAttentionStandingOptimistic(profile.id, 'reminded-session', {
             sessionId: 'reminded-session', standing: true, remindAt: 1, updatedAt: 1,

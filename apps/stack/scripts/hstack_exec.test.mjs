@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 
@@ -37,7 +37,7 @@ test('without a sibling executor preserves local cwd, literal args, stdin, strea
   ], { ...fixture, input: 'input value\n' });
   assert.equal(result.code, 37);
   assert.equal(result.signal, null);
-  assert.equal(result.stdout, [fixture.cwd, ...args].join('\0') + '\0input value');
+  assert.equal(result.stdout, [realpathSync(fixture.cwd), ...args].join('\0') + '\0input value');
   assert.equal(result.stderr, 'local stderr');
 });
 
@@ -65,7 +65,7 @@ test('usable sibling receives the absolute source repo before unchanged args and
   const args = ['--target=worker', '--', '/bin/sh', 'literal space', '$(false)', 'quote"value', '', 'line\nbreak'];
   const result = await runCommandCapture(fixture.wrapper, args, fixture);
   assert.equal(result.code, 29);
-  assert.equal(result.stdout, [fixture.cwd, `--repo=${fixture.repo}`, ...args].join('\0') + '\0');
+  assert.equal(result.stdout, [realpathSync(fixture.cwd), `--repo=${realpathSync(fixture.repo)}`, ...args].join('\0') + '\0');
   assert.equal(result.stderr, 'delegate stderr');
 });
 

@@ -1992,6 +1992,10 @@ class Sync {
     }
 
     private resetServerScopedRuntimeState = () => {
+        // Organization projections are server-keyed, while their contents are account-owned.
+        // Clear the active Home before another account can restore a version-gated warm cache.
+        const activeServerId = String(getActiveServerSnapshot().serverId ?? '').trim();
+        if (activeServerId) storage.getState().clearSessionOrganizationForServer(activeServerId);
         this.changesCatchUpQueuedAfterResume = false;
         this.postSubscriptionChangesCatchUpPending = false;
         this.sessionDraftSyncEnabled = false;

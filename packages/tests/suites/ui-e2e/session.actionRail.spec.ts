@@ -276,7 +276,16 @@ test.describe('ui e2e: session action rail', () => {
       await page.getByTestId('session-header-action-menu-trigger').click();
       const pinAction = page.getByTestId('dropdown-option-ui_session_pin');
       await expect(pinAction).toBeVisible();
+      const pinResponsePromise = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return response.request().method() === 'PUT'
+          && url.pathname === `/v2/session-organization/pins/${encodeURIComponent(sessionId)}`;
+      });
       await pinAction.click();
+      const pinResponse = await pinResponsePromise;
+      expect(pinResponse.status()).toBe(200);
+      expect(pinResponse.request().postDataJSON()).toEqual({ pinned: true });
+      expect(await pinResponse.json()).toMatchObject({ pin: { sessionId } });
       await page.goto(uiBaseUrl, { waitUntil: 'domcontentloaded' });
       await waitForInitialAppUi({ page, browserDiagnostics });
       await expect(page.getByTestId('session-list-header:pinned-v1')).toBeVisible({ timeout: 60_000 });

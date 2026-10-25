@@ -396,6 +396,7 @@ export class PermissionRequestCoordinator<TResult> {
             requestId: entry.requestId,
             ...completion.completedRequest,
             fallback: {
+                ...(typeof entry.occurrenceId === 'string' ? { occurrenceId: entry.occurrenceId } : {}),
                 toolName: entry.toolName,
                 toolInput: entry.toolInput,
                 createdAt: entry.createdAt,

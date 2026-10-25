@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TokenStorage } from '@/auth/storage/tokenStorage';
+import { createEncryptionFromAuthCredentials } from '@/auth/encryption/createEncryptionFromAuthCredentials';
+import type { SessionOrganizationSnapshot } from '@happier-dev/protocol';
 
 import { resetReactNativeMmkvStub } from '@/dev/testkit/mocks/mmkv';
 import { prepareWarmCacheEncryptionKey } from '@/sync/domains/state/warmCacheEncryptionKey';
@@ -65,12 +67,13 @@ import { storage } from './domains/state/storage';
 import { saveProfile } from './domains/state/persistence';
 import { profileDefaults } from './domains/profiles/profile';
 import { getActiveServerSnapshot, upsertAndActivateServer } from '@/sync/domains/server/serverRuntime';
+import { upsertServerProfile } from '@/sync/domains/server/serverProfiles';
 import { clearActiveViewingSessionsForServerScopeReset } from './domains/session/activeViewingSession';
 import { clearWarmCacheAccountScope } from './domains/state/warmCachePersistence';
 
 const ACCOUNT_ID = 'test-account';
 
-function organizationSnapshot(overrides?: { version?: number; pinnedSessionIds?: readonly string[] }) {
+function organizationSnapshot(overrides?: { version?: number; pinnedSessionIds?: readonly string[] }): SessionOrganizationSnapshot {
     return {
         schemaVersion: 1,
         version: overrides?.version ?? 7,
@@ -152,6 +155,63 @@ describe('session organization warm cache', () => {
         expect(state.sessionOrganizationSnapshotVersionByServerId[serverId]).toBe(7);
         expect(Object.keys(state.sessionOrganizationPinsBySessionKey)).toEqual([`${serverId}:s_pinned`]);
         expect(state.sessionFolderAssignmentsBySessionKey[`${serverId}:s_assigned`]).toBe('f1');
+    });
+
+    it('replaces a previous account organization when the same Home restores a lower-version warm cache', async () => {
+        upsertAndActivateServer({ serverUrl: 'http://localhost:53288', scope: 'tab' });
+        const serverId = activeServerId();
+        storage.getState().applySessionOrganizationSnapshot(serverId, organizationSnapshot({ version: 7, pinnedSessionIds: ['a_pin'] }));
+        saveProfile({ ...profileDefaults, id: 'account-b' });
+        warmCacheStorage().set(
+            `session-organization-warm-cache-v1:${serverId}:account-b`,
+            JSON.stringify(organizationSnapshot({ version: 2, pinnedSessionIds: ['b_pin'] })),
+        );
+
+        sync.disconnectServer();
+        const credentials = {
+            token: `hdr.${Buffer.from(JSON.stringify({ sub: 'account-b' })).toString('base64')}.sig`,
+            secret: Buffer.from(new Uint8Array(32).fill(4)).toString('base64url'),
+        };
+        vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue(credentials);
+        await sync.restore(credentials, await createEncryptionFromAuthCredentials(credentials));
+
+        const state = storage.getState();
+        expect(state.sessionOrganizationSnapshotVersionByServerId[serverId]).toBe(2);
+        expect(Object.keys(state.sessionOrganizationPinsBySessionKey)).toEqual([`${serverId}:b_pin`]);
+    });
+
+    it('does not retain the previous account organization when the next account has no warm cache', async () => {
+        upsertAndActivateServer({ serverUrl: 'http://localhost:53288', scope: 'tab' });
+        const serverId = activeServerId();
+        storage.getState().applySessionOrganizationSnapshot(serverId, organizationSnapshot({ pinnedSessionIds: ['a_pin'] }));
+        storage.getState().setSessionPinOptimistic(serverId, 'a_pending', {
+            sessionId: 'a_pending', sortKey: null, pinnedAt: 11,
+        });
+        const foreignHome = upsertServerProfile({ serverUrl: 'https://foreign-home.example.test' });
+        storage.getState().applySessionOrganizationSnapshot(foreignHome.id, organizationSnapshot({ pinnedSessionIds: ['foreign_pin'] }));
+        const foreignRecord = storage.getState().setSessionPinOptimistic(foreignHome.id, 'foreign_pending', {
+            sessionId: 'foreign_pending', sortKey: null, pinnedAt: 12,
+        });
+        saveProfile({ ...profileDefaults, id: 'account-b' });
+        sync.disconnectServer();
+        const credentials = {
+            token: `hdr.${Buffer.from(JSON.stringify({ sub: 'account-b' })).toString('base64')}.sig`,
+            secret: Buffer.from(new Uint8Array(32).fill(4)).toString('base64url'),
+        };
+        vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue(credentials);
+        await sync.restore(credentials, await createEncryptionFromAuthCredentials(credentials));
+
+        const state = storage.getState();
+        expect(state.sessionOrganizationSnapshotVersionByServerId[serverId]).toBeUndefined();
+        expect(state.sessionOrganizationPinsBySessionKey[`${serverId}:a_pin`]).toBeUndefined();
+        expect(state.sessionOrganizationPinsBySessionKey[`${foreignHome.id}:foreign_pin`]?.sessionId).toBe('foreign_pin');
+        expect(state.sessionOrganizationOptimisticRecords[foreignRecord]).toBeDefined();
+
+        const bRecord = state.setSessionPinOptimistic(serverId, 'b_pin', {
+            sessionId: 'b_pin', sortKey: null, pinnedAt: 13,
+        });
+        state.rollbackSessionOrganizationOptimistic(bRecord);
+        expect(storage.getState().sessionOrganizationPinsBySessionKey[`${serverId}:a_pending`]).toBeUndefined();
     });
 
     it('issues the session list page without waiting for the organization refresh once a warm organization exists', async () => {

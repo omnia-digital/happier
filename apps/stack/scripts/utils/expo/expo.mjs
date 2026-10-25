@@ -6,6 +6,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { isPidAlive } from '../proc/pids.mjs';
 import { isTcpPortFree, listListenPidsWithStatus } from '../net/ports.mjs';
 import { runCapture } from '../proc/proc.mjs';
+import { getProcessGroupId, isWindowsDescendantProcess } from '../proc/ownership.mjs';
 import { writeJsonAtomic } from '../fs/json.mjs';
 import { withJsonOwnerFileLock } from '../proc/jsonOwnerFileLock.mjs';
 
@@ -52,44 +53,11 @@ function resolveMetroWaitIntervalMsFromEnv(env = process.env) {
   return 500;
 }
 
-async function getProcessGroupIdForReadiness(pid) {
-  const n = Number(pid);
-  if (!Number.isFinite(n) || n <= 1 || process.platform === 'win32') return null;
-  try {
-    const out = await runCapture('ps', ['-o', 'pgid=', '-p', String(n)]);
-    const pgid = Number(String(out ?? '').trim());
-    return Number.isFinite(pgid) && pgid > 1 ? pgid : null;
-  } catch {
-    return null;
-  }
-}
-
-async function isWindowsDescendantProcess(listenerPid, ownerPid) {
-  if (process.platform !== 'win32') return false;
-  const script = [
-    `$target=${Number(listenerPid)};`,
-    `$owner=${Number(ownerPid)};`,
-    'while ($target -gt 1) {',
-    '  $p=Get-CimInstance Win32_Process -Filter "ProcessId=$target";',
-    '  if (-not $p) { break };',
-    '  $target=[int]$p.ParentProcessId;',
-    '  if ($target -eq $owner) { Write-Output owned; exit 0 }',
-    '};',
-    'exit 1',
-  ].join(' ');
-  try {
-    const out = await runCapture('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { timeoutMs: 4000 });
-    return String(out ?? '').trim() === 'owned';
-  } catch {
-    return false;
-  }
-}
-
 async function observeMetroListenerOwnership(
   { port, ownerPid, env },
   {
     listListenPidsWithStatusImpl = listListenPidsWithStatus,
-    getProcessGroupIdImpl = getProcessGroupIdForReadiness,
+    getProcessGroupIdImpl = getProcessGroupId,
     isWindowsDescendantProcessImpl = isWindowsDescendantProcess,
     platform = process.platform,
   } = {},
@@ -109,7 +77,7 @@ async function observeMetroListenerOwnership(
         continue;
       }
       // eslint-disable-next-line no-await-in-loop
-      if (await isWindowsDescendantProcessImpl(listenerPid, ownerPid)) {
+      if (await isWindowsDescendantProcessImpl(listenerPid, ownerPid, { timeoutMs: 4000 })) {
         ownedListenerPids.push(listenerPid);
       } else {
         foreignListenerPids.push(listenerPid);
@@ -163,7 +131,7 @@ export async function waitForExpoMetroRunning(
     delayImpl = delay,
     nowMsImpl = () => Date.now(),
     listListenPidsWithStatusImpl = listListenPidsWithStatus,
-    getProcessGroupIdImpl = getProcessGroupIdForReadiness,
+    getProcessGroupIdImpl = getProcessGroupId,
     isWindowsDescendantProcessImpl = isWindowsDescendantProcess,
     platform = process.platform,
   } = {},

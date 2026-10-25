@@ -2,7 +2,7 @@ import * as React from 'react';
 import renderer from 'react-test-renderer';
 import { Platform } from 'react-native';
 import { describe, expect, it, vi } from 'vitest';
-import { createSessionFixture, renderScreen } from '@/dev/testkit';
+import { createExpoVectorIconsMock, createSessionFixture, renderScreen } from '@/dev/testkit';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -31,6 +31,7 @@ vi.mock('react-native-unistyles', async () => {
     const { createUnistylesMock } = await import('@/dev/testkit/mocks/unistyles');
     return createUnistylesMock();
 });
+vi.mock('@expo/vector-icons', async () => createExpoVectorIconsMock());
 
 vi.mock('@/components/ui/lists/Item', () => ({ Item: 'Item' }));
 vi.mock('@/components/ui/text/Text', () => ({ Text: 'Text' }));

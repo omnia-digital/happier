@@ -60,6 +60,19 @@ This starts Metro and the scoped native app without starting a relay or daemon. 
 
 ### Current validation checkpoint
 
+At source checkpoint `85707119e5`, the complete canonical root `yarn test` finishes exit0 in
+5869.40s (`.project/logs/tests/oh4-root-unit-final-current.log`). Shared packages, UI including its
+post-unit checks, CLI including import-cycle checks, server and Stack all pass. Stack reports
+2069passed/6skipped/0failed; three skips are the Linux-only credential-broker cases on this Mac.
+Whole-repository `yarn typecheck` passes (`oh4-root-types-current.log`); the final UI fixture change
+also passes its UI typecheck (`oh4-ui-types-final-fixtures.log`). Commands use the checkout executor,
+both independent website discovery inputs and private CI-pinned Bun1.4.2, with inherited TMPDIR.
+Earlier failed and interrupted runs remain historical evidence. This clears the source unit/type
+gate; isolated source-CLI pairing/real agent acceptance, newer-feature native QA, provider tests,
+0.3 port and release/platform gates remain open. Daily CLI0.2.16/services are unchanged.
+
+The following earlier checkpoint explains the initial environment diagnosis:
+
 At source revision `410a7b0703`, eight previously failing CLI files pass unchanged: 86 tests covering Git checkout/materialization/reconciliation/status, review scope, capability probe cwd and build cleanup. The subprocess test environment uses `TMPDIR=/private/tmp` and `GIT_CONFIG_GLOBAL=/dev/null`, so disposable fixture repositories do not inherit the host's interactive signing configuration. Actual feature-branch commits retain configured signing and identity. All four server Sharp runtime checks also pass with canonical TMPDIR and the privately pinned Bun 1.4.2. Logs: `/tmp/happier-oh-4-cli-fixture-validation.log` and `/tmp/happier-oh-4-server-bun-validation.log`. These targeted reruns classify environment failures; the original full-root result remains failed.
 
 Parent `dev` was fetched again at `a487b2ec48`. Its macOS window-frame correction was selectively adopted as `d0ab118fb5`, with the native Rust window harness and affected checks passing. Same-process product tray reopen remains unverified. The remaining parent batch is not integrated: new Claude prompt-location settings are not understood by the installed CLI 0.2.16, and the desktop release bump retains upstream distribution identities. Validate mixed-version behavior and affected tests before adoption; do not replace the hosted relay or daily daemon to accommodate it.
@@ -305,23 +318,98 @@ The latest upstream fetch completed and `origin/dev...upstream/dev` remains 0/0 
 
 ## Mac test-environment findings
 
-The original full root run still records its failures; the following focused reruns do not replace its final result. No existing test was edited.
+October 24 corrections now pass the complete CLI-common package (103 files, 602 passed and 5 skipped)
+and bootstrap package (25 files, 248 passed), with both package typechecks. Windows managed CLI
+identity uses the existing case-insensitive path owner after realpath resolution; provider update
+classification resolves native install roots through the same filesystem view as its executable.
+Artifact fixtures compare actual resolved survivors, and bootstrap fixtures supply isolated HOME
+and their generated publisher public key. Default TMPDIR works without the earlier workaround.
+Logs: `/tmp/happier-oh4-cli-common-full-current.log`,
+`/tmp/happier-oh4-bootstrap-full-current.log`, and matching `*-types-current.log` files.
 
-- Set a canonical temporary root for Mac test commands. Node resolves module paths under `/private/var`, while the default `TMPDIR` can spell the same location `/var`. With `TMPDIR` set to `realpathSync(tmpdir())`, the artifact/provider-update suites pass 45 tests across two files, and the vendor updater suite passes another 3. Logs: `/tmp/happier-oh-6-canonical-tmp-tests.log` and `/tmp/happier-oh-6-canonical-tmp-install-tests.log`. The installer memory-pressure case still fails and requires a separate correction.
+Website checks pass all 184 tests plus three script checks with independent CI discovery inputs:
+source-only archives of `packages/agents/src` from immutable `cli-v0.2.17` and current
+`upstream/v0.3`, under `/tmp/happier-oh4-website-sources.u1FylQ/{released,unreleased}`.
+Set `HAPPIER_SHIPPED_TREE` and `HAPPIER_UNRELEASED_TREE` to those respective directories when
+running the root lane. These are registry inputs, not a 0.3 development checkout or native release
+proof. The original root run's missing-input failures remain preserved; its successor still needs
+the complete configured root gate. See `/tmp/happier-oh4-website-source-inputs.log`.
+
+The following earlier diagnostic reruns are history, not a substitute for that gate:
+
+- Earlier diagnosis set a canonical temporary root because Node resolved module paths under `/private/var`, while default `TMPDIR` spelled the same location `/var`. That isolated 45 artifact/provider checks and another 3 updater checks before the owner/fixture corrections above. Logs: `/tmp/happier-oh-6-canonical-tmp-tests.log` and `/tmp/happier-oh-6-canonical-tmp-install-tests.log`.
 - Website availability tests need independent source inputs, as configured in `.github/workflows/tests.yml`. Source-only archives of `packages/agents/src` from `cli-stable` (`b8d1c449c46ab4dfa8637db36b66f643d149e66d`) and `upstream/v0.3` (`cefac10129c6faac450752909ec4f1b8335d5992`) pass all 39 tests in the two previously failing files. Provenance is recorded in the temporary `happier-website-source-trees-ZnjUTk/provenance.json`; log: `/tmp/happier-oh-6-website-discovery-tests.log`. These are CI discovery inputs, not native compatibility evidence or a v0.3 development checkout.
-- Five bootstrap failures inherit the real user HOME while clearing only PATH and Happier's state directory. The intended macOS Dock search still finds `~/.local/bin/happier`, so those fixtures do not simulate a computer without a CLI. Running their five files with an isolated subprocess home and canonical temporary root passes all 76 tests unchanged (`/tmp/happier-oh-6-isolated-bootstrap-tests.log`). The user's shell environment and installed CLI are untouched. Do not remove Dock discovery or alter the installed CLI to make them pass. Existing fixture edits, if later proposed, require Josh's approval.
+- Five bootstrap fixtures originally inherited the real HOME while clearing only PATH and Happier's state directory. Intended macOS Dock search still found `~/.local/bin/happier`. The earlier isolated subprocess diagnosis passed 76 unchanged tests (`/tmp/happier-oh-6-isolated-bootstrap-tests.log`); current fixtures now set that scope directly. Fixed system search directories remain part of intended discovery and can still find a system-wide CLI on another host. Test/fixture updates are authorized under the current global instructions.
 - The CLI-choice suite also expects no result after creating a managed link in its own `HOME/.local/bin`; that conflicts with the intentional Dock search. Eight other failures simulate Windows on the Mac filesystem and compare `.exe`/`.EXE` or `.cmd`/`.CMD` spellings. Native Windows evidence is required before treating those as product defects.
 
-A one-command canonical-temp example using the existing test runner:
+For the current root lane, supply its website discovery inputs and the repository-pinned Bun:
 
 ```sh
-TMPDIR="$(node -p 'require("node:fs").realpathSync(require("node:os").tmpdir())')" \
-  ./apps/stack/bin/hstack-exec -- yarn --cwd packages/cli-common -s vitest run \
-  --config vitest.config.ts src/componentArtifacts/finalizeRuntimeArtifactPayload.test.ts \
-  src/providers/update.test.ts src/providers/install.update.test.ts
+HAPPIER_SHIPPED_TREE=/tmp/happier-oh4-website-sources.u1FylQ/released \
+HAPPIER_UNRELEASED_TREE=/tmp/happier-oh4-website-sources.u1FylQ/unreleased \
+HAPPIER_BUN_PATH=/Users/Josh/.happier/stacks/repo-happier-42a434c316/toolchains/bun-1.4.2/bun \
+  ./apps/stack/bin/hstack-exec -- yarn test
 ```
 
-This changes only that command's environment. Recreate website source snapshots from the named upstream refs when they are needed; do not point both discovery variables at this checkout or assume temporary folders survive a reboot.
+Recreate those source inputs from the named refs if the temporary directories are absent. Never
+point both discovery variables at the working checkout; that would remove the released/development
+distinction the tests enforce. Original root failures are not erased by the package reruns.
+
+The installed default Bun1.2.17 is older than CI's1.4.2. Current Sharp standalone-runtime tests fail
+with that older compiler but pass4/4 with the private pinned executable and inherited default TMPDIR
+(`.project/logs/tests/oh4-server-sharpRuntime-bun142-default-tmpdir.log`). No shared build-runner or
+Sharp source correction was needed. Verify the private executable reports1.4.2 before using the
+override; do not replace the global Bun. Current whole-repository typecheck passes
+(`.project/logs/tests/oh4-root-types-current.log`). The original unit run finished exit1. A successor
+with website inputs alone was intentionally interrupted with exit130 after identifying its missing
+Bun override; `.project/logs/tests/oh4-root-unit-configured-current.log` preserves that partial attempt.
+The pinned-toolchain successor now passes as recorded in the current validation checkpoint above.
+Earlier `/tmp` log pathnames disappeared
+during the original run; new logs use ignored repo `.project/logs/tests`.
+
+Integration has additional prerequisites. UI integration passes205tests with2skipped across its web,
+Legend native and Fabric host harnesses; those are not physical-device checks. Server's disposable
+SQLite harness is safe with REDIS_URL unset. Two stale exact ACK expectations were corrected in
+`06a8c5db33` to include the producer's stored creation time (5focused+41adjacent pass; final server
+typecheck passes). Complete server integration now passes144files/1058tests with1skipped
+(`.project/logs/tests/oh4-server-integration-final-current.log`).
+
+CLI integration reads `apps/cli/.env.integration-test` after the inherited environment, so verify
+its effective HOME and server before dispatch. Current inspection finds dedicated `/tmp/happier-dev-test`,
+loopback port3005 and no settings/key/credential files. Use task-local
+`HAPPIER_CLI_DAEMON_INTEGRATION_BOOTSTRAP_AUTH=0` to keep its missing-credential preflight from
+registering an account; server-backed daemon cases then skip, while isolated process tests still run.
+Keep real provider/terminal opt-ins and HAPPIER_OPENCODE_SERVER_STATE_PATH unset. Tests invoking
+bare `bun` also need the private1.4.2 directory prepended to PATH; HAPPIER_BUN_PATH alone does not
+select those subprocesses. Four WebSocket/compiled-module probes pass under that supported toolchain
+without source changes. Do not replace global Bun or copy daily credentials for this lane.
+
+CLI fixture follow-up `59c9d1767f` fixes a hoisted boundary spy and registration argument arity.
+Root review caught a dropped third-argument assertion and zero-argument mock tuple typing;
+`22a7dd0ebb` retains all three original positional checks, permits trailing optional fields, and
+types the spy from its actual owner. Focused150 and final deciding2+adjacent timeout1 pass;
+CLI typecheck passes after the delta. Complete CLI integration now passes all8shards:
+880tests passed/61skipped,113files passed/9skipped, exit0 in296.91s
+(`.project/logs/tests/oh4-cli-integration-final-current.log`). The skips include unavailable real
+daemon/provider/terminal gates; no live account acceptance is inferred. Fresh whole-repository
+typecheck also passes in18.27s (`oh4-root-types-final-current.log`).
+
+Full Stack integration is blocked on release-owned artifacts: its ordinary `release_binary_smoke`
+and `self_host_binary_smoke` tests would build archives in `dist/release-assets`, which is absent.
+AGENTS.md's validation rule reserves release representation production to explicitly dispatched
+release automation. No archive was created. The existing prepared-artifact flag is not permission
+to rebuild missing archives. Keep HAPPIER_STACK_RUN_REAL_INTEGRATION_TESTS disabled; those four
+real files can install OS services. The remaining35regular source cases can use the existing
+collector/environment/process helpers, serially, after shared build outputs are idle. Report that
+selection separately; it cannot supply a full root integration verdict.
+
+That35file Stack source selection now passes177/177 checks through the existing collector,
+sanitizer and serial process helpers (`.project/logs/tests/oh4-stack-source-integration-final-current.log`).
+The first selection command failed before tests because a path callback received Array.map's index;
+the corrected command changed no repository source. The two archive cases remain blocked and the
+four real-service files remain disabled. Full root integration and real source-CLI agent acceptance
+are still open. Native macOS QA awaits an idle window; iOS, native hotkeys and Embedded Terminal
+remain deferred as recorded above.
 
 The installer failure is now corrected at `packages/cli-common/src/providers/install.ts`. The vendor recipe records CLI presence using the same execution environment before the entire command sequence. A nonzero command can recover only when the CLI was absent before that sequence and is available afterward. A previously installed CLI no longer masks a failed forced reinstall. Successful forced installs, default already-installed skipping, consent, timeout handling and newly-available recovery are retained.
 

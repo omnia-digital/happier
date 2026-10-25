@@ -24,6 +24,12 @@ vi.mock('node:child_process', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:child_process')>();
   return {
     ...actual,
+    execFile: (...args: Parameters<typeof actual.execFile>) => {
+      if (probe.deniedPid && args[0] === 'ps' && args[1]?.includes('-Aww')) {
+        throw Object.assign(new Error('process inventory unavailable'), { code: 'EACCES' });
+      }
+      return actual.execFile(...args);
+    },
     execFileSync: (...args: Parameters<typeof actual.execFileSync>) => {
       if ((args[0] === 'ps' || args[0] === 'powershell.exe') && args[1]?.some((arg) => arg.includes(String(probe.deniedPid)))) {
         throw Object.assign(new Error('process inventory unavailable'), { code: 'EACCES' });

@@ -90,8 +90,216 @@ OH-69 source through `0f666c760f` uses the existing authenticated by-local-id ro
 
 OH-52 follow-through `c28df42b40` passes route/actions/PR68, UI/E2E types and composed Chrome-r9, with no empty archived Activity heading and both merged identities/reason retained. Read-only ancestry checkpoint `2a119f4899` passes25 disposable cases and CLI types; no executor exists and every cleanup resource remains skipped. Current macOS libproc permission gaps remain an explicit blocker. Canonical app/transcript guidance now labels the new goal/timestamp behavior development-only and keeps acceptance limits next to it.
 
+## Whole-repository baseline and Windows development follow-through
+
+Fresh root `yarn test` is active on root session71413 (`/tmp/happier-oh4-root-unit-current.log`).
+Its initial shared failures are retained. Actual path defects were corrected through the existing
+Windows identity and provider-install owners (`f9e76c43c3`, `d5209e4219`); lookup fixtures now supply
+their ephemeral publisher public key (`eebfa75f6c`). Root complete CLI-common103files/602pass/5skip
+and package types pass (`/tmp/happier-oh4-cli-common-{full,types}-current.log`). Bootstrap scope/trust
+fixtures (`30a184d31a`) pass root full25files/248tests and types (`/tmp/happier-oh4-bootstrap-{full,types}-current.log`).
+Website's independent CI discovery sources were missing, not a reason to weaken assertions. Source-only
+archives of `packages/agents/src` from `cli-v0.2.17` (`a2c45c8680`) and `upstream/v0.3` (`7dd34021f8`)
+now make all24files/184tests plus3script checks pass (`/tmp/happier-oh4-website-source-inputs.log`).
+These are disposable CI registry inputs, not a 0.3 development checkout or port disposition. The next
+root invocation must set both documented input variables; prior root failures remain failures.
+
+Current UI fixture corrections retain behavior assertions: settings includes the Archive Automation
+group, Inbox uses the real Icon/constants with native boundary mocks (`c037f67541`,25tests), and the
+voice picker fixture supplies the stored settings scope already checked by the canonical favorite
+writer (`dd8fb58848`,13tests). No guard was removed. Later full-root shards remain pending.
+
+On Windows, the existing feature checkout fast-forwarded fromf82e6f3e to4b64e0e67d without branch
+switches or overwriting its four dirty generated bundles. Canonical dependency admission converged;
+its selector-only14/14 `yarn.lock` normalization remains uncommitted and preserved. Focused Windows
+execution passes20/22skip, then4/6skip after existing Windows cases were made portable (`4b64e0e67d`):
+both managed executable/PATHEXT choice and Desktop ownership cases run and pass on Windows. Logs:
+`C:\Users\Admin\AppData\Local\Temp\happier-oh7-windows-{cli-common-focused,choice-verbose}.log`.
+
+The release-style debug build refuses upstream ownership before Rust compilation. That result applies
+to the `build` owner, not the canonical stack development path: read-only `tauri_dev.mjs --json`
+proves the latter generates the isolated stack identifier and disables updater artifacts. Current
+canonical Windows dev startup uses `--tauri --no-daemon --no-browser --no-dev-targets --loopback`,
+with auth seeding off and preserved WebView assets. Actual compile/launch is pending with the existing
+Windows agent; no release, native-visible-window, account pairing or session acceptance is claimed.
+
+Both production path-correction intents'0.3 dispositions remain blocked on the missing destination.
+No source branch, alias, release representation or new coordination owner was added.
+
 ## Parent maintenance
 
-October24 fetch advances parent dev from `413054f17c` to `2bf968563b` by29 commits, with128 files changed. Root inspected the log/stat and the session pin/information patch: notification, permission-occurrence/account authority and RPC error handling changes span UI/CLI/protocol owners; sidebar menu/debug-information changes intersect this fork's existing pin/action owners. CLI service drift/repair and Windows wrapper checks also changed. Compatibility and affected-flow validation are required before integration; no parent code/runtime/version was adopted. This is fetched/inspected, not merged or validated as compatible.
+October24 follow-through: Windows process admission is corrected at one proc owner, shared by server
+and Expo (`230f517d70` RED,`832e619be5` source,`746e43429e` platform fixtures). Live Windows proves a
+wrapper child was rejected before the fix, then accepted while an independent listener remains rejected.
+Author Windows29/1DarwinSkip and root Mac29/1WindowsSkip pass; a different reviewer independently
+remeasures Windows19/19, checks CIM creation-time semantics, and finds no material admission defect.
+Server inspection uses the remaining caller budget; Expo retains its existing4s observation budget.
+This source intent's0.3 disposition remains blocked on the missing destination, with no new registry.
 
-The separate v0.3 line advances `67f58e65e5`→`7dd34021f8` by one generated profile/share-viewer bundle commit (two changed files). Prior Services launcher findings remain in the earlier checkpoint history. Neither optional destination `../v0.3.x` nor `../0.3` is available; forward-port disposition still awaits Josh's checkout location. OH-12 remains ongoing.
+Canonical Windows development now reaches native compilation. Local Bun1.4.2 matches the official
+release archive checksum, and Cargo finishes the dev profile in1m37s at source746e43429e, running the
+scoped `tauri-target/debug/app.exe`. WebView2 setup exits101 with0x80070578 in the SSH context;
+interactive Windows behavior is unverified, not inferred from compilation. Canonical stop observes
+ports53651/53652/19727/9223 and recorded PIDs absent but reports runtime-finalization cleanup_incomplete
+because server identity is unavailable. Four original dirty bundles and the selector-only lock change
+remain byte-identical; Cargo adds15 generated tracked permission/reference files, preserved. No
+daily CLI/service/account, installer, signing or updater change occurred. Desktop QA preference is pending.
+
+UI baseline follow-ups are fixture corrections, preserving real scoped owners. Mounted list suites
+pass144 (`e8facb4303`); verified worktree/automation fixtures50 (`8b07b0e9fc`); scoped voice/draft
+fixtures66 (`a3d32d9b65`); old folder/publication and pinned hydration fixtures42 with final alias8
+(`77655f9274`,`e5c0bc4d2e`); real attention store chain9 (`f8eee1c14d`). Counts overlap adjacent checks.
+Root socket-gap10/10 now supplies active account scope and the current server ACK's stored timestamp;
+the three prefix/retry assertions remain. The first timestamp-only correction still failed3/10 because
+null account scopes correctly fail equality; adding the missing actor fixture reaches the real commit.
+No message production code or legacy ACK browser test changed. Current UI typecheck passes.
+
+The original root process71413 remains live with already-recorded failures. Its temporary log pathname
+disappeared while the process still held stdout open; no cause is established. Earlier package/check
+terminal observations remain recorded, but the temporary paths above are historical evidence pointers,
+not a guarantee those files remain. New root checks use ignored repo `.project/logs/tests`, including
+`oh4-socket-gap-scoped-fixture.log` and `oh4-ui-types-current.log`. The full root terminal result and
+configured successor are still required; no full-suite green or stable-release verdict is claimed.
+
+### Earlier selective adoption evidence
+
+Final permitted integration boundary is GREEN: UI205pass/2skip; server144files/1058pass/1skip;
+CLI8/8shards,113filespass/9skip and880testspass/61skip in296.91s; Stack35selectedregularfiles,
+177/177 in289.59s. CLI uses both the pinned Bun executable override and its directory on PATH,
+auth-bootstrap0 and the verified dedicated HOME. Reinspection finds only a test account-settings
+cache; source settings.json and legacy/server access.key inputs remain absent. No cache/data was
+removed. Logs are the final corresponding `.project/logs/tests/oh4-*-integration-*-current.log` files.
+The first Stack selection attempt failed before test dispatch on a path callback argument; its log
+is preserved, and the corrected invocation only filters existing collector results and consumes
+the same environment/process owners. No new runner or product guard was introduced.
+
+Current whole-root types also pass in18.27s (`oh4-root-types-final-current.log`). Whole-root units
+remain applicable because later changes are only integration fixtures and documentation. The two
+Stack archive cases remain [blocked] by AGENTS.md249 on release-owned artifacts/dispatch, and four
+real-service files remain disabled. No full root integration, provider/account, old-ACK browser,
+new native,0.3 port or release completion is implied. Archive-cleanup execution remains absent.
+OH-4 remains open for the real isolated source-CLI session recipe; the overall project goal remains
+active after this progress. Native idle-window and other recorded external prerequisites are pending.
+
+Server integration delta now passes all144files,1058tests/1skip in271.30s; final servertypes pass.
+UI205pass/2skip remains applicable. CLI fixture `59c9d1767f` passes150 but root's delta review finds
+the original non-null third report-options assertion omitted and CLI types fail with tuple[] calls.
+`22a7dd0ebb` restores the first3 exact positional checks while accepting optional trailing args and
+types the OS/HTTP boundary spy from the real function. Final deciding2identity+1adjacent timeout
+and CLI types pass. This bounded fixture task retains1failedLuna/0Sol/0Astra; unrelated OH69 counts
+are unchanged. No production source or timestamp compatibility policy changed. Full CLI integration
+rerun and35regular Stack source cases remain pending, serialized over shared build outputs.
+
+Integration follows the unit/type gate. Canonical UI integration exits0: web160, Legend-native22,
+Fabric23pass/2skip,205pass total. This is host execution, not device acceptance. Server first full
+integration143files pass/1fail,1056pass/2fail/1skip. Both failures are exact ACK fixtures missing the
+current producer's stored createdAt; `06a8c5db33` updates only those expected objects. Focused5,
+adjacent41 and server types pass; full server recheck73907 is pending. No message production change
+or legacy-ACK browser recovery is implied.
+
+Independent safety inspection finds CLI's dotenv integration config overrides inherited HOME/server.
+Root privately verifies dedicated `/tmp/happier-dev-test`, loopback3005 and no credentials/settings.
+The canonical task-local auth-bootstrap0 guard returns before auth POST/profile read; live daemon
+account cases skip but disposable daemon/fake-provider process cases still run. Real opt-ins and
+OpenCode state override remain unset. First CLI integration has four compiler/probe failures from
+bare Bun1.2.17 despite HAPPIER_BUN_PATH; prepending private1.4.2 resolves all4 with no source edit.
+Two fixture files remain under correction. Do not infer provider/account acceptance from this lane.
+
+Stack discovery identifies37regular/4real files. Two regular binary smoke files build release archives
+if not supplied; `dist/release-assets` and prepared archives are absent. AGENTS.md249 forbids QA
+producing a separate release representation, so those cases are [blocked] on release automation,
+not silently skipped as green. Four OS-service real cases remain default-off. The remaining35
+source cases may consume the existing collector/sanitizer/process owners after shared build outputs
+are idle; there is no new runner, package, archive, lease or release representation. Full root
+integration remains unverified. The native non-hotkey idle-window question is still pending.
+
+Final current-source root unit gate is GREEN: source85707119e5, `yarn test` through hstack-exec,
+both independent website inputs and private pinned Bun1.4.2, inherited default TMPDIR. Root session
+95727 finishes exit0 in5869.40s. Durable log `.project/logs/tests/oh4-root-unit-final-current.log`
+contains no FAIL/failed-test/root-suite-failure result. All shared packages, UI unit and downstream
+checks, CLI shards/import cycles, server and Stack pass. Stack2069pass/6skip/0fail; three of those
+skips are Linux-only broker cases, so no Linux broker runtime proof is claimed. Whole-root types
+passed before the final fixture-only edits; final UI types also pass (`oh4-ui-types-final-fixtures.log`).
+No production source changed after the complete typecheck, and the only newly typed fixture was
+covered by that final UI check. Historical failed/interrupted runs remain in their original logs.
+This closes the scoped source validation gate, not OH-4's real isolated-agent/integration contract
+or a native/provider/0.3/release gate. A non-hotkey Mac QA idle-window question is pending; native
+hotkeys and Embedded Terminal remain explicitly user-deferred. Project refresh still contains44
+issues and no new item; current statuses and external prerequisites remain authoritative.
+
+Pinned configured run6240 finishes exit1, preserving its complete durable log
+`oh4-root-unit-pinned-current.log`. Shared packages, all CLI shards/import-cycle checks and server
+pass. UI has one MCP picker fixture failure (missing captured settingsScope); Stack has13 failures
+among2075total,2059pass and3skip. Pushed fixture-only corrections retain the current owners: MCP
+`ac85bbbd02` passes7 with real home-aware preference assertions; Stack `8ff1f75fd5` passes18/3LinuxSkip
+by comparing physical paths and running VM broker cases only where that route exists; Stack
+`58dfb66f40` passes15 with explicit fake npm ownership, local-source default and fail-closed invalid
+owner. No updater/registry/provider write or production guard change occurred. Linux broker execution
+remains unvalidated here. The Stack worker disclosed using a forbidden hook-disabling commit option;
+inspection found no active hook, and all subsequent commands must remain plain. No history rewrite
+or test bypass was used to remedy that command-policy error.
+
+Root inspects the current exact diffs and continues the final whole-root gate. The local routing
+assessment remains RETRY Sol/high because that integrated evidence is still missing, not because
+the focused checks failed. Prior blocked OH69 counters are unaffected. Complete current typecheck
+evidence remains applicable except for the one newly typed UI fixture, whose UI lane is rerun.
+
+Whole-root typecheck now finishes exit0 at source59b801280d with the durable log above. The original
+unit process71413 finishes exit1. Fresh server Sharp reproduction fails under default Bun1.2.17;
+all4 cases pass under CI-pinned private Bun1.4.2, including a second run with inherited default
+TMPDIR (`oh4-server-sharpRuntime-bun142-default-tmpdir.log`). No shared build runner, fixture or
+Sharp production source changed. The first configured successor18287 had website inputs but lacked
+that compiler override, so root deliberately interrupts only its verified task process group24106
+(exit130) rather than spending another full run on known configuration drift. Its partial log is
+preserved as `oh4-root-unit-configured-current.log`; it supplies no whole-suite verdict. The next
+successor includes both source inputs and HAPPIER_BUN_PATH, without a TMPDIR/global-tool override.
+
+October24 baseline continuation: current UI fixture recheck passes22files/378tests with the package
+working directory and root-installed Vitest3.2.4 (`.project/logs/tests/oh4-ui-corrected-package-cwd.log`).
+The first root-cwd attempt failed only collection/setup-path resolution and is not behavioral RED.
+All19 cached CLI candidates have fresh passing owner checks across the three lanes; counts include
+adjacent cases: runtime/permission48, permission-adjacent78, provider/process76, IPC/adapters37 and
+directSessions23. Logs are the corresponding `oh4-cli-*-final*`, `oh4-cli-five-green1.log` and
+`oh4-direct-sessions-green.log` under `.project/logs/tests`. Final CLI typecheck passes after three
+test typing corrections. Exact-path commits through `59b801280d` are pushed.
+
+One production defect was reproduced: a retained permission request completing after its persisted
+pending projection disappeared lost its assigned occurrence ID. `edd9f2e587` forwards that existing
+identity through `permissionRequestCoordinator.buildEntryCompletion` to the canonical request store;
+both normal completion and cancellation use that owner. Independent review remeasures the decisive
+lost-projection case1/1 and adjacent replacement controls3/3, with no finding. Real asynchronous
+SessionClient publication and native provider delivery remain separate gates. This changes no wire
+shape or identity generation policy; its0.3 destination disposition remains blocked.
+
+The update publisher tests keep real record writing, fact reading and relay publication but inject
+only OS watch delivery through the existing watchRecord boundary. Actual watcher delivery varied
+across isolated attempts; no timeout increase, polling or production watcher change was added.
+The existing direct watcher integration remains in CLI-common. Process/IPC/path fixtures retain
+real internal ownership and isolate actual filesystem/process boundaries. The original root run has
+progressed into Stack; its missing temporary log still prevents reading that pathname. Server cache
+identifies one Sharp runtime candidate for fresh reproduction. Current whole-root typecheck and a
+configured successor unit run remain required before any full-suite claim.
+
+October24 fetch advances parent dev from `413054f17c` to `2bf968563b` by29 commits, with128 files changed. Five coherent intents have now been selectively adapted through fork owners. This supersedes the earlier fetched-only state; no full parent merge, runtime/version upgrade or daily-app cutover occurred, and the rest of the parent-exclusive history is not certified compatible.
+
+Systemd PATH-only drift uses the existing definition comparator/inventory (`1bb4a2a6c1`): RED2→GREEN20 and CLI types. Activated-binary repair (`5fabb5cb7b`) uses the canonical managed executable resolver, preserves fork update-source safeguards and ends the old guided plan after a successful update. Independent review corrected matching installed-service assessment even when the old plan is empty (`1dbf174d46`), stopped-service/manual-daemon conflation (`aae3956944`), and ambiguous multi-service PID attribution (`c6f9543e71`). Reviewer56 plus CLI types pass; root independently passes7 service/daemon report cases (`/tmp/happier-oh12-root-service-report.log`). No real update, OS service change or native platform execution ran. The private original repair RED log must not be printed/uploaded because its assertion dumped inherited environment; current tests project owned launch fields.
+
+Typed RPC errors (`6747af9da3`) remain canonical `isRpcError` results rather than duck-typed carriers; independent review also corrected the displayed voice activity error (`50cf63a392`). Protocol47/voice57 and package types pass. Header Pin/Unpin and normal-mode Copy information (`c4b27663ee`, `57136399e2`) reuse the shared availability/execution/organization and information-formatting owners. Author139 focused, final Info53, UI/tests types, and normal action-rail Chrome1 pass with Developer mode disabled. Raw diagnostics remain gated. Final root sidebar/header Chrome is pending after the following account-scope fixes.
+
+Foreground permission notifications use the canonical request store/settlement owner, additive occurrence RPC and shared UI permission dispatcher (`55b0b19580`, `54359800c9`, `6d864da329`, `4f3663c518`). Independent Astra reproduced missing sender-account authority and corrected the real remote push producer plus UI target resolver in `278e9e6c62`. Root independently executes UI15 (`/tmp/happier-oh12-root-permission-account.log`), push19 (`/tmp/happier-oh12-root-push-identity.log`), and composed source CLI/isolated relay encrypted RPC2 (`/tmp/happier-oh12-root-permission-composed.log`), all exit0. Actual API-client publication lock/ACK precedes push, and settlement tests cover stale/duplicate/valid/reused occurrence and retained legacy denial. External push delivery is replaced; this is not native notification acceptance.
+
+The released in-app `permission` ABI intentionally remains request-id based and delegates to the same settlement owner. It has no new occurrence guarantee. The modern foreground notification path never downgrades to it. Existing UI-local alert producers omit account/occurrence identity and remain navigation/review-only; this batch adds no Android background execution capability. Immutable published release/source baselines and older-relay delegated-method limitations are documented in `docs/compatibility.md`; binaries/deployments were not exercised. Local rolling tags are stale and are not the release basis. Daily CLI0.2.16 and hosted preferences/services remain unchanged.
+
+Root's post-header review reproduced a Pin request switching from A to B's bearer during credential resolution. The canonical organization resolver now captures the active actor; publisher guards protect Pin and six reached mutation siblings (`574aec525e`, `e58f5f6332`). Snapshot publication and applied-result continuations, reminder dedupe, tag-label reads and account-qualified folder-fetch coalescing follow the same owner (`205911c33b`, `d76812343f`, `d5e34daacc`). Author final87 across14 suites and UI types pass. Independent Sol delta review is pending. Legacy import has no local read/write after guarded refresh, so needs no second continuation policy. An explicit foreign target without an expected account can only select its currently saved credentials; original actor continuity is not proved there. No new authority/cache/coordinator was introduced.
+
+Canonical CLI architecture, compatibility, notification setup/routing and session-organization guides distinguish development-only behavior and acceptance limits. Documentation content/type checks and47 guard tests pass (`/tmp/happier-oh12-docs-{content,types,tests}.log`).
+
+Final account review found a public lifecycle defect beyond publication: disconnect/restore(B) on the same Home retained A's version/projection, and clearing visible maps still left A optimistic records that replayed during B rollback. `652ea4adfe` clears that Home through the existing sync reset/store owner and removes only its optimistic records. Reviewer67/UI types pass; root independently executes both public disconnect/restore regressions (including foreign Home preservation and no rollback replay),2pass/2skip,exit0 (`/tmp/happier-oh12-root-organization-reset.log`). This closes the pending independent account delta above.
+
+Final root current-source system-Chrome run passes7/7 in112s: six sidebar cases plus normal header/action rail (`/tmp/happier-oh12-root-integrated-chrome2.log`, artifacts `packages/tests/.project/logs/e2e/ui-playwright/oh12-account-final2`). Root inspected final light/wide header and dark/narrow selected-row screenshots. The first combined run's6pass/1fail is retained: Pin click immediately hard-navigated before the asynchronous write completed. E2E-only `22b7ec9f58` now waits for actual Pin200, exact pinned request and returned session record, retaining all Pinned/Unpin/clipboard expectations. Tests-package types pass. No product workaround/timeout was added; the unrelated blocked legacy-ACK scenario remains excluded.
+
+The newest-parent audit also found cached native permission responses entering the foreground executor. Bounded correction `50bd71b151` routes saved responses for review, even with valid identities, and ignores disposed late callbacks. The installed Expo Notifications0.32.16 async API wraps a synchronous native snapshot; that snapshot is classified before listener registration, with observable read/clear failures and fresh distinct live press recovery. This is not a replay journal or Android background implementation. Root independently passes24/3 routing/parser/root-layout checks (`/tmp/happier-oh12-root-saved-response.log`); author UI types pass. This refines the same notification source intent; its0.3 disposition remains blocked.
+
+Other newest-parent work is not silently treated as adopted. Claude unified native prompts/one ingress/provider response-location settings (`6afa6f093c`, `2c5fb7c687`) are still missing and need a separate CLI/UI compatibility vertical while retaining daily CLI0.2.16. Android background execution, task-manager and native Expo patches remain deferred to a version-aware device gate. The manifest requests Notifications~0.32.11 but the lock/install resolves0.32.16; manifest range alone does not establish patch compatibility. Parent Windows realpath and daemon scope-proof fixture adjustments (`4f15a97be1`, `c517cc5728`) are validation follow-ups, not missing runtime owners. No full merge is warranted by this selective batch.
+
+The separate v0.3 line advances `67f58e65e5`→`7dd34021f8` by one generated profile/share-viewer bundle commit (two changed files). Neither optional destination `../v0.3.x` nor `../0.3` is available; the destination question is already pending. Every adopted intent—systemd PATH drift, fresh-binary repair/inventory attribution, typed RPC/voice errors, header Pin/information including organization actor safety, and notification occurrence/account authority—has its destination disposition [blocked] on that location. No destination code, alias or branch was created. Native macOS acceptance, Linux/Windows service behavior and release gates remain open. OH-12 remains ongoing.

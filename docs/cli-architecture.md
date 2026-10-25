@@ -474,11 +474,16 @@ target before activation and shares the explicit update's service observation/re
    record that cannot be written never blocks recovery; it is reported on stderr (the updater's log
    for a remote update).
 
-In current development source, admitted post-update service repair runs through the activated
-managed CLI. A successful update ends the invoking guided repair walk, discarding its remaining
-stale findings and pending plan and directing the user to rerun repair against the updated CLI. The service row
-displays the same inventory version used by the report's findings; it does not override that value
-with the independently gathered daemon snapshot.
+In current development source, post-update service assessment runs through the activated managed
+CLI whenever a service is installed for the same Home and channel, even if the old CLI found no
+repair work. Migration and no-service cases retain their existing skip behavior. A successful update
+ends the invoking guided repair walk, discarding its remaining stale findings and pending plan and
+directing the user to rerun repair against the updated CLI.
+
+The service row displays the same inventory version used by the report's findings. A daemon joins
+that row only when it is service-started and the existing Home/channel/profile facts identify one
+eligible active service. Manual daemons and ambiguous matches stay separate with their own PID and
+version; a stopped service does not inherit a running manual daemon's identity.
 
 **What recovery covers — and what it does not.** Recovery covers activation and restart failures
 this process catches. It does **not** cover the updater itself being killed or the machine losing

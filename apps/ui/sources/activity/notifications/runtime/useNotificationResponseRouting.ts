@@ -77,7 +77,7 @@ export function useNotificationResponseRouting(params: Readonly<{
             }
         }
 
-        const maybeRedirectFromResponse = (response: unknown, defaultActionIdentifier: string) => {
+        const maybeRedirectFromResponse = (response: unknown, defaultActionIdentifier: string, source: 'stored' | 'live') => {
             const parsed = parseNotificationTap({
                 response,
                 defaultActionIdentifier,
@@ -105,6 +105,14 @@ export function useNotificationResponseRouting(params: Readonly<{
             if (parsed.permissionAction) {
                 const action = parsed.permissionAction;
                 if (parsed.routeSessionId && serverUrl && savedServer) {
+                    if (source === 'stored') {
+                        try {
+                            navigateToSessionRoute({ router, sessionId: action.sessionId, serverId: savedServer.id, refreshAuth: refreshAuthRef.current });
+                        } catch {
+                            console.warn('[notifications] Saved permission request could not open for review');
+                        }
+                        return;
+                    }
                     fireAndForget((async () => {
                         try {
                             if (!action.occurrenceId) {
@@ -197,22 +205,33 @@ export function useNotificationResponseRouting(params: Readonly<{
         let disposed = false;
         let subscription: { remove: () => void } | null = null;
         void loadExpoNotifications()
-            .then((Notifications) => {
+            .then(async (Notifications) => {
                 if (disposed) return;
                 const defaultActionIdentifier = Notifications.DEFAULT_ACTION_IDENTIFIER;
-                void Notifications.getLastNotificationResponseAsync()
-                    .then(async (response) => {
-                        if (!response) return;
-                        maybeRedirectFromResponse(response, defaultActionIdentifier);
+                let response: unknown = null;
+                try {
+                    // The pinned Expo async getter reads a synchronous native snapshot. Classify
+                    // that saved tap before subscribing to native response events.
+                    response = await Notifications.getLastNotificationResponseAsync();
+                } catch {
+                    console.warn('[notifications] Saved response read failed; foreground routing remains available');
+                }
+                if (disposed) return;
+                if (response) {
+                    try {
+                        maybeRedirectFromResponse(response, defaultActionIdentifier, 'stored');
                         const clearLastNotificationResponseAsync = (Notifications as ExpoNotificationsWithClear).clearLastNotificationResponseAsync;
                         if (typeof clearLastNotificationResponseAsync === 'function') {
                             await clearLastNotificationResponseAsync();
                         }
-                    })
-                    .catch(() => {});
+                    } catch {
+                        console.warn('[notifications] Saved response could not finish routing or clearing');
+                    }
+                }
 
+                if (disposed) return;
                 subscription = Notifications.addNotificationResponseReceivedListener((response) => {
-                    maybeRedirectFromResponse(response, defaultActionIdentifier);
+                    if (!disposed) maybeRedirectFromResponse(response, defaultActionIdentifier, 'live');
                 });
             })
             .catch(() => {});

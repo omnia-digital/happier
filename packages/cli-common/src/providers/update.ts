@@ -97,7 +97,14 @@ export function classifyProviderCliInstall(params: Readonly<{
 
   const nativeUpdate = spec.nativeUpdate ?? null;
   if (nativeUpdate) {
-    const roots = nativeUpdate.installPaths.map((relative) => toComparablePath(`${home}/${relative}`, platform));
+    const roots = nativeUpdate.installPaths.map((relative) => {
+      const root = `${home}/${relative}`;
+      try {
+        return toComparablePath(realpathSync(root), platform);
+      } catch {
+        return toComparablePath(root, platform);
+      }
+    });
     if (paths.some((path) => roots.some((root) => isSameOrWithin(path, root)))) {
       return {
         installSource: 'native',
