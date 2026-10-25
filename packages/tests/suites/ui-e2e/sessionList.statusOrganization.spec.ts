@@ -129,7 +129,10 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await gotoDomContentLoadedWithRetries(page, baseUrl, 120_000);
             await page.getByTestId('machine-monitoring-toggle').click();
             const choose = async (id: string) => {
-                await page.getByTestId('session-list-ordering-menu-trigger').first().click();
+                const trigger = id.includes('status-sort-') || id.includes('ordering-mode-')
+                    ? 'session-list-sort-menu-trigger'
+                    : 'session-list-group-menu-trigger';
+                await page.getByTestId(trigger).first().click();
                 await page.getByTestId(id).click();
             };
             const row = (id: string) => page.getByTestId('session-list-item-' + id);
@@ -138,7 +141,8 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
                 id: node.getAttribute('data-testid')!.slice('session-list-item-'.length), rect: node.getBoundingClientRect(),
             })).filter(row => row.rect.width > 0 && row.rect.height > 0).sort((left, right) => left.rect.top - right.rect.top).map(row => row.id));
             const position = async (id: string) => (await visibleIds()).indexOf(id);
-            await expect(page.getByTestId('session-list-ordering-menu-trigger').first()).toBeVisible({ timeout: 120_000 });
+            await expect(page.getByTestId('session-list-group-menu-trigger').first()).toBeVisible({ timeout: 120_000 });
+            await expect(page.getByTestId('session-list-sort-menu-trigger').first()).toBeVisible();
             await expect(row(noTicket)).toBeVisible();
             await expect(page.getByText('Pinned', { exact: true })).toBeVisible();
             // The saved project collapse keeps this ticket row out of view before list demand.

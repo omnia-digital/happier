@@ -154,6 +154,29 @@ describe('SelectableMenuResults', () => {
         expect(registerItemLayout).toHaveBeenCalledWith('0');
     });
 
+    it('keeps rows from every category in the dropdown scroll coordinate frame', async () => {
+        const { SelectableMenuResults } = await import('./SelectableMenuResults');
+
+        const screen = await renderScreen(<SelectableMenuResults
+            categories={[
+                { id: 'first', title: 'First', items: [{ id: 'first-row', title: 'First row' }] },
+                { id: 'second', title: 'Second', items: [{ id: 'second-row', title: 'Second row' }] },
+            ]}
+            selectedIndex={0}
+            onSelectionChange={() => {}}
+            onPressItem={() => {}}
+            rowVariant="slim"
+            registerItemLayout={() => () => {}}
+        />);
+
+        const firstRowFrame = screen.findByTestId('dropdown-option-first-row:scroll-frame');
+        const secondRowFrame = screen.findByTestId('dropdown-option-second-row:scroll-frame');
+
+        expect(firstRowFrame).not.toBeNull();
+        expect(secondRowFrame).not.toBeNull();
+        expect(firstRowFrame?.parent === secondRowFrame?.parent).toBe(true);
+    });
+
     it('renders a row-edge submenu anchor for submenu items', async () => {
         const { SelectableMenuResults } = await import('./SelectableMenuResults');
 

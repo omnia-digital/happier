@@ -93,6 +93,12 @@ export function useSelectableMenu(params: {
     const allItems = useMemo(() => {
         return filteredCategories.flatMap((c) => c.items);
     }, [filteredCategories]);
+    const selectionItemsRef = useRef(allItems);
+    selectionItemsRef.current = allItems;
+    const selectionAvailabilitySignature = useMemo(
+        () => JSON.stringify(allItems.map((item) => [item.id, item.disabled === true])),
+        [allItems],
+    );
 
     const firstEnabledIndex = useCallback((): number => {
         for (let i = 0; i < allItems.length; i += 1) {
@@ -121,18 +127,21 @@ export function useSelectableMenu(params: {
         return firstEnabledIndex();
     }, [allItems.length, allowEmptySelection, firstEnabledIndex, isEnabledIndex]);
 
-    // Initialize / reset selection when the query or available items change.
+    // Item details may refresh while the menu is open; only a changed choice set
+    // or an explicit query/preference change should reset the highlighted row.
     useEffect(() => {
+        const availableItems = selectionItemsRef.current;
         const preferredId = params.initialSelectedId ?? null;
         if (preferredId) {
-            const idx = allItems.findIndex((i) => i.id === preferredId);
-            if (idx >= 0 && isEnabledIndex(idx)) {
+            const idx = availableItems.findIndex((item) => item.id === preferredId && !item.disabled);
+            if (idx >= 0) {
                 setSelectedIndex(idx);
                 return;
             }
         }
-        setSelectedIndex(allowEmptySelection ? -1 : firstEnabledIndex());
-    }, [allItems, allowEmptySelection, firstEnabledIndex, isEnabledIndex, params.initialSelectedId, searchQuery]);
+        const firstEnabled = availableItems.findIndex((item) => !item.disabled);
+        setSelectedIndex(allowEmptySelection ? -1 : Math.max(0, firstEnabled));
+    }, [selectionAvailabilitySignature, allowEmptySelection, params.initialSelectedId, searchQuery]);
 
     const moveSelection = useCallback((dir: -1 | 1) => {
         if (allItems.length === 0) return;
@@ -174,6 +183,7 @@ export function useSelectableMenu(params: {
     return {
         searchQuery,
         selectedIndex,
+        selectedItemId: selectedIndex >= 0 ? allItems[selectedIndex]?.id ?? null : null,
         filteredCategories,
         inputRef,
         handleSearchChange,

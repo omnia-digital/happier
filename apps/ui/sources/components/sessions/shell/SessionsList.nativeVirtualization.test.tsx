@@ -1028,7 +1028,8 @@ describe('SessionsList (native virtualization)', () => {
         const screen = await renderSessionsList();
 
         expect(screen.findAllByTestId('session-list-search-trigger')).toHaveLength(1);
-        expect(screen.findAllByTestId('session-list-ordering-menu-trigger')).toHaveLength(1);
+        expect(screen.findAllByTestId('session-list-group-menu-trigger')).toHaveLength(1);
+        expect(screen.findAllByTestId('session-list-sort-menu-trigger')).toHaveLength(1);
     });
 
     it.each([
@@ -1057,7 +1058,8 @@ describe('SessionsList (native virtualization)', () => {
         const screen = await renderSessionsList();
 
         expect(screen.findAllByTestId('session-list-search-trigger')).toHaveLength(1);
-        expect(screen.findAllByTestId('session-list-ordering-menu-trigger')).toHaveLength(1);
+        expect(screen.findAllByTestId('session-list-group-menu-trigger')).toHaveLength(1);
+        expect(screen.findAllByTestId('session-list-sort-menu-trigger')).toHaveLength(1);
     });
 
     it('keeps the header search control anchored to the section that opened it', async () => {

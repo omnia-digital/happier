@@ -48,5 +48,36 @@ describe('useSelectableMenu (allowEmptySelection)', () => {
         expect(activate).toHaveBeenCalledWith(expect.objectContaining({ id: 'saved-b' }));
         await hook.unmount();
     });
+
+    it('exposes the selected item identity when results replace a row at the same index', async () => {
+        const { useSelectableMenu } = await import('./useSelectableMenu');
+        const first = [{ id: 'old', title: 'Old' }];
+        const next = [{ id: 'new', title: 'New' }];
+        const hook = await renderHook(
+            (items: SelectableMenuItem[]) => useSelectableMenu({ items, onRequestClose: () => {} }),
+            { initialProps: first },
+        );
+        expect(hook.getCurrent().selectedIndex).toBe(0);
+        expect(hook.getCurrent().selectedItemId).toBe('old');
+
+        await hook.rerender(next);
+        expect(hook.getCurrent().selectedIndex).toBe(0);
+        expect(hook.getCurrent().selectedItemId).toBe('new');
+        await hook.unmount();
+    });
+
+    it('keeps the highlighted row when live item details change without changing choices', async () => {
+        const { useSelectableMenu } = await import('./useSelectableMenu');
+        const hook = await renderHook(
+            (items: SelectableMenuItem[]) => useSelectableMenu({ items, initialSelectedId: 'first', onRequestClose: () => {} }),
+            { initialProps: [{ id: 'first', title: 'First' }, { id: 'last', title: 'Last' }] },
+        );
+        await act(async () => hook.getCurrent().setSelectedIndex(1));
+        expect(hook.getCurrent().selectedItemId).toBe('last');
+
+        await hook.rerender([{ id: 'first', title: 'First' }, { id: 'last', title: 'Last updated' }]);
+        expect(hook.getCurrent().selectedItemId).toBe('last');
+        await hook.unmount();
+    });
 });
 

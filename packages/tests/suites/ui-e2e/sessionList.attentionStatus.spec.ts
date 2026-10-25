@@ -730,7 +730,7 @@ test.describe('ui e2e: session list attention', () => {
         await expect(page.getByTestId(`session-row-status-${sessions[index]!.id}-${status}`)).toHaveCount(1, { timeout: 60_000 });
         await row(page, sessions[index]!.id).screenshot({ path: test.info().outputPath(`oh57-${status}-light-row.png`) });
       }
-      await page.getByTestId('session-list-ordering-menu-trigger').first().click();
+      await page.getByTestId('session-list-sort-menu-trigger').first().click();
       await page.getByTestId('session-list-status-sort-agent').click();
       const visibleSessionIds = () => page.locator('[data-testid^="session-list-item-"]').evaluateAll((nodes) => nodes.map((node) => ({
         id: node.getAttribute('data-testid')!.slice('session-list-item-'.length),

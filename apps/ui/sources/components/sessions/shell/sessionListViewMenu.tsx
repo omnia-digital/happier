@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable } from 'react-native';
+import { useWindowDimensions } from 'react-native';
 import { useUnistyles } from 'react-native-unistyles';
 
 import { DropdownMenu, type DropdownMenuItem } from '@/components/ui/forms/dropdown/DropdownMenu';
@@ -7,6 +7,8 @@ import { t } from '@/text';
 import type { SessionFolderViewModeV1 } from './sessionFolderShellTypes';
 import type { SessionListFolderSortModeV1 } from '@/sync/domains/session/listing/sessionListFolderSortMode';
 import { Icon, ICON_SIZE } from '@/components/ui/icons/Icon';
+import { PressableSurface } from '@/components/ui/interaction/PressableSurface';
+import type { SessionListViewMode } from './view-state/useSessionRepositoryView';
 import type { SessionListStatusMode } from './view-state/projectSessionListStatusView';
 import {
     SESSION_LIST_ORDERING_MODES_V1,
@@ -33,8 +35,8 @@ function getOrderingModeTitle(mode: SessionListOrderingModeV1): string {
 }
 
 export function SessionListViewMenuButton(props: Readonly<{
-    machineViewMode: 'original' | 'machine' | 'repository';
-    onMachineViewModeChange: (mode: 'original' | 'machine' | 'repository') => void;
+    machineViewMode: SessionListViewMode;
+    onMachineViewModeChange: (mode: SessionListViewMode) => void;
     onRepositoryRefresh?: () => void;
     repositoryRefreshing?: boolean;
     folderViewMode: SessionFolderViewModeV1;
@@ -52,7 +54,9 @@ export function SessionListViewMenuButton(props: Readonly<{
     disabled?: boolean;
 }>) {
     const { theme } = useUnistyles();
-    const [open, setOpen] = React.useState(false);
+    const { height: windowHeight } = useWindowDimensions();
+    const [groupOpen, setGroupOpen] = React.useState(false);
+    const [sortOpen, setSortOpen] = React.useState(false);
     const iconColor = props.disabled ? theme.colors.text.tertiary : theme.colors.text.secondary;
     const selectedIconColor = theme.colors.accent.blue;
     const effectiveFolderSortMode = resolveEffectiveSessionListFolderSortMode({
@@ -61,7 +65,16 @@ export function SessionListViewMenuButton(props: Readonly<{
     });
     const folderSortLockedByOrdering = props.orderingMode !== 'custom';
 
-    const items = React.useMemo((): DropdownMenuItem[] => [
+    const groupItems = React.useMemo((): DropdownMenuItem[] => [
+        {
+            id: 'session-view-flat',
+            testID: 'session-view-flat',
+            category: t('sessionsList.viewOptions'),
+            title: t('sessionsList.noGrouping'),
+            icon: <Icon name="list" size={ICON_SIZE.sm} color={iconColor} />,
+            rightElement: props.statusGrouping === 'none' && props.machineViewMode === 'flat'
+                ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} /> : null,
+        },
         {
             id: 'session-view-original',
             testID: 'session-view-original',
@@ -103,30 +116,7 @@ export function SessionListViewMenuButton(props: Readonly<{
             category: t('sessionsList.statusOrganization.groupTitle'),
             title: mode === 'none' ? t('sessionsList.statusOrganization.restoreGrouping') : mode === 'agent' ? t('sessionsList.statusOrganization.agentGroup') : t('sessionsList.statusOrganization.ticketGroup'),
             subtitle: mode === 'none' ? undefined : t('sessionsList.statusOrganization.description'),
-            rightElement: props.statusGrouping === mode ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} /> : null,
-        })),
-        ...(['agent', 'ticket'] as const).map((mode): DropdownMenuItem => ({
-            id: `status-sort:${mode}`,
-            testID: `session-list-status-sort-${mode}`,
-            category: t('sessionsList.orderingMode.title'),
-            title: mode === 'agent' ? t('sessionsList.statusOrganization.agentSort') : t('sessionsList.statusOrganization.ticketSort'),
-            rightElement: props.statusSorting === mode ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} /> : null,
-        })),
-        ...SESSION_LIST_ORDERING_MODES_V1.map((mode): DropdownMenuItem => ({
-            id: mode,
-            testID: `session-list-ordering-mode-${mode}`,
-            category: t('sessionsList.orderingMode.title'),
-            title: getOrderingModeTitle(mode),
-            icon: (
-                <Icon
-                    name={mode === 'custom' ? 'list' : mode === 'created' ? 'calendar' : 'clock'}
-                    size={ICON_SIZE.sm}
-                    color={iconColor}
-                />
-            ),
-            rightElement: props.statusSorting === 'none' && props.orderingMode === mode
-                ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} />
-                : null,
+            rightElement: mode !== 'none' && props.statusGrouping === mode ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} /> : null,
         })),
         {
             id: props.folderViewMode === 'tree' ? 'folder-view-off' : 'folder-view-tree',
@@ -139,36 +129,6 @@ export function SessionListViewMenuButton(props: Readonly<{
             disabled: props.disabled,
         },
         {
-            id: `${FOLDER_SORT_MODE_ACTION_PREFIX}foldersFirst`,
-            testID: 'session-folder-sort-mode-folders-first',
-            category: t('sessionsList.folderSortMode'),
-            title: t('sessionsList.folderSortFoldersFirst'),
-            subtitle: folderSortLockedByOrdering
-                ? t('sessionsList.folderSortDisabledInDateMode')
-                : t('sessionsList.folderSortFoldersFirstDescription'),
-            icon: <Icon name="folder" size={ICON_SIZE.sm} color={iconColor} />,
-            disabled: props.disabled || folderSortLockedByOrdering,
-            rightElement: effectiveFolderSortMode === 'foldersFirst'
-                ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} />
-                : null,
-        },
-        {
-            id: `${FOLDER_SORT_MODE_ACTION_PREFIX}mixed`,
-            testID: 'session-folder-sort-mode-mixed',
-            category: t('sessionsList.folderSortMode'),
-            title: t('sessionsList.folderSortMixed'),
-            subtitle: folderSortLockedByOrdering
-                ? t('sessionsList.folderSortDisabledInDateMode')
-                : props.machineViewMode === 'machine'
-                    ? t('sessionsList.folderSortMixedDescriptionMachineView')
-                    : t('sessionsList.folderSortMixedDescription'),
-            icon: <Icon name="arrows-down-up" size={ICON_SIZE.sm} color={iconColor} />,
-            disabled: props.disabled || folderSortLockedByOrdering,
-            rightElement: effectiveFolderSortMode === 'mixed'
-                ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} />
-                : null,
-        },
-        {
             id: props.hideInactiveSessions ? 'show-inactive' : 'hide-inactive',
             category: t('sessionsList.filters'),
             title: props.hideInactiveSessions
@@ -177,19 +137,51 @@ export function SessionListViewMenuButton(props: Readonly<{
             icon: <Icon name="funnel-simple" size={ICON_SIZE.sm} color={iconColor} />,
         },
     ], [
-        effectiveFolderSortMode,
-        folderSortLockedByOrdering,
         iconColor,
         props.disabled,
         props.folderViewMode,
         props.hideInactiveSessions,
         props.machineViewMode,
         props.repositoryRefreshing,
-        props.orderingMode,
         props.statusGrouping,
-        props.statusSorting,
         selectedIconColor,
     ]);
+
+    const sortItems = React.useMemo((): DropdownMenuItem[] => [
+        ...(['agent', 'ticket'] as const).map((mode): DropdownMenuItem => ({
+            id: `status-sort:${mode}`,
+            testID: `session-list-status-sort-${mode}`,
+            category: t('sessionsList.orderingMode.title'),
+            title: mode === 'agent' ? t('sessionsList.statusOrganization.agentSort') : t('sessionsList.statusOrganization.ticketSort'),
+            rightElement: props.statusSorting === mode ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} /> : null,
+        })),
+        ...SESSION_LIST_ORDERING_MODES_V1.map((mode): DropdownMenuItem => ({
+            id: mode,
+            testID: `session-list-ordering-mode-${mode}`,
+            category: t('sessionsList.orderingMode.title'),
+            title: getOrderingModeTitle(mode),
+            icon: <Icon name={mode === 'custom' ? 'list' : mode === 'created' ? 'calendar' : 'clock'} size={ICON_SIZE.sm} color={iconColor} />,
+            rightElement: props.statusSorting === 'none' && props.orderingMode === mode
+                ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} /> : null,
+        })),
+        ...(['foldersFirst', 'mixed'] as const).map((mode): DropdownMenuItem => ({
+            id: `${FOLDER_SORT_MODE_ACTION_PREFIX}${mode}`,
+            testID: mode === 'foldersFirst' ? 'session-folder-sort-mode-folders-first' : 'session-folder-sort-mode-mixed',
+            category: t('sessionsList.folderSortMode'),
+            title: mode === 'foldersFirst' ? t('sessionsList.folderSortFoldersFirst') : t('sessionsList.folderSortMixed'),
+            subtitle: folderSortLockedByOrdering
+                ? t('sessionsList.folderSortDisabledInDateMode')
+                : mode === 'foldersFirst'
+                    ? t('sessionsList.folderSortFoldersFirstDescription')
+                    : props.machineViewMode === 'machine'
+                        ? t('sessionsList.folderSortMixedDescriptionMachineView')
+                        : t('sessionsList.folderSortMixedDescription'),
+            icon: <Icon name={mode === 'foldersFirst' ? 'folder' : 'arrows-down-up'} size={ICON_SIZE.sm} color={iconColor} />,
+            disabled: props.disabled || folderSortLockedByOrdering,
+            rightElement: effectiveFolderSortMode === mode
+                ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} /> : null,
+        })),
+    ], [effectiveFolderSortMode, folderSortLockedByOrdering, iconColor, props.disabled, props.machineViewMode, props.orderingMode, props.statusSorting, selectedIconColor]);
 
     const handleSelect = React.useCallback((itemId: string) => {
         if (itemId.startsWith('status-group:')) {
@@ -201,6 +193,7 @@ export function SessionListViewMenuButton(props: Readonly<{
             return;
         }
         if (itemId === 'session-view-repository') { props.onStatusGroupingChange('none'); props.onMachineViewModeChange('repository'); return; }
+        if (itemId === 'session-view-flat') { props.onStatusGroupingChange('none'); props.onMachineViewModeChange('flat'); return; }
         if (itemId === 'session-repository-refresh') { if (!props.repositoryRefreshing) props.onRepositoryRefresh?.(); return; }
         if (itemId === 'session-view-original' || itemId === 'session-view-machine') {
             props.onStatusGroupingChange('none');
@@ -237,32 +230,65 @@ export function SessionListViewMenuButton(props: Readonly<{
     }, [props]);
 
     return (
+        <>
         <DropdownMenu
-            open={open}
-            onOpenChange={setOpen}
-            items={items}
+            open={groupOpen}
+            onOpenChange={(next) => { setGroupOpen(next); if (next) setSortOpen(false); }}
+            items={groupItems}
             onSelect={handleSelect}
-            selectedId={props.folderViewMode === 'tree' ? 'folder-view-tree' : 'folder-view-off'}
+            selectedId={props.statusGrouping === 'none' ? `session-view-${props.machineViewMode}` : `status-group:${props.statusGrouping}`}
             placement="left"
             variant="slim"
             matchTriggerWidth={false}
             maxWidthCap={260}
+            maxHeightCap={windowHeight}
             showCategoryTitles={true}
             popoverPortalWebTarget="body"
             trigger={({ toggle }) => (
-                <Pressable
-                    testID="session-list-ordering-menu-trigger"
+                <PressableSurface
+                    testID="session-list-group-menu-trigger"
                     accessibilityRole="button"
-                    accessibilityLabel={t('sessionsList.viewOptions')}
+                    accessibilityLabel={t('sessionsList.groupMenu')}
+                    webTooltip={t('sessionsList.groupMenu')}
                     onPress={(event) => {
                         event?.stopPropagation?.();
                         toggle();
                     }}
                     hitSlop={8}
                 >
-                    <Icon name="funnel-simple" size={ICON_SIZE.sm} color={iconColor} />
-                </Pressable>
+                    <Icon name="stack" size={ICON_SIZE.sm} color={iconColor} />
+                </PressableSurface>
             )}
         />
+        <DropdownMenu
+            open={sortOpen}
+            onOpenChange={(next) => { setSortOpen(next); if (next) setGroupOpen(false); }}
+            items={sortItems}
+            onSelect={handleSelect}
+            selectedId={props.statusSorting === 'none' ? props.orderingMode : `status-sort:${props.statusSorting}`}
+            placement="left"
+            variant="slim"
+            matchTriggerWidth={false}
+            maxWidthCap={260}
+            maxHeightCap={windowHeight}
+            showCategoryTitles={true}
+            popoverPortalWebTarget="body"
+            trigger={({ toggle }) => (
+                <PressableSurface
+                    testID="session-list-sort-menu-trigger"
+                    accessibilityRole="button"
+                    accessibilityLabel={t('sessionsList.sortMenu')}
+                    webTooltip={t('sessionsList.sortMenu')}
+                    onPress={(event) => {
+                        event?.stopPropagation?.();
+                        toggle();
+                    }}
+                    hitSlop={8}
+                >
+                    <Icon name="arrows-down-up" size={ICON_SIZE.sm} color={iconColor} />
+                </PressableSurface>
+            )}
+        />
+        </>
     );
 }

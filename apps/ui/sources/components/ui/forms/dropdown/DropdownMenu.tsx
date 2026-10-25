@@ -379,6 +379,7 @@ export function DropdownMenu(props: DropdownMenuProps) {
     const {
         searchQuery,
         selectedIndex,
+        selectedItemId,
         filteredCategories,
         inputRef,
         handleSearchChange,
@@ -412,7 +413,7 @@ export function DropdownMenu(props: DropdownMenuProps) {
     });
 
     const resultScroll = useScrollRectIntoViewRegistry({
-        activeKey: selectedIndex >= 0 ? String(selectedIndex) : null,
+        activeKey: selectedItemId ? `${searchQuery}\u0000${String(selectedItemId)}` : null,
         padding: 8,
         animated: true,
     });
@@ -633,6 +634,7 @@ export function DropdownMenu(props: DropdownMenuProps) {
                                     rowKind={props.rowKind}
                                     itemProps={props.itemRowProps}
                                     registerItemLayout={resultScroll.registerItemLayout}
+                                    scrollKeyPrefix={searchQuery}
                                 />
                             </View>
                         </FloatingOverlay>
