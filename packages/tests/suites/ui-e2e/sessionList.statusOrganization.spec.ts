@@ -253,8 +253,8 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
                     scrollTop: scrollHost.scrollTop, clientHeight: scrollHost.clientHeight, scrollHeight: scrollHost.scrollHeight };
             });
             const initialMenu = await groupMenuMetrics();
-            expect(initialMenu.top).toBeGreaterThanOrEqual(0);
-            expect(initialMenu.bottom).toBeLessThanOrEqual(420);
+            expect(initialMenu.top).toBeGreaterThanOrEqual(8);
+            expect(initialMenu.bottom).toBeLessThanOrEqual(412);
             expect(initialMenu.clientHeight).toBeGreaterThan(320);
             await page.mouse.move(initialMenu.x, initialMenu.y);
             await page.mouse.wheel(0, 580);
@@ -288,8 +288,8 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await page.getByTestId('session-list-group-menu-trigger').first().click();
             await expect(page.getByTestId('session-view-flat')).toBeVisible();
             const narrowMenu = await groupMenuMetrics();
-            expect(narrowMenu.top).toBeGreaterThanOrEqual(0);
-            expect(narrowMenu.bottom).toBeLessThanOrEqual(420);
+            expect(narrowMenu.top).toBeGreaterThanOrEqual(8);
+            expect(narrowMenu.bottom).toBeLessThanOrEqual(412);
             await page.screenshot({ path: testInfo.outputPath('oh71-group-menu-dark-large-narrow.png') });
             const persisted = await fetchSessionV2(server.baseUrl, access.token, idle);
             expect(decryptDataKeyBase64(persisted.metadata, sessionKeys.get(idle)!)).toMatchObject({ unknownOldCliField: { keep: 'preserved' }, sessionTicketV1: { ticket: { key: 'DEV-1' } } });
