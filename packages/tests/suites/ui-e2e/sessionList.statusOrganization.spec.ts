@@ -283,6 +283,8 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await page.getByTestId('session-list-sort-menu-trigger').first().click();
             await expect(page.getByTestId('session-list-status-sort-agent')).toBeVisible();
             await page.screenshot({ path: testInfo.outputPath('oh71-sort-menu-dark-large-narrow.png') });
+            await page.keyboard.press('Escape');
+            await expect(page.getByTestId('session-list-status-sort-agent')).toHaveCount(0);
             await page.getByTestId('session-list-group-menu-trigger').first().click();
             await expect(page.getByTestId('session-view-flat')).toBeVisible();
             const narrowMenu = await groupMenuMetrics();
