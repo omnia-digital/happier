@@ -7,6 +7,7 @@ export interface MaterializeNewSessionCheckoutParams {
     machineId: string;
     scope?: ServerAccountScope;
     selectedPath: string;
+    launchNonce?: string;
     checkoutCreationDraft?: NewSessionCheckoutCreationDraft | null;
 }
 
@@ -43,6 +44,7 @@ export async function materializeNewSessionCheckout(
         displayName: params.checkoutCreationDraft?.displayName ?? null,
         baseRef: params.checkoutCreationDraft?.baseRef ?? null,
         branchMode: params.checkoutCreationDraft?.branchMode ?? 'new',
+        ...(params.launchNonce ? { launchNonce: params.launchNonce } : {}),
     });
     if (!worktreeResult.success) {
         return {

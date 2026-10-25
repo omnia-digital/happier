@@ -1,6 +1,6 @@
 import { setTimeout as delay } from 'node:timers/promises';
 import { listListenPids, listListenPidsWithStatus, probeTcpPortBinding } from '../net/ports.mjs';
-import { getProcessGroupId, isPidOwnedByStack, resolvePidStackOwnership } from '../proc/ownership.mjs';
+import { getProcessGroupId, isPidOwnedByStack, isWindowsDescendantProcess, resolvePidStackOwnership } from '../proc/ownership.mjs';
 
 const DEFAULT_SPAWNED_LISTENER_OWNERSHIP_TIMEOUT_MS = 60_000;
 const MAX_SPAWNED_LISTENER_OWNERSHIP_TIMEOUT_MS = 10 * 60_000;
@@ -319,6 +319,8 @@ export async function resolveSpawnedProcessGroupListenPid(
     listListenPidsImpl = listListenPids,
     listListenPidsWithStatusImpl = listListenPidsWithStatus,
     getProcessGroupIdImpl = getProcessGroupId,
+    isWindowsDescendantProcessImpl = isWindowsDescendantProcess,
+    platform = process.platform,
     observationScope,
     listenerOwnershipTimeoutMs = resolveSpawnedListenerOwnershipTimeoutMs(),
     listenerOwnershipRetryDelayMs = 25,
@@ -368,6 +370,23 @@ export async function resolveSpawnedProcessGroupListenPid(
     throw new Error(
       `[local] server readiness ownership could not be proven on port ${serverPort}: no listener PID was discovered`,
     );
+  }
+
+  if (platform === 'win32') {
+    for (const listenPid of listenPids) {
+      if (Number(listenPid) === rootPid) continue;
+      // eslint-disable-next-line no-await-in-loop
+      const owned = await isWindowsDescendantProcessImpl(listenPid, rootPid, {
+        timeoutMs: Math.max(1, scope.remainingMs()),
+      });
+      if (!owned) {
+        throw new Error(
+          `[local] server readiness was answered by another process or an unverified process on port ${serverPort}; ` +
+            `spawned pid=${spawnedPid}, listeners=${listenPids.join(', ')}`,
+        );
+      }
+    }
+    return Number(listenPids[0]);
   }
 
   for (const listenPid of listenPids) {

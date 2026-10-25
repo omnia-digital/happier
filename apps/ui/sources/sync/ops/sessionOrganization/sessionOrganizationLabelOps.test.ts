@@ -1,4 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { TokenStorage } from '@/auth/storage/tokenStorage';
+import { setServerProfileIdentityForUrl, upsertServerProfile } from '@/sync/domains/server/serverProfiles';
+
+const credentials = { token: `header.${Buffer.from(JSON.stringify({ sub: 'account-a' })).toString('base64')}.signature`, secret: 'secret-a' };
+const serverId = 'srv_label_ops';
+const serverUrl = 'https://server-a.example';
 
 const apiMocks = vi.hoisted(() => ({
     fetchAccountEncryptionMode: vi.fn(),
@@ -21,13 +27,17 @@ vi.mock('@/sync/api/session/sessionOrganizationApi', async (importOriginal) => {
 
 describe('session organization label ops', () => {
     beforeEach(async () => {
+        upsertServerProfile({ serverUrl });
+        setServerProfileIdentityForUrl(serverUrl, serverId);
+        vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue(credentials);
         apiMocks.deleteSessionOrganizationLabel.mockReset();
         apiMocks.fetchAccountEncryptionMode.mockReset();
         apiMocks.fetchAccountEncryptionMode.mockResolvedValue({ mode: 'plain', updatedAt: 0 });
         apiMocks.upsertSessionOrganizationLabel.mockReset();
         const { getStorage } = await import('@/sync/domains/state/storageStore');
-        getStorage().getState().clearSessionOrganizationForServer('server-a');
+        getStorage().getState().clearSessionOrganizationForServer(serverId);
     });
+    afterEach(() => vi.restoreAllMocks());
 
     it('upserts and deletes workspace labels through the ops barrel', async () => {
         const { getStorage } = await import('@/sync/domains/state/storageStore');
@@ -45,9 +55,9 @@ describe('session organization label ops', () => {
         });
 
         await upsertSessionLabel({
-            credentials: { token: 'token-a', secret: 'secret-a' },
-            serverId: 'server-a',
-            serverUrl: 'https://server-a.example',
+            credentials,
+            serverId,
+            serverUrl,
             request: {
                 labelKind: 'workspace',
                 scopeKey: 'wl_project_a',
@@ -55,7 +65,7 @@ describe('session organization label ops', () => {
             },
         });
 
-        expect(getStorage().getState().sessionOrganizationLabelsByLabelKey['server-a:workspace:wl_project_a']?.display).toEqual({
+        expect(getStorage().getState().sessionOrganizationLabelsByLabelKey[`${serverId}:workspace:wl_project_a`]?.display).toEqual({
             t: 'plain',
             v: { label: 'Project A' },
         });
@@ -72,15 +82,15 @@ describe('session organization label ops', () => {
         });
 
         await deleteSessionLabel({
-            credentials: { token: 'token-a', secret: 'secret-a' },
-            serverId: 'server-a',
-            serverUrl: 'https://server-a.example',
+            credentials,
+            serverId,
+            serverUrl,
             request: {
                 labelKind: 'workspace',
                 scopeKey: 'wl_project_a',
             },
         });
 
-        expect(getStorage().getState().sessionOrganizationLabelsByLabelKey['server-a:workspace:wl_project_a']).toBeUndefined();
+        expect(getStorage().getState().sessionOrganizationLabelsByLabelKey[`${serverId}:workspace:wl_project_a`]).toBeUndefined();
     });
 });

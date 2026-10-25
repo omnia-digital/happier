@@ -1,4 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { TokenStorage } from '@/auth/storage/tokenStorage';
+
+const credentials = { token: `header.${Buffer.from(JSON.stringify({ sub: 'account-a' })).toString('base64')}.signature`, secret: 'secret-a' };
 
 const apiMocks = vi.hoisted(() => ({
     fetchAccountEncryptionMode: vi.fn(),
@@ -34,9 +37,12 @@ describe('setSessionAttentionStanding op', () => {
         apiMocks.fetchAccountEncryptionMode.mockReset();
         apiMocks.fetchAccountEncryptionMode.mockResolvedValue({ mode: 'plain', updatedAt: 0 });
         apiMocks.setSessionAttentionStanding.mockReset();
+        serverProfileMocks.getServerProfileById.mockReturnValue({ id: 'server-a', serverUrl: 'https://server-a.example' });
+        vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue(credentials);
         const { getStorage } = await import('@/sync/domains/state/storageStore');
         getStorage().getState().clearSessionOrganizationForServer('server-a');
     });
+    afterEach(() => vi.restoreAllMocks());
 
     it('reconciles the optimistic standing with the server response', async () => {
         const { getStorage } = await import('@/sync/domains/state/storageStore');
@@ -46,7 +52,7 @@ describe('setSessionAttentionStanding op', () => {
         });
 
         await setSessionAttentionStanding({
-            credentials: { token: 'token-a', secret: 'secret-a' },
+            credentials,
             serverId: 'server-a',
             serverUrl: 'https://server-a.example',
             sessionId: 's1',
@@ -70,7 +76,7 @@ describe('setSessionAttentionStanding op', () => {
         apiMocks.setSessionAttentionStanding.mockResolvedValueOnce({ standing: null });
 
         await setSessionAttentionStanding({
-            credentials: { token: 'token-a', secret: 'secret-a' },
+            credentials,
             serverId: 'server-a',
             sessionId: 's1',
             standing: null,
@@ -88,7 +94,7 @@ describe('setSessionAttentionStanding op', () => {
         apiMocks.setSessionAttentionStanding.mockRejectedValueOnce(new Error('offline'));
 
         await expect(setSessionAttentionStanding({
-            credentials: { token: 'token-a', secret: 'secret-a' },
+            credentials,
             serverId: 'server-a',
             sessionId: 's1',
             standing: true,
@@ -128,7 +134,7 @@ describe('sessionSetAttentionStandingWithServerScope', () => {
     it('keys the optimistic standing by the canonical server scope id, not the local profile id', async () => {
         const { TokenStorage } = await import('@/auth/storage/tokenStorage');
         const credentialsSpy = vi.spyOn(TokenStorage, 'getCredentialsForServerUrl')
-            .mockResolvedValue({ token: 'token-a', secret: 'secret-a' });
+            .mockResolvedValue(credentials);
         const { getStorage } = await import('@/sync/domains/state/storageStore');
         const { sessionSetAttentionStandingWithServerScope } = await import('./setSessionAttentionStanding');
         apiMocks.setSessionAttentionStanding.mockResolvedValueOnce({
@@ -149,7 +155,7 @@ describe('sessionSetAttentionStandingWithServerScope', () => {
     it('clears a reminder through the same standing mutation owner', async () => {
         const { TokenStorage } = await import('@/auth/storage/tokenStorage');
         const credentialsSpy = vi.spyOn(TokenStorage, 'getCredentialsForServerUrl')
-            .mockResolvedValue({ token: 'token-a', secret: 'secret-a' });
+            .mockResolvedValue(credentials);
         const { sessionClearAttentionReminderWithServerScope } = await import('./setSessionAttentionStanding');
         apiMocks.setSessionAttentionStanding.mockResolvedValueOnce({ standing: null });
 

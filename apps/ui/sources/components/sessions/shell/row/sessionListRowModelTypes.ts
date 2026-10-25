@@ -5,6 +5,7 @@ import type { Session } from '@/sync/domains/state/storageTypes';
 import type { SessionMessages } from '@/sync/store/domains/messages';
 import type { SessionPending } from '@/sync/store/domains/pending';
 import type { SessionStatus } from '@/utils/sessions/sessionUtils';
+import type { SessionWorkStateItem } from '@/components/sessions/workState/sessionWorkStateTypes';
 import type { SessionListSecondaryLineMode, SessionListVisualStatus } from '@/sync/domains/session/listing/deriveSessionListActivity';
 import type { SessionAttentionStandingPolicy, SessionReminderPresentation } from '@/sync/domains/session/organization/attentionStanding';
 import type { SessionRowAttentionState, SessionRowDensity, SessionRowPresentation } from './resolveSessionRowPresentation';
@@ -151,6 +152,8 @@ export type SessionListRowModel = Readonly<{
      * that reduced it to one integer said "1 agent working" about a five-agent workflow.
      */
     agentActivityLabel: string | null;
+    /** Associated, uncleared goal from the persisted session work-state snapshot. */
+    goalIndicator: SessionWorkStateItem | null;
     tags: readonly string[];
     allKnownTags: readonly string[];
     tagsEnabled: boolean;

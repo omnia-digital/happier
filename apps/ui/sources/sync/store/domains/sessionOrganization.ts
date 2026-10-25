@@ -966,6 +966,9 @@ export function createSessionOrganizationDomain<S extends SessionOrganizationDom
                     sessionOrganizationErrorByServerId: Object.fromEntries(
                         Object.entries(state.sessionOrganizationErrorByServerId).filter(([key]) => key !== serverId),
                     ),
+                    sessionOrganizationOptimisticRecords: Object.fromEntries(
+                        Object.entries(state.sessionOrganizationOptimisticRecords).filter(([, record]) => record.serverId !== serverId),
+                    ),
                     sessionFolderAssignmentsLoadingByServerId: Object.fromEntries(
                         Object.entries(state.sessionFolderAssignmentsLoadingByServerId).filter(([key]) => key !== serverId),
                     ),

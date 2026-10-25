@@ -135,7 +135,7 @@ export const ACCOUNT_TRANSCRIPT_TOOL_SETTING_DEFINITIONS = defineSettingDefiniti
     },
     transcriptMessageTimestampDisplayMode: {
         schema: z.enum(TRANSCRIPT_MESSAGE_TIMESTAMP_DISPLAY_MODE_VALUES),
-        default: 'hover_web_hidden_mobile' satisfies TranscriptMessageTimestampDisplayMode,
+        default: 'always' satisfies TranscriptMessageTimestampDisplayMode,
         description: 'Controls when message time and date are shown below user and assistant transcript messages',
         storageScope: 'account',
         analytics: { trackCurrentState: true, trackChanges: true, valueKind: 'enum', privacy: 'safe', identityScope: 'person' },

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import axios, { type AxiosAdapter } from 'axios';
 import { existsSync } from 'node:fs';
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile, realpath, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { RPC_METHODS } from '@happier-dev/protocol/rpc';
@@ -95,21 +95,21 @@ describe('capabilities.invoke control probes through the real catalog and native
   it.each(methods)('%s preserves cwd and spends preparation from the containing deadline', async (method) => {
     await withProbeFixture(async ({ cwd, capturePath, invoke }) => {
       expectObservedControls(await invoke(method, { timeoutMs: 1234 }), method);
-      expect(JSON.parse(await readFile(capturePath, 'utf8'))).toMatchObject({ cwd, rpcTimeoutMs: 1034 });
+      expect(JSON.parse(await readFile(capturePath, 'utf8'))).toMatchObject({ cwd: await realpath(cwd), rpcTimeoutMs: 1034 });
     });
   });
 
   it.each(methods)('%s falls back to the closest existing directory', async (method) => {
     await withProbeFixture(async ({ cwd, capturePath, invoke }) => {
       expectObservedControls(await invoke(method, { cwd: join(cwd, 'missing', 'child'), timeoutMs: 1234 }), method);
-      expect(JSON.parse(await readFile(capturePath, 'utf8'))).toMatchObject({ cwd, rpcTimeoutMs: 1034 });
+      expect(JSON.parse(await readFile(capturePath, 'utf8'))).toMatchObject({ cwd: await realpath(cwd), rpcTimeoutMs: 1034 });
     });
   });
 
   it.each(methods)('%s uses the remaining default budget when timeoutMs is omitted', async (method) => {
     await withProbeFixture(async ({ cwd, capturePath, invoke }) => {
       expectObservedControls(await invoke(method), method);
-      expect(JSON.parse(await readFile(capturePath, 'utf8'))).toMatchObject({ cwd, rpcTimeoutMs: 29_800 });
+      expect(JSON.parse(await readFile(capturePath, 'utf8'))).toMatchObject({ cwd: await realpath(cwd), rpcTimeoutMs: 29_800 });
     });
   });
 

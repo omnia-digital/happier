@@ -158,6 +158,7 @@ export function createSessionItemTestRowModel(
         pendingCount: session.pendingCount ?? 0,
         draft: null,
         agentActivityLabel: null,
+        goalIndicator: null,
         pendingBlockedCount: session.pendingBlockedCount ?? 0,
         tags: [...(input.tags ?? [])],
         allKnownTags: [...(input.allKnownTags ?? [])],

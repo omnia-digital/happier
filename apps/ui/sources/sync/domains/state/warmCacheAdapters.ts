@@ -116,6 +116,9 @@ export function isSessionListCacheEntryMetadataUsable(entry: SessionListCacheEnt
         || hasNonEmptyString(entry.host)
         || hasNonEmptyString(entry.machineId)
         || hasNonEmptyString(entry.flavor)
+        || entry.sessionWorkStateV1 != null
+        || entry.sessionGoalV1 != null
+        || entry.codexGoalV1 != null
         || entry.directSessionV1 != null
         || entry.hiddenSystemSession === true;
 }
@@ -164,7 +167,11 @@ function areSessionListCacheEntriesEqual(
         && nextEntry.canApprovePermissions === previousEntry.canApprovePermissions
         && nextEntry.name === previousEntry.name
         && nextEntry.summaryText === previousEntry.summaryText
+        && areCacheJsonValuesEqual(nextEntry.sessionWorkStateV1, previousEntry.sessionWorkStateV1)
+        && areCacheJsonValuesEqual(nextEntry.sessionGoalV1, previousEntry.sessionGoalV1)
+        && areCacheJsonValuesEqual(nextEntry.codexGoalV1, previousEntry.codexGoalV1)
         && areCacheJsonValuesEqual(nextEntry.sessionTicketV1, previousEntry.sessionTicketV1)
+        && areCacheJsonValuesEqual(nextEntry.sessionPullRequestsV1, previousEntry.sessionPullRequestsV1)
         && nextEntry.path === previousEntry.path
         && nextEntry.homeDir === previousEntry.homeDir
         && nextEntry.host === previousEntry.host
@@ -227,6 +234,9 @@ export function buildSessionListRenderableFromCacheEntry(entry: SessionListCache
         metadata: metadataUsable ? {
             name: entry.name,
             summaryText: entry.summaryText ?? null,
+            sessionWorkStateV1: entry.sessionWorkStateV1,
+            sessionGoalV1: entry.sessionGoalV1,
+            codexGoalV1: entry.codexGoalV1,
             path: entry.path,
             homeDir: entry.homeDir ?? null,
             host: entry.host ?? null,
@@ -234,6 +244,7 @@ export function buildSessionListRenderableFromCacheEntry(entry: SessionListCache
             flavor: entry.flavor ?? null,
             directSessionV1: entry.directSessionV1 ?? null,
             sessionTicketV1: entry.sessionTicketV1 ?? null,
+            sessionPullRequestsV1: entry.sessionPullRequestsV1 ?? null,
             hiddenSystemSession: entry.hiddenSystemSession === true,
         } : null,
         thinking: false,
@@ -336,6 +347,9 @@ export function buildSessionListCacheEntryFromRenderable(
         canApprovePermissions: session.canApprovePermissions,
         name: preserveMetadata ? previousEntry.name : session.metadata?.name,
         summaryText: preserveMetadata ? previousEntry.summaryText ?? null : session.metadata?.summaryText ?? null,
+        sessionWorkStateV1: preserveMetadata ? previousEntry.sessionWorkStateV1 : session.metadata?.sessionWorkStateV1,
+        sessionGoalV1: preserveMetadata ? previousEntry.sessionGoalV1 : session.metadata?.sessionGoalV1,
+        codexGoalV1: preserveMetadata ? previousEntry.codexGoalV1 : session.metadata?.codexGoalV1,
         path: preserveMetadata ? previousEntry.path : session.metadata?.path ?? '',
         homeDir: preserveMetadata ? previousEntry.homeDir ?? null : session.metadata?.homeDir ?? null,
         host: preserveMetadata ? previousEntry.host ?? null : session.metadata?.host ?? null,
@@ -343,6 +357,7 @@ export function buildSessionListCacheEntryFromRenderable(
         flavor: preserveMetadata ? previousEntry.flavor ?? null : session.metadata?.flavor ?? null,
         directSessionV1: preserveMetadata ? previousEntry.directSessionV1 ?? null : session.metadata?.directSessionV1 ?? null,
         sessionTicketV1: preserveMetadata ? previousEntry.sessionTicketV1 ?? null : session.metadata?.sessionTicketV1 ?? null,
+        sessionPullRequestsV1: preserveMetadata ? previousEntry.sessionPullRequestsV1 ?? null : session.metadata?.sessionPullRequestsV1 ?? null,
         hiddenSystemSession: preserveMetadata
             ? previousEntry.hiddenSystemSession === true
             : session.metadata?.hiddenSystemSession === true,

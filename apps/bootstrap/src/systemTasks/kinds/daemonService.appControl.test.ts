@@ -82,6 +82,8 @@ function commandArgs(callIndex: number): readonly string[] {
 describe('desktop control of the background service', () => {
   beforeEach(async () => {
     const home = mkdtempSync(join(tmpdir(), 'hsetup-app-control-'));
+    vi.stubEnv('HOME', home);
+    vi.stubEnv('USERPROFILE', home);
     vi.stubEnv('HAPPIER_HOME_DIR', home);
     vi.stubEnv('HAPPIER_BOOTSTRAP_CLI_PATH', '');
     vi.stubEnv('HAPPIER_BOOTSTRAP_HAPPIER_PATH', '');
@@ -419,6 +421,8 @@ describe('desktop control of the background service', () => {
 
     it('never acquires a CLI to disconnect: with none installed there is nothing the app set up to remove (R10-1)', async () => {
       const emptyHome = mkdtempSync(join(tmpdir(), 'hsetup-disconnect-no-cli-'));
+      vi.stubEnv('HOME', emptyHome);
+      vi.stubEnv('USERPROFILE', emptyHome);
       vi.stubEnv('HAPPIER_HOME_DIR', emptyHome);
       onTestFinished(() => rmSync(emptyHome, { recursive: true, force: true }));
 

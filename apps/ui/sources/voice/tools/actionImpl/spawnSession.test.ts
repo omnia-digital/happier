@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useVoiceTargetStore } from '@/voice/runtime/voiceTargetStore';
+import { machinePathTargetKey } from '@/sync/domains/settings/machinePathPreferences';
 
 const machineSpawnNewSessionMock = vi.fn();
 const state: any = {
     sessions: {},
     machines: {},
     settings: {},
-    profileScope: { serverId: 'server-a', accountId: 'account-a' },
 };
 
 vi.mock('@/sync/domains/state/storage', () => ({
@@ -55,7 +55,9 @@ describe('spawnSessionForVoiceTool', () => {
         state.settings = {
             lastUsedAgent: 'claude',
             recentMachinePaths: [],
+            machinePathPreferencesByTargetV1: {},
         };
+        state.profileScope = { serverId: 'server-a', accountId: 'account-a' };
         state.getProjectForSession = undefined;
     });
 
@@ -80,9 +82,11 @@ describe('spawnSessionForVoiceTool', () => {
                 metadata: { host: 'mac', displayName: 'Mac', homeDir: '/Users/test' },
             },
         };
+        state.settings.recentMachinePaths = [{ machineId: 'machine-old', path: '/Users/test/repo' }];
         state.settings.machinePathPreferencesByTargetV1 = {
-            [JSON.stringify(['server-a', 'account-a', 'machine-old'])]: {
-                favorites: [], recentPaths: ['/Users/test/repo'],
+            [machinePathTargetKey({ serverId: 'server-a', accountId: 'account-a', machineId: 'machine-old' })]: {
+                favorites: [],
+                recentPaths: ['/Users/test/repo'],
             },
         };
 
@@ -92,6 +96,7 @@ describe('spawnSessionForVoiceTool', () => {
             machineId: 'machine-current',
             directory: '/Users/test/repo',
         }));
+        expect(state.settings.recentMachinePaths).toEqual([{ machineId: 'machine-old', path: '/Users/test/repo' }]);
     });
 
     it('spawns from the resolved focused session machine target', async () => {

@@ -661,6 +661,9 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
         checking: '檢查中…',
         checked: '剛剛檢查',
         stale: '已過時',
+        autoArchiveWorkUnverified: '自動封存會等待確認工作階段已停用、處於閒置狀態且沒有待處理工作。舊版主機可能不會回報這些狀態。',
+        autoArchived: '已自動封存',
+        autoArchivedReason: '已驗證所有關聯 PR 均已合併',
     },
     sessionTickets: {
         link: "關聯工單",
@@ -4838,6 +4841,7 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
               budgetReachedBody: '此目標已達到 Token 預算。移除預算後即可繼續。',
               removeBudgetAndResume: '移除預算並繼續',
               statusInterrupted: '已中斷',
+              statusUnknown: '未知',
               tokenBudget: 'Token 預算',
               budgetProgress: ({ used, budget }: { used: string; budget: string }) => `${used} / ${budget}`,
               budgetCaption: ({ budget }: { budget: string }) => `預算共 ${budget}`,
@@ -7019,6 +7023,14 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
     },
 
 settingsSession: {
+    archiveAutomation: {
+        title: '自動封存',
+        footer: '這些選項會與目前的 Home 帳戶同步。Happier 開啟時約每 5 分鐘自動檢查一次。本機清理需要主機支援；遠端分支會保留。取消封存無法復原已移除的本機資源。',
+        autoArchiveTitle: '關聯 PR 合併後封存',
+        autoArchiveSubtitle: '只有在最新驗證確認所有關聯 PR 均已合併時，才封存非使用中的工作階段。',
+        cleanupTitle: '封存後清理本機資源',
+        cleanupSubtitle: '儲存你的選擇，以便在所屬機器上安全清理。此版本尚未提供清理功能。',
+    },
     terminalHostTitle: '新工作階段的終端機主機',
     terminalHostNone: '不使用終端機主機',
     newSessionDraftEntry: {

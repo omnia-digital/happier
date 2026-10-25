@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
+const metadataPatch = vi.hoisted(() => vi.fn());
+vi.mock('@/sync/runtime/getSyncSingleton', () => ({ getSyncSingleton: () => ({ patchSessionMetadataWithRetry: metadataPatch }) }));
 
 import { createDeferred, createSessionFixture, renderHook } from '@/dev/testkit';
 import { act } from 'react-test-renderer';
@@ -13,6 +15,8 @@ import { archiveSessionWithPendingState } from '@/components/sessions/sessionSto
 import { useVisibleSessionListViewData } from '@/hooks/session/useVisibleSessionListViewData';
 import { useResolvedActiveServerSelection } from '@/hooks/server/useEffectiveServerSelection';
 import { buildSessionListViewDataForRenderableState } from '@/sync/store/domains/sessionListRenderableCommit';
+import { afterSessionArchiveConfirmed } from '../sessions';
+import { appendSessionAutoArchiveHistory, readSessionAutoArchiveHistory } from '@happier-dev/protocol';
 
 const sessionId = 'same_session_id';
 const response = (archivedAt: number | null) => new Response(JSON.stringify({ success: true, archivedAt }));
@@ -56,6 +60,7 @@ describe('server-scoped session archive operations', () => {
     }
 
     beforeEach(() => {
+        metadataPatch.mockReset();
         storage.setState(storage.getInitialState(), true);
         serverA = upsertServerProfile({ serverUrl: 'https://archive-a.example' });
         serverB = upsertServerProfile({ serverUrl: 'https://archive-b.example' });
@@ -197,5 +202,63 @@ describe('server-scoped session archive operations', () => {
         activeResponse.mockResolvedValueOnce(new Response(JSON.stringify({ error: 'session-active' }), { status: 409 }));
         await expect(sessionArchiveWithServerScope(sessionId)).resolves.toMatchObject({ success: false, code: 'session_active' });
         expect(storage.getState().sessions[sessionId]).toBe(before);
+    });
+
+    it('runs the shared post-success seam for a manual archive without writing an automatic reason', async () => {
+        await expect(sessionArchiveWithServerScope(sessionId, { serverId: serverA.id }))
+            .resolves.toMatchObject({ success: true, archivedAt: 42 });
+        expect(metadataPatch).not.toHaveBeenCalled();
+    });
+
+    it('cannot read a same-id active session as proof of a foreign account archive reason', async () => {
+        storage.setState({ profileScope: { serverId: serverA.id, accountId: 'account-a' } });
+        const result = await afterSessionArchiveConfirmed({
+            sessionId, serverId: serverB.id, archivedAt: 42,
+            autoArchiveReason: { accountId: 'account-a', links: [{
+                providerKind: 'github', providerBaseUrl: 'https://github.com', repository: 'owner/repo',
+                number: 7, url: 'https://github.com/owner/repo/pull/7',
+            }], shouldContinue: () => true },
+        });
+        expect(result).toMatchObject({ historyRecorded: false, code: 'archive_reason_not_recorded' });
+        expect(metadataPatch).not.toHaveBeenCalled();
+    });
+
+    it('does not patch a replacement account session after an admitted automatic archive response', async () => {
+        const network = createDeferred<Response>();
+        activeResponse.mockReturnValueOnce(network.promise);
+        storage.setState({ profileScope: { serverId: serverA.id, accountId: 'account-a' } });
+        const reason = {
+            accountId: 'account-a',
+            links: [{ providerKind: 'github' as const, providerBaseUrl: 'https://github.com', repository: 'owner/repo',
+                number: 7, url: 'https://github.com/owner/repo/pull/7' }],
+            shouldContinue: () => storage.getState().profileScope?.accountId === 'account-a',
+            shouldArchive: () => storage.getState().profileScope?.accountId === 'account-a',
+        };
+        const result = sessionArchiveWithServerScope(sessionId, { serverId: serverA.id, autoArchiveReason: reason });
+        await vi.waitFor(() => expect(activeRequest).toHaveBeenCalledTimes(1));
+        const replacement = createSessionFixture({ id: sessionId, archivedAt: null, owner: 'account-b' });
+        storage.setState({ profileScope: { serverId: serverA.id, accountId: 'account-b' }, sessions: { [sessionId]: replacement },
+            sessionListRenderables: { [sessionId]: buildSessionListRenderableFromSession(replacement) } });
+        network.resolve(response(42));
+        await expect(result).resolves.toMatchObject({ success: true, historyRecorded: false });
+        expect(storage.getState().sessions[sessionId]).toBe(replacement);
+        expect(storage.getState().sessionListRenderables[sessionId]?.archivedAt).toBeNull();
+        expect(metadataPatch).not.toHaveBeenCalled();
+    });
+
+    it('keeps the encrypted automatic reason after the canonical unarchive operation', async () => {
+        const current = storage.getState().sessions[sessionId]!;
+        const link = { providerKind: 'github' as const, providerBaseUrl: 'https://github.com', repository: 'owner/repo',
+            number: 7, url: 'https://github.com/owner/repo/pull/7' };
+        storage.getState().applySessions([{ ...current, archivedAt: 42,
+            metadata: appendSessionAutoArchiveHistory(current.metadata!, {
+                trigger: 'all_linked_pull_requests_merged', archivedAt: 42, links: [link],
+            }),
+        }]);
+        activeResponse.mockImplementationOnce(async () => response(null));
+        await expect(sessionUnarchiveWithServerScope(sessionId, { serverId: serverA.id }))
+            .resolves.toMatchObject({ success: true, archivedAt: null });
+        expect(storage.getState().sessions[sessionId]?.archivedAt).toBeNull();
+        expect(readSessionAutoArchiveHistory(storage.getState().sessions[sessionId]?.metadata)[0]?.links).toEqual([link]);
     });
 });

@@ -57,6 +57,8 @@ export default React.memo(function SessionSettingsScreen() {
     const [sessionListBackgroundWorkAttentionMode, setSessionListBackgroundWorkAttentionMode] = useSettingMutable('sessionListBackgroundWorkAttentionModeV1');
     const [sessionListAttentionStandingDefault, setSessionListAttentionStandingDefault] = useSettingMutable('sessionListAttentionStandingDefaultV1');
     const [sessionReminderAutoClearOnOpen, setSessionReminderAutoClearOnOpen] = useSettingMutable('sessionReminderAutoClearOnOpen');
+    const [cleanupLocalResourcesOnArchive, setCleanupLocalResourcesOnArchive] = useSettingMutable('cleanupLocalResourcesOnArchive');
+    const [autoArchiveAfterLinkedPullRequestsMerge, setAutoArchiveAfterLinkedPullRequestsMerge] = useSettingMutable('autoArchiveAfterLinkedPullRequestsMerge');
     const [sessionListWorkingPlacementMode, setSessionListWorkingPlacementMode] = useSettingMutable('sessionListWorkingPlacementModeV1');
     const [workspacePathDisplayModeV1, setWorkspacePathDisplayModeV1] = useSettingMutable('workspacePathDisplayModeV1');
     const [workspaceFaviconsEnabled, setWorkspaceFaviconsEnabled] = useSettingMutable('workspaceFaviconsEnabled');
@@ -454,6 +456,30 @@ export default React.memo(function SessionSettingsScreen() {
                     subtitle={t('settingsSession.runtime.entrySubtitle')}
                     icon={<Icon name="terminal" size={29} color={theme.colors.accent.indigo} />}
                     onPress={() => router.push('/settings/session/runtime')}
+                />
+            </ItemGroup>
+
+            <ItemGroup
+                title={t('settingsSession.archiveAutomation.title')}
+                footer={t('settingsSession.archiveAutomation.footer')}
+            >
+                <Item
+                    testID="settings-session-autoArchiveLinkedPrs-item"
+                    title={t('settingsSession.archiveAutomation.autoArchiveTitle')}
+                    subtitle={t('settingsSession.archiveAutomation.autoArchiveSubtitle')}
+                    icon={<Icon name="archive" size={29} color={theme.colors.accent.blue} />}
+                    rightElement={<Switch testID="settings-session-autoArchiveLinkedPrs-toggle" value={autoArchiveAfterLinkedPullRequestsMerge === true} onValueChange={setAutoArchiveAfterLinkedPullRequestsMerge} />}
+                    showChevron={false}
+                    onPress={() => setAutoArchiveAfterLinkedPullRequestsMerge(autoArchiveAfterLinkedPullRequestsMerge !== true)}
+                />
+                <Item
+                    testID="settings-session-cleanupOnArchive-item"
+                    title={t('settingsSession.archiveAutomation.cleanupTitle')}
+                    subtitle={t('settingsSession.archiveAutomation.cleanupSubtitle')}
+                    icon={<Icon name="folder" size={29} color={theme.colors.accent.indigo} />}
+                    rightElement={<Switch testID="settings-session-cleanupOnArchive-toggle" value={cleanupLocalResourcesOnArchive === true} onValueChange={setCleanupLocalResourcesOnArchive} />}
+                    showChevron={false}
+                    onPress={() => setCleanupLocalResourcesOnArchive(cleanupLocalResourcesOnArchive !== true)}
                 />
             </ItemGroup>
 

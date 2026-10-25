@@ -23,7 +23,7 @@ describe.skipIf(process.platform === 'win32')('setup-floor managed replacement',
     const serviceVersion = join(root, 'running-service-version');
     const restartLog = join(root, 'restarts');
     await writeFile(serviceVersion, '0.2.12');
-    const processEnv = { ...process.env, HAPPIER_HOME_DIR: home, HAPPIER_BOOTSTRAP_CLI_PATH: '', HAPPIER_BOOTSTRAP_HAPPIER_PATH: '', HAPPIER_STACK_REPO_DIR: root, PATH: '' };
+    const processEnv = { ...process.env, HOME: root, USERPROFILE: root, HAPPIER_HOME_DIR: home, HAPPIER_BOOTSTRAP_CLI_PATH: '', HAPPIER_BOOTSTRAP_HAPPIER_PATH: '', HAPPIER_STACK_REPO_DIR: root, PATH: '' };
     async function payload(version: string, broken = false) {
       const payloadRoot = join(root, `payload-${version}`);
       await mkdir(join(payloadRoot, 'package-dist'), { recursive: true });

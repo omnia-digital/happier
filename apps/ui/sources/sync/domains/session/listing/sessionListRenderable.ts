@@ -1,5 +1,5 @@
 import type { Metadata, Session } from '@/sync/domains/state/storageTypes';
-import { readSessionTicketAssociation, type SessionTicketAssociationV1 } from '@happier-dev/protocol';
+import { readSessionTicketAssociation, readSessionPullRequestLinks, sessionPullRequestLinkKey, type SessionTicketAssociationV1, type SessionPullRequestsV1 } from '@happier-dev/protocol';
 import { resolveAgentIdFromSessionMetadata } from '@happier-dev/agents';
 import { computeHasUnreadActivity } from '@/sync/domains/messages/unread';
 import type {
@@ -46,6 +46,7 @@ export { derivePendingRequestFlagsFromAgentState } from '@/sync/domains/session/
 
 export interface SessionListRenderableMetadata {
     sessionTicketV1?: SessionTicketAssociationV1 | null;
+    sessionPullRequestsV1?: SessionPullRequestsV1 | null;
     name?: string;
     summaryText?: string | null;
     path: string;
@@ -64,6 +65,11 @@ export interface SessionListRenderableMetadata {
         pendingActivityAt: number;
         updatedAt: number;
     } | null;
+    /** Persisted goal work state, retained so session rows can show lifecycle status from sync. */
+    sessionWorkStateV1?: unknown;
+    /** Legacy goal metadata accepted by the canonical work-state reader. */
+    sessionGoalV1?: unknown;
+    codexGoalV1?: unknown;
     /**
      * What agent work is live in this session, projected once from the published agent-activity
      * headline.
@@ -236,6 +242,7 @@ export function deriveSessionListRenderableHasUnreadMessagesFromPatch(params: Re
 export function buildSessionListRenderableMetadata(metadata: Metadata | null | undefined): SessionListRenderableMetadata | null {
     if (!metadata) return null;
     const agentActivityEntries = readSessionAgentActivityEntriesFromMetadata(metadata);
+    const pullRequestLinks = readSessionPullRequestLinks(metadata);
     const directSessionV1 = (() : DirectSessionRenderableMetadata | null => {
         const candidate = metadata.directSessionV1;
         if (!candidate || typeof candidate !== 'object') return null;
@@ -271,6 +278,7 @@ export function buildSessionListRenderableMetadata(metadata: Metadata | null | u
     })();
     return {
         sessionTicketV1: readSessionTicketAssociation(metadata),
+        sessionPullRequestsV1: pullRequestLinks.length > 0 ? { v: 1, links: [...pullRequestLinks] } : null,
         name: typeof metadata.name === 'string' ? metadata.name : undefined,
         summaryText: typeof metadata.summary?.text === 'string' ? metadata.summary.text : null,
         path: typeof metadata.path === 'string' ? metadata.path : '',
@@ -280,11 +288,50 @@ export function buildSessionListRenderableMetadata(metadata: Metadata | null | u
         flavor: resolveAgentIdFromSessionMetadata(metadata),
         directSessionV1,
         readStateV1,
+        sessionWorkStateV1: metadata.sessionWorkStateV1,
+        sessionGoalV1: metadata.sessionGoalV1,
+        codexGoalV1: metadata.codexGoalV1,
         agentActivityCounts: deriveAgentActivityCounts(agentActivityEntries.map(toAgentActivityCountable)),
         agentActivityEntries,
         hiddenSystemSession: metadata.systemSessionV1?.hidden === true,
         terminalControlServiceabilityV1: metadata.terminal?.controlServiceabilityV1 ?? null,
     };
+}
+
+function readRecord(value: unknown): Record<string, unknown> | null {
+    return value && typeof value === 'object' && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : null;
+}
+
+/**
+ * Goal rows only depend on these persisted work-state fields. Keeping this comparison beside the
+ * metadata projection avoids making list rows subscribe to unrelated session metadata changes.
+ */
+function goalMetadataSignature(metadata: SessionListRenderableMetadata | null | undefined): string {
+    const snapshot = readRecord(metadata?.sessionWorkStateV1);
+    const items = Array.isArray(snapshot?.items) ? snapshot.items : [];
+    const goals = items.flatMap((value) => {
+        const item = readRecord(value);
+        if (!item || item.kind !== 'goal') return [];
+        return [[
+            item.id ?? null,
+            item.backendId ?? null,
+            item.status ?? null,
+            item.statusReason ?? null,
+            item.title ?? null,
+            item.updatedAt ?? null,
+        ]];
+    });
+    const legacyGoal = readRecord(metadata?.sessionGoalV1);
+    const legacyCodexGoal = readRecord(metadata?.codexGoalV1);
+    return JSON.stringify([
+        snapshot?.backendId ?? null,
+        snapshot?.primaryItemId ?? null,
+        goals,
+        legacyGoal ? [legacyGoal.objective ?? null, legacyGoal.title ?? null, legacyGoal.status ?? null, legacyGoal.statusReason ?? null, legacyGoal.updatedAt ?? null] : null,
+        legacyCodexGoal ? [legacyCodexGoal.objective ?? null, legacyCodexGoal.title ?? null, legacyCodexGoal.status ?? null, legacyCodexGoal.statusReason ?? null, legacyCodexGoal.updatedAt ?? null] : null,
+    ]);
 }
 
 export function buildSessionListRenderableFromSession(
@@ -517,6 +564,21 @@ function areSessionListTicketAssociationsEqual(previous: SessionTicketAssociatio
     return previous === next || JSON.stringify(previous ?? null) === JSON.stringify(next ?? null);
 }
 
+function areSessionListPullRequestsEqual(
+    previous: SessionPullRequestsV1 | null | undefined,
+    next: SessionPullRequestsV1 | null | undefined,
+): boolean {
+    if (previous === next) return true;
+    const left = previous?.links ?? [];
+    const right = next?.links ?? [];
+    return left.length === right.length && left.every((link, index) => {
+        const candidate = right[index];
+        return candidate !== undefined
+            && sessionPullRequestLinkKey(link) === sessionPullRequestLinkKey(candidate)
+            && link.url === candidate.url;
+    });
+}
+
 function areSessionListRenderableMetadataEqual(
     previous: SessionListRenderableMetadata | null | undefined,
     next: SessionListRenderableMetadata | null | undefined,
@@ -525,6 +587,7 @@ function areSessionListRenderableMetadataEqual(
     if (!previous || !next) return previous === next;
 
     return areSessionListTicketAssociationsEqual(previous.sessionTicketV1, next.sessionTicketV1)
+        && areSessionListPullRequestsEqual(previous.sessionPullRequestsV1, next.sessionPullRequestsV1)
         && (previous.name ?? null) === (next.name ?? null)
         && (previous.summaryText ?? null) === (next.summaryText ?? null)
         && previous.path === next.path
@@ -538,6 +601,7 @@ function areSessionListRenderableMetadataEqual(
         && (previous.readStateV1?.sessionSeq ?? null) === (next.readStateV1?.sessionSeq ?? null)
         && (previous.readStateV1?.pendingActivityAt ?? null) === (next.readStateV1?.pendingActivityAt ?? null)
         && (previous.readStateV1?.updatedAt ?? null) === (next.readStateV1?.updatedAt ?? null)
+        && goalMetadataSignature(previous) === goalMetadataSignature(next)
         && (previous.hiddenSystemSession === true) === (next.hiddenSystemSession === true);
 }
 
@@ -766,6 +830,7 @@ function areSessionListRenderableEmbeddedRowMetadataEqual(
     if (previous === next) return true;
     if (!previous || !next) return previous === next;
     return areSessionListTicketAssociationsEqual(previous.sessionTicketV1, next.sessionTicketV1)
+        && areSessionListPullRequestsEqual(previous.sessionPullRequestsV1, next.sessionPullRequestsV1)
         && (previous.name ?? null) === (next.name ?? null)
         && (previous.summaryText ?? null) === (next.summaryText ?? null)
         && previous.path === next.path
@@ -778,6 +843,7 @@ function areSessionListRenderableEmbeddedRowMetadataEqual(
         && (previous.readStateV1?.v ?? null) === (next.readStateV1?.v ?? null)
         && (previous.readStateV1?.sessionSeq ?? null) === (next.readStateV1?.sessionSeq ?? null)
         && (previous.readStateV1?.pendingActivityAt ?? null) === (next.readStateV1?.pendingActivityAt ?? null)
+        && goalMetadataSignature(previous) === goalMetadataSignature(next)
         && (previous.hiddenSystemSession === true) === (next.hiddenSystemSession === true);
 }
 

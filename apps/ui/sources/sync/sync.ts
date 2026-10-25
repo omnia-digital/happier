@@ -32,6 +32,7 @@ import {
 import { resolveSessionActionDefaultBackend } from '@/sync/domains/session/resolveSessionActionDefaultBackend';
 import { storage } from './domains/state/storage';
 import { ApiMessage } from './api/types/apiTypes';
+import { fetchStoredMessageCreatedAtByLocalId } from './api/session/sessionMessagesApi';
 import type { ApiEphemeralActivityUpdate } from './api/types/apiTypes';
 import { Session, Machine, MetadataSchema, type Metadata } from './domains/state/storageTypes';
 import { InvalidateSync } from '@/utils/sessions/sync';
@@ -312,6 +313,7 @@ import {
     type PreparedAccountSettingsForDaemonSpawn,
 } from './engine/settings/prepareAccountSettingsForDaemonSpawn';
 import { registerAccountSettingsDaemonSpawnPreparation } from './ops/accountSettingsDaemonSpawnPreparation';
+import { createSessionAutoArchiveObserver, SESSION_AUTO_ARCHIVE_CHECK_INTERVAL_MS } from './engine/sessions/sessionAutoArchiveObserver';
 import { getOfferings as getOfferingsEngine, presentPaywall as presentPaywallEngine, purchaseProduct as purchaseProductEngine, syncPurchases as syncPurchasesEngine } from './engine/purchases/syncPurchases';
 import { fetchChanges, fetchCurrentChangesCursor } from './api/session/apiChanges';
 import {
@@ -928,6 +930,7 @@ class Sync {
       private pendingOutboxRearmInFlightByScope = new Map<string, Promise<void>>();
       private readonly usesPersistentDesktopSync = isTauriDesktop();
       private isForeground = this.usesPersistentDesktopSync || AppState.currentState === 'active';
+      private sessionAutoArchiveObserver: ReturnType<typeof createSessionAutoArchiveObserver> | null = null;
       public encryptionCache = new EncryptionCache();
     private sessionsSync: InvalidateSync;
     private fetchSessionsInFlight: { generation: number; promise: Promise<void> } | null = null;
@@ -1085,6 +1088,7 @@ class Sync {
     private resumeAfterForegroundTransition(tag: string): void {
         const resume = this.resumeSync('app-foreground');
         fireAndForget(resume, { tag });
+        void resume.then(() => this.sessionAutoArchiveObserver?.recheck(), () => undefined);
         try {
             this.connectSocketWithPostSubscriptionCatchUp();
         } catch {
@@ -1177,7 +1181,9 @@ class Sync {
                 },
                 onOnline: () => {
                     queueMicrotask(() => {
-                        fireAndForget(this.resumeSync('server-reachable'), { tag: 'Sync.resumeSync.server-reachable' });
+                        const resume = this.resumeSync('server-reachable');
+                        fireAndForget(resume, { tag: 'Sync.resumeSync.server-reachable' });
+                        void resume.then(() => this.sessionAutoArchiveObserver?.recheck(), () => undefined);
                     });
                 },
             });
@@ -1986,6 +1992,10 @@ class Sync {
     }
 
     private resetServerScopedRuntimeState = () => {
+        // Organization projections are server-keyed, while their contents are account-owned.
+        // Clear the active Home before another account can restore a version-gated warm cache.
+        const activeServerId = String(getActiveServerSnapshot().serverId ?? '').trim();
+        if (activeServerId) storage.getState().clearSessionOrganizationForServer(activeServerId);
         this.changesCatchUpQueuedAfterResume = false;
         this.postSubscriptionChangesCatchUpPending = false;
         this.sessionDraftSyncEnabled = false;
@@ -2161,6 +2171,22 @@ class Sync {
 
     async #init() {
 
+        if (!this.sessionAutoArchiveObserver) {
+            this.sessionAutoArchiveObserver = createSessionAutoArchiveObserver({
+                checkIntervalMs: SESSION_AUTO_ARCHIVE_CHECK_INTERVAL_MS,
+                maxConcurrentCandidates: this.syncTuning.sessionListHydrationConcurrencyLimit,
+                isForeground: () => {
+                    if (!this.isForeground || this.pauseController.isPaused() || AppState.currentState !== 'active') return false;
+                    const doc = (globalThis as { document?: { visibilityState?: string } }).document;
+                    return doc?.visibilityState !== 'hidden';
+                },
+                ensureMetadata: async (sessionId, serverId, shouldContinue, forceRefresh) => {
+                    const [result] = await this.ensureSessionListMetadata([{ sessionId, serverId, forceRefresh }], shouldContinue);
+                    return result?.kind === 'available';
+                },
+            });
+        }
+
         // Subscribe to updates
         if (!this.updatesSubscribed) {
             this.subscribeToUpdates();
@@ -2265,7 +2291,7 @@ class Sync {
 
         /** Status views need metadata before a catalog row becomes visible. Reuse the scoped shell loader. */
         public ensureSessionListMetadata = async (
-            candidates: readonly Readonly<{ sessionId: string; serverId?: string | null }>[],
+            candidates: readonly Readonly<{ sessionId: string; serverId?: string | null; forceRefresh?: boolean }>[],
             shouldContinue: () => boolean,
         ): Promise<Array<EnsureSessionVisibleForRouteResult | null>> => {
             const generation = this.serverScopeGeneration;
@@ -2275,7 +2301,10 @@ class Sync {
                 // Foreign Home lists are already fully hydrated by concurrentSessionCache. Its
                 // scoped list publication must never enter the active session/route store here.
                 if (candidate.serverId && !areServerProfileIdentifiersEquivalent(candidate.serverId, activeServerId)) return null;
-                return this.ensureSessionVisibleForMessageRoute(candidate.sessionId, { serverId: candidate.serverId ?? undefined, refreshMessages: false });
+                return this.ensureSessionVisibleForMessageRoute(candidate.sessionId, {
+                    serverId: candidate.serverId ?? undefined, refreshMessages: false,
+                    forceRefresh: candidate.forceRefresh === true,
+                });
             })));
         };
 
@@ -2498,6 +2527,55 @@ class Sync {
             this.sessionDataKeyEnvelopes.set(sessionId, stagedEnvelope);
         } else {
             this.sessionDataKeyEnvelopes.delete(sessionId);
+        }
+    }
+
+    private async applyAcknowledgedOutgoingMessage(params: Readonly<{
+        sessionId: string;
+        localId: string;
+        ack: Extract<MessageAckResponse, { ok: true }>;
+        rawRecord: RawRecord;
+        isCurrent: () => boolean;
+    }>): Promise<void> {
+        if (!params.isCurrent()) return;
+
+        let createdAt = params.ack.createdAt;
+        if (createdAt === undefined) {
+            try {
+                createdAt = await fetchStoredMessageCreatedAtByLocalId({
+                    sessionId: params.sessionId,
+                    localId: params.localId,
+                    acknowledgedId: params.ack.id,
+                    acknowledgedSeq: params.ack.seq,
+                    assertCurrent: () => {
+                        if (!params.isCurrent()) throw new Error('Message lookup scope expired');
+                    },
+                });
+            } catch (error) {
+                if (!params.isCurrent()) return;
+                // The ACK proves persistence, but an older server does not provide its stored time.
+                // Keep the accepted projection until ordinary transcript catch-up supplies the row.
+                const pending = storage.getState().sessionPending[params.sessionId]?.messages
+                    ?.find((message) => message.id === params.localId);
+                if (pending) {
+                    storage.getState().upsertPendingMessage(params.sessionId, {
+                        ...pending,
+                        deliveryStatus: 'accepted',
+                        sendState: undefined,
+                        updatedAt: nowServerMs(),
+                    });
+                }
+                console.warn('[sync] Stored message time unavailable after ACK; retaining accepted projection', error);
+                return;
+            }
+        }
+
+        if (!params.isCurrent()) return;
+        const committed = normalizeRawMessage(params.ack.id, params.localId, createdAt, params.rawRecord, { seq: params.ack.seq });
+        if (committed) {
+            // The store atomically retires the pending projection when its committed twin arrives.
+            this.applyMessages(params.sessionId, [committed]);
+            this.markSessionAckedMessageSeq(params.sessionId, params.ack.seq);
         }
     }
 
@@ -2740,23 +2818,16 @@ class Sync {
                 throw new Error(ack.error || 'Message send rejected');
             }
 
-            // Message is committed. Insert it into the canonical transcript without waiting for
-            // broadcast updates, which can be missed on backgrounded devices. `applyMessages`
-            // retires the matching pending projection in the SAME store update, so the transcript
-            // never publishes a frame with neither row; a standalone removal here would be a
-            // second writer for the same retirement.
-            const committed = normalizeRawMessage(ack.id, localId, createdAt, content, { seq: ack.seq });
-            if (committed) {
-                this.applyMessages(sessionId, [committed]);
-            } else {
-                storage.getState().removePendingMessage(sessionId, localId);
-            }
-            this.markSessionAckedMessageSeq(sessionId, ack.seq);
+            const isSendScopeCurrent = () => isPermissionPublicationScopeCurrent()
+                && areServerAccountScopesEqual(getActiveServerAccountScope(), permissionPublicationScope);
+            await this.applyAcknowledgedOutgoingMessage({ sessionId, localId, ack, rawRecord: content, isCurrent: isSendScopeCurrent });
+            const committedResult = { localId, seq: ack.seq, persistence: 'transcript_committed' as const };
+            if (!isSendScopeCurrent()) return committedResult;
 
             // If we miss the broadcast socket update, we still need to advance session.seq so
             // catch-up (`afterSeq`) works correctly across reconnects.
             const currentSession = storage.getState().sessions[sessionId];
-            if (currentSession) {
+            if (currentSession && isSendScopeCurrent()) {
                 this.applySessions([
                     {
                         ...currentSession,
@@ -2771,6 +2842,7 @@ class Sync {
             // we publish the newer local selection as the session-wide permission mode so it propagates
 	            // across devices.
 	            await publishNextPromptPermissionModeIfNeeded();
+	            if (!isSendScopeCurrent()) return committedResult;
 
             if (session.active !== true || runtimeRpcFallbackRequiresWake) {
                 ensureSessionRuntimeAfterCommittedPrompt({
@@ -2787,7 +2859,7 @@ class Sync {
             // We clear optimistic thinking only when we see a terminal lifecycle marker,
             // when the session enters a permission/action-required gate, when the session is marked thinking by live
             // activity updates, or when the optimistic timeout expires.
-            return { localId, seq: ack.seq, persistence: 'transcript_committed' as const };
+            return committedResult;
         } catch (e) {
             if (isTerminalAuthError(e)) {
                 recordTerminalAuthSyncError(e);
@@ -2955,6 +3027,10 @@ class Sync {
                 permissionMode: 'default',
                 messageRole: 'user' as const,
             };
+            const retryScope = getActiveServerAccountScope();
+            const isRetryScopeCurrent = this.createServerScopeGuard();
+            const isCurrent = () => isRetryScopeCurrent()
+                && areServerAccountScopesEqual(getActiveServerAccountScope(), retryScope);
 
             let terminalAuthFailure = false;
             const rawAck = await (async () => {
@@ -2989,17 +3065,16 @@ class Sync {
             const ack = rawAck ? MessageAckResponseSchema.safeParse(rawAck) : null;
 
             if (ack?.success && ack.data.ok === true) {
-                // `applyMessages` retires the matching pending projection in the same store update.
-                const committed = normalizeRawMessage(ack.data.id, params.localId, pending.createdAt, rawRecord, { seq: ack.data.seq });
-                if (committed) {
-                    this.applyMessages(params.sessionId, [committed]);
-                } else {
-                    storage.getState().removePendingMessage(params.sessionId, params.localId);
-                }
-                this.markSessionAckedMessageSeq(params.sessionId, ack.data.seq);
+                await this.applyAcknowledgedOutgoingMessage({
+                    sessionId: params.sessionId,
+                    localId: params.localId,
+                    ack: ack.data,
+                    rawRecord,
+                    isCurrent,
+                });
 
                 const currentSession = storage.getState().sessions[params.sessionId];
-                if (currentSession) {
+                if (currentSession && isCurrent()) {
                     this.applySessions([
                         {
                             ...currentSession,
@@ -4095,8 +4170,8 @@ class Sync {
         if (organizationSnapshotRefresh) {
             if (hasLastKnownOrganizationSnapshot) {
                 void organizationSnapshotRefresh
-                    .then(() => {
-                        if (!shouldContinue()) return;
+                    .then((applied) => {
+                        if (!applied || !shouldContinue()) return;
                         persistSessionOrganizationWarmCache(
                             activeServerId,
                             warmCacheAccountId,

@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -80,7 +80,7 @@ afterEach(() => {
 
 describe('buildCliDist build-owned directory cleanup', () => {
   it('retries a transient ENOTEMPTY while reclaiming an abandoned source generation', async () => {
-    const packageRoot = createTempDirSync('happier-cli-build-transient-cleanup-');
+    const packageRoot = realpathSync.native(createTempDirSync('happier-cli-build-transient-cleanup-'));
     const abandonedSourceDir = join(packageRoot, '.tmp.hstack-cli-build-source.abandoned');
     try {
       writeRuntimeManifest(packageRoot);

@@ -36,6 +36,7 @@ export function createEndpointSupervisedRequest(params: Readonly<{
     serverUrl: string;
     token?: string | null;
     endpointSupervisor?: ManagedEndpointSupervisor | null;
+    assertCurrent?: () => void;
 }>): (path: string, init: RequestInit) => Promise<Response> {
     const serverUrl = String(params.serverUrl ?? '').trim().replace(/\/+$/, '');
     const baseUrlParsed = tryParseUrl(serverUrl);
@@ -88,6 +89,7 @@ export function createEndpointSupervisedRequest(params: Readonly<{
 
             let response: Response;
             try {
+                params.assertCurrent?.();
                 response = await runtimeFetch(requestUrl, {
                     ...init,
                     headers,

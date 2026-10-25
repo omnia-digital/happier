@@ -13,10 +13,11 @@ import { normalizeSessionPathForProjectGrouping } from '@/sync/domains/session/l
 export type RepositoryDiscoveryWorkspace = Readonly<{ serverId: string; machineId: string; path: string }>;
 export type RepositoryDiscoveryFailure = Readonly<{ workspace: RepositoryDiscoveryWorkspace; error: unknown }>;
 
-/** Invoked by explicit view selection/Refresh only; mounting or restoring a view does no discovery. */
+/** Shared discovery owner for explicit refresh/selection and newly arriving workspaces. */
 export async function discoverSessionRepositories(input: Readonly<{
     workspaces: readonly RepositoryDiscoveryWorkspace[];
     refresh?: boolean;
+    verifyNewWorkspace?: boolean;
     isCurrent: () => boolean;
 }>): Promise<RepositoryDiscoveryFailure[]> {
     const failures: RepositoryDiscoveryFailure[] = [];
@@ -33,7 +34,9 @@ export async function discoverSessionRepositories(input: Readonly<{
             visited.add(key);
             const previous = readRepositoryAssociation(storage.getState().localSettings.sessionRepositoryAssociationsV1, workspace);
             if (!input.refresh && (previous?.manual || previous?.identity)) continue;
-            const cached = input.refresh ? null : scmRepositoryService.readCachedSnapshotForMachinePath({ ...workspace, scope });
+            // An arriving worktree may lie beneath a cached root but be absent from
+            // that older snapshot's worktree list. Read the new cwd from the daemon.
+            const cached = input.refresh || input.verifyNewWorkspace ? null : scmRepositoryService.readCachedSnapshotForMachinePath({ ...workspace, scope });
             const snapshot = cached ?? await scmRepositoryService.fetchSnapshotForMachinePath({ ...workspace, scope });
             if (!input.isCurrent()) break;
             if (!snapshot) throw new Error('Repository snapshot is unavailable');

@@ -339,6 +339,7 @@ const AgentStateObjectSchema = z.object({
         canDetach: z.boolean().nullish(),
     }).nullish(),
     requests: z.record(z.string(), z.object({
+        occurrenceId: z.string().optional(),
         tool: z.string(),
         kind: z.string().optional(),
         source: z.string().optional(),
@@ -501,6 +502,9 @@ export interface Session {
         contextWindowTokens?: number;
         timestamp: number;
     } | null;
+    // In-memory ownership evidence from an authenticated direct v2 detail read. Never warm-cached.
+    // Separate from share roles/owner below: populating either for an owner changes existing UI semantics.
+    authenticatedOwnerAccountId?: string;
     // Sharing-related fields
     owner?: string; // User ID of the session owner (for shared sessions)
     ownerProfile?: {

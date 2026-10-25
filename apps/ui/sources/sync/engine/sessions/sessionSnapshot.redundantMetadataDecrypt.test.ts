@@ -11,9 +11,15 @@ import {
 import type { Session } from '@/sync/domains/state/storageTypes';
 import { syncPerformanceTelemetry } from '@/sync/runtime/syncPerformanceTelemetry';
 import type { V2SessionRecord } from '@happier-dev/protocol';
+import { buildSessionListRowModel } from '@/components/sessions/shell/row/buildSessionListRowModel';
+import type { SessionListRowPresentationSettings } from '@/components/sessions/shell/row/sessionListRowModelTypes';
 
 import { fetchAndApplySessions, type SessionListEncryption } from './sessionSnapshot';
-import { buildSessionListCacheEntryFromRenderable } from '@/sync/domains/state/warmCacheAdapters';
+import {
+    buildSessionListCacheEntryFromRenderable,
+    buildSessionListRenderableFromCacheEntry,
+} from '@/sync/domains/state/warmCacheAdapters';
+import { SessionListCacheEntryV1Schema } from '@/sync/domains/state/warmCachePersistence';
 import { createSessionFixture } from '@/dev/testkit';
 
 vi.mock('@/voice/context/voiceHooks', () => ({
@@ -31,6 +37,57 @@ vi.mock('@/sync/domains/server/serverRuntime', () => ({
 
 const SESSION_ID = 'session_redundant_decrypt';
 const CREATED_AT = 1_699_000_000_000;
+
+function buildGoalRowModel(session: SessionListRenderableSession) {
+    return buildSessionListRowModel({
+        item: {
+            type: 'session',
+            session,
+            section: 'active',
+            groupKey: 'test-group',
+            groupKind: 'project',
+            serverId: 'test',
+            serverName: 'Test',
+        },
+        state: { renderable: session },
+        isFirst: true,
+        isLast: true,
+        isSingle: true,
+        settings: {
+            currentUserId: null,
+            density: 'default',
+            compact: false,
+            compactMinimal: false,
+            identityDisplay: 'none',
+            activeColorMode: 'activityAndAttention',
+            workingIndicatorMode: 'spinner',
+            workingTextMode: 'static',
+            hideInactiveSessions: false,
+            showServerBadge: false,
+            showPinnedServerBadge: true,
+            agentActivityCountEnabled: false,
+            tagsEnabled: false,
+            sessionTagsByKey: {},
+            allKnownTags: [],
+            pinnedSessionKeys: [],
+            attentionStandingEnabled: false,
+            attentionStandingPolicy: { defaultStanding: false, overridesBySessionKey: {} },
+            hasMultipleMachines: false,
+            reachableSessionDisplayByKey: {},
+            folderViewEnabled: true,
+            relativeNowMs: CREATED_AT,
+            runtimeNowMs: CREATED_AT,
+            statusColors: {
+                connected: 'connected',
+                connecting: 'connecting',
+                actionRequired: 'actionRequired',
+                disconnected: 'disconnected',
+                error: 'error',
+                default: 'default',
+            },
+        } satisfies SessionListRowPresentationSettings,
+    });
+}
 
 it('preserves a persisted ticket association in the initial snapshot projection before metadata hydration', async () => {
     const association = { v: 1 as const, ticket: { v: 1 as const, provider: 'linear' as const, workspaceId: 'fixture', ticketId: 'id-1', key: 'DEV-1', title: 'Fixture', url: 'https://linear.app/fixture/issue/DEV-1' }, reader: { machineId: 'machine', mcpServerId: 'source', directory: '/repo' } };
@@ -267,6 +324,91 @@ afterEach(() => {
 });
 
 describe('session-list snapshot metadata decryption', () => {
+    it('hydrates a visible inactive completed goal from encrypted snapshot data outside the eager budget after warm-cache reload', async () => {
+        const completedGoal = {
+            v: 1,
+            backendId: 'codex',
+            updatedAt: CREATED_AT,
+            primaryItemId: 'goal:codex',
+            items: [{
+                id: 'goal:codex',
+                kind: 'goal',
+                origin: 'vendor',
+                status: 'complete',
+                title: 'Persisted completed goal',
+                updatedAt: CREATED_AT,
+            }],
+        };
+        const cachedSession = createSessionFixture({
+            id: SESSION_ID,
+            metadataVersion: 3,
+            active: false,
+            metadata: { path: '/repo', host: 'host', sessionWorkStateV1: completedGoal } as Session['metadata'],
+        });
+        const cachedEntry = SessionListCacheEntryV1Schema.parse(JSON.parse(JSON.stringify(
+            buildSessionListCacheEntryFromRenderable(buildSessionListRenderableFromSession(cachedSession)),
+        )));
+        const reloadedRenderable = buildSessionListRenderableFromCacheEntry(cachedEntry);
+        expect(buildGoalRowModel(reloadedRenderable).goalIndicator).toMatchObject({
+            status: 'complete',
+            title: 'Persisted completed goal',
+        });
+        const store = createStoreHarness();
+        store.applySessionListRenderables([reloadedRenderable]);
+        const decryptCounter = { count: 0 };
+        const sessionEncryption = {
+            decryptMetadata: async () => ({}),
+            decryptAgentState: async () => ({}),
+            decryptSessionSnapshotState: async () => {
+                decryptCounter.count += 1;
+                return {
+                    metadata: { path: '/repo', host: 'host', sessionWorkStateV1: completedGoal },
+                    agentState: {},
+                };
+            },
+        };
+        const encryption: SessionListEncryption = {
+            decryptEncryptionKeys: async (values) => values.map(() => null),
+            initializeSessions: async () => {},
+            removeSessionEncryption: () => {},
+            getSessionEncryption: () => sessionEncryption,
+        };
+
+        await fetchAndApplySessions({
+            serverId: 'test',
+            credentials: { token: 't', secret: 's' } as AuthCredentials,
+            encryption,
+            sessionDataKeys: new Map([[SESSION_ID, new Uint8Array(32)]]),
+            cachedSessionListEntries: { [SESSION_ID]: cachedEntry },
+            request: async () => jsonResponse({
+                sessions: [{ ...buildEncryptedRow({ ...FIRST, metadataVersion: 4 }), active: false }],
+                nextCursor: null,
+                hasNext: false,
+            }),
+            getExistingSession: () => null,
+            getCurrentSessionListRenderable: (sessionId) => store.renderables.get(sessionId) ?? null,
+            applySessionListRenderables: store.applySessionListRenderables,
+            applySessionListRenderablePatches: store.applySessionListRenderablePatches,
+            applySessions: store.applySessions,
+            activeSessionIds: [SESSION_ID],
+            sessionListEagerHydrationCount: 0,
+            sessionListBackgroundHydrationMaxRows: 0,
+            sessionListBackgroundHydrationApplyFlushDelayMs: 0,
+            sessionListBackgroundHydrationYieldDelayMs: 0,
+            repairInvalidReadStateV1: async () => {},
+            log: { log: () => {} },
+        });
+        await settleBackgroundHydration();
+
+        expect(reloadedRenderable.active).toBe(false);
+        expect(decryptCounter.count).toBe(1);
+        expect(store.renderables.get(SESSION_ID)?.metadata?.sessionWorkStateV1).toEqual(completedGoal);
+        expect(buildGoalRowModel(store.renderables.get(SESSION_ID)!).goalIndicator).toMatchObject({
+            status: 'complete',
+            title: 'Persisted completed goal',
+        });
+    });
+
     it('keeps plain sessions readable when a keyless account also has unavailable encrypted history', async () => {
         const encrypted = { ...buildEncryptedRow(FIRST), dataEncryptionKey: 'unavailable-history-key' };
         const metadata = { path: '/plain/project', host: 'plain-host' };

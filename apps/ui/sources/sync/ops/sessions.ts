@@ -11,7 +11,7 @@ import { readForkSessionRpcTimeoutMsFromEnv, readSpawnSessionRpcTimeoutMsFromEnv
 import { randomUUID } from '@/platform/randomUUID';
 import { storage } from '../domains/state/storage';
 import { getActiveServerSnapshot } from '@/sync/domains/server/serverRuntime';
-import { areServerProfileIdentifiersEquivalent } from '@/sync/domains/server/serverProfiles';
+import { areServerProfileIdentifiersEquivalent, getActiveServerId } from '@/sync/domains/server/serverProfiles';
 import { resolveSessionArchiveServerId } from '@/sync/domains/session/listing/sessionArchiveState';
 import { readMachineDaemonCliVersionForServerScope } from '../domains/machines/readMachineDaemonCliVersionForServerScope';
 import { nowServerMs } from '../runtime/time';
@@ -21,7 +21,9 @@ import { emitSessionMetadataUpdateWithServerScope } from '@/sync/runtime/orchest
 import { resolvePreferredServerIdForSessionId } from '@/sync/runtime/orchestration/serverScopedRpc/resolvePreferredServerIdForSessionId';
 import { resolveServerScopedSessionContext } from '@/sync/runtime/orchestration/serverScopedRpc/resolveServerScopedSessionContext';
 import { sessionRpcWithPreferredSessionScope } from '@/sync/runtime/orchestration/serverScopedRpc/sessionRpcWithPreferredSessionScope';
-import { sessionRpcWithServerScope } from '@/sync/runtime/orchestration/serverScopedRpc/serverScopedSessionRpc';
+import { sessionRpcWithServerScope, sessionRpcWithServerAccountScope } from '@/sync/runtime/orchestration/serverScopedRpc/serverScopedSessionRpc';
+import { getActiveServerAccountScope } from '@/sync/domains/scope/activeServerAccountScope';
+import { areServerAccountScopesEqual, createServerAccountScope, type ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import { runtimeFetchWithServerReachability } from '@/sync/runtime/connectivity/serverReachabilityRuntimeFetch';
 import type {
     LlmTaskRunnerConfigV1,
@@ -35,9 +37,12 @@ import type {
     SessionInitialGoalRequestV1,
     SpawnSessionResult,
     SendableAskUserQuestionAnswerPayload,
+    SessionPullRequestLinkV1,
 } from '@happier-dev/protocol';
 import { ConnectedServiceAuthSelectionUnsupportedError, machineRpcWithConnectedServiceAuthAdmission } from './connectedServiceAuthSupport';
 import {
+    appendSessionAutoArchiveHistory,
+    readSessionAutoArchiveHistory,
     SessionForkRpcResultSchema,
     SessionRollbackRpcResultSchema,
     SessionAuthoringValueV1Schema,
@@ -52,6 +57,7 @@ import { readMachineControlTargetForSession } from './sessionMachineTarget';
 import { stopSessionUsingCanonicalStrategy } from './sessionStopStrategy';
 import type { Metadata } from '../domains/state/storageTypes';
 import { getSyncSingleton } from '@/sync/runtime/getSyncSingleton';
+import { applySessionThinkingDecisionRecovery, dispatchSessionPermissionDecision, isSessionPermissionDecisionAccepted, type SessionPermissionRequest } from './sessionPermissionDecision';
 import { supportsSessionForkRequestId } from '@/utils/system/versionUtils';
 import { throwIfSessionArchiveAborted, withSessionArchiveDeadline, type SessionArchiveRequestOptions } from './sessionArchiveLifecycle';
 import { AsyncTimeoutError } from '@/utils/timing/time';
@@ -91,29 +97,6 @@ export {
     sessionScmStashPop,
     sessionScmStashShow,
 } from './sessionScm';
-
-// Permission operation types
-interface SessionPermissionRequest {
-    id: string;
-    approved: boolean;
-    reason?: string;
-    mode?: 'default' | 'acceptEdits' | 'bypassPermissions' | 'plan';
-    allowedTools?: string[];
-    decision?: 'approved' | 'approved_for_session' | 'approved_execpolicy_amendment' | 'denied' | 'abort';
-    execPolicyAmendment?: {
-        command: string[];
-    };
-    /**
-     * Optional permission updates to apply inside the agent runtime (provider-specific).
-     * This is used to accept provider-suggested permission changes (e.g. Claude Agent SDK `permission_suggestions`).
-     */
-    updatedPermissions?: unknown;
-    /**
-     * AskUserQuestion: structured answers keyed by question text.
-     * When present, the agent can complete the tool call without requiring a follow-up user message.
-     */
-    answers?: Record<string, string>;
-}
 
 // Mode change operation types
 interface SessionModeChangeRequest {
@@ -540,15 +523,22 @@ export async function rollbackSessionConversation(options: Readonly<{
     }
 }
 
-export async function sessionAbort(sessionId: string): Promise<void> {
+export async function sessionAbort(sessionId: string, options?: Readonly<{ scope: ServerAccountScope }>): Promise<void> {
+    const recoveryScope = options?.scope ?? getActiveServerAccountScope();
+    const serverId = options?.scope.serverId ?? resolvePreferredServerIdForSessionId(sessionId);
     try {
-        await sessionRpcWithPreferredSessionScope<void, { reason: string }>({
+        const request = {
             sessionId,
             method: 'abort',
             payload: {
             reason: `The user doesn't want to proceed with this tool use. The tool use was rejected (eg. if it was a file edit, the new_string was NOT written to the file). STOP what you are doing and wait for the user to tell you how to proceed.`
             },
-        });
+        };
+        if (options?.scope) {
+            await sessionRpcWithServerAccountScope({ ...request, scope: options.scope });
+        } else {
+            await sessionRpcWithPreferredSessionScope(request);
+        }
     } catch (e) {
         const errorCode = readSessionRpcErrorCode(e);
         if (
@@ -577,20 +567,55 @@ export async function sessionAbort(sessionId: string): Promise<void> {
 
     // Best-effort local UX recovery: aborts should immediately return the session to non-thinking state
     // even if lifecycle events arrive out of order or providers publish intermittent thinking=false.
-    const session = storage.getState().sessions[sessionId];
-    storage.getState().clearSessionOptimisticThinking(sessionId);
-    storage.getState().clearSessionThinkingGrace(sessionId);
-    if (!session || session.thinking !== true) {
-        return;
+    const activeScope = getActiveServerAccountScope();
+    if ((recoveryScope ? areServerAccountScopesEqual(recoveryScope, activeScope) : activeScope === null)
+        && (!serverId || areServerProfileIdentifiersEquivalent(serverId, getActiveServerId()))) {
+        applySessionThinkingDecisionRecovery(sessionId);
     }
+}
 
-    storage.getState().applySessions([
-        {
-            ...session,
-            thinking: false,
-            updatedAt: nowServerMs(),
-        },
-    ]);
+/** An accepted CLI response is required before foreground permission controls settle. */
+export async function sessionRespondToPermission(params: Readonly<{
+    sessionId: string;
+    request: SessionPermissionRequest;
+    serverId?: string | null;
+    permissionModeAfterStop?: PermissionMode;
+}>): Promise<unknown> {
+    const stopsRun = params.request.approved === false && params.request.decision === 'abort';
+    let stopScope: ServerAccountScope | null = null;
+    if (stopsRun) {
+        const serverId = params.serverId ?? resolvePreferredServerIdForSessionId(params.sessionId);
+        const activeScope = getActiveServerAccountScope();
+        if (activeScope && (!serverId || areServerProfileIdentifiersEquivalent(serverId, activeScope.serverId))) {
+            stopScope = activeScope;
+        } else {
+            const context = await resolveServerScopedSessionContext({ serverId, preferScoped: true });
+            if (context.scope !== 'scoped') throw new Error('Permission Stop requires an authenticated session account');
+            stopScope = createServerAccountScope(context.targetServerId, context.targetAccountId);
+        }
+        if (!stopScope) throw new Error('Permission Stop requires an authenticated session account');
+    }
+    const result = await dispatchSessionPermissionDecision({
+        sessionId: params.sessionId,
+        request: params.request,
+        ...(stopScope ? { target: { scope: stopScope } } : params.serverId !== undefined ? { target: { serverId: params.serverId } } : {}),
+    });
+    if (!isSessionPermissionDecisionAccepted(result)) {
+        const rejection = typeof result === 'object' && result !== null ? result as Record<string, unknown> : null;
+        throw createRpcCallError({
+            error: rejection?.ok === false
+                ? typeof rejection.errorMessage === 'string' ? rejection.errorMessage : 'Permission response was rejected'
+                : 'Permission RPC returned an invalid response',
+            errorCode: typeof rejection?.errorCode === 'string' ? rejection.errorCode : undefined,
+        });
+    }
+    if (stopScope) {
+        await sessionAbort(params.sessionId, { scope: stopScope });
+        if (params.permissionModeAfterStop && areServerAccountScopesEqual(stopScope, getActiveServerAccountScope())) {
+            storage.getState().updateSessionPermissionMode(params.sessionId, params.permissionModeAfterStop);
+        }
+    }
+    return result;
 }
 
 /**
@@ -612,11 +637,7 @@ export async function sessionAllow(
         decision,
         execPolicyAmendment
     };
-    await sessionRpcWithPreferredSessionScope<void, SessionPermissionRequest>({
-        sessionId,
-        method: 'permission',
-        payload: request,
-    });
+    await sessionRespondToPermission({ sessionId, request });
 }
 
 /**
@@ -643,11 +664,7 @@ export async function sessionAllowWithPermissionUpdates(
         decision: params.decision,
         updatedPermissions: params.updatedPermissions,
     };
-    await sessionRpcWithPreferredSessionScope<void, SessionPermissionRequest>({
-        sessionId,
-        method: 'permission',
-        payload: request,
-    });
+    await sessionRespondToPermission({ sessionId, request });
 }
 
 /**
@@ -670,11 +687,7 @@ export async function sessionAllowWithAnswers(
         return;
     }
     const request: SessionPermissionRequest = { id, approved: true, answers: { ...payload.answers } };
-    await sessionRpcWithPreferredSessionScope<void, SessionPermissionRequest>({
-        sessionId,
-        method: SESSION_RPC_METHODS.SESSION_PERMISSION_RESPOND_LEGACY,
-        payload: request,
-    });
+    await sessionRespondToPermission({ sessionId, request });
 }
 
 /**
@@ -689,28 +702,7 @@ export async function sessionDeny(
     reason?: string,
 ): Promise<void> {
     const request: SessionPermissionRequest = { id, approved: false, mode, allowedTools, decision, reason };
-    await sessionRpcWithPreferredSessionScope<void, SessionPermissionRequest>({
-        sessionId,
-        method: 'permission',
-        payload: request,
-    });
-
-    // Best-effort local UX recovery: deny/abort decisions should immediately return
-    // the session to non-thinking state even if lifecycle events arrive out of order.
-    const session = storage.getState().sessions[sessionId];
-    storage.getState().clearSessionOptimisticThinking(sessionId);
-    storage.getState().clearSessionThinkingGrace(sessionId);
-    if (!session || session.thinking !== true) {
-        return;
-    }
-
-    storage.getState().applySessions([
-        {
-            ...session,
-            thinking: false,
-            updatedAt: nowServerMs(),
-        },
-    ]);
+    await sessionRespondToPermission({ sessionId, request });
 }
 
 /**
@@ -816,6 +808,65 @@ export interface SessionArchiveResponse {
     archivedAt?: number | null;
     message?: string;
     code?: string;
+    /** A successful server archive may outlive an encrypted metadata write. */
+    historyRecorded?: boolean;
+}
+
+type AutoArchiveHistoryReason = Readonly<{
+    accountId: string;
+    links: readonly SessionPullRequestLinkV1[];
+    shouldContinue: () => boolean;
+}>;
+
+type AutoArchiveReason = AutoArchiveHistoryReason & Readonly<{
+    /** Revalidates this write admission immediately before the outbound archive POST. */
+    shouldArchive: () => boolean;
+}>;
+
+function assertAutoArchiveAdmissionCurrent(reason: AutoArchiveReason | undefined): void {
+    if (reason && !reason.shouldArchive()) {
+        const error = new Error('Archive admission is no longer current');
+        error.name = 'AbortError';
+        throw error;
+    }
+}
+
+function isAutoArchiveReasonScopeCurrent(serverId: string, accountId: string): boolean {
+    const state = storage.getState();
+    return areServerAccountScopesEqual(state.profileScope, { serverId, accountId })
+        && areServerProfileIdentifiersEquivalent(serverId, getActiveServerSnapshot().serverId);
+}
+
+/** The single confirmed-archive seam used by manual, bulk and automatic callers. */
+export async function afterSessionArchiveConfirmed(input: Readonly<{
+    sessionId: string;
+    serverId: string;
+    archivedAt: number | null;
+    autoArchiveReason?: AutoArchiveHistoryReason;
+}>): Promise<Pick<SessionArchiveResponse, 'historyRecorded' | 'code' | 'message'>> {
+    if (!input.autoArchiveReason) return {};
+    const reason = input.autoArchiveReason;
+    if (!input.archivedAt || !reason.shouldContinue() || !isAutoArchiveReasonScopeCurrent(input.serverId, reason.accountId)) {
+        return { historyRecorded: false, code: 'archive_reason_not_recorded', message: 'Archived, but the automatic archive reason could not be saved.' };
+    }
+    try {
+        await getSyncSingleton().patchSessionMetadataWithRetry(input.sessionId, (metadata) => appendSessionAutoArchiveHistory(metadata, {
+            trigger: 'all_linked_pull_requests_merged',
+            archivedAt: input.archivedAt!,
+            links: [...reason.links],
+        }), { serverId: input.serverId, accountId: reason.accountId, shouldContinue: reason.shouldContinue });
+        const currentSession = storage.getState().sessions[input.sessionId];
+        const recorded = reason.shouldContinue()
+            && isAutoArchiveReasonScopeCurrent(input.serverId, reason.accountId)
+            && !!currentSession && (!currentSession.serverId || areServerProfileIdentifiersEquivalent(currentSession.serverId, input.serverId))
+            && readSessionAutoArchiveHistory(currentSession.metadata)
+                .some((event) => event.archivedAt === input.archivedAt);
+        return recorded ? { historyRecorded: true } : {
+            historyRecorded: false, code: 'archive_reason_not_recorded', message: 'Archived, but the automatic archive reason could not be saved.',
+        };
+    } catch {
+        return { historyRecorded: false, code: 'archive_reason_not_recorded', message: 'Archived, but the automatic archive reason could not be saved.' };
+    }
 }
 
 const SESSION_ACTIVE_ARCHIVE_MESSAGE = 'Cannot archive an active session';
@@ -825,6 +876,7 @@ type ArchiveRequestParams = Readonly<{
     serverId?: string | null;
     action: 'archive' | 'unarchive';
     signal?: AbortSignal;
+    assertCurrent?: () => void;
 }>;
 
 function archiveRequestWithContext(params: ArchiveRequestParams): Promise<Response>;
@@ -833,12 +885,13 @@ async function archiveRequestWithContext<T>(params: ArchiveRequestParams, consum
     const context = await resolveServerScopedSessionContext({
         serverId: params.serverId ?? resolvePreferredServerIdForSessionId(params.sessionId) ?? null,
     });
+    params.assertCurrent?.();
     const path = `/v2/sessions/${params.sessionId}/${params.action}`;
     const init: RequestInit = { method: 'POST', ...(params.signal ? { signal: params.signal } : {}) };
 
     if (context.scope === 'active') {
         return consumeResponse
-            ? await apiSocket.request(path, init, consumeResponse)
+            ? await apiSocket.request(path, init, consumeResponse, params.assertCurrent ?? (() => {}))
             : await apiSocket.request(path, init);
     }
 
@@ -854,6 +907,7 @@ async function archiveRequestWithContext<T>(params: ArchiveRequestParams, consum
         },
         timeoutMs: context.timeoutMs,
         signal: params.signal,
+        assertCurrent: params.assertCurrent,
     });
     return consumeResponse ? await consumeResponse(response) : response;
 }
@@ -886,14 +940,15 @@ async function applyArchivedAtToLocalSession(sessionId: string, archivedAt: numb
 
 export async function sessionArchiveWithServerScope(
     sessionId: string,
-    opts?: Readonly<{ serverId?: string | null }> & SessionArchiveRequestOptions,
+    opts?: Readonly<{ serverId?: string | null; autoArchiveReason?: AutoArchiveReason }> & SessionArchiveRequestOptions,
 ): Promise<SessionArchiveResponse> {
     try {
         const serverId = resolveSessionArchiveServerId(opts?.serverId ?? resolvePreferredServerIdForSessionId(sessionId));
         const archive = async (signal: AbortSignal): Promise<SessionArchiveResponse> => {
             try {
                 throwIfSessionArchiveAborted(signal);
-                const result = await archiveRequestWithContext({ sessionId, serverId, action: 'archive', signal }, async (response): Promise<SessionArchiveResponse> => {
+                assertAutoArchiveAdmissionCurrent(opts?.autoArchiveReason);
+                const result = await archiveRequestWithContext({ sessionId, serverId, action: 'archive', signal, assertCurrent: () => assertAutoArchiveAdmissionCurrent(opts?.autoArchiveReason) }, async (response): Promise<SessionArchiveResponse> => {
                     if (!response.ok) {
                         const message = await response.text().catch(() => '');
                         throwIfSessionArchiveAborted(signal);
@@ -910,7 +965,7 @@ export async function sessionArchiveWithServerScope(
                     return { success: true, archivedAt };
                 });
                 throwIfSessionArchiveAborted(signal);
-                if (result.success) {
+                if (result.success && (!opts?.autoArchiveReason || opts.autoArchiveReason.shouldContinue())) {
                     await applyArchivedAtToLocalSession(sessionId, result.archivedAt ?? null, serverId);
                 }
                 return result;
@@ -922,9 +977,16 @@ export async function sessionArchiveWithServerScope(
         };
         // Stop-and-archive supplies one enclosing deadline across all 409 attempts. Direct archive
         // owns the same finite lifecycle here; a caller-provided signal never starts another timer.
-        return opts?.signal
+        const result = opts?.signal
             ? await archive(opts.signal)
             : await withSessionArchiveDeadline(async ({ signal }) => await archive(signal));
+        if (!result.success) return result;
+        return { ...result, ...await afterSessionArchiveConfirmed({
+            sessionId,
+            serverId,
+            archivedAt: result.archivedAt ?? null,
+            autoArchiveReason: opts?.autoArchiveReason,
+        }) };
     } catch (error) {
         if (error instanceof AsyncTimeoutError) return { success: false, code: 'session_archive_timeout' };
         return { success: false, message: error instanceof Error ? error.message : 'Unknown error' };

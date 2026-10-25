@@ -43,6 +43,7 @@ export async function runtimeFetchWithServerReachability(params: Readonly<{
     init: RequestInit;
     timeoutMs?: number;
     signal?: AbortSignal;
+    assertCurrent?: () => void;
 }>): Promise<Response> {
     const headers = new Headers(params.init.headers ?? {});
     const explicitAuthHeader = headers.get('Authorization') ?? '';
@@ -88,6 +89,8 @@ export async function runtimeFetchWithServerReachability(params: Readonly<{
         timeoutMs: typeof params.timeoutMs === 'number' ? params.timeoutMs : readServerReachabilityWaitTimeoutMs(),
         acceptAuthFailed: true,
     });
+    // Caller cancellation is not evidence that the target server became unreachable.
+    params.assertCurrent?.();
 
     try {
         const requestUrl = hasAuth ? withConnectedServiceReaderSupport(params.url) : params.url;

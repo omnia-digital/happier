@@ -23,7 +23,7 @@ import {
 import { mapGithubPullRequest } from './githubPullRequestMapping';
 
 const DEFAULT_GITHUB_CLI_PR_TIMEOUT_MS = 30_000;
-const GITHUB_PR_JSON_FIELDS = 'number,title,url,state,baseRefName,headRefName,mergedAt,isDraft,headRefOid';
+const GITHUB_PR_JSON_FIELDS = 'number,title,url,state,baseRefName,headRefName,mergedAt,isDraft,headRefOid,headRepository';
 const GITHUB_REPOSITORY_JSON_FIELDS = 'nameWithOwner,url,sshUrl,defaultBranchRef,visibility';
 
 function resolveGithubCliPrTimeoutMs(): number {

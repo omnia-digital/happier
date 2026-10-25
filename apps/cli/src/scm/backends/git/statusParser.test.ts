@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildGitSnapshot } from './statusSnapshot';
+import { parseGitStatusPorcelainV2Z } from './statusParser';
 import { createPrStatusCache } from '../../hostingProviders/prStatusCache';
 
 type SnapshotEntry = Readonly<{
@@ -23,6 +24,11 @@ function findEntryByPath(entries: unknown[], path: string): SnapshotEntry | unde
 }
 
 describe('git status snapshot parser', () => {
+    it('preserves ignored paths separately from untracked paths for cleanup preflight', () => {
+        const parsed = parseGitStatusPorcelainV2Z('# branch.head feature\0? new.txt\0! ignored.log\0');
+        expect(parsed.notAdded).toEqual(['new.txt']);
+        expect(parsed.ignored).toEqual(['ignored.log']);
+    });
     it('parses porcelain-v2 -z status with rename, conflict, untracked, and numstat totals', () => {
         const statusOutput =
             '# branch.oid 1111111111111111111111111111111111111111\0' +

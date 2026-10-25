@@ -105,6 +105,7 @@ export function areStoredSessionsEqual(
         && (previous.modelMode ?? null) === (next.modelMode ?? null)
         && (previous.modelModeUpdatedAt ?? null) === (next.modelModeUpdatedAt ?? null)
         && (previous.owner ?? null) === (next.owner ?? null)
+        && (previous.authenticatedOwnerAccountId ?? null) === (next.authenticatedOwnerAccountId ?? null)
         && (previous.accessLevel ?? null) === (next.accessLevel ?? null)
         && (previous.canApprovePermissions ?? null) === (next.canApprovePermissions ?? null)
         && areSessionValueEqual(previous.metadata, next.metadata)

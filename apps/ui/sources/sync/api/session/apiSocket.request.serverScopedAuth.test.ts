@@ -181,6 +181,26 @@ describe('apiSocket.request server-scoped credentials', () => {
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
+    it('does not dispatch an admitted archive after its caller scope changes during credential lookup', async () => {
+        const fetchMock = vi.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => new Response('{}', { status: 200 }));
+        vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch);
+        let releaseCredentials!: (value: { token: string; secret: string }) => void;
+        tokenStorageMock.getCredentialsForServerUrl.mockReturnValue(new Promise((resolve) => { releaseCredentials = resolve; }));
+
+        const { apiSocket } = await import('./apiSocket');
+        (apiSocket as any).config = { endpoint: 'https://stack.example.test', token: 'unused' };
+        let admitted = true;
+        const guard = vi.fn(() => { if (!admitted) throw new Error('Archive admission is no longer current'); });
+        const request = apiSocket.request('/v2/sessions/session-a/archive', { method: 'POST' }, async (response) => response, guard);
+        await vi.waitFor(() => expect(tokenStorageMock.getCredentialsForServerUrl).toHaveBeenCalledTimes(1));
+        admitted = false;
+        releaseCredentials({ token: 'scoped-token', secret: 's' });
+
+        await expect(request).rejects.toThrow('Archive admission is no longer current');
+        expect(guard).toHaveBeenCalled();
+        expect(fetchMock.mock.calls.filter(([url]) => String(url).includes('/v2/sessions/session-a/archive'))).toHaveLength(0);
+    });
+
     it('dedupes concurrent GET requests for the same URL', async () => {
         const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
             return new Response(JSON.stringify({ ok: true }), {

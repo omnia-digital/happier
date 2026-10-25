@@ -11,6 +11,19 @@ import { parseGitWorktreeListPorcelain } from './worktreeListParser';
  * marking the record boundary.
  */
 describe('parseGitWorktreeListPorcelain — NUL (-z) token format', () => {
+    it('preserves locked and prunable registration signals for read-only cleanup preflight', () => {
+        const worktrees = parseGitWorktreeListPorcelain({
+            worktreesOutput: [
+                'worktree', '/repo', 'HEAD aaa', 'branch refs/heads/main', '',
+                'worktree', '/repo/locked', 'HEAD bbb', 'branch refs/heads/locked', 'locked in use', '',
+                'worktree', '/repo/prunable', 'HEAD ccc', 'branch refs/heads/prunable', 'prunable gitdir file points to non-existent location', '',
+            ].join('\0'),
+            currentWorktreePath: null,
+            mainWorktreePath: '/repo',
+        });
+        expect(worktrees.find((worktree) => worktree.path === '/repo/locked')).toMatchObject({ isLocked: true });
+        expect(worktrees.find((worktree) => worktree.path === '/repo/prunable')).toMatchObject({ isPrunable: true });
+    });
     it('parses a single worktree record terminated by an empty NUL boundary', () => {
         const input = [
             'worktree /repo',

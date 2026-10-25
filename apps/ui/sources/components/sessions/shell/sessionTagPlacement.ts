@@ -12,6 +12,7 @@ export type ResolveSessionTagPlacementInput = Readonly<{
     rowWidth: number | null;
     hasTrailingMeta: boolean;
     hasRowActions: boolean;
+    reservedActionRailWidth?: number;
     hasLeadingIdentity?: boolean;
 }>;
 
@@ -33,7 +34,7 @@ const COMPACT_INLINE_MAX_TAG_WIDTH = 96;
 const ESTIMATED_TAG_CHARACTER_WIDTH = 5.5;
 const ESTIMATED_TAG_HORIZONTAL_CHROME = 16;
 const COMPACT_ROW_NON_TITLE_CHROME = 102;
-const TRAILING_META_WIDTH = 28;
+export const SESSION_ROW_TRAILING_META_WIDTH = 28;
 const COMPACT_TITLE_MIN_WIDTH = 92;
 
 export function resolveSessionTagPlacement(input: ResolveSessionTagPlacementInput): SessionTagPlacement {
@@ -74,7 +75,7 @@ export function planSessionTagDisplay(input: ResolveSessionTagPlacementInput): S
         };
     }
 
-    const tagWidth = estimateInlineTagWidth(input.tags);
+    const tagWidth = estimateSessionTagDisplayWidth(input.tags);
     if (tagWidth > COMPACT_INLINE_MAX_TAG_WIDTH) {
         return {
             placement: 'below',
@@ -89,8 +90,15 @@ export function planSessionTagDisplay(input: ResolveSessionTagPlacementInput): S
         };
     }
 
-    const trailingMetaWidth = input.hasTrailingMeta ? TRAILING_META_WIDTH : 0;
-    const availableTagWidth = input.rowWidth - COMPACT_ROW_NON_TITLE_CHROME - trailingMetaWidth - COMPACT_TITLE_MIN_WIDTH;
+    const trailingMetaWidth = input.hasTrailingMeta ? SESSION_ROW_TRAILING_META_WIDTH : 0;
+    const availableRightAreaWidth = input.rowWidth - COMPACT_ROW_NON_TITLE_CHROME - COMPACT_TITLE_MIN_WIDTH;
+    if ((input.reservedActionRailWidth ?? 0) > availableRightAreaWidth) {
+        return {
+            placement: 'below',
+            chips: allChips,
+        };
+    }
+    const availableTagWidth = availableRightAreaWidth - trailingMetaWidth;
     return tagWidth <= availableTagWidth
         ? {
             placement: 'inline',
@@ -151,7 +159,7 @@ function getTotalLabelLength(tags: readonly SessionTagPlacementChip[]): number {
     return tags.reduce((sum, tag) => sum + tag.label.length, 0);
 }
 
-function estimateInlineTagWidth(tags: readonly SessionTagPlacementChip[]): number {
+export function estimateSessionTagDisplayWidth(tags: readonly SessionTagPlacementChip[]): number {
     if (tags.length === 0) return 0;
     const chipWidths = tags.map((tag) =>
         Math.ceil(tag.label.length * ESTIMATED_TAG_CHARACTER_WIDTH) + ESTIMATED_TAG_HORIZONTAL_CHROME

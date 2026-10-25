@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { runManagedCliUpdate } from '@happier-dev/cli-common/firstPartyRuntime';
+import { readLastCliUpdateResult, runManagedCliUpdate, watchLastCliUpdateResult } from '@happier-dev/cli-common/firstPartyRuntime';
 
 import type { MachineMetadata } from '@/api/types';
 import { readCliUpdateFacts } from '@/cli/runtime/update/cliUpdateFacts';
@@ -13,9 +13,9 @@ import { createCliUpdateMetadataPublisher } from './cliUpdateMetadataPublisher';
 import { initialMachineMetadata } from './metadata';
 
 /**
- * Real temp Happier home with a managed install, the real `last-update.json` writer (a transaction
- * whose release download fails) and the real directory watch. Only the relay write — the machine
- * socket — is replaced by a recorder, as the boundary it is.
+ * Real temp Happier home with a managed install and the real `last-update.json` writer (a transaction
+ * whose release download fails). The OS watch event and relay write are boundaries; the shared
+ * cli-common watcher has its own integration test for directory notification after atomic rename.
  */
 describe('the daemon republishes its CLI update facts when the update record changes', () => {
   let homeDir = '';
@@ -32,7 +32,7 @@ describe('the daemon republishes its CLI update facts when the update record cha
     rmSync(homeDir, { recursive: true, force: true });
   });
 
-  function setup() {
+  function setup(watchRecord: typeof watchLastCliUpdateResult) {
     const published: MachineMetadata[] = [];
     let serverMetadata: MachineMetadata | null = initialMachineMetadata;
     const publisher = createCliUpdateMetadataPublisher({
@@ -56,9 +56,19 @@ describe('the daemon republishes its CLI update facts when the update record cha
         npmPackageName: '@happier-dev/cli',
       }),
       onError: () => {},
+      watchRecord,
     });
     publisher.watch({ channel: 'stable', processEnv: { HAPPIER_HOME_DIR: homeDir } });
     return { publisher, published };
+  }
+
+  function setupWithControlledWatch() {
+    let notifyRecordChanged: () => void = () => { throw new Error('record watch was not installed'); };
+    const state = setup(({ onChange }) => {
+      notifyRecordChanged = onChange;
+      return () => {};
+    });
+    return { ...state, notifyRecordChanged: () => notifyRecordChanged() };
   }
 
   async function recordFailedAttempt(message: string): Promise<void> {
@@ -73,11 +83,14 @@ describe('the daemon republishes its CLI update facts when the update record cha
 
 
   it('publishes exactly one refresh carrying the new lastUpdate for one write', async () => {
-    const { publisher, published } = setup();
+    const { publisher, published, notifyRecordChanged } = setupWithControlledWatch();
     try {
       await recordFailedAttempt('GitHub returned 503');
+      expect(readLastCliUpdateResult({ channel: 'stable', processEnv: { HAPPIER_HOME_DIR: homeDir } })).toMatchObject({ outcome: 'failed', message: expect.stringContaining('GitHub returned 503') });
+      notifyRecordChanged();
       await vi.waitFor(() => expect(published).toHaveLength(1));
       // Any further event for the same write reads unchanged facts and publishes nothing.
+      notifyRecordChanged();
       expect(published).toHaveLength(1);
       expect(published[0]?.cliUpdate?.lastUpdate).toMatchObject({ outcome: 'failed', message: expect.stringContaining('GitHub returned 503') });
     } finally {
@@ -120,12 +133,14 @@ describe('the daemon republishes its CLI update facts when the update record cha
     expect(published.map((metadata) => metadata.cliUpdate?.lastUpdate?.message)).toEqual(['attempt 1', 'attempt 5']);
   });
 
-  it('keeps watching after the writer replaced the file by rename, and republishes on every connect', async () => {
-    const { publisher, published } = setup();
+  it('publishes replaced update records and the current record on reconnect', async () => {
+    const { publisher, published, notifyRecordChanged } = setupWithControlledWatch();
     try {
       await recordFailedAttempt('first');
+      notifyRecordChanged();
       await vi.waitFor(() => expect(published.at(-1)?.cliUpdate?.lastUpdate?.message).toContain('first'));
       await recordFailedAttempt('second');
+      notifyRecordChanged();
       await vi.waitFor(() => expect(published.at(-1)?.cliUpdate?.lastUpdate?.message).toContain('second'));
 
       // The fallback when a watch event is missed: a (re)connect publishes the current record.

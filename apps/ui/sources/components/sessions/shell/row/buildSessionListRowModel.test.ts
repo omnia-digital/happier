@@ -169,6 +169,47 @@ function createSettings(
 }
 
 describe('buildSessionListRowModel', () => {
+    it('projects the associated goal lifecycle from persisted session metadata and keeps clears absent', () => {
+        const goalItem = (status: string) => ({
+            id: 'goal:codex',
+            kind: 'goal',
+            origin: 'vendor',
+            status,
+            title: 'Finish the feature',
+            updatedAt: NOW_MS,
+        });
+        const build = (status: string) => buildSessionListRowModel({
+            item: createSessionItem(createRenderable('goal-row', {
+                active: false,
+                metadata: {
+                    name: 'Goal row',
+                    summaryText: null,
+                    path: '/repo/goal-row',
+                    sessionWorkStateV1: {
+                        v: 1,
+                        backendId: 'codex',
+                        updatedAt: NOW_MS,
+                        primaryItemId: 'goal:codex',
+                        items: [goalItem(status)],
+                    },
+                },
+            })),
+            state: {},
+            isFirst: true,
+            isLast: true,
+            isSingle: true,
+            settings: createSettings(),
+        });
+
+        expect(build('active').goalIndicator).toMatchObject({ status: 'active', title: 'Finish the feature' });
+        expect(build('complete').goalIndicator).toMatchObject({ status: 'complete', title: 'Finish the feature' });
+        expect(build('paused').goalIndicator).toMatchObject({ status: 'paused' });
+        expect(build('blocked').goalIndicator).toMatchObject({ status: 'blocked' });
+        expect(build('unknown').goalIndicator).toMatchObject({ status: 'unknown' });
+        expect(build('cancelled').goalIndicator).toBeNull();
+        expect(build('active').statusSignature).toBe(build('complete').statusSignature);
+    });
+
     it('shows a successful latest turn after it is read, but never treats a retained or disconnected row as finished', () => {
         const completed = createRenderable('latest-complete', {
             active: true,

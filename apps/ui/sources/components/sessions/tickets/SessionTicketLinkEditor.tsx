@@ -60,29 +60,28 @@ export function SessionTicketLinkEditor({ sessionId, scope, association, initial
     });
     const button = (label: string, testID: string, action: () => void, disabled = false) => <Pressable testID={testID} accessibilityRole="button" accessibilityLabel={label} disabled={disabled || pending || !scopeCurrent} onPress={action} style={[styles.button, disabled || pending || !scopeCurrent ? styles.disabled : null]}><Text style={styles.buttonText}>{label}</Text></Pressable>;
     return <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" testID="session-ticket-editor">
-        <Text style={styles.title}>{t(association ? 'sessionTickets.change' : 'sessionTickets.link')}</Text>
         <Text style={styles.help}>{t('sessionTickets.readerHelp')}</Text>
         {!scopeCurrent ? <Text accessibilityRole="alert" style={styles.error}>{t('sessionTickets.changed')}</Text> : null}
-        <Text>{t('sessionTickets.url')}</Text>
+        <Text style={styles.text}>{t('sessionTickets.url')}</Text>
         <TextInput testID="session-ticket-url" accessibilityLabel={t('sessionTickets.url')} value={url} editable={!pending && scopeCurrent} onChangeText={(value) => { setUrl(value); setSnapshot(null); }} autoCapitalize="none" autoCorrect={false} style={styles.input} />
-        <Text>{t('sessionTickets.machine')}</Text>
+        <Text style={styles.text}>{t('sessionTickets.machine')}</Text>
         {machines.map((machine) => <React.Fragment key={machine.id}>{button(`${machine.metadata?.displayName || machine.metadata?.host || machine.id}${machine.id === machineId ? ' ✓' : ''}`, `session-ticket-machine:${machine.id}`, () => { setMachineId(machine.id); setSources([]); setSourceId(''); setSnapshot(null); })}</React.Fragment>)}
-        <Text>{t('sessionTickets.directory')}</Text>
+        <Text style={styles.text}>{t('sessionTickets.directory')}</Text>
         <TextInput testID="session-ticket-directory" accessibilityLabel={t('sessionTickets.directory')} value={directory} editable={!pending && scopeCurrent} onChangeText={(value) => { setDirectory(value); setSources([]); setSourceId(''); setSnapshot(null); }} autoCapitalize="none" autoCorrect={false} style={styles.input} />
         {button(t('sessionTickets.sources'), 'session-ticket-sources', () => { void discover(); }, !machineId || !directory.trim())}
-        {sources.length ? <Text>{t('sessionTickets.source')}</Text> : null}
+        {sources.length ? <Text style={styles.text}>{t('sessionTickets.source')}</Text> : null}
         {sources.map((source) => <React.Fragment key={source.id}>{button(`${source.title}${source.id === sourceId ? ' ✓' : ''}`, `session-ticket-source:${source.id}`, () => { setSourceId(source.id); setSnapshot(null); })}</React.Fragment>)}
         {button(t('sessionTickets.resolve'), 'session-ticket-read', () => { void resolve(); }, !sourceId || !url.trim() || !directory.trim())}
-        {pending ? <Text accessibilityLiveRegion="polite">{t('sessionTickets.loading')}</Text> : null}
+        {pending ? <Text style={styles.text} accessibilityLiveRegion="polite">{t('sessionTickets.loading')}</Text> : null}
         {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
-        {snapshot ? <View testID="session-ticket-resolved"><Text>{`${snapshot.ticket.provider} · ${snapshot.ticket.key} · ${snapshot.ticket.title}`}</Text><Text>{snapshot.ticket.url}</Text><Text>{snapshot.status.name}</Text>{button(t('sessionTickets.save'), 'session-ticket-save', () => { void save({ v: 1, ticket: snapshot.ticket, reader: { machineId, directory, mcpServerId: sourceId } }); })}</View> : null}
+        {snapshot ? <View testID="session-ticket-resolved"><Text style={styles.text}>{`${snapshot.ticket.provider} · ${snapshot.ticket.key} · ${snapshot.ticket.title}`}</Text><Text style={styles.text}>{snapshot.ticket.url}</Text><Text style={styles.text}>{snapshot.status.name}</Text>{button(t('sessionTickets.save'), 'session-ticket-save', () => { void save({ v: 1, ticket: snapshot.ticket, reader: { machineId, directory, mcpServerId: sourceId } }); })}</View> : null}
         {association ? button(t('sessionTickets.remove'), 'session-ticket-remove', () => { void save(null); }) : null}
         {button(t('common.cancel'), 'session-ticket-cancel', onClose)}
     </ScrollView>;
 }
 const styles = StyleSheet.create((theme) => ({
     content: { padding: 20, gap: 12, maxWidth: 640, width: '100%', alignSelf: 'center' },
-    title: { ...Typography.default('semiBold'), color: theme.colors.text.primary },
+    text: { ...Typography.default(), color: theme.colors.text.primary },
     help: { ...Typography.default(), color: theme.colors.text.secondary },
     input: { ...Typography.default(), borderWidth: 1, borderColor: theme.colors.border.default, color: theme.colors.text.primary, padding: 10, borderRadius: 8 },
     button: { padding: 10, borderRadius: 8, backgroundColor: theme.colors.state.neutral.background },

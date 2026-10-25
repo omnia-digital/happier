@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 
 import { Text } from '@/components/ui/text/Text';
+import { PressableSurface } from '@/components/ui/interaction/PressableSurface';
 
 import { RowActionRevealSlot } from './RowActionRevealSlot';
 
@@ -38,15 +39,25 @@ export function MessageActionRow(props: Readonly<{
             testID={`transcript-message-actions-row:${props.messageId}`}
         >
             {hasTimestamp ? (
-                <Text
+                <PressableSurface
                     testID={`transcript-message-timestamp:${props.messageId}`}
+                    accessibilityRole="text"
+                    accessibilityLabel={props.timestampText}
+                    focusable={props.isWeb}
+                    webTooltip={props.isWeb ? props.timestampText : undefined}
                     style={[
-                        styles.timestampText,
-                        props.invertTimestampAndActions ? styles.timestampTextInverted : null,
+                        styles.timestampTooltipAnchor,
+                        props.invertTimestampAndActions ? styles.timestampTooltipAnchorInverted : null,
                     ]}
                 >
-                    {props.timestampText}
-                </Text>
+                    <Text
+                        testID={`transcript-message-timestamp-text:${props.messageId}`}
+                        numberOfLines={1}
+                        style={styles.timestampText}
+                    >
+                        {props.timestampText}
+                    </Text>
+                </PressableSurface>
             ) : null}
             {props.pinAction ? (
                 <RowActionRevealSlot
@@ -85,14 +96,17 @@ const styles = StyleSheet.create((theme) => ({
     containerWebPointerEvents: {
         pointerEvents: 'box-none',
     },
+    timestampTooltipAnchor: {
+        flexShrink: 1,
+        marginRight: 8,
+    },
+    timestampTooltipAnchorInverted: {
+        marginLeft: 12,
+        marginRight: 0,
+    },
     timestampText: {
         color: theme.colors.text.tertiary,
         fontSize: 11,
         lineHeight: 16,
-        marginRight: 8,
-    },
-    timestampTextInverted: {
-        marginLeft: 12,
-        marginRight: 0,
     },
 }));

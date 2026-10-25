@@ -639,6 +639,9 @@ export const it: TranslationStructure = {
         checking: 'Verifica in corso…',
         checked: 'Verificato ora',
         stale: 'Obsoleto',
+        autoArchiveWorkUnverified: 'L’archiviazione automatica attende la verifica che la sessione sia inattiva, a riposo e senza lavoro in sospeso. Gli host meno recenti potrebbero non segnalare questi stati.',
+        autoArchived: 'Archiviata automaticamente',
+        autoArchivedReason: 'Tutte le PR collegate sono state verificate come unite',
     },
     sessionTickets: {
         link: "Collega un ticket",
@@ -5851,6 +5854,7 @@ export const it: TranslationStructure = {
         budgetReachedBody: "Questo obiettivo ha raggiunto il budget di token. Rimuovi il budget per continuare.",
         removeBudgetAndResume: "Rimuovi budget e continua",
         statusInterrupted: "Interrotto",
+        statusUnknown: "Sconosciuto",
         tokenBudget: "Budget token",
         budgetProgress: ({ used, budget }: { used: string; budget: string }) => `${used} / ${budget}`,
         budgetCaption: ({ budget }: { budget: string }) => `su ${budget} di budget`,
@@ -8640,6 +8644,14 @@ export const it: TranslationStructure = {
     },
 
 settingsSession: {
+    archiveAutomation: {
+        title: 'Archiviazione automatica',
+        footer: 'Queste scelte si sincronizzano con questo account Home. Mentre Happier è aperto, il controllo automatico avviene circa ogni 5 minuti. La pulizia locale richiede il supporto dell’host; i branch remoti restano. Il ripristino dall’archivio non recupera le risorse locali rimosse.',
+        autoArchiveTitle: 'Archivia dopo il merge delle PR collegate',
+        autoArchiveSubtitle: 'Archivia le sessioni inattive solo quando tutte le PR collegate risultano unite da una verifica recente.',
+        cleanupTitle: 'Pulisci le risorse locali dopo l’archiviazione',
+        cleanupSubtitle: 'Salva la scelta per una pulizia sicura sul computer proprietario. La pulizia non è ancora disponibile in questa versione.',
+    },
     terminalHostTitle: 'Host terminale per le nuove sessioni',
     terminalHostNone: 'Nessun host terminale',
     newSessionDraftEntry: {

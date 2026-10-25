@@ -47,6 +47,10 @@ export async function startUiWeb(params: {
     if (!resolveUiWebExportFallbackToMetro(params.env)) {
       throw error;
     }
-    return await startUiWebMetro(params);
+    try {
+      return await startUiWebMetro(params);
+    } catch (metroError) {
+      throw new AggregateError([error, metroError], 'UI web export and Metro fallback both failed');
+    }
   }
 }

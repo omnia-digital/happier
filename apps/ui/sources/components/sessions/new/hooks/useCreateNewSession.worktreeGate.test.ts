@@ -8,6 +8,9 @@ import type { Session } from '@/sync/domains/state/storageTypes';
 import { renderScreen, resetBrowserSessionDraftPersistenceForTest } from '@/dev/testkit';
 import { installNewSessionScreenModelCommonModuleMocks } from './newSessionScreenModelTestHelpers';
 import { createNewSessionPromptStore } from '@/components/sessions/new/hooks/screenModel/newSessionPromptStore';
+import { EMPTY_SCM_CAPABILITIES } from '@/scm/core/snapshotMappers';
+import { localSettingsDefaults } from '@/sync/domains/settings/localSettings';
+import { readRepositoryAssociation } from '@/sync/domains/session/listing/sessionRepositoryIdentity';
 
 
 const materializeNewSessionCheckoutMock = vi.hoisted(() => vi.fn(async (params?: unknown) => {
@@ -140,6 +143,7 @@ const machineBashMock = vi.hoisted(() => vi.fn(async () => ({
     stderr: '',
     exitCode: 0,
 })));
+const machineScmStatusSnapshotMock = vi.hoisted(() => vi.fn());
 const applySettingsMock = vi.hoisted(() => vi.fn());
 
 installNewSessionScreenModelCommonModuleMocks({
@@ -194,6 +198,11 @@ vi.mock('@/sync/ops', () => ({
     machineBash: machineBashMock,
     completeMachineSpawnAttemptCustody: vi.fn(async () => true),
     resetMachineSpawnAttemptCustody: vi.fn(async () => true),
+}));
+
+vi.mock('@/sync/ops/scm/machineScm', () => ({
+    machineScmStatusSnapshot: machineScmStatusSnapshotMock,
+    machineScmWorktreesEnrichment: vi.fn(),
 }));
 
 vi.mock('@/components/sessions/new/modules/materializeNewSessionCheckout', () => ({
@@ -255,7 +264,8 @@ vi.mock('@/sync/sync', () => ({
     },
 }));
 
-vi.mock('@/sync/store/settingsWriters', () => ({
+vi.mock('@/sync/store/settingsWriters', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@/sync/store/settingsWriters')>(),
     useApplySettings: () => applySettingsMock,
 }));
 
@@ -531,8 +541,11 @@ describe('useCreateNewSession (worktree gating)', () => {
         expect(materializeNewSessionCheckoutMock).toHaveBeenCalledWith(expect.objectContaining({
             machineId: 'machine-1',
             selectedPath: '/repo',
+            launchNonce: expect.any(String),
             checkoutCreationDraft: undefined,
         }));
+        expect((materializeNewSessionCheckoutMock.mock.calls[0]?.[0] as { launchNonce?: string } | undefined)?.launchNonce)
+            .toBe((machineSpawnNewSessionMock.mock.calls[0]?.[0] as { spawnNonce?: string } | undefined)?.spawnNonce);
         expect(machineSpawnNewSessionMock).toHaveBeenCalledWith(expect.objectContaining({
             directory: '/repo',
             machineId: 'machine-1',
@@ -772,7 +785,29 @@ describe('useCreateNewSession (worktree gating)', () => {
 
     it('uses the canonical repository root returned by worktree creation when the selected path is a nested subdirectory', async () => {
         const { useCreateNewSession } = await import('./useCreateNewSession');
+        const { getStorage } = await import('@/sync/domains/state/storageStore');
+        const { storage } = await import('@/sync/domains/state/storage');
         const typecheck = useCreateNewSession;
+        const viewerScope = { serverId: 'api.happier.dev', accountId: 'account-a' };
+        const state = storage.getState();
+        const realStore = getStorage();
+        const previousRealState = realStore.getState();
+        const previousProfileScope = state.profileScope;
+        const previousSettingsScope = state.settingsScope;
+        const previousLocalSettings = state.localSettings;
+        state.profileScope = viewerScope;
+        state.settingsScope = viewerScope;
+        state.localSettings = { ...localSettingsDefaults };
+        machineScmStatusSnapshotMock.mockResolvedValue({ success: true, snapshot: {
+            projectKey: 'launch-repo', fetchedAt: 1,
+            repo: { isRepo: true, rootPath: '/repo', backendId: 'git', mode: '.git',
+                remotes: [{ name: 'origin', fetchUrl: 'git@example.com:team/repo.git' }],
+                worktrees: [{ path: '/repo/.dev/worktree/feature/auth', branch: 'feature/auth', isCurrent: true }] },
+            capabilities: { ...EMPTY_SCM_CAPABILITIES, readStatus: true },
+            branch: { head: 'feature/auth', upstream: null, ahead: 0, behind: 0, detached: false },
+            stashCount: 0, hasConflicts: false, entries: [],
+            totals: { includedFiles: 0, pendingFiles: 0, untrackedFiles: 0, includedAdded: 0, includedRemoved: 0, pendingAdded: 0, pendingRemoved: 0 },
+        } });
 
         materializeNewSessionCheckoutMock.mockResolvedValueOnce({
             success: true,
@@ -827,17 +862,28 @@ describe('useCreateNewSession (worktree gating)', () => {
             allowedTargetServerIds: [],
         } satisfies Parameters<typeof typecheck>[0];
 
-        const hook = await renderHook(() => useCreateNewSession(params));
-        await act(async () => {
-            await hook.handleCreateSession();
-        });
-
-        expect(saveWorkspaceMock).not.toHaveBeenCalled();
-        expect(saveWorkspaceLocationMock).not.toHaveBeenCalled();
-        expect(saveWorkspaceCheckoutMock).not.toHaveBeenCalled();
-        expect(machineSpawnNewSessionMock).toHaveBeenCalledWith(expect.objectContaining({
-            directory: '/repo/.dev/worktree/feature/auth/packages/app',
-        }));
+        try {
+            const hook = await renderHook(() => useCreateNewSession(params));
+            await act(async () => { await hook.handleCreateSession(); });
+            expect(saveWorkspaceMock).not.toHaveBeenCalled();
+            expect(saveWorkspaceLocationMock).not.toHaveBeenCalled();
+            expect(saveWorkspaceCheckoutMock).not.toHaveBeenCalled();
+            expect(machineSpawnNewSessionMock).toHaveBeenCalledWith(expect.objectContaining({
+                directory: '/repo/.dev/worktree/feature/auth/packages/app',
+            }));
+            await vi.waitFor(() => expect(machineScmStatusSnapshotMock).toHaveBeenCalledWith(
+                'machine-1', { cwd: '/repo/.dev/worktree/feature/auth/packages/app' }, viewerScope,
+            ));
+            await vi.waitFor(() => expect(readRepositoryAssociation(
+                realStore.getState().localSettings.sessionRepositoryAssociationsV1,
+                { ...viewerScope, machineId: 'machine-1', path: '/repo/.dev/worktree/feature/auth/packages/app' },
+            )?.identity).toBe('example.com/team/repo'));
+        } finally {
+            realStore.setState(previousRealState, true);
+            state.profileScope = previousProfileScope;
+            state.settingsScope = previousSettingsScope;
+            state.localSettings = previousLocalSettings;
+        }
     });
 
     it('keeps repo-native worktree creation workspace-free', async () => {

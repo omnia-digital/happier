@@ -405,6 +405,8 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
 
     // Handle existing session (for inactive session resume) vs new session.
     let baseSession: ApiSession;
+    let baseSessionCreationResolution: 'created' | 'existing' | undefined;
+    let baseSessionCreationAccountId: string | undefined;
     if (options.existingSessionId) {
         logger.debug(`[START] Resuming existing session: ${options.existingSessionId}`);
         baseSession = await createBaseSessionForAttach({
@@ -414,6 +416,8 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
         });
     } else {
         const response = await api.getOrCreateSession({ tag: sessionTag, metadata, state });
+        baseSessionCreationResolution = response?.creationResolution;
+        baseSessionCreationAccountId = response?.creationAccountId;
 
         // Handle server unreachable case - run Claude locally with hot reconnection
         // Note: connectionState.notifyOffline() was already called by api.ts with error details
@@ -1367,6 +1371,8 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
                 const readinessReport = reportSessionToDaemonIfRunning({
                     sessionId: baseSession.id,
                     metadata,
+                    ...(baseSessionCreationResolution ? { creationResolution: baseSessionCreationResolution } : {}),
+                    ...(baseSessionCreationAccountId ? { creationAccountId: baseSessionCreationAccountId } : {}),
                     requireDaemonAck: options.startedBy === 'daemon',
                 });
                 if (options.startedBy === 'daemon') {

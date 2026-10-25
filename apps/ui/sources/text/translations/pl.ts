@@ -652,6 +652,9 @@ export const pl: TranslationStructure = {
         checking: 'Sprawdzanie…',
         checked: 'Sprawdzono teraz',
         stale: 'Nieaktualny',
+        autoArchiveWorkUnverified: 'Automatyczna archiwizacja czeka na potwierdzenie bezczynności sesji, braku aktywności i oczekujących zadań. Starsze hosty mogą nie zgłaszać tych sygnałów.',
+        autoArchived: 'Zarchiwizowano automatycznie',
+        autoArchivedReason: 'Potwierdzono scalenie wszystkich powiązanych PR',
     },
     sessionTickets: {
         link: "Połącz zgłoszenie",
@@ -5524,6 +5527,7 @@ export const pl: TranslationStructure = {
         budgetReachedBody: "Ten cel osiągnął budżet tokenów. Usuń budżet, aby kontynuować.",
         removeBudgetAndResume: "Usuń budżet i kontynuuj",
         statusInterrupted: "Przerwano",
+        statusUnknown: "Nieznany",
         tokenBudget: "Budżet tokenów",
         budgetProgress: ({ used, budget }: { used: string; budget: string }) => `${used} / ${budget}`,
         budgetCaption: ({ budget }: { budget: string }) => `z budżetu ${budget}`,
@@ -8310,6 +8314,14 @@ export const pl: TranslationStructure = {
     },
 
 settingsSession: {
+    archiveAutomation: {
+        title: 'Automatyczna archiwizacja',
+        footer: 'Te ustawienia synchronizują się z tym kontem Home. Gdy Happier jest otwarty, automatyczne sprawdzanie odbywa się mniej więcej co 5 minut. Lokalne czyszczenie wymaga obsługi na hoście; zdalne gałęzie pozostają. Przywrócenie z archiwum nie odzyska usuniętych zasobów lokalnych.',
+        autoArchiveTitle: 'Archiwizuj po scaleniu powiązanych PR',
+        autoArchiveSubtitle: 'Archiwizuje nieaktywne sesje tylko wtedy, gdy wszystkie powiązane PR są świeżo potwierdzone jako scalone.',
+        cleanupTitle: 'Czyść lokalne zasoby po archiwizacji',
+        cleanupSubtitle: 'Zapisz wybór bezpiecznego czyszczenia na komputerze właściciela. Czyszczenie nie jest jeszcze dostępne w tej wersji.',
+    },
     terminalHostTitle: 'Host terminala dla nowych sesji',
     terminalHostNone: 'Bez hosta terminala',
     newSessionDraftEntry: {

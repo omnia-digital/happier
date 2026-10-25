@@ -20,7 +20,9 @@ import {
 } from '@happier-dev/agents';
 import { normalizeAskUserQuestionInputForPublication } from '@/agent/questions/normalizeAskUserQuestionInput';
 import { logger } from '@/ui/logger';
+import { serializeAxiosErrorForLog } from '@/api/client/serializeAxiosErrorForLog';
 import { deepEqual } from '@/utils/deterministicJson';
+import { randomUUID } from 'node:crypto';
 
 type AgentStateRequestEntry = NonNullable<AgentState['requests']>[string];
 type AgentStateCompletedEntry = NonNullable<AgentState['completedRequests']>[string];
@@ -55,6 +57,7 @@ export function isSameAgentStateRequestOccurrence(left: unknown, right: unknown)
 
 export type AgentStateOutstandingRequest = Readonly<{
     requestId: string;
+    occurrenceId?: string;
     toolName: string;
     toolInput: unknown;
     createdAt: number;
@@ -120,6 +123,7 @@ export class AgentStateRequestStore {
 
         return {
             requestId,
+            ...(typeof entry.occurrenceId === 'string' ? { occurrenceId: entry.occurrenceId } : {}),
             toolName: entry.tool,
             toolInput: entry.arguments,
             createdAt: entry.createdAt,
@@ -133,6 +137,8 @@ export class AgentStateRequestStore {
 
     publishRequest(params: Readonly<{
         requestId: string;
+        occurrenceId?: string;
+        onOccurrenceAssigned?: (occurrenceId: string) => void;
         toolName: string;
         toolInput: unknown;
         createdAt: number;
@@ -146,9 +152,9 @@ export class AgentStateRequestStore {
     }>): void {
         const normalizedToolInput = normalizeAskUserQuestionInputForPublication(params.toolName, params.toolInput);
         const wasClaimedBeforePublication = this.isOutstandingRequestClaimed(params.requestId);
-        updateAgentStateBestEffort(
-            this.session,
-            (currentState) => {
+        const candidateOccurrenceId = params.occurrenceId ?? randomUUID();
+        let publishedOccurrenceId: string | undefined;
+        const update = (currentState: AgentState): AgentState => {
                 const requests = cloneStringKeyedRecordToNullProto<AgentStateRequestEntry>(currentState.requests);
                 const completedRequests = cloneStringKeyedRecordToNullProto<AgentStateCompletedEntry>(currentState.completedRequests);
                 const existingRequest = currentState.requests?.[params.requestId];
@@ -163,6 +169,10 @@ export class AgentStateRequestStore {
                 if (typeof params.source === 'string') {
                     entry.source = params.source;
                 }
+                entry.occurrenceId = isSameAgentStateRequestOccurrence(existingRequest, entry)
+                    && typeof existingRequest?.occurrenceId === 'string'
+                    ? existingRequest.occurrenceId
+                    : candidateOccurrenceId;
                 if (Array.isArray(params.permissionSuggestions) && params.permissionSuggestions.length > 0) {
                     entry.permissionSuggestions = params.permissionSuggestions;
                 }
@@ -178,6 +188,8 @@ export class AgentStateRequestStore {
                     return typeof params.updateState === 'function' ? params.updateState(currentState) : currentState;
                 }
                 requests[params.requestId] = entry;
+                publishedOccurrenceId = entry.occurrenceId;
+                params.onOccurrenceAssigned?.(entry.occurrenceId);
 
                 const nextState: AgentState = {
                     ...currentState,
@@ -185,18 +197,25 @@ export class AgentStateRequestStore {
                     completedRequests,
                 };
                 return typeof params.updateState === 'function' ? params.updateState(nextState) : nextState;
-            },
-            this.logPrefix,
-            'publish_request',
-        );
-
-        if (params.notifyPush !== false && !wasClaimedBeforePublication) {
-            this.notifyPermissionRequestPushBestEffort({
-                permissionId: params.requestId,
-                toolName: params.toolName,
-                toolInput: normalizedToolInput,
-                createdAtMs: params.createdAt,
+        };
+        try {
+            // Real Session updates enter its lock asynchronously. Push only after the
+            // committed request has a stable occurrence in the current snapshot.
+            void Promise.resolve(this.session.updateAgentState(update)).then(() => {
+                if (params.notifyPush === false || wasClaimedBeforePublication || !publishedOccurrenceId) return;
+                if (this.session.getAgentStateSnapshot?.()?.requests?.[params.requestId]?.occurrenceId !== publishedOccurrenceId) return;
+                if (this.isOutstandingRequestClaimed(params.requestId)) return;
+                this.notifyPermissionRequestPushBestEffort({
+                    permissionId: params.requestId,
+                    toolName: params.toolName,
+                    toolInput: normalizedToolInput,
+                    createdAtMs: params.createdAt,
+                });
+            }).catch((error) => {
+                logger.debug(`${this.logPrefix} Failed to update agent state (publish_request) (non-fatal)`, serializeAxiosErrorForLog(error));
             });
+        } catch (error) {
+            logger.debug(`${this.logPrefix} Failed to update agent state (publish_request) (non-fatal)`, serializeAxiosErrorForLog(error));
         }
     }
 
@@ -209,8 +228,9 @@ export class AgentStateRequestStore {
         allowedTools?: readonly string[] | undefined;
         updatedPermissions?: unknown;
         extraCompletedFields?: Readonly<Record<string, unknown>> | null;
-        fallback?: Readonly<{ toolName: string; toolInput: unknown; createdAt: number; kind?: string; source?: string }> | null;
+        fallback?: Readonly<{ occurrenceId?: string; toolName: string; toolInput: unknown; createdAt: number; kind?: string; source?: string }> | null;
         requireAck?: boolean;
+        expectedOccurrenceId?: string;
         /** An actual provider effect was observed, such as Claude PostToolUse. */
         observedCompletion?: true;
     }>): Promise<void> {
@@ -223,6 +243,14 @@ export class AgentStateRequestStore {
             completedRequest = false;
             const requests = cloneStringKeyedRecordToNullProto(currentState.requests);
             const existing = requests[params.requestId] as unknown;
+            if (params.expectedOccurrenceId !== undefined) {
+                if (existing) {
+                    if (typeof existing !== 'object' || !('occurrenceId' in existing)
+                        || existing.occurrenceId !== params.expectedOccurrenceId) return currentState;
+                } else if (!expectedCompletion
+                    || expectedCompletion.occurrenceId !== params.expectedOccurrenceId
+                    || !deepEqual(currentState.completedRequests?.[params.requestId], expectedCompletion)) return currentState;
+            }
             if (!existing && !params.fallback) {
                 return currentState;
             }
@@ -246,6 +274,7 @@ export class AgentStateRequestStore {
             const completedEntry = clonePlainObjectToNullProto(existing) ?? Object.create(null);
 
             if (!existing && params.fallback) {
+                if (typeof params.fallback.occurrenceId === 'string') completedEntry.occurrenceId = params.fallback.occurrenceId;
                 completedEntry.tool = params.fallback.toolName;
                 completedEntry.arguments = params.fallback.toolInput;
                 completedEntry.createdAt = params.fallback.createdAt;
@@ -454,9 +483,11 @@ export class AgentStateRequestStore {
         const notifier = this.getOrCreatePermissionRequestPushNotifier();
         if (!notifier) return;
 
+        let occurrenceId: string | undefined;
         try {
             const snapshot = this.session.getAgentStateSnapshot?.() ?? null;
             const existing = snapshot?.requests?.[params.permissionId];
+            occurrenceId = existing?.occurrenceId;
             const notifiedAt = typeof existing?.pushNotifiedAt === 'number' ? existing.pushNotifiedAt : null;
             if (typeof notifiedAt === 'number' && Number.isFinite(notifiedAt) && notifiedAt > 0) {
                 notifier.markAlreadyNotified(params.permissionId);
@@ -468,6 +499,7 @@ export class AgentStateRequestStore {
 
         notifier.notify({
             permissionId: params.permissionId,
+            occurrenceId,
             toolName: params.toolName,
             toolInput: params.toolInput,
             requestKind: resolveAgentRequestKind(params.toolName),
@@ -495,10 +527,13 @@ export class AgentStateRequestStore {
             getAgentDisplayName: () => getSessionNotificationAgentDisplayName(this.session.getMetadataSnapshot?.bind(this.session)),
             sessionId: this.session.sessionId,
             logPrefix: this.logPrefix,
-            onNotifiedAt: (permissionId, notifiedAtMs) => {
+            onNotifiedAt: (permissionId, notifiedAtMs, occurrenceId) => {
                 updateAgentStateBestEffort(
                     this.session,
-                    (currentState) => applyAgentStateRequestPushNotifiedAt({ state: currentState, permissionId, notifiedAtMs }),
+                    (currentState) => {
+                        if (occurrenceId !== undefined && currentState.requests?.[permissionId]?.occurrenceId !== occurrenceId) return currentState;
+                        return applyAgentStateRequestPushNotifiedAt({ state: currentState, permissionId, notifiedAtMs });
+                    },
                     this.logPrefix,
                     'permission_request_push_notified_at',
                 );

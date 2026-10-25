@@ -321,6 +321,45 @@ export async function getProcessGroupId(pid, { timeoutMs, signal } = {}) {
   }
 }
 
+export async function isWindowsDescendantProcess(
+  listenerPid,
+  ownerPid,
+  { timeoutMs, signal, runCaptureImpl = runCapture, platform = process.platform } = {},
+) {
+  const listener = Number(listenerPid);
+  const owner = Number(ownerPid);
+  if (platform !== 'win32' || !Number.isInteger(listener) || listener <= 1 || !Number.isInteger(owner) || owner <= 1) {
+    return false;
+  }
+  // Win32_Process.ParentProcessId can name a reused PID. Check each live process
+  // and its creation time while walking the chain, including the claimed owner.
+  const script = [
+    `$target=${listener}; $owner=${owner}; $seen=@{}; $child=$null;`,
+    'while ($target -gt 1) {',
+    '  if ($seen.ContainsKey($target)) { exit 2 };',
+    '  $seen[$target]=$true;',
+    '  $p=Get-CimInstance Win32_Process -Filter "ProcessId=$target" -ErrorAction Stop;',
+    '  if ($null -eq $p) { exit 2 };',
+    '  if ($null -eq $p.CreationDate) { exit 2 };',
+    '  if ($null -ne $child -and $p.CreationDate -gt $child.CreationDate) { exit 2 };',
+    '  if ($target -eq $owner) { Write-Output owned; exit 0 };',
+    '  $child=$p; $target=[int]$p.ParentProcessId;',
+    '};',
+    'exit 1',
+  ].join(' ');
+  try {
+    const out = await runCaptureImpl('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], {
+      timeoutMs,
+      signal,
+      windowsHide: true,
+    });
+    return String(out ?? '').trim() === 'owned';
+  } catch {
+    // Missing, stale, cyclic, foreign, or unavailable process evidence cannot certify ownership.
+    return false;
+  }
+}
+
 export function readStackProcessKindFromEnvLine(line) {
   const match = String(line ?? '').match(/(?:^|[\s\x00])HAPPIER_STACK_PROCESS_KIND=([^\s\x00]+)/);
   return match ? String(match[1] ?? '').trim() : '';

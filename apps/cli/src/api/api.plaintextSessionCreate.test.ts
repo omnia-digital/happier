@@ -36,7 +36,7 @@ describe('ApiClient.getOrCreateSession (plaintext sessions)', () => {
 
   it('sends plaintext metadata when server policy is plaintext_only', async () => {
     const credential = {
-      token: 'token-test',
+      token: `header.${Buffer.from(JSON.stringify({ sub: 'account-a' })).toString('base64url')}.signature`,
       encryption: {
         type: 'legacy' as const,
         secret: new Uint8Array(32).fill(7),
@@ -72,6 +72,7 @@ describe('ApiClient.getOrCreateSession (plaintext sessions)', () => {
 
       return {
         data: {
+          resolution: 'created',
           session: {
             id: 'session-plain',
             seq: 1,
@@ -104,6 +105,8 @@ describe('ApiClient.getOrCreateSession (plaintext sessions)', () => {
 
     expect(session).not.toBeNull();
     expect(session?.metadata.path).toBe('/tmp');
+    expect(session?.creationResolution).toBe('created');
+    expect(session?.creationAccountId).toBe('account-a');
   });
 
   it('uses account mode to decide plaintext session creation when policy is optional', async () => {

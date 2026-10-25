@@ -180,6 +180,7 @@ export class ApiMachineClient {
     private rpcHandlerManager: RpcHandlerManager;
     private hasConnectedOnce = false;
     private accountIdPromise: Promise<string> | null = null;
+    private authenticatedAccountId: string | null = null;
     private readonly connectedServicesProjectionRetry = createConnectedServicesProjectionRetryScheduler();
     private projectionSchedulingClosed = false;
     private updateListeners = new Set<(update: Update) => boolean | void>();
@@ -408,7 +409,25 @@ export class ApiMachineClient {
         registerScmHandlers(this.rpcHandlerManager, machineRpcWorkingDirectory, {
             accessPolicy: filesystemAccessPolicy,
             connectedAccounts: deps?.connectedAccounts,
+            getCreationCustodyScope: async () => this.getWorktreeCreationOwnerScope(),
         });
+    }
+
+    getWorktreeCreationOwnerScope(): {
+        homeDir: string;
+        activeServerDir: string;
+        ring: typeof configuration.publicReleaseRing;
+        accountId: string;
+        machineId: string;
+    } | null {
+        const accountId = this.authenticatedAccountId;
+        return accountId ? {
+            homeDir: configuration.happyHomeDir,
+            activeServerDir: configuration.activeServerDir,
+            ring: configuration.publicReleaseRing,
+            accountId,
+            machineId: this.machine.id,
+        } : null;
     }
 
     setRPCHandlers({
@@ -1103,7 +1122,9 @@ export class ApiMachineClient {
 
         this.accountIdPromise = p;
         try {
-            return await p;
+            const accountId = await p;
+            this.authenticatedAccountId = accountId;
+            return accountId;
         } catch (error) {
             this.accountIdPromise = null;
             if (isAuthenticationError(error)) {
