@@ -6790,7 +6790,7 @@ export const fr: TranslationStructure = {
             discoveryUnsupported: "L'utilisation native est indisponible sur ce relais",
             discoveryError: "Impossible d'actualiser l'utilisation native",
             chooseAccount: "Choisir un compte",
-            notConnected: "Aucun compte d'utilisation trouvé",
+            noUsageData: "Aucune donnée d’utilisation",
             lastKnownRefreshFailed: "Dernière donnée · actualisation échouée",
           openUsage: "Afficher l’utilisation des abonnements",
         },

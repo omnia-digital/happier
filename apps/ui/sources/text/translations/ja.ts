@@ -7474,7 +7474,7 @@ localTailscale: {
           discoveryUnsupported: "このリレーではネイティブの使用量を確認できません",
           discoveryError: "ネイティブの使用量を更新できませんでした",
           chooseAccount: "アカウントを選択",
-          notConnected: "使用量アカウントが見つかりません",
+          noUsageData: "利用状況データがありません",
           lastKnownRefreshFailed: "前回のデータ · 更新失敗",
           openUsage: "サブスクリプションの使用状況を表示",
       },

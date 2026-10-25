@@ -7545,7 +7545,7 @@ export const it: TranslationStructure = {
           discoveryUnsupported: "L'utilizzo nativo non è disponibile su questo relay",
           discoveryError: "Impossibile aggiornare l'utilizzo nativo",
           chooseAccount: "Scegli account",
-          notConnected: "Nessun account di utilizzo trovato",
+          noUsageData: "Nessun dato di utilizzo",
           lastKnownRefreshFailed: "Ultimo dato · aggiornamento non riuscito",
           openUsage: "Mostra utilizzo abbonamento",
       },

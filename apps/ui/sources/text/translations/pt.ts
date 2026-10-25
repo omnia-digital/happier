@@ -7333,7 +7333,7 @@ export const pt: TranslationStructure = {
           discoveryUnsupported: "A utilização nativa não está disponível neste servidor",
           discoveryError: "Não foi possível atualizar a utilização nativa",
           chooseAccount: "Escolher conta",
-          notConnected: "Não foi encontrada uma conta de utilização",
+          noUsageData: "Sem dados de uso",
           lastKnownRefreshFailed: "Último dado · falha na atualização",
           openUsage: "Mostrar uso da assinatura",
       },

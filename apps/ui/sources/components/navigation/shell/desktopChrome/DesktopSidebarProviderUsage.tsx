@@ -112,7 +112,7 @@ function ProviderUsageTile(props: Readonly<{
             : props.discoveryStatus === 'loading' || !props.profileReady ? t('common.loading')
             : props.discoveryStatus === 'unsupported' ? t('sidebar.providerUsage.discoveryUnsupported')
                 : props.discoveryStatus === 'error' ? t('common.unavailable')
-                    : selection.options.length > 1 ? t('sidebar.providerUsage.chooseAccount') : t('sidebar.providerUsage.notConnected')
+                    : selection.options.length > 1 ? t('sidebar.providerUsage.chooseAccount') : t('sidebar.providerUsage.noUsageData')
         : loading ? t('common.loading') : error ? t('common.unavailable') : t('common.unavailable');
 
     const optionLabel = (option: SidebarProviderUsageOption): string => option.kind === 'connected'

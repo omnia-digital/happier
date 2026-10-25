@@ -7205,7 +7205,7 @@ export const ru: TranslationStructure = {
           discoveryUnsupported: "Нативное использование недоступно на этом сервере",
           discoveryError: "Не удалось обновить нативное использование",
           chooseAccount: "Выбрать аккаунт",
-          notConnected: "Аккаунт использования не найден",
+          noUsageData: "Нет данных об использовании",
           lastKnownRefreshFailed: "Последние данные · обновление не удалось",
           openUsage: "Показать использование подписки",
       },

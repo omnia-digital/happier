@@ -6802,7 +6802,7 @@ deps: {
             discoveryUnsupported: "L'ús natiu no està disponible en aquest servidor",
             discoveryError: "No s'ha pogut actualitzar l'ús natiu",
             chooseAccount: "Tria un compte",
-            notConnected: "No s'ha trobat cap compte d'ús",
+            noUsageData: "No hi ha dades d’ús",
             lastKnownRefreshFailed: "Darrera dada · error en actualitzar",
           openUsage: "Mostra l’ús de la subscripció",
         },

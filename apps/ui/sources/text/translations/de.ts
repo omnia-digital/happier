@@ -6803,7 +6803,7 @@ export const de: TranslationStructure = {
             discoveryUnsupported: "Native Nutzung ist auf diesem Server nicht verfügbar",
             discoveryError: "Native Nutzung konnte nicht aktualisiert werden",
             chooseAccount: "Konto auswählen",
-            notConnected: "Kein Nutzungskonto gefunden",
+            noUsageData: "Keine Nutzungsdaten",
             lastKnownRefreshFailed: "Letzter Stand · Aktualisierung fehlgeschlagen",
           openUsage: "Abonnementnutzung anzeigen",
         },
