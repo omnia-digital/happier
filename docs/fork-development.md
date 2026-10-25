@@ -335,6 +335,28 @@ The latest upstream fetch completed and `origin/dev...upstream/dev` remains 0/0 
 
 ## Mac test-environment findings
 
+October25 tmux validation uses a private3.8 executable at the isolated stack's
+`toolchains/tmux-3.8/bin/tmux`; it is not installed or linked globally. Its official
+source archive matches Homebrew's SHA-256
+`e79c699c7e949dccd0a4a125e17b8d1261e311b16979dbc8eb34542f3966d82e`.
+The private build uses existing libevent and explicitly disables utf8proc and
+jemalloc; it verifies the ASCII subprocess/isolation case, not Unicode support
+or a production tmux distribution. Configure/build logs are
+`.project/logs/tests/oh12-tmux-private-{configure,build}.log`.
+
+The targeted CLI integration case is
+`creates hosts in the requested socket root with an inherited tmux context` in
+`src/integrations/tmux/tmux.real.integration.test.ts`. Run it from `apps/cli` with
+the existing `vitest.integration.config.ts`, private toolchain PATH,
+`HAPPIER_CLI_TEST_SKIP_BUILD=1` and `HAPPIER_CLI_TMUX_INTEGRATION=1`. Start with
+an empty inherited environment and disposable HOME, USERPROFILE and XDG_CONFIG_HOME.
+The checked-in integration environment adds its existing loopback/temporary-home
+fixture constants; it does not override those OS-home settings. Both the fixture
+and root rerun pass1/1 with14other cases filtered. Every tmux command and cleanup
+in this case selects one of its two disposable roots. The broader integration
+file retains a default-server inventory probe and is not covered by this isolation
+claim. No installed daemon, native app or real tmux server was changed.
+
 October 24 corrections now pass the complete CLI-common package (103 files, 602 passed and 5 skipped)
 and bootstrap package (25 files, 248 passed), with both package typechecks. Windows managed CLI
 identity uses the existing case-insensitive path owner after realpath resolution; provider update

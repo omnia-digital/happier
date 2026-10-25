@@ -551,6 +551,36 @@ not a tested compatibility verdict or a reproduced fork display defect. Two prio
 intents remain adapted from the63-commit range;61 have no adoption in these batches.
 No provider process, daily CLI/service, native app or release changed.
 
+### October 25 follow-up: isolated tmux host creation
+
+Upstream `d71f3f6c04` and its two-server test refinements (`2f59baded9`,
+`cdfa89fb6a`, `7c58d5979c`, `3eb5bf908e`) are adapted through test checkpoint
+`3d57699769` and source `514fa4f422`. Previously the adapter created the host with
+its ambient tmux client environment but recorded the requested socket root in the
+handle. Creation now selects that root through the existing `TmuxUtilities` owner;
+the same owner ensures the root exists, replacing the daemon-only mkdir.
+Existing handle fields, wire/persistence shapes and shell-argument handling remain.
+
+The real two-server RED starts the child but finds no session in the requested
+root. The same test is GREEN1/1 after the fix;55adjacent owner tests and CLI TS7
+typecheck pass. Root inspects current source and independently reruns the real test
+GREEN1/1 with14other cases filtered (`.project/logs/tests/oh12-tmux-isolated-host-root-review.log`).
+Author RED/GREEN and owner/type logs use the `oh12-tmux-` prefix in the same directory.
+The first root invocation stopped before Vitest because it incorrectly assumed the
+checked-in integration environment file was absent. A key-only audit confirms its
+existing constants use a temporary Happier home, loopback relay and disabled remote
+debug logging, without overriding the disposable OS HOME/XDG values; the rerun then
+passes. No environment file is changed and no credential value is printed.
+
+The private test binary and restricted fixture recipe are documented in
+[Mac test-environment findings](../../fork-development.md#mac-test-environment-findings).
+This validates ASCII macOS subprocess placement/liveness/disposal, not daily-service,
+native-app, Linux/Windows or Unicode acceptance. The broader real integration file
+is not run because it includes a default-server inventory probe. The separate exact
+owning-session target intent `8c7e2f91a3` remains unadopted; missing verified0.3
+destination still blocks this batch's forward-port disposition. No full upstream
+merge or release claim follows from this source correction.
+
 ### OH-72 sidebar provider usage
 
 Source through `11e451172e` adds the authenticated account-owned usage collection
