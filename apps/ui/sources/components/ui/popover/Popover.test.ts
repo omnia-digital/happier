@@ -1440,37 +1440,45 @@ describe('Popover (web)', () => {
         expect(flattenStyle(contentViewAfter?.props?.style).opacity).toBe(1);
     });
 
-    it('keeps a measured padded side popover inside the viewport when its outer frame exceeds the boundary', async () => {
+    it.each(['left', 'right'] as const)('keeps the visible %s popover inside padded viewport bounds at maximum height', async (placement) => {
         const { Popover } = await import('./Popover');
         const anchorRef = {
             current: {
                 getBoundingClientRect: () => ({
-                    left: 850, top: 380, width: 24, height: 24,
-                    x: 850, y: 380,
+                    left: 450, top: 380, width: 24, height: 24,
+                    x: 450, y: 380,
                 }),
             },
         } as any;
 
+        let childMaxHeight = 0;
         const screen = await renderScreen(React.createElement(Popover, {
             open: true,
             anchorRef,
-            placement: 'left',
+            placement,
+            gap: 0,
             portal: { web: true, matchAnchorWidth: false },
             maxHeightCap: 800,
             edgePadding: { vertical: 8, horizontal: 0 },
             backdrop: false,
-            children: () => React.createElement('PopoverChild'),
+            children: ({ maxHeight }) => {
+                childMaxHeight = maxHeight;
+                return React.createElement('PopoverChild');
+            },
         }));
         await act(async () => {
             await flushRetryPositioning();
         });
+        expect(childMaxHeight).toBe(784);
         const contentView = findPopoverContentView(screen);
+        const measuredOuterHeight = childMaxHeight + 16;
         await act(async () => {
-            contentView?.props?.onLayout?.({ nativeEvent: { layout: { width: 260, height: 807 } } });
+            contentView?.props?.onLayout?.({ nativeEvent: { layout: { width: 260, height: measuredOuterHeight } } });
         });
         const style = flattenStyle(findPopoverContentView(screen)?.props?.style);
         expect(style.paddingVertical).toBe(8);
-        expect(style.top).toBeGreaterThanOrEqual(0);
+        expect(style.top + style.paddingVertical).toBeGreaterThanOrEqual(8);
+        expect(style.top + measuredOuterHeight - style.paddingVertical).toBeLessThanOrEqual(792);
     });
 
     it('keeps top/bottom portal popovers hidden until content layout is known (prevents clamp jiggle)', async () => {
