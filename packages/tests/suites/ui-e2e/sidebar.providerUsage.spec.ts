@@ -239,8 +239,8 @@ test.describe('sidebar provider subscription usage', () => {
         await expect(page.getByTestId('sidebar-provider-usage-state:claude')).toContainText('Choose account');
         await expect(page.getByTestId('sidebar-provider-usage:codex-value')).toHaveText('0');
         await page.getByTestId('sidebar-provider-usage-choice:claude').click();
-        await expect(page.getByTestId(`sidebar-provider-usage-option:claude:native:${personal}`)).toContainText('claude-personal · account');
-        await expect(page.getByTestId(`sidebar-provider-usage-option:claude:native:${organization}`)).toContainText('claude-personal · organization · org-1');
+        await expect(page.getByTestId(`sidebar-provider-usage-option:claude:native:${personal}`)).toContainText('Claude Personal · account');
+        await expect(page.getByTestId(`sidebar-provider-usage-option:claude:native:${organization}`)).toContainText('Claude Personal · organization · org-1');
         await page.getByTestId(`sidebar-provider-usage-option:claude:native:${personal}`).click();
         await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('29');
         await expect(page.getByTestId('sidebar-provider-usage-choice:claude')).toContainText('Claude Personal');
