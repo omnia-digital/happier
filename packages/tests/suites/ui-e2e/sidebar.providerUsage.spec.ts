@@ -121,6 +121,7 @@ async function writeConnectedClaudeProfile(params: Readonly<{
             idToken: `fixture-id-${params.profileId}`, scope: CLAUDE_CODE_E2E_OAUTH_SCOPE,
             tokenType: 'Bearer', providerAccountId: `fixture-${params.profileId}`,
             providerEmail: `${params.profileId}@example.test`,
+            raw: { claudeAiOauth: { organizationUuid: `fixture-org-${params.profileId}` } },
         },
     });
     const ciphertext = sealAccountScopedBlobCiphertext({
@@ -135,6 +136,7 @@ async function writeConnectedClaudeProfile(params: Readonly<{
                 metadata: {
                     kind: 'oauth', providerEmail: `${params.profileId}@example.test`,
                     providerAccountId: `fixture-${params.profileId}`, expiresAt: record.expiresAt,
+                    providerOrganizationId: `fixture-org-${params.profileId}`,
                 },
             }), timeoutMs: 20_000,
         },
@@ -333,10 +335,12 @@ test.describe('sidebar provider subscription usage', () => {
             await writeConnectedClaudeProfile({ baseUrl: server.baseUrl, ...auth, profileId });
         }
         await writeNativeUsage({ baseUrl: server.baseUrl, ...auth,
-            providerId: 'claude', accountSubjectId: 'connected-personal', accountLabel: 'Connected Personal',
+            providerId: 'claude', accountSubjectId: 'fixture-personal', accountLabel: 'Connected Personal',
+            quotaScope: 'organization', quotaScopeId: 'fixture-org-personal',
             remaining: 20, connectedProfileId: 'personal' });
         await writeNativeUsage({ baseUrl: server.baseUrl, ...auth,
-            providerId: 'claude', accountSubjectId: 'connected-work', accountLabel: 'Connected Work',
+            providerId: 'claude', accountSubjectId: 'fixture-work', accountLabel: 'Connected Work',
+            quotaScope: 'organization', quotaScopeId: 'fixture-org-work',
             remaining: 73, connectedProfileId: 'work' });
         await gotoDomContentLoadedWithRetries(page,
             `${uiBaseUrl}/settings/connected-services/profile?serviceId=claude-subscription&profileId=work&happier_hmr=0`, 180_000);
