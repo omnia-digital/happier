@@ -343,8 +343,13 @@ describe('runManagedCliUpdate — the one CLI update transaction', () => {
   it('tells a watcher (the running daemon) whenever an attempt records its end', async () => {
     await installInitial('1.0.0');
     let notified: () => void = () => {};
-    const changed = new Promise<void>((resolve) => { notified = resolve; });
-    const stop = watchLastCliUpdateResult({ channel: 'stable', processEnv: env, onChange: () => notified() });
+    let notifyError: (error: unknown) => void = () => {};
+    const changed = new Promise<void>((resolve, reject) => { notified = resolve; notifyError = reject; });
+    const stop = watchLastCliUpdateResult({
+      channel: 'stable', processEnv: env,
+      onChange: () => notified(),
+      onError: (error) => notifyError(error),
+    });
     expect(stop).not.toBeNull();
     try {
       await runManagedCliUpdate({
