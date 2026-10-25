@@ -31,7 +31,7 @@ export type SessionListIndexItem =
         storageKind?: SessionStorageKind;
         section?: 'active' | 'inactive';
         groupKey?: string;
-        groupKind?: 'active' | 'date' | 'project' | 'pinned' | 'attention' | 'working' | 'shared' | 'folder';
+        groupKind?: 'active' | 'date' | 'project' | 'flat' | 'pinned' | 'attention' | 'working' | 'shared' | 'folder';
         pinned?: boolean;
         variant?: 'default' | 'no-path';
         archivedAt?: number | null;

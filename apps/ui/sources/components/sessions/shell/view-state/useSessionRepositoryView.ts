@@ -12,8 +12,9 @@ import { areServerProfileIdentifiersEquivalent, resolveServerProfileScopeIdForId
 import type { SessionListGroupOrderScope } from '../commit/persistSessionListGroupOrder';
 import { discoverSessionRepositories, type RepositoryDiscoveryFailure } from './sessionRepositoryDiscovery';
 import { collectRepositoryDiscoveryWorkspaces, projectSessionListRepositoryView } from './projectSessionListRepositoryView';
+import { projectSessionListFlatView } from './projectSessionListFlatView';
 
-export type SessionListViewMode = 'original' | 'machine' | 'repository';
+export type SessionListViewMode = 'original' | 'machine' | 'repository' | 'flat';
 type Scopes = Readonly<Record<string, ServerAccountScope | undefined>>;
 
 type Input = Readonly<{
@@ -51,7 +52,7 @@ export function useSessionRepositoryView(input: Input) {
     const jobRef = React.useRef<{ contextKey: string; cancelled: boolean; promise: Promise<void> } | null>(null);
     const [refreshing, setRefreshing] = React.useState(false);
     React.useEffect(() => {
-        if (input.mode !== 'repository') return;
+        if (input.mode !== 'repository' && input.mode !== 'flat') return;
         let cancelRead = () => {};
         const readScopes = () => {
             cancelRead();
@@ -61,7 +62,7 @@ export function useSessionRepositoryView(input: Input) {
             // Local authenticated context only: account changes never initiate SCM/RPC.
             void Promise.all((JSON.parse(serverIdsKey) as string[]).map(async serverId => {
                 try { return [serverId, await scmRepositoryService.resolveScopeForServer(serverId) ?? undefined] as const; }
-                catch (error) { console.warn('Repository view could not read the local Home account scope', error); return [serverId, undefined] as const; }
+                catch (error) { console.warn('Session list could not read the local Home account scope', error); return [serverId, undefined] as const; }
             })).then(entries => { if (current) setResolvedScopes({ contextKey, values: Object.fromEntries(entries) }); });
         };
         const unsubscribe = TokenStorage.subscribeCredentialChanges(() => {
@@ -129,11 +130,15 @@ export function useSessionRepositoryView(input: Input) {
         return result;
     }, [input.groupOrder, orderByServer]);
     const items = React.useMemo(() => input.mode === 'repository' && input.items
-        ? projectSessionListRepositoryView({ ...input, groupOrder: allGroupOrder, items: input.items, scopes, associations }) : input.items,
+        ? projectSessionListRepositoryView({ ...input, groupOrder: allGroupOrder, items: input.items, scopes, associations })
+        : input.mode === 'flat' && input.items
+            ? projectSessionListFlatView({ ...input, groupOrder: allGroupOrder, items: input.items })
+            : input.items,
     [input.items, input.mode, allGroupOrder, input.orderingMode, input.sectionMode, input.folderSortMode, scopes, associations]);
     const orderState = React.useMemo(() => {
         const groupOrder = { ...allGroupOrder };
         const orderScopes: Record<string, readonly SessionListGroupOrderScope[] | null> = {};
+        const unresolvedFlatGroups = new Set<string>();
         const addScope = (key: string, scope: SessionListGroupOrderScope) => {
             const existing = orderScopes[key] ?? [];
             orderScopes[key] = [...existing.filter(value => value.serverId !== scope.serverId), scope];
@@ -144,14 +149,21 @@ export function useSessionRepositoryView(input: Input) {
             const scope = Object.values(scopes).find(value => value?.serverId === serverId) ?? { serverId };
             for (const key of Object.keys(orders)) addScope(key, scope);
         }
-        for (const item of input.items ?? []) {
-            if (!item.groupKey) continue;
-            // Shared band headers have no Home of their own; their rows supply it.
-            // Empty physical folders/projects still belong to the implicit active Home.
-            const usesImplicitHome = item.type === 'session' || item.headerKind === 'folder' || item.headerKind === 'project';
-            const serverId = item.serverId ?? (usesImplicitHome ? activeScope?.serverId : undefined);
-            if (serverId) addScope(item.groupKey, scopes[serverId] ?? { serverId: canonicalServerIds[serverId] ?? serverId });
+        for (const sourceItems of input.mode === 'flat' ? [input.items ?? [], items ?? []] : [input.items ?? []]) {
+            for (const item of sourceItems) {
+                if (!item.groupKey) continue;
+                // Shared band headers have no Home of their own; their rows supply it.
+                // Empty physical folders/projects still belong to the implicit active Home.
+                const usesImplicitHome = item.type === 'session' || item.headerKind === 'folder' || item.headerKind === 'project';
+                const serverId = item.serverId ?? (usesImplicitHome ? activeScope?.serverId : undefined);
+                if (input.mode === 'flat' && usesImplicitHome && item.groupKey.startsWith('flat-v1:') && (!serverId || !scopes[serverId]?.accountId)) {
+                    unresolvedFlatGroups.add(item.groupKey);
+                    continue;
+                }
+                if (serverId) addScope(item.groupKey, scopes[serverId] ?? { serverId: canonicalServerIds[serverId] ?? serverId });
+            }
         }
+        for (const key of unresolvedFlatGroups) orderScopes[key] = null;
         if (input.mode === 'repository') for (const item of items ?? []) {
             if (item.type !== 'header' || !item.repository || !item.groupKey) continue;
             const checkout = item.repository.checkouts[0];

@@ -1,4 +1,4 @@
-import { isSessionListTreeDestinationCompatible } from './isSessionListTreeDestinationCompatible';
+import { isSessionListHomeOrderMoveCompatible, isSessionListTreeDestinationCompatible } from './isSessionListTreeDestinationCompatible';
 import { resolveTreeInstruction, type TreeDropResult, type WindowPointer } from '@/components/ui/treeDragDrop';
 import { resolveSessionListIndexFolderDragEligibility } from '@/sync/domains/session/listing/sessionListIndex';
 import { SESSION_FOLDER_MAX_DEPTH } from '@/sync/domains/session/folders/constants';
@@ -93,10 +93,13 @@ export function resolveSessionListInstruction(params: Readonly<{
         },
     });
 
-    return resolveSessionListFolderSortModeDropResult({
+    const result = resolveSessionListFolderSortModeDropResult({
         tree: params.tree,
         source: params.source,
         result: resolved,
         folderSortMode: params.folderSortMode ?? DEFAULT_SESSION_LIST_FOLDER_SORT_MODE,
     });
+    return isSessionListHomeOrderMoveCompatible(params.tree, params.source.metadata, result.instruction)
+        ? result
+        : { instruction: { kind: 'blocked', reason: 'workspace-scope-mismatch' }, visual: { kind: 'none' } };
 }

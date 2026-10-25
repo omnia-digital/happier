@@ -187,7 +187,7 @@ export function useSessionListViewState({
     const sessionFolderViewMode: SessionFolderViewModeV1 = sessionFolderViewModeRaw === 'tree' ? 'tree' : 'off';
     const sessionListSavedFolderSortMode = normalizeSessionListFolderSortMode(sessionListFolderSortModeRaw);
     const sessionListOrderingMode = normalizeSessionListOrderingModeV1(sessionListOrderingModeRaw);
-    const sessionListMachineViewMode: SessionListViewMode = sessionListMachineViewRaw === 'repository' ? 'repository' : sessionListMachineViewRaw === 'machine' ? 'machine' : 'original';
+    const sessionListMachineViewMode: SessionListViewMode = sessionListMachineViewRaw === 'repository' ? 'repository' : sessionListMachineViewRaw === 'machine' ? 'machine' : sessionListMachineViewRaw === 'flat' ? 'flat' : 'original';
     const sessionListSectionMode = useSetting('sessionListSectionModeV1') === 'single' ? 'single' : 'activity';
     const sessionListFolderSortMode = resolveEffectiveSessionListFolderSortMode({
         orderingMode: sessionListOrderingMode,
