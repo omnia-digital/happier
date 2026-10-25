@@ -142,20 +142,25 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
                 const ticket = item.getByTestId('session-ticket-row-status:' + id);
                 await expect(item).toBeVisible();
                 await expect(ticket).toBeVisible();
-                const [cardBox, titleBox, machineBox, ticketBox] = await Promise.all([
+                const [cardBox, titleBox, machineBox, ticketBox, cardBorder] = await Promise.all([
                     item.boundingBox(),
                     item.getByText(title, { exact: true }).boundingBox(),
                     item.getByTestId('session-list-machine-identity-' + id).boundingBox(),
                     ticket.boundingBox(),
+                    item.evaluate((element) => {
+                        const style = getComputedStyle(element);
+                        return { top: Number.parseFloat(style.borderTopWidth), bottom: Number.parseFloat(style.borderBottomWidth) };
+                    }),
                 ]);
                 if (!cardBox || !titleBox || !machineBox || !ticketBox) throw new Error('Ticket row geometry unavailable');
-                const geometry = JSON.stringify({ cardBox, titleBox, machineBox, ticketBox });
-                expect(titleBox.y, geometry).toBeGreaterThanOrEqual(cardBox.y + 1);
-                expect(machineBox.y, geometry).toBeGreaterThanOrEqual(cardBox.y + 1);
-                expect(ticketBox.y, geometry).toBeGreaterThanOrEqual(cardBox.y + 1);
-                expect(titleBox.y + titleBox.height, geometry).toBeLessThanOrEqual(ticketBox.y + 1);
-                expect(machineBox.y + machineBox.height, geometry).toBeLessThanOrEqual(ticketBox.y + 1);
-                expect(ticketBox.y + ticketBox.height, geometry).toBeLessThanOrEqual(cardBox.y + cardBox.height - 1);
+                const geometry = JSON.stringify({ cardBox, titleBox, machineBox, ticketBox, cardBorder });
+                // Only group-edge rows have a top/bottom border; measure their actual content bounds.
+                for (const box of [titleBox, machineBox, ticketBox]) {
+                    expect(box.y, geometry).toBeGreaterThanOrEqual(cardBox.y + cardBorder.top);
+                    expect(box.y + box.height, geometry).toBeLessThanOrEqual(cardBox.y + cardBox.height - cardBorder.bottom);
+                }
+                expect(titleBox.y + titleBox.height, geometry).toBeLessThanOrEqual(machineBox.y);
+                expect(machineBox.y + machineBox.height, geometry).toBeLessThanOrEqual(ticketBox.y);
             };
             // Virtualized DOM pools retain hidden/recycled nodes and need not follow visual order.
             const visibleIds = () => page.locator('[data-testid^="session-list-item-"]').evaluateAll(nodes => nodes.map(node => ({
