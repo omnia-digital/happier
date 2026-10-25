@@ -78,6 +78,17 @@ import { enableEnhancedSessionWizard } from '../../src/testkit/uiE2e/enableEnhan
 
 const run = createRunDirs({ runLabel: 'ui-e2e' });
 
+function isolatedPathPickerCliEnv(homeDir: string): NodeJS.ProcessEnv {
+    return {
+        ...process.env,
+        HOME: homeDir,
+        USERPROFILE: homeDir,
+        HAPPIER_DAEMON_SERVICE_USER_HOME_DIR: homeDir,
+        HAPPIER_DAEMON_SERVICE_HAPPIER_HOME_DIR: homeDir,
+        HAPPIER_CLI_DAEMON_INTEGRATION_BOOTSTRAP_AUTH: '0',
+    };
+}
+
 test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () => {
     test.describe.configure({ mode: 'serial' });
 
@@ -131,9 +142,7 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
             initialUiReadyTimeoutMs: 420_000,
             terminalConnectUrlTimeoutMs: 90_000,
             daemonStartupTimeoutMs: 180_000,
-            extraEnv: {
-                ...process.env,
-            },
+            extraEnv: isolatedPathPickerCliEnv(cliHomeDir),
         });
 
         await enableEnhancedSessionWizard({ page, baseUrl: uiBaseUrl });
@@ -185,7 +194,7 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
             initialUiReadyTimeoutMs: 420_000,
             terminalConnectUrlTimeoutMs: 90_000,
             daemonStartupTimeoutMs: 180_000,
-            extraEnv: { ...process.env },
+            extraEnv: isolatedPathPickerCliEnv(scrollCliHomeDir),
         });
         const machineId = await waitForDaemonMachineIdFromCliSettings({ cliHomeDir: scrollCliHomeDir });
         const accessKey = await readCliAccessKey(scrollCliHomeDir);
@@ -252,8 +261,8 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         await expect(popover.getByTestId(`path-selection-list:path-root:option:recent:${recentDirs[0]}`)).toHaveCount(1);
         const selectedPathBefore = await pathChip.textContent();
         const scroll = popover.getByTestId('path-selection-list:bodyScroll');
-        const lastFavorite = popover.getByTestId(`path-selection-list:path-root:option:favorite:${dirs.at(-1)}`);
-        await expect(lastFavorite).toHaveCount(1);
+        const lastRecent = popover.getByTestId(`path-selection-list:path-root:option:recent:${recentDirs.at(-1)}`);
+        await expect(lastRecent).toHaveCount(1);
         const footer = popover.getByTestId('path-selection-list:footerFrame');
         await expect(footer).toBeVisible();
         const scrollHost = await scroll.elementHandle();
@@ -285,21 +294,21 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         expect(after.active).toBe(before.active);
         expect(await page.evaluate(() => window.scrollY)).toBe(before.page);
         expect(await pathChip.textContent()).toBe(selectedPathBefore);
-        const lastFavoriteRect = await lastFavorite.boundingBox();
+        const lastRecentRect = await lastRecent.boundingBox();
         const scrollRect = await scroll.boundingBox();
         const footerRect = await footer.boundingBox();
-        expect(lastFavoriteRect).not.toBeNull();
+        expect(lastRecentRect).not.toBeNull();
         expect(scrollRect).not.toBeNull();
         expect(footerRect).not.toBeNull();
-        expect(lastFavoriteRect!.y).toBeGreaterThanOrEqual(scrollRect!.y);
-        expect(lastFavoriteRect!.y + lastFavoriteRect!.height).toBeLessThanOrEqual(footerRect!.y);
+        expect(lastRecentRect!.y).toBeGreaterThanOrEqual(scrollRect!.y);
+        expect(lastRecentRect!.y + lastRecentRect!.height).toBeLessThanOrEqual(footerRect!.y);
         await page.screenshot({ path: testInfo.outputPath('oh73-path-scroll-after.png') });
         await page.mouse.wheel(0, -1600);
         await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBe(0);
         await page.mouse.wheel(0, 1600);
         await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
-        await lastFavorite.click();
+        await lastRecent.click();
         await expect(popover).toHaveCount(0);
-        await expect(pathChip).toContainText('scroll-path-13');
+        await expect(pathChip).toContainText('recent-path-2');
     });
 });
