@@ -120,7 +120,7 @@ describe('createTmuxTerminalHostAdapter', () => {
     expect(resolveTmuxCommandEnvironmentForHostHandle(TMUX_HANDLE)).toBeUndefined();
   });
 
-  it('targets an immutable tmux window id without a mutable session-name prefix', async () => {
+  it('targets an immutable tmux window id within its exact owning session', async () => {
     const tmux = new TmuxUtilities();
     const executeTmuxCommand = vi.spyOn(tmux, 'executeTmuxCommand').mockResolvedValue({
       returncode: 0,
@@ -135,11 +135,12 @@ describe('createTmuxTerminalHostAdapter', () => {
       paneId: '@7',
     })).resolves.toMatchObject({ paneAlive: true });
 
+    expect(executeTmuxCommand).toHaveBeenCalledWith(['has-session', '-t', '=happy:@7']);
     expect(executeTmuxCommand).toHaveBeenCalledWith([
       'display-message',
       '-p',
       '-t',
-      '@7',
+      '=happy:@7',
       '#{pane_dead}|#{pane_pid}|#{pane_current_command}',
     ]);
   });

@@ -51,6 +51,13 @@ describe('parseTmuxSessionIdentifier', () => {
         });
     });
 
+    it('parses an exact tmux command target without changing the persisted identifier', () => {
+        const parsed = parseTmuxSessionIdentifier('=my session:@7');
+        expect(parsed).toEqual({ session: 'my session', window: '@7' });
+        expect(formatTmuxSessionIdentifier(parsed)).toBe('my session:@7');
+        expect(formatTmuxSessionIdentifier(parsed, { exactSession: true })).toBe('=my session:@7');
+    });
+
     it('should parse session:window.pane identifier', () => {
         const result = parseTmuxSessionIdentifier('my-session:window-1.2');
         expect(result).toEqual({

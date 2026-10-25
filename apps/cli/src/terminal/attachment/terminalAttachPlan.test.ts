@@ -135,12 +135,12 @@ describe('createTerminalAttachPlan', () => {
     expect(plan).toEqual({
       type: 'tmux',
       sessionName: 'happy',
-      target: 'happy:window-1',
+      target: '=happy:window-1',
       shouldAttach: true,
       shouldUnsetTmuxEnv: false,
       tmuxCommandEnv: {},
-      selectWindowArgs: ['select-window', '-t', 'happy:window-1'],
-      attachSessionArgs: ['attach-session', '-t', 'happy'],
+      selectWindowArgs: ['select-window', '-t', '=happy:window-1'],
+      attachSessionArgs: ['attach-session', '-t', '=happy'],
     });
   });
 
@@ -153,8 +153,8 @@ describe('createTerminalAttachPlan', () => {
     expect(createTerminalAttachPlan({ terminal, insideTmux: false })).toMatchObject({
       type: 'tmux',
       sessionName: 'happy',
-      target: '@7',
-      selectWindowArgs: ['select-window', '-t', '@7'],
+      target: '=happy:@7',
+      selectWindowArgs: ['select-window', '-t', '=happy:@7'],
     });
   });
 
