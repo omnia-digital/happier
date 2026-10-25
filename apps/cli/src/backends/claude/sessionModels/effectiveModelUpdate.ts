@@ -5,7 +5,7 @@ import { updateMetadataBestEffort } from '@/api/session/sessionWritesBestEffort'
 import { buildClaudeSessionModelsMetadataWithCurrentModelId } from '../remote/buildClaudeSessionModelsMetadataFromSupportedModels';
 
 export type ClaudeEffectiveModelUpdateSource = 'statusline' | 'transcript' | 'sdk' | 'control';
-export type ClaudeEffectiveModelObservation = Readonly<{ modelId: string; reasoningEffort: string }>;
+export type ClaudeEffectiveModelObservation = Readonly<{ modelId: string; reasoningEffort?: string }>;
 
 type ClaudeEffectiveModelUpdateClient = Readonly<{
   sendSessionEvent(event: { type: 'message'; message: string }, id?: string): void;

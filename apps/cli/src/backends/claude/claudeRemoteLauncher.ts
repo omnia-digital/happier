@@ -164,7 +164,6 @@ import { surfacePrimarySessionRuntimeIssue } from '@/agent/runtime/session/error
 import { createClaudeUnifiedTerminalMetadataModeApplier } from './unifiedTerminal/metadataRuntimeModeApplier';
 import { createClaudeUnifiedTerminalSharedCallbacks } from './unifiedTerminal/createClaudeUnifiedTerminalSharedCallbacks';
 import { resolveClaudeSubscriptionRefreshSelectionFromEnv } from './connectedServices/claudeSubscriptionAccessTokenRefresh';
-import { readClaudeMainChainAssistantModelId } from './sessionModels/readClaudeMainChainAssistantModelId';
 
 function mergeSessionWorkStateIntoMetadata(
     metadata: Metadata,
@@ -316,13 +315,6 @@ function resolveClaudeCurrentModelIdFromMetadata(metadata: Record<string, unknow
         ? String((metadata as any).acpSessionModelsV1.currentModelId).trim()
         : '';
     return acpCurrent || null;
-}
-
-function readClaudeSdkEffectiveModelId(message: SDKMessage): string | null {
-    if (message.type === 'system') {
-        return readNonEmptyString((message as Record<string, unknown>).model);
-    }
-    return readClaudeMainChainAssistantModelId(message);
 }
 
 async function formatClaudeCodeArtifactsTailForUi(artifacts: ClaudeCodeArtifacts): Promise<string> {
@@ -896,17 +888,6 @@ export async function claudeRemoteLauncher(
         if ((message as { type?: unknown }).type === 'attachment') {
             goalWorkStateSource.observeTranscriptMessage(message);
             return;
-        }
-
-        const effectiveModelId = readClaudeSdkEffectiveModelId(message);
-        if (effectiveModelId) {
-            applyClaudeEffectiveModelUpdate({
-                client: session.client,
-                reconcileModels: session.reconcileSessionModels,
-                modelId: effectiveModelId,
-                source: 'sdk',
-                logPrefix: '[remote]',
-            });
         }
 
         if (message.type === 'system') {

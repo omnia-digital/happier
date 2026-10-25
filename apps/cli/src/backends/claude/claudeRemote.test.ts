@@ -429,7 +429,25 @@ describe('claudeRemote', () => {
 
   it('injects --effort when the mode specifies a non-default reasoningEffort', async () => {
     const onEffectiveModel = vi.fn();
-    mockQuery.mockReturnValue(messageStream({ ...systemInitMessage('effort-init'), model: 'claude-opus-4-6' }, resultMessage()));
+    mockQuery.mockImplementation((config: QueryCall) => ({
+      async *[Symbol.asyncIterator]() {
+        const init = { ...systemInitMessage('effort-init'), model: 'claude-opus-4-6' };
+        config.onMessageReceived?.(init);
+        yield init;
+        expect(onEffectiveModel).not.toHaveBeenCalled();
+        const assistant: SDKMessage = { type: 'assistant', message: {
+          role: 'assistant', model: 'claude-opus-4-6', content: [{ type: 'text', text: 'Response' }],
+        } };
+        config.onMessageReceived?.(assistant);
+        yield assistant;
+        const nextAssistant: SDKMessage = { type: 'assistant', message: {
+          role: 'assistant', model: 'claude-next', content: [{ type: 'text', text: 'Next response' }],
+        } };
+        config.onMessageReceived?.(nextAssistant);
+        yield nextAssistant;
+        yield resultMessage();
+      },
+    }));
 
     const { claudeRemote } = await import('./claudeRemote');
 
@@ -447,6 +465,7 @@ describe('claudeRemote', () => {
     const call = mockQuery.mock.calls[0]?.[0] as QueryCall | undefined;
     expect(call?.options?.extraArgs).toEqual(['--replay-user-messages', '--effort', 'medium']);
     expect(onEffectiveModel).toHaveBeenCalledWith({ modelId: 'claude-opus-4-6', reasoningEffort: 'medium' });
+    expect(onEffectiveModel).toHaveBeenLastCalledWith({ modelId: 'claude-next' });
   });
 
   it('injects --effort high for Opus 4.7 because xhigh is the model default', async () => {

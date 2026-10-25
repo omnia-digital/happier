@@ -28,6 +28,7 @@ import {
 } from './createClaudeUnifiedHookLifecycleBridge';
 import { createReplayableHookSubscription } from './createReplayableHookSubscription';
 import { createClaudeUnifiedTranscriptBridge } from './createClaudeUnifiedTranscriptBridge';
+import type { ClaudeEffectiveModelObservation } from '../sessionModels/effectiveModelUpdate';
 import type { ClaudeWorkflowActivityObservationContext } from '../workflows/claudeWorkflowActivitySource';
 import { isClaudeMainChainCompactBoundary } from '../localControl/readClaudeTranscriptTurnSignal';
 import type { ClaudeRemoteSubagentFileCollector } from '../remote/sidechains/claudeRemoteSubagentFileCollector';
@@ -322,6 +323,7 @@ export type ClaudeUnifiedTerminalSessionOptions<Mode extends EnhancedMode = Enha
   ) => void) | undefined;
   providerActivityLedger?: ReturnType<typeof createClaudeProviderActivityLedger> | undefined;
   onMessage?: ((message: RawJSONLines) => void | Promise<void>) | undefined;
+  onEffectiveModel?: ((facts: ClaudeEffectiveModelObservation) => void) | undefined;
   onHistoricalMessage?: ((message: RawJSONLines) => void | Promise<void>) | undefined;
   /**
    * Raw transcript channel (plan H7): every parsed JSONL value BEFORE the scanner's
@@ -2529,12 +2531,13 @@ export async function runClaudeUnifiedTerminalSession<Mode extends EnhancedMode 
         }
         await handler?.(message);
       };
-      const transcriptBridge = opts.runtimeActivityAdapter || opts.onMessage || opts.onHistoricalMessage || opts.onSessionFound || lifecycleBridge
+      const transcriptBridge = opts.runtimeActivityAdapter || opts.onMessage || opts.onEffectiveModel || opts.onHistoricalMessage || opts.onSessionFound || lifecycleBridge
         ? createClaudeUnifiedTranscriptBridge({
             sessionId: opts.sessionId ?? null,
             transcriptPath: opts.transcriptPath,
             workingDirectory: opts.path,
             claudeConfigDir: resolveClaudeConfigDirOverride(process.env),
+            onEffectiveModel: opts.onEffectiveModel,
             onMessage: opts.onMessage
               ? (message) => forwardVisibleTranscriptMessage(message, opts.onMessage)
               : undefined,

@@ -43,6 +43,7 @@ import {
 import { withCurrentHappierSessionId } from '@/agent/runtime/session/currentSessionIdEnv';
 
 import type { SDKMessage, SDKSystemMessage, SDKUserMessage } from '@/backends/claude/sdk';
+import { readClaudeMainChainAssistantModelId } from '../sessionModels/readClaudeMainChainAssistantModelId';
 import { ClaudeNativeProviderExitUnverifiedError, type PermissionResult } from '@/backends/claude/sdk/types';
 import type { JsRuntime } from '@/backends/claude/runClaude';
 import { createSubprocessStderrAppender, resolveSubprocessArtifactsDir } from '@/agent/runtime/subprocessArtifacts';
@@ -1774,7 +1775,17 @@ Model setting: ${lastAppliedRuntimeSettings.model ?? 'provider default'}.${messa
             })();
         }
 
+        let unpublishedLaunchEffort = resolvedUltracode ? 'xhigh' : queryOptions.effort;
         for await (const message of response as any) {
+            const observedModelId = isReplaySdkMessage(message) ? null : readClaudeMainChainAssistantModelId(message);
+            if (observedModelId) {
+                const launchEffort = unpublishedLaunchEffort;
+                unpublishedLaunchEffort = undefined;
+                opts.onEffectiveModel?.({
+                    modelId: observedModelId,
+                    ...(typeof launchEffort === 'string' ? { reasoningEffort: launchEffort } : {}),
+                });
+            }
             const isAcceptedPromptEcho = promptSettlements.observeProviderMessage(message);
             const inboundType = (() => {
                 if (!message || typeof message !== 'object') return 'unknown';
@@ -2200,12 +2211,6 @@ Model setting: ${lastAppliedRuntimeSettings.model ?? 'provider default'}.${messa
                     }
 
                     if (subtype === 'init' || subtype === 'compact_boundary') {
-                        if (subtype === 'init' && typeof system.model === 'string' && system.model.trim()) {
-                            const launchEffort = resolvedUltracode ? 'xhigh' : queryOptions.effort;
-                            if (typeof launchEffort === 'string') {
-                                opts.onEffectiveModel?.({ modelId: system.model.trim(), reasoningEffort: launchEffort });
-                            }
-                        }
                         if (system.session_id) {
                             const transcriptPath = latestClaudeSessionId === system.session_id && latestTranscriptPath
                                 ? latestTranscriptPath

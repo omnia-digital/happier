@@ -327,6 +327,11 @@ describe('claudeRemoteAgentSdk options and hooks', () => {
                 async *[Symbol.asyncIterator]() {
                     expect(onEffectiveModel).not.toHaveBeenCalled();
                     yield { type: 'system', subtype: 'init', model: runtimeModel, session_id: 'effort-init' } as any;
+                    expect(onEffectiveModel).not.toHaveBeenCalled();
+                    yield { type: 'assistant', message: { role: 'assistant', model: runtimeModel,
+                        content: [{ type: 'text', text: 'Response' }] } };
+                    yield { type: 'assistant', message: { role: 'assistant', model: 'claude-next',
+                        content: [{ type: 'text', text: 'Next response' }] } };
                     yield { type: 'result' } as any;
                 },
                 close: vi.fn(),
@@ -368,6 +373,7 @@ describe('claudeRemoteAgentSdk options and hooks', () => {
         expect(capturedOptions.model).toBe(requestedModel);
         expect(capturedOptions.effort).toBe(effort);
         expect(onEffectiveModel).toHaveBeenCalledWith({ modelId: runtimeModel, reasoningEffort: effort });
+        expect(onEffectiveModel).toHaveBeenLastCalledWith({ modelId: 'claude-next' });
     });
 
     it('passes ultracode through the --settings extraArg for xhigh-capable models', async () => {
