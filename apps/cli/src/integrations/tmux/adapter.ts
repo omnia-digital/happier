@@ -89,11 +89,12 @@ export function createTmuxTerminalHostAdapter(params?: Readonly<{
 }>): TerminalHostAdapter {
   const tmux = params?.tmux ?? new TmuxUtilities();
   const promptSubmitVerification = params?.promptSubmitVerification;
-  const tmuxForHandle = (handle: TerminalHostHandle): TmuxUtilities => {
+  const tmuxForEnvironment = (environment: Record<string, string> | undefined): TmuxUtilities => {
     if (params?.tmux) return params.tmux;
-    const environment = resolveTmuxCommandEnvironmentForHostHandle(handle);
     return environment ? new TmuxUtilities(undefined, environment) : tmux;
   };
+  const tmuxForHandle = (handle: TerminalHostHandle): TmuxUtilities =>
+    tmuxForEnvironment(resolveTmuxCommandEnvironmentForHostHandle(handle));
 
   async function evaluateLiveness(handle: TerminalHostHandle) {
     const handleTmux = tmuxForHandle(handle);
@@ -151,7 +152,8 @@ export function createTmuxTerminalHostAdapter(params?: Readonly<{
   }
 
   const createOrAttachHost: TerminalHostAdapter['createOrAttachHost'] = async (opts) => {
-    const result = await tmux.spawnInTmux([...opts.spawnArgv], {
+    const commandEnv = opts.spawnEnv.TMUX_TMPDIR ? { TMUX_TMPDIR: opts.spawnEnv.TMUX_TMPDIR } : undefined;
+    const result = await tmuxForEnvironment(commandEnv).spawnInTmux([...opts.spawnArgv], {
       sessionName: opts.sessionName,
       windowName: opts.topology === 'shared' ? opts.label ?? opts.sessionName : opts.sessionName,
       cwd: opts.workingDirectory,

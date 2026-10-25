@@ -4220,14 +4220,6 @@ export async function startDaemon(options: Readonly<{ takeover?: boolean }> = {}
           // Use merged env so tmux mode matches regular process spawn behavior.
           // Note: this may add many `-e` flags; if it becomes a problem we can optimize
           // by diffing against `tmux show-environment` in a follow-up.
-              if (tmuxTmpDir) {
-                try {
-                  await fs.mkdir(tmuxTmpDir, { recursive: true });
-                } catch (error) {
-                  logger.debug('[DAEMON RUN] Failed to ensure TMUX_TMPDIR exists; tmux may fail to start', error);
-                }
-              }
-
               const tmuxResult = await tmux.spawnInTmux(commandTokens, {
                 sessionName: resolvedTmuxSessionName,
                 windowName: windowName,
