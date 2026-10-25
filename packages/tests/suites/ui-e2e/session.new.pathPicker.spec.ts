@@ -62,6 +62,7 @@
 import { test, expect } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { accountSettingsParse } from '@happier-dev/protocol';
 
 import { createRunDirs } from '../../src/testkit/runDir';
 import { startServerLight, type StartedServer } from '../../src/testkit/process/serverLight';
@@ -70,8 +71,8 @@ import { type StartedDaemon } from '../../src/testkit/daemon/daemon';
 import { authenticateAndStartDaemon } from '../../src/testkit/uiE2e/authenticateAndStartDaemon';
 import { readCliAccessKey } from '../../src/testkit/cliAccessKey';
 import { waitForDaemonMachineIdFromCliSettings } from '../../src/testkit/uiE2e/daemonMachineId';
-import { createSessionWithCiphertexts } from '../../src/testkit/sessions';
-import { encryptLegacyBase64 } from '../../src/testkit/messageCrypto';
+import { readUiE2eScopedAccountSettings } from '../../src/testkit/uiE2e/scopedAccountSettingsStorage';
+import { upsertEncryptedAccountSettingsV2 } from '../../src/testkit/accountSettings';
 import { gotoDomContentLoadedWithRetries } from '../../src/testkit/uiE2e/pageNavigation';
 import { enableEnhancedSessionWizard } from '../../src/testkit/uiE2e/enableEnhancedSessionWizard';
 
@@ -189,8 +190,8 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         const machineId = await waitForDaemonMachineIdFromCliSettings({ cliHomeDir: scrollCliHomeDir });
         const accessKey = await readCliAccessKey(scrollCliHomeDir);
         if (!accessKey) throw new Error('expected isolated daemon access key');
-        // The isolated authenticated browser owns the account encryption secret;
-        // the server's session-create route accepts encrypted metadata only.
+        // Read only this isolated browser fixture's generated encryption secret;
+        // the account settings endpoint is the real persisted preference boundary.
         const secretBase64Url = await page.evaluate(() => {
             const keys = Object.keys(localStorage).filter((key) => key.startsWith('auth_credentials__srv_'));
             if (keys.length !== 1) throw new Error('expected one isolated fixture account');
@@ -200,22 +201,6 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
             return credentials.secret;
         });
         const fixtureSecret = Uint8Array.from(Buffer.from(secretBase64Url, 'base64url'));
-        for (const path of recentDirs) {
-            await createSessionWithCiphertexts({
-                baseUrl: server.baseUrl,
-                token: accessKey.token,
-                metadataCiphertextBase64: encryptLegacyBase64({
-                    v: 1,
-                    name: 'Path picker recent fixture',
-                    path,
-                    homeDir: suiteDir,
-                    host: machineId,
-                    machineId,
-                    version: '0.2.16',
-                    flavor: 'claude',
-                }, fixtureSecret),
-            });
-        }
 
         await page.setViewportSize({ width: 900, height: 480 });
         await enableEnhancedSessionWizard({ page, baseUrl: uiBaseUrl });
@@ -224,19 +209,48 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         const popover = page.getByTestId('agent-input-content-popover');
         const input = popover.getByTestId('path-selection-list:header:input');
         await input.fill(`${suiteDir}/`);
-        for (const path of dirs) {
-            const row = popover.getByTestId(`path-selection-list:path-root:option:in-folder:${path}`);
-            await expect(row).toBeVisible({ timeout: 60_000 });
-            await row.getByRole('button', { name: 'Add to favorites' }).click();
-            await expect(popover.getByTestId(`path-selection-list:path-root:option:favorite:${path}`)).toHaveCount(1);
-        }
+        const firstRow = popover.getByTestId(`path-selection-list:path-root:option:in-folder:${dirs[0]}`);
+        await expect(firstRow).toBeVisible({ timeout: 60_000 });
+        await firstRow.getByRole('button', { name: 'Add to favorites' }).click();
+        await expect(popover.getByTestId(`path-selection-list:path-root:option:favorite:${dirs[0]}`)).toHaveCount(1);
         await input.press('Escape');
         await expect(popover).toHaveCount(0);
+        await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/new?happier_hmr=0`, 60_000);
         const pathChip = page.getByTestId('agent-input-path-chip');
-        const selectedPathBefore = await pathChip.textContent();
+        await pathChip.click();
+        await expect(popover).toHaveCount(1);
+        await expect(popover.getByTestId(`path-selection-list:path-root:option:favorite:${dirs[0]}`)).toHaveCount(1);
+        await popover.getByTestId('path-selection-list:header:input').press('Escape');
+        await expect(popover).toHaveCount(0);
+        const currentSettings = await readUiE2eScopedAccountSettings({ page });
+        const rawPreferences = currentSettings.machinePathPreferencesByTargetV1;
+        if (!rawPreferences || typeof rawPreferences !== 'object' || Array.isArray(rawPreferences)) {
+            throw new Error('missing selected-machine path preference record');
+        }
+        const targetKeys = Object.keys(rawPreferences).filter((key) => {
+            try {
+                const scope: unknown = JSON.parse(key);
+                return Array.isArray(scope) && scope.length === 3 && scope[2] === machineId;
+            } catch { return false; }
+        });
+        if (targetKeys.length !== 1) throw new Error('expected exactly one selected-machine path preference record');
+        await upsertEncryptedAccountSettingsV2({
+            baseUrl: server.baseUrl,
+            token: accessKey.token,
+            secret: fixtureSecret,
+            settings: accountSettingsParse({
+                ...currentSettings,
+                machinePathPreferencesByTargetV1: {
+                    ...rawPreferences,
+                    [targetKeys[0]!]: { favorites: dirs, recentPaths: recentDirs },
+                },
+            }),
+        });
+        await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/new?happier_hmr=0`, 60_000);
         await pathChip.click();
         await expect(popover).toHaveCount(1);
         await expect(popover.getByTestId(`path-selection-list:path-root:option:recent:${recentDirs[0]}`)).toHaveCount(1);
+        const selectedPathBefore = await pathChip.textContent();
         const scroll = popover.getByTestId('path-selection-list:bodyScroll');
         const lastFavorite = popover.getByTestId(`path-selection-list:path-root:option:favorite:${dirs.at(-1)}`);
         await expect(lastFavorite).toHaveCount(1);
