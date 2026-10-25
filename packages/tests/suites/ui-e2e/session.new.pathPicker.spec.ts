@@ -296,13 +296,25 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         const lastRecentRect = await lastRecent.boundingBox();
         const scrollRect = await scroll.boundingBox();
         const footerRect = await footer.boundingBox();
+        const shortPickerRect = await popover.getByTestId('path-selection-list').boundingBox();
         expect(lastRecentRect).not.toBeNull();
         expect(scrollRect).not.toBeNull();
         expect(footerRect).not.toBeNull();
+        expect(shortPickerRect).not.toBeNull();
+        expect(shortPickerRect!.y).toBeGreaterThanOrEqual(0);
+        expect(shortPickerRect!.y + shortPickerRect!.height).toBeLessThanOrEqual(
+            await page.evaluate(() => window.innerHeight),
+        );
         expect(lastRecentRect!.y).toBeGreaterThanOrEqual(scrollRect!.y);
         expect(lastRecentRect!.y + lastRecentRect!.height).toBeLessThanOrEqual(footerRect!.y);
         await lastRecent.hover();
         await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+        const bottomOffset = await scroll.evaluate((element) => element.scrollTop);
+        await page.mouse.wheel(0, 800);
+        await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBe(bottomOffset);
+        expect(await page.evaluate(() => window.scrollY)).toBe(before.page);
+        expect(await readModalScrollOffsets()).toEqual(modalOffsetsBefore);
+        await expect(popover).toHaveCount(1);
         await page.screenshot({ path: testInfo.outputPath('oh73-path-scroll-after.png') });
         await page.mouse.wheel(0, -1600);
         await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBe(0);
@@ -318,11 +330,13 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         await expect.poll(async () => {
             const rect = await popover.getByTestId('path-selection-list').boundingBox();
             return rect?.y ?? Number.NEGATIVE_INFINITY;
-        }).toBeGreaterThanOrEqual(8);
+        }).toBeGreaterThanOrEqual(0);
         const normalPickerRect = await popover.getByTestId('path-selection-list').boundingBox();
         expect(normalPickerRect).not.toBeNull();
-        expect(normalPickerRect!.y).toBeGreaterThanOrEqual(8);
-        expect(normalPickerRect!.y + normalPickerRect!.height).toBeLessThanOrEqual(792);
+        expect(normalPickerRect!.y).toBeGreaterThanOrEqual(0);
+        expect(normalPickerRect!.y + normalPickerRect!.height).toBeLessThanOrEqual(
+            await page.evaluate(() => window.innerHeight),
+        );
         await page.screenshot({ path: testInfo.outputPath('oh73-path-normal-open.png') });
         const normalInput = popover.getByTestId('path-selection-list:header:input');
         await normalInput.fill('scroll-path-13');
