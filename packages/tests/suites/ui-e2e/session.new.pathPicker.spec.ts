@@ -68,6 +68,9 @@ import { startServerLight, type StartedServer } from '../../src/testkit/process/
 import { startUiWeb, type StartedUiWeb } from '../../src/testkit/process/uiWeb';
 import { type StartedDaemon } from '../../src/testkit/daemon/daemon';
 import { authenticateAndStartDaemon } from '../../src/testkit/uiE2e/authenticateAndStartDaemon';
+import { readCliAccessKey } from '../../src/testkit/cliAccessKey';
+import { waitForDaemonMachineIdFromCliSettings } from '../../src/testkit/uiE2e/daemonMachineId';
+import { createPlainSession } from '../../src/testkit/uiE2e/sessionFoldersDrag';
 import { gotoDomContentLoadedWithRetries } from '../../src/testkit/uiE2e/pageNavigation';
 import { enableEnhancedSessionWizard } from '../../src/testkit/uiE2e/enableEnhancedSessionWizard';
 
@@ -168,7 +171,8 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         test.setTimeout(180_000);
 
         const dirs = Array.from({ length: 14 }, (_, index) => resolve(join(suiteDir, `scroll-path-${String(index).padStart(2, '0')}`)));
-        await Promise.all(dirs.map((path) => mkdir(path, { recursive: true })));
+        const recentDirs = Array.from({ length: 3 }, (_, index) => resolve(join(suiteDir, `recent-path-${index}`)));
+        await Promise.all([...dirs, ...recentDirs].map((path) => mkdir(path, { recursive: true })));
         scrollDaemon = await authenticateAndStartDaemon({
             page,
             testDir: suiteDir,
@@ -181,6 +185,19 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
             daemonStartupTimeoutMs: 180_000,
             extraEnv: { ...process.env },
         });
+        const machineId = await waitForDaemonMachineIdFromCliSettings({ cliHomeDir: scrollCliHomeDir });
+        const accessKey = await readCliAccessKey(scrollCliHomeDir);
+        if (!accessKey) throw new Error('expected isolated daemon access key');
+        for (const path of recentDirs) {
+            await createPlainSession({
+                baseUrl: server.baseUrl,
+                token: accessKey.token,
+                title: 'Path picker recent fixture',
+                rootPath: path,
+                machineId,
+                tagPrefix: 'oh73-recent',
+            });
+        }
 
         await page.setViewportSize({ width: 900, height: 480 });
         await enableEnhancedSessionWizard({ page, baseUrl: uiBaseUrl });
@@ -201,6 +218,7 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         const selectedPathBefore = await pathChip.textContent();
         await pathChip.click();
         await expect(popover).toHaveCount(1);
+        await expect(popover.getByTestId(`path-selection-list:path-root:option:recent:${recentDirs[0]}`)).toHaveCount(1);
         const scroll = popover.getByTestId('path-selection-list:bodyScroll');
         const lastFavorite = popover.getByTestId(`path-selection-list:path-root:option:favorite:${dirs.at(-1)}`);
         await expect(lastFavorite).toHaveCount(1);
