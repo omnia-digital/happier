@@ -78,12 +78,14 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
 
     const suiteDir = run.testDir('new-session-path-picker-suite');
     const cliHomeDir = resolve(join(suiteDir, 'cli-home'));
+    const scrollCliHomeDir = resolve(join(suiteDir, 'scroll-cli-home'));
     const favoriteDir = resolve(join(suiteDir, 'oh64-favorite-dir'));
 
     let server: StartedServer | null = null;
     let ui: StartedUiWeb | null = null;
     let uiBaseUrl: string | null = null;
     let daemon: StartedDaemon | null = null;
+    let scrollDaemon: StartedDaemon | null = null;
 
     test.beforeAll(async () => {
         test.setTimeout(540_000);
@@ -102,6 +104,7 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
     });
 
     test.afterAll(async () => {
+        try { await scrollDaemon?.stop?.(); } catch { /* best-effort */ }
         try { await daemon?.stop?.(); } catch { /* best-effort */ }
         try { await ui?.stop?.(); } catch { /* best-effort */ }
         try { await server?.stop?.(); } catch { /* best-effort */ }
@@ -158,5 +161,56 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         await expect(page.getByTestId('agent-input-content-popover')
             .getByTestId(`path-selection-list:path-root:option:favorite:${favoriteDir}`))
             .toBeVisible({ timeout: 60_000 });
+    });
+
+    test('scrolls an overflowing selected-machine path list inside the New Session popover', async ({ page }, testInfo) => {
+        if (!server || !ui || !uiBaseUrl) throw new Error('test infra failed to start');
+        test.setTimeout(180_000);
+
+        const dirs = Array.from({ length: 14 }, (_, index) => resolve(join(suiteDir, `scroll-path-${String(index).padStart(2, '0')}`)));
+        await Promise.all(dirs.map((path) => mkdir(path, { recursive: true })));
+        scrollDaemon = await authenticateAndStartDaemon({
+            page,
+            testDir: suiteDir,
+            cliHomeDir: scrollCliHomeDir,
+            serverUrl: server.baseUrl,
+            uiBaseUrl,
+            initialUiGotoTimeoutMs: 420_000,
+            initialUiReadyTimeoutMs: 420_000,
+            terminalConnectUrlTimeoutMs: 90_000,
+            daemonStartupTimeoutMs: 180_000,
+            extraEnv: { ...process.env },
+        });
+
+        await page.setViewportSize({ width: 900, height: 480 });
+        await enableEnhancedSessionWizard({ page, baseUrl: uiBaseUrl });
+        await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/new?happier_hmr=0`, 60_000);
+        await page.getByTestId('agent-input-path-chip').click();
+        const popover = page.getByTestId('agent-input-content-popover');
+        const input = popover.getByTestId('path-selection-list:header:input');
+        await input.fill(`${suiteDir}/`);
+        for (const path of dirs) {
+            const row = popover.getByTestId(`path-selection-list:path-root:option:in-folder:${path}`);
+            await expect(row).toBeVisible({ timeout: 60_000 });
+            await row.getByRole('button', { name: 'Add to favorites' }).click();
+            await expect(popover.getByTestId(`path-selection-list:path-root:option:favorite:${path}`)).toHaveCount(1);
+        }
+        await input.fill('');
+        const scroll = popover.getByTestId('path-selection-list:bodyScroll');
+        const lastFavorite = popover.getByTestId(`path-selection-list:path-root:option:favorite:${dirs.at(-1)}`);
+        await expect(lastFavorite).toHaveCount(1);
+        const before = await scroll.evaluate((element) => ({
+            top: element.scrollTop,
+            client: element.clientHeight,
+            content: element.scrollHeight,
+            page: window.scrollY,
+        }));
+        await page.screenshot({ path: testInfo.outputPath('oh73-path-scroll-before.png') });
+        expect(before.content - before.client).toBeGreaterThan(100);
+        await scroll.hover();
+        await page.mouse.wheel(0, 600);
+        await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(before.top);
+        expect(await page.evaluate(() => window.scrollY)).toBe(before.page);
+        await page.screenshot({ path: testInfo.outputPath('oh73-path-scroll-after.png') });
     });
 });
