@@ -8,7 +8,7 @@ import { resolveSessionTicketStatusLabel } from '@/sync/domains/session/tickets/
 import { t } from '@/text';
 
 export type SessionListStatusMode = 'none' | 'agent' | 'ticket';
-export const SESSION_LIST_AGENT_STATUS_ORDER = ['error', 'input', 'delivery_blocked', 'working', 'resuming', 'queued', 'archiving', 'offline', 'idle', 'finished', 'cancelled'] as const satisfies readonly SessionListVisualStatus[];
+export const SESSION_LIST_AGENT_STATUS_ORDER = ['input', 'finished', 'error', 'queued', 'working', 'idle', 'delivery_blocked', 'resuming', 'archiving', 'offline', 'cancelled'] as const satisfies readonly SessionListVisualStatus[];
 type Row = Extract<SessionListViewItem, { type: 'session' }>;
 type Header = Extract<SessionListViewItem, { type: 'header' }>;
 type StatusKey = { identity: string; title: string; scope: readonly string[]; order: number; name: string; freshness: number };

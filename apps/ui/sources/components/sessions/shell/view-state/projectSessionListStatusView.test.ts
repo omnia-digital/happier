@@ -6,7 +6,7 @@ import type { SessionListViewItem } from '@/sync/domains/session/listing/session
 import type { SessionTicketStatus } from '@/sync/domains/session/tickets/sessionTicketStatus';
 import { buildSessionListSelectedItems } from '../sessionListSelectedItems';
 import { buildSessionListIndexFromViewData } from '@/sync/domains/session/listing/sessionListIndex';
-import { projectSessionListStatusView, SESSION_LIST_AGENT_STATUS_ORDER } from './projectSessionListStatusView';
+import { projectSessionListStatusView } from './projectSessionListStatusView';
 import { applySessionFoldersToSessionListViewData, buildSessionListViewData } from '@/sync/domains/session/listing/sessionListViewData';
 import { computeVisibleSessionListIndex } from '@/sync/domains/session/listing/computeVisibleSessionListIndex';
 import { buildSessionListViewDataFromIndex } from '@/sync/domains/session/listing/sessionListViewDataFromIndex';
@@ -57,14 +57,27 @@ describe('status organization through the canonical sidebar projection', () => {
             row('error', { latestTurnStatus: 'failed', latestTurnStatusObservedAt: now }),
         ].map(item => ({ ...item, session: { ...item.session, createdAt: 1, meaningfulActivityAt: 1 } }));
         const result = projectSessionListStatusView({ items: states, grouping: 'none', sorting: 'agent', ticketStatuses: new Map(), nowMs: now });
-        expect(ids(result)).toEqual(SESSION_LIST_AGENT_STATUS_ORDER);
+        const expected = ['input', 'finished', 'error', 'queued', 'working', 'idle', 'delivery_blocked', 'resuming', 'archiving', 'offline', 'cancelled'];
+        expect(ids(result)).toEqual(expected);
+        const grouped = projectSessionListStatusView({ items: states, grouping: 'agent', sorting: 'agent', ticketStatuses: new Map(), nowMs: now });
+        expect(ids(grouped)).toEqual(expected);
     });
     it('sorts Agent Status independently and keeps stable/manual ties and existing headers', () => {
         const source = [header('Repository'), row('idle-b'), row('working', { thinking: true, thinkingAt: now }), row('input', { hasPendingPermissionRequests: true }), row('idle-a')];
         const result = projectSessionListStatusView({ items: source, grouping: 'none', sorting: 'agent', ticketStatuses: new Map(), nowMs: now });
         expect(ids(result)).toEqual(['input', 'working', 'idle-b', 'idle-a']);
         expect(result[0]).toBe(source[0]);
-        expect(SESSION_LIST_AGENT_STATUS_ORDER).toEqual(['error', 'input', 'delivery_blocked', 'working', 'resuming', 'queued', 'archiving', 'offline', 'idle', 'finished', 'cancelled']);
+    });
+
+    it('moves a session between Agent Status positions when the canonical live status changes', () => {
+        const source = [row('first'), row('second')];
+        const statuses = new Map([['home:first', 'input' as const], ['home:second', 'working' as const]]);
+        const project = () => projectSessionListStatusView({ items: source, grouping: 'none', sorting: 'agent', ticketStatuses: new Map(), nowMs: now, agentStatuses: statuses });
+        expect(ids(project())).toEqual(['first', 'second']);
+        statuses.set('home:first', 'idle');
+        expect(ids(project())).toEqual(['second', 'first']);
+        statuses.set('home:second', 'finished');
+        expect(ids(project())).toEqual(['second', 'first']);
     });
 
     it('globally groups unfiled sessions by Agent Status across old machine/repository groups, once per section', () => {
