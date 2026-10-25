@@ -267,6 +267,14 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         await expect(footer).toBeVisible();
         const scrollHost = await scroll.elementHandle();
         expect(scrollHost).not.toBeNull();
+        const readModalScrollOffsets = () => pathChip.evaluate((element) => {
+            const offsets: number[] = [];
+            for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+                if (parent.scrollHeight > parent.clientHeight + 1) offsets.push(parent.scrollTop);
+            }
+            return offsets;
+        });
+        const modalOffsetsBefore = await readModalScrollOffsets();
         await scroll.hover();
         await page.mouse.wheel(0, -1600);
         await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBe(0);
@@ -288,11 +296,13 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
             page: window.scrollY,
             active: document.activeElement?.getAttribute('aria-activedescendant') ?? null,
         }));
-        expect(await scrollHost!.evaluate((element) => element.isConnected)).toBe(true);
+        expect(await scrollHost!.evaluate((element) => element.isConnected
+            && element === document.querySelector('[data-testid="path-selection-list:bodyScroll"]'))).toBe(true);
         expect(after.content).toBe(before.content);
         expect(after.client).toBe(before.client);
         expect(after.active).toBe(before.active);
         expect(await page.evaluate(() => window.scrollY)).toBe(before.page);
+        expect(await readModalScrollOffsets()).toEqual(modalOffsetsBefore);
         expect(await pathChip.textContent()).toBe(selectedPathBefore);
         const lastRecentRect = await lastRecent.boundingBox();
         const scrollRect = await scroll.boundingBox();
@@ -310,5 +320,25 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         await lastRecent.click();
         await expect(popover).toHaveCount(0);
         await expect(pathChip).toContainText('recent-path-2');
+
+        await page.setViewportSize({ width: 1200, height: 800 });
+        await pathChip.click();
+        await expect(popover).toHaveCount(1);
+        const normalPickerRect = await popover.getByTestId('path-selection-list').boundingBox();
+        expect(normalPickerRect).not.toBeNull();
+        expect(normalPickerRect!.y).toBeGreaterThanOrEqual(8);
+        expect(normalPickerRect!.y + normalPickerRect!.height).toBeLessThanOrEqual(792);
+        await page.screenshot({ path: testInfo.outputPath('oh73-path-normal-open.png') });
+        const normalInput = popover.getByTestId('path-selection-list:header:input');
+        await normalInput.fill('scroll-path-13');
+        const searchedFavorite = popover.getByTestId(`path-selection-list:path-root:option:favorite:${dirs.at(-1)}`);
+        await expect(searchedFavorite).toBeVisible();
+        await normalInput.press('ArrowDown');
+        await expect.poll(() => normalInput.getAttribute('aria-activedescendant'))
+            .toContain(`favorite:${dirs.at(-1)}`);
+        await normalInput.press('Enter');
+        await expect(popover).toHaveCount(0);
+        await expect(pathChip).toContainText('scroll-path-13');
+        await page.screenshot({ path: testInfo.outputPath('oh73-path-normal-search-commit.png') });
     });
 });
