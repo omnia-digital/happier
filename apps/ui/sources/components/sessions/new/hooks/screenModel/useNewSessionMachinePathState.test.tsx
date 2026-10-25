@@ -162,6 +162,7 @@ describe('useNewSessionMachinePathState', () => {
             recentMachinePaths: [],
             machineIdParam: 'machine-target',
             pathParam: '/repo/desired',
+            cacheScopeKey: 'server-a:account-a',
         });
 
         expect(getSelection(hook.getCurrent())).toEqual({
@@ -174,8 +175,21 @@ describe('useNewSessionMachinePathState', () => {
             recentMachinePaths: [],
             machineIdParam: 'machine-target',
             pathParam: '/repo/desired',
+            cacheScopeKey: 'server-a:account-a',
         });
 
+        expect(getSelection(hook.getCurrent())).toEqual({
+            selectedMachineId: 'machine-target',
+            selectedPath: '/repo/desired',
+        });
+
+        await hook.rerender({
+            machines: toMachines({ id: 'machine-target', metadata: { homeDir: '/different-home' } }),
+            recentMachinePaths: [],
+            machineIdParam: 'machine-target',
+            pathParam: '/repo/desired',
+            cacheScopeKey: 'server-b:account-b',
+        });
         expect(getSelection(hook.getCurrent())).toEqual({
             selectedMachineId: 'machine-target',
             selectedPath: '/repo/desired',
@@ -700,12 +714,13 @@ describe('useNewSessionMachinePathState', () => {
         await hook.unmount();
     });
 
-    it('does not clobber an explicit user-cleared path when machine metadata refreshes', async () => {
+    it('does not clobber an explicit user-cleared path when machine metadata or target Home changes', async () => {
         const hook = await renderMachinePathState({
             machines: toMachines({ id: 'machine-1', metadata: { homeDir: '/Users/leeroy' } }),
             recentMachinePaths: [],
             machineIdParam: 'machine-1',
             pathParam: null,
+            cacheScopeKey: 'server-a:account-a',
         });
 
         expect(getSelection(hook.getCurrent())).toEqual({
@@ -727,6 +742,7 @@ describe('useNewSessionMachinePathState', () => {
             recentMachinePaths: [],
             machineIdParam: 'machine-1',
             pathParam: null,
+            cacheScopeKey: 'server-b:account-b',
         });
 
         expect(getSelection(hook.getCurrent())).toEqual({

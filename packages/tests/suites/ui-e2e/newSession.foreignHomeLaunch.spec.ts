@@ -290,5 +290,6 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
     expect(invocation.cwd).toBe(browseDir);
     await waitForFakeClaudeUserText(fakeClaudeLogPath, (text) => text.includes(prompt), { timeoutMs: 120_000 });
     await page.waitForURL((url) => url.pathname.startsWith('/session/') && url.searchParams.get('serverId') === selectedServerBId, { timeout: 180_000 });
+    await expect(page.getByTestId('session-composer-input')).toBeVisible({ timeout: 120_000 });
   });
 });
