@@ -145,6 +145,29 @@ Stale and unavailable states are explicit when the reader or connection cannot
 verify current status. Native app receipt and real provider acceptance remain
 pending; isolated browser coverage is not a packaged-release announcement.
 
+## Subscription usage in the sidebar
+
+The unreleased Omnia development fork shows Claude and Codex subscription usage
+below the sidebar header actions, even when no chat is selected. It follows the
+existing Connected Services quota feature. Open a ring for its usage window,
+remaining allowance, reset information and account details. These are account
+allowances, separate from a session's token or context usage. Chat and sidebar
+reuse the same meters and display preferences.
+
+The account chooser starts with the configured connected-profile default. You
+can choose another connected profile or a known native account without changing
+agent authentication or execution settings. Multiple native records require a
+choice; account and organization scopes stay distinct. The display choice is
+saved on this device. When the sidebar is collapsed, its usage button opens both
+providers together.
+
+Loading, unavailable, outdated and failed-refresh states remain explicit; missing
+readings are not zero. A failed refresh retains the last good reading. **No usage
+data** means no recorded usage is available, rather than proving native sign-out.
+Native account discovery requires a compatible fork relay; older relays show it
+unavailable. This source work does not update the hosted relay. Isolated browser
+checks pass; native acceptance and rollout remain pending.
+
 ## Machine monitoring
 
 The unreleased Omnia development fork adds a collapsible **Machines** section to

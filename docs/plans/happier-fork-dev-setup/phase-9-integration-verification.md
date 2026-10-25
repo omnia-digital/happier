@@ -509,3 +509,36 @@ Neither optional sibling0.3 destination exists, so local forward-port verificati
 is blocked on its location; upstream describes this fix as already ported from
 0.3, which is not evidence of a verified local destination. The other58 parent
 commits remain unadopted, and no app, daemon, service or release changed.
+
+### OH-72 sidebar provider usage
+
+Source through `11e451172e` adds the authenticated account-owned usage collection
+operation, shared credential-scoped native polling and Claude/Codex header. It
+reuses connected-profile defaults, exact plain/sealed readers, the catalog service
+resolver, gauge calculation and chat badge/formatter. Header display choice is
+device-local and does not alter authentication or execution bindings. Native
+accounts/scopes remain distinct; friendly labels load through the same exact-record
+owner when the chooser opens. Empty records mean No usage data, not native sign-out.
+Shared closed badges and details qualify stale values; failed refresh retains last
+good values and keeps provider errors isolated. Collapsed rail exposes both providers.
+
+Final isolated Chrome r11 passes3/3, exit0, Playwright28.9s/Yarn29.79s on current
+source after the row fix. It covers native no-chat and friendly choices, headerA29/
+chatB66 then same-account agreement, reload, 250px/collapsed/light/dark, browser
+clock expiry with exact-read503 and retained66/Codex0, old-relay404/disabled, and
+connected default73→native20→connected73. Artifacts:
+`.project/logs/e2e/2026-10-25T18-36-45-970Z-ui-e2e-529f76fa/sidebar-provider-usage/`;
+Playwright output is `packages/tests/.project/logs/e2e/oh72-sidebar-provider-usage-r11-full`.
+The r11 terminal result is tool output, not a saved stdout log; do not invent a log.
+OwnerUI48/server13/protocol14 and UI/server/protocol/E2E types pass. Root independently
+passes server13, owner16 and shared badge9; API OS-storage fixture removes unsupported
+native credential access while keeping the real HTTP/parsing path.
+
+Earlier composed failures were fixture actionability, credential/provider-organization
+identity or source-scope mismatches; the server/client correctly refused those vectors.
+ENOSPC interrupted r4 before acceptance; capacity recovered externally with no deletion.
+A proven stale empty Git lock was preserved by reversible rename; later lock collisions
+were concurrent checkpoints. Native QA is deferred; real provider acceptance, hosted
+relay operation availability and0.3port remain open. No provider configuration, app,
+daily daemon, hosted relay or deployment changed. The published App guide and API/
+compatibility pages describe this development boundary rather than a stable release.
