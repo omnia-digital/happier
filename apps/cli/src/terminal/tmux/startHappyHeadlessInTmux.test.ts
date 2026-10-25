@@ -90,8 +90,8 @@ describe.sequential('startHappyHeadlessInTmux', () => {
 
     await startHappyHeadlessInTmux([]);
 
-    const attachIdx = output.lines.findIndex((line) => line.includes('tmux attach -t') && line.includes('happy'));
-    const selectIdx = output.lines.findIndex((line) => line.includes('tmux select-window -t') && line.includes('happy:happy-123-claude'));
+    const attachIdx = output.lines.findIndex((line) => line.includes("tmux attach -t '=happy'"));
+    const selectIdx = output.lines.findIndex((line) => line.includes("tmux select-window -t '=happy:happy-123-claude'"));
     expect(attachIdx).toBeGreaterThanOrEqual(0);
     expect(selectIdx).toBeGreaterThanOrEqual(0);
     expect(attachIdx).toBeLessThan(selectIdx);

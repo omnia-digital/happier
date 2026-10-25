@@ -844,11 +844,6 @@ export class TmuxUtilities {
    */
   async killWindow(sessionIdentifier: string): Promise<boolean> {
     try {
-      const immutableWindowId = sessionIdentifier.trim();
-      if (/^@\d+$/.test(immutableWindowId)) {
-        const result = await this.executeTmuxCommand(['kill-window', '-t', immutableWindowId]);
-        return result !== null && result.returncode === 0;
-      }
       const parsed = parseTmuxSessionIdentifier(sessionIdentifier);
       if (!parsed.window) {
         throw new TmuxSessionIdentifierError(`Window identifier required: ${sessionIdentifier}`);

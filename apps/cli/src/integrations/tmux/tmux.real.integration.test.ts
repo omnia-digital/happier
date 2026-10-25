@@ -316,6 +316,10 @@ describe.skipIf(!shouldRunTmuxIntegration())('tmux (real) integration tests (opt
             });
             const foreign = await adapter.createOrAttachHost({ ...options, sessionName: 'other-owner' });
             expect(foreign.paneId).toBe(stale.paneId);
+            expect(stale.paneId).toMatch(/^@\d+$/);
+            if (!stale.paneId) throw new Error('fixture host has no tmux window id');
+            expect(await utils.killWindow(stale.paneId)).toBe(false);
+            expect((await adapter.evaluateLiveness(foreign)).paneAlive).toBe(true);
 
             expect(await adapter.evaluateLiveness(stale)).toMatchObject({ paneAlive: false, paneDead: true });
             await expect(adapter.adoptExistingHost!(stale)).rejects.toThrow();
