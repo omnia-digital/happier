@@ -612,6 +612,36 @@ path remains in this corridor. Native app/daily runtime, Linux/Windows, Unicode
 and the broader real suite remain unverified for the reasons recorded above.
 The0.3destination is still absent. No merge, deployment or release was performed.
 
+### October 25 follow-up: Claude model and prompt-control proof
+
+The existing fork owners support the corrections in upstream `3482a9101e`,
+`1f7e0edfb5` and `8a8ddce845`; they do not depend on the excluded native-prompt
+feature `338c9dde09`. Model proof is adapted as `d14229af7d`; effort and pending
+control proof follows as `04e0b225d8`. Both checkpoints are pushed. The raw remote,
+Agent SDK and unified transcript producers use the canonical main-chain assistant
+model reader and effective-model callback. Competing launcher-level system-message
+publication is removed. Init, replay, sidechain, synthetic and historical rows are
+excluded from that model evidence. Existing statusline/control observations remain.
+
+The same controller invalidates effort when its model witness changes, retains
+effort for a same-model update, and reads verified effort/Ultracode outcomes through
+one helper. Delivered-but-unverified controls invalidate prior witnesses. The
+before-prompt bridge includes pending intent when computing restoration, so a
+request to return to the committed setting cannot incorrectly skip control.
+No new wire field, persistence format, timer, proof store or runtime owner is added.
+
+Meaningful REDs cover four model-publication failures, three stale-effort failures
+with the same-model neighbor passing, and three pending-restoration/Ultracode
+failures. Author validation passes model owners 135, launcher integration 16,
+model-adjacent 8, controls 79 and controls-adjacent 141, plus CLI TS7 at both
+boundaries. Root reviews the live callback/control corridor and independently
+runs five deciding owner files: 214/214 pass, exit 0,
+`.project/logs/tests/oh12-claude-proof-root-review.log`. The author's initial root-cwd
+invocation failed alias setup before behavior ran; the correct CLI-cwd run passes.
+This does not establish real Claude, native app, or Windows/Linux acceptance.
+The local 0.3 destination remains absent. Daily CLI/services and provider settings
+are unchanged; no full upstream merge or release follows from these source fixes.
+
 ### OH-72 sidebar provider usage
 
 Source through `11e451172e` adds the authenticated account-owned usage collection

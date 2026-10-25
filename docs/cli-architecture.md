@@ -1407,6 +1407,15 @@ terminal, control waits without cycling blindly; enlarging the terminal restores
 verification through the existing retry path. Pending prompts still wait for their
 required runtime configuration to be verified.
 
+The development Claude control owner invalidates effort proof when an observed
+or verified model changes; a same-model observation preserves that effort proof.
+Verified effort and the existing Ultracode control share the same outcome reader.
+A submitted but unverified model or effort command invalidates the previous
+witness. Before the next prompt, the bridge includes pending intent when computing
+the required control delta, so returning to the previously committed setting still
+performs restoration rather than incorrectly skipping it. This reuses the existing
+controller and before-prompt gate without changing the public outcome format.
+
 The development parser distinguishes Claude's automatic usage-limit wait footer
 from the interactive usage-limit chooser. An empty composer still accepts a new
 prompt, as Claude permits during the wait. Clearing an owned leftover draft with
