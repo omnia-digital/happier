@@ -65,9 +65,7 @@ If Profiles is turned off, the app falls back to the machine environment without
 3. Give the profile a clear name
 4. Choose which backend choices it should be compatible with
 5. Add the environment variables Happier should inject when the session starts
-6. Mark any required values as:
-   - **Secret** when Happier should satisfy them from a saved secret, machine env, or prompt flow
-   - **Config** when the variable must already exist on the target machine
+6. On each variable's card, turn on **Required** to block session creation when the variable is missing. Turn on **Use secret vault** to resolve the variable through a saved secret. Enabling the vault initially turns on **Required**; you can change **Required** separately afterward.
 7. Save the profile
 
 Recommended pattern:
@@ -155,6 +153,22 @@ If the CLI is running non-interactively and a required secret is still missing, 
 Required config environment variables must already exist in the shell environment for local CLI starts.
 
 ## Saved secrets and bindings
+
+### Bind a saved secret
+
+The profile editor shows the vault controls on a variable's card after you add it. The initial **Add Variable** form asks for the variable name and value.
+
+1. Save the credential in **Settings → Secrets**.
+2. Open **Settings → Profiles** and add or edit a profile.
+3. Under **Environment Variables**, choose **Add Variable**, enter its name (for example, `OPENAI_API_KEY`), leave **Value** empty, and save the variable to the profile draft.
+4. On the variable's card, turn on **Use secret vault**. This initially turns on **Required** and shows a **Default secret** picker in place of the value input. You can change **Required** separately.
+5. Choose **Default secret** and select your saved secret. The card shows the secret's name rather than its value.
+6. Save the profile. When editing a built-in profile, save it as a custom copy with a distinct name.
+7. Start a new session, select the machine and profile, and review the secret selection before starting.
+
+**Hide value in UI** masks a profile value. **Use secret vault** binds a saved secret without storing its credential as the profile value. Changing a binding affects future starts, not sessions that are already running.
+
+If the controls are missing after adding a variable, include your app version and release channel when reporting it. Do not paste the credential into an issue or session message.
 
 Profiles work best with saved secrets:
 
