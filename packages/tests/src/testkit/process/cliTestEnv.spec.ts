@@ -30,6 +30,9 @@ it('passes only isolated Home and required OS toolchain to a real child process'
       processEnv: {
         PATH: [yarnDir, join(fixtureDir, 'provider-bin')].join(delimiter),
         USER: 'fixture-user',
+        TMPDIR: fixtureDir,
+        TMP: fixtureDir,
+        TEMP: fixtureDir,
         ANTHROPIC_API_KEY: 'must-not-pass',
         CLAUDE_CONFIG_DIR: join(fixtureDir, 'real-provider-home'),
         HAPPIER_ACTIVE_SERVER_ID: 'real-server',
@@ -40,6 +43,9 @@ it('passes only isolated Home and required OS toolchain to a real child process'
     expect(env.PATH?.split(delimiter)).not.toContain(join(fixtureDir, 'provider-bin'));
     expect(env.HOME).toBe(homeDir);
     expect(env.HAPPIER_HOME_DIR).toBe(homeDir);
+    expect(env.TMPDIR).toBe(fixtureDir);
+    expect(env.TMP).toBe(fixtureDir);
+    expect(env.TEMP).toBe(fixtureDir);
     const child = spawnSync(process.execPath, ['-e', 'process.stdout.write(JSON.stringify(Object.keys(process.env).sort()))'], {
       env,
       encoding: 'utf8',
