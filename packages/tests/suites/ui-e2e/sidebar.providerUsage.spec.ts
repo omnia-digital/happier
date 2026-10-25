@@ -157,17 +157,29 @@ test.describe('sidebar provider subscription usage', () => {
         await expect(page.getByTestId('sidebar-provider-usage-choice:claude')).toContainText('Claude Personal');
         await page.getByTestId('sidebar-provider-usage:claude-badge').click();
         await expect(page.getByTestId('sidebar-provider-usage:claude-popover')).toContainText('Weekly');
+        await page.keyboard.press('Escape');
         await page.getByTestId('sidebar-provider-usage-choice:claude').click();
         await page.getByTestId(`sidebar-provider-usage-option:claude:native:${work}`).click();
         await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('66');
         await expect(page.getByTestId('sidebar-provider-usage:codex-value')).toHaveText('0');
+        await page.screenshot({ path: `${suiteDir}/sidebar-provider-usage-normal.png` });
 
-        await page.setViewportSize({ width: 250, height: 800 });
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('66');
+        await expect(page.getByTestId('sidebar-provider-usage-choice:claude')).toContainText('Claude Work');
+
+        await page.setViewportSize({ width: 800, height: 800 });
         await expect(page.getByTestId('sidebar-inbox-button')).toBeVisible();
         await expect(page.getByTestId('desktop-sidebar-updates-button')).toBeVisible();
+        await expect(page.getByTestId('nav-new-session')).toBeVisible();
         await expect(page.getByTestId('desktop-sidebar-provider-usage')).toBeVisible();
         await page.screenshot({ path: `${suiteDir}/sidebar-provider-usage-narrow.png` });
         await page.emulateMedia({ colorScheme: 'dark' });
         await page.screenshot({ path: `${suiteDir}/sidebar-provider-usage-dark.png` });
+
+        await page.getByTestId('sidebar-collapse-button').click();
+        await expect(page.getByTestId('collapsed-sidebar-provider-usage-button')).toBeVisible();
+        await page.getByTestId('collapsed-sidebar-provider-usage-button').click();
+        await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('66');
     });
 });

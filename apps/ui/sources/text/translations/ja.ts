@@ -7477,6 +7477,7 @@ localTailscale: {
           notConnected: "使用量アカウントが見つかりません",
           stale: "古いデータ",
           lastKnownRefreshFailed: "前回のデータ · 更新失敗",
+          openUsage: "サブスクリプションの使用状況を表示",
       },
   },
 

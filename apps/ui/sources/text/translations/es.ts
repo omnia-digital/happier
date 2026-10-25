@@ -7206,6 +7206,7 @@ export const es: TranslationStructure = {
           notConnected: "No se encontró una cuenta de uso",
           stale: "Desactualizado",
           lastKnownRefreshFailed: "Último dato · error al actualizar",
+          openUsage: "Mostrar uso de suscripción",
       },
   },
 

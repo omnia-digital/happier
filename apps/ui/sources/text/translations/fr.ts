@@ -6793,6 +6793,7 @@ export const fr: TranslationStructure = {
             notConnected: "Aucun compte d'utilisation trouvé",
             stale: "Périmé",
             lastKnownRefreshFailed: "Dernière donnée · actualisation échouée",
+          openUsage: "Afficher l’utilisation des abonnements",
         },
     },
 

@@ -6838,6 +6838,7 @@ export const en = {
             notConnected: "No usage account found",
             stale: "Stale",
             lastKnownRefreshFailed: "Last known · refresh failed",
+            openUsage: "Show subscription usage",
         },
     },
 

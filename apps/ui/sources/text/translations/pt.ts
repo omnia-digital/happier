@@ -7336,6 +7336,7 @@ export const pt: TranslationStructure = {
           notConnected: "Não foi encontrada uma conta de utilização",
           stale: "Desatualizado",
           lastKnownRefreshFailed: "Último dado · falha na atualização",
+          openUsage: "Mostrar uso da assinatura",
       },
   },
 

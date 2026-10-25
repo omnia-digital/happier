@@ -7208,6 +7208,7 @@ export const ru: TranslationStructure = {
           notConnected: "Аккаунт использования не найден",
           stale: "Устарело",
           lastKnownRefreshFailed: "Последние данные · обновление не удалось",
+          openUsage: "Показать использование подписки",
       },
   },
 

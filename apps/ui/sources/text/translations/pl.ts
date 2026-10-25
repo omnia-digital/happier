@@ -7225,6 +7225,7 @@ export const pl: TranslationStructure = {
           notConnected: "Nie znaleziono konta użycia",
           stale: "Nieaktualne",
           lastKnownRefreshFailed: "Ostatnie dane · odświeżanie nie powiodło się",
+          openUsage: "Pokaż wykorzystanie subskrypcji",
       },
   },
 

@@ -6805,6 +6805,7 @@ deps: {
             notConnected: "No s'ha trobat cap compte d'ús",
             stale: "Obsolet",
             lastKnownRefreshFailed: "Darrera dada · error en actualitzar",
+          openUsage: "Mostra l’ús de la subscripció",
         },
     },
 

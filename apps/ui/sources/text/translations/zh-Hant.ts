@@ -6051,6 +6051,7 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
             notConnected: "找不到用量帳戶",
             stale: "已過期",
             lastKnownRefreshFailed: "上次資料 · 重新整理失敗",
+          openUsage: "顯示訂閱用量",
         },
     },
 

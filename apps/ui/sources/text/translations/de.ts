@@ -6806,6 +6806,7 @@ export const de: TranslationStructure = {
             notConnected: "Kein Nutzungskonto gefunden",
             stale: "Veraltet",
             lastKnownRefreshFailed: "Letzter Stand · Aktualisierung fehlgeschlagen",
+          openUsage: "Abonnementnutzung anzeigen",
         },
     },
 

@@ -7548,6 +7548,7 @@ export const it: TranslationStructure = {
           notConnected: "Nessun account di utilizzo trovato",
           stale: "Non aggiornato",
           lastKnownRefreshFailed: "Ultimo dato · aggiornamento non riuscito",
+          openUsage: "Mostra utilizzo abbonamento",
       },
   },
 

@@ -18,7 +18,7 @@ import { connectedServiceQuotaGaugeFormatter } from '@/sync/domains/connectedSer
 import { isQuotaGaugeWindowMode } from '@/sync/domains/connectedServices/quotaGaugeWindows';
 import { selectProviderUsageDisplaySnapshot } from '@/sync/domains/connectedServices/accountUsage/selectors';
 import { nowServerMs } from '@/sync/runtime/time';
-import { useProfile, useSetting } from '@/sync/store/hooks';
+import { useIsDataReady, useProfile, useSetting } from '@/sync/store/hooks';
 import { t } from '@/text';
 import type { ProviderAccountUsageRecordSummaryV1 } from '@happier-dev/protocol';
 import { selectSidebarProviderUsageAccount, type SidebarProviderUsageOption } from './selectSidebarProviderUsageAccount';
@@ -37,6 +37,7 @@ function ProviderUsageTile(props: Readonly<{
     connectedProfiles: ReadonlyArray<{ profileId: string; status?: unknown }>;
     records: readonly ProviderAccountUsageRecordSummaryV1[];
     discoveryStatus: Discovery['status'];
+    profileReady: boolean;
 }>) {
     const styles = stylesheet;
     const [choiceKey, setChoiceKey] = React.useState<string | null>(null);
@@ -101,18 +102,18 @@ function ProviderUsageTile(props: Readonly<{
         ? Boolean(connectedKey && connected.errorByKey[connectedKey])
         : nativeStatus?.error ?? false;
     const sourceLabel = selected?.kind === 'connected'
-        ? t('connectedServices.profiles.connected')
+        ? t('connectedServices.detail.profiles.connected')
         : selected?.kind === 'native' ? t('sidebar.providerUsage.native') : null;
     const emptyStatus = !selected
         ? props.discoveryStatus === 'disabled' ? t('sidebar.providerUsage.disabled')
-            : props.discoveryStatus === 'loading' ? t('common.loading')
+            : props.discoveryStatus === 'loading' || !props.profileReady ? t('common.loading')
             : props.discoveryStatus === 'unsupported' ? t('sidebar.providerUsage.discoveryUnsupported')
                 : props.discoveryStatus === 'error' ? t('common.unavailable')
                     : selection.options.length > 1 ? t('sidebar.providerUsage.chooseAccount') : t('sidebar.providerUsage.notConnected')
         : loading ? t('common.loading') : error ? t('common.unavailable') : t('common.unavailable');
 
     const optionLabel = (option: SidebarProviderUsageOption): string => option.kind === 'connected'
-        ? `${t('connectedServices.profiles.connected')} · ${resolveConnectedServiceProfileLabel({
+        ? `${t('connectedServices.detail.profiles.connected')} · ${resolveConnectedServiceProfileLabel({
             labelsByKey: profileLabelsByKey, serviceId: option.serviceId, profileId: option.profileId,
         }) ?? option.profileId}`
         : `${t('sidebar.providerUsage.native')} · ${native.snapshotsByRecordId[option.recordId]?.accountLabel ?? option.record.recordKey.accountSubjectId}`;
@@ -198,6 +199,7 @@ function ProviderUsageTile(props: Readonly<{
 export function DesktopSidebarProviderUsage() {
     const styles = stylesheet;
     const profile = useProfile();
+    const profileReady = useIsDataReady() && profile !== null;
     const discovery = useProviderAccountUsageDiscovery();
     const services = profile?.connectedServicesV2 ?? [];
     return (
@@ -210,6 +212,7 @@ export function DesktopSidebarProviderUsage() {
                     connectedProfiles={services.find((service) => service.serviceId === provider.serviceId)?.profiles ?? []}
                     records={discovery.records ?? []}
                     discoveryStatus={discovery.status}
+                    profileReady={profileReady}
                 />
             ))}
         </View>
