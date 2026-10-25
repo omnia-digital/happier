@@ -3,6 +3,7 @@ import { Pressable, View } from 'react-native';
 import type { ReactTestInstance } from 'react-test-renderer';
 import { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { AuthProvider } from '@/auth/context/AuthContext';
 import { findTestInstanceByTypeContainingText, pressTestInstanceAsync, renderScreen } from '@/dev/testkit';
 import { installNavigationShellCommonModuleMocks } from './navigationShellTestHelpers';
 
@@ -27,6 +28,11 @@ const socketStatusState = vi.hoisted(() => ({
 const syncErrorState = vi.hoisted(() => ({
     value: null as null | { message: string; retryable?: boolean; kind?: string; at?: number },
 }));
+
+function SidebarAuthProvider({ children }: React.PropsWithChildren) {
+    // The production app installs auth in _layout; expanded desktop chrome reads account usage.
+    return <AuthProvider initialCredentials={null}>{children}</AuthProvider>;
+}
 
 installNavigationShellCommonModuleMocks({
     modal: async () => {
@@ -213,7 +219,8 @@ vi.mock('@/components/voice/surface/VoiceSurface', () => ({
     VoiceSurface: 'VoiceSurface',
 }));
 
-vi.mock('@/components/ui/popover', () => ({
+vi.mock('@/components/ui/popover', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@/components/ui/popover')>(),
     PopoverBoundaryProvider: ({ children }: any) => React.createElement('PopoverBoundaryProvider', null, children),
     PopoverScope: ({ children }: any) => React.createElement(React.Fragment, null, children),
 }));
@@ -266,7 +273,7 @@ describe('SidebarView header automations button', () => {
     it('navigates to home when logo is pressed', async () => {
         const { SidebarView } = await import('./SidebarView');
 
-        const screen = await renderScreen(<SidebarView />);
+        const screen = await renderScreen(<SidebarView />, { wrapper: SidebarAuthProvider });
         const button = screen.findByProps({ accessibilityLabel: 'common.home' });
         await act(async () => {
             await pressTestInstanceAsync(button);
@@ -278,7 +285,7 @@ describe('SidebarView header automations button', () => {
     it('passes explicit dimensions to the sidebar logo image', async () => {
         const { SidebarView } = await import('./SidebarView');
 
-        const screen = await renderScreen(<SidebarView />);
+        const screen = await renderScreen(<SidebarView />, { wrapper: SidebarAuthProvider });
         const logoButton = screen.findByProps({ accessibilityLabel: 'common.home' });
         const logoImage = logoButton.findByType('Image' as never);
 
@@ -297,7 +304,7 @@ describe('SidebarView header automations button', () => {
 
         const { SidebarView } = await import('./SidebarView');
 
-        const screen = await renderScreen(<SidebarView />);
+        const screen = await renderScreen(<SidebarView />, { wrapper: SidebarAuthProvider });
         const button = screen.findByProps({ accessibilityLabel: 'common.home' });
         await act(async () => {
             await pressTestInstanceAsync(button);
@@ -310,21 +317,21 @@ describe('SidebarView header automations button', () => {
 
     it('does not render automations button in header', async () => {
         const { SidebarView } = await import('./SidebarView');
-        const screen = await renderScreen(<SidebarView />);
+        const screen = await renderScreen(<SidebarView />, { wrapper: SidebarAuthProvider });
 
         expect(() => screen.findByProps({ accessibilityLabel: 'automations.openA11y' })).toThrow();
     });
 
     it('does not render the wide FAB button in the sidebar', async () => {
         const { SidebarView } = await import('./SidebarView');
-        const screen = await renderScreen(<SidebarView />);
+        const screen = await renderScreen(<SidebarView />, { wrapper: SidebarAuthProvider });
 
         expect(screen.findAllByType('FABWide')).toHaveLength(0);
     });
 
     it('does not render VoiceSurface when voice is disabled', async () => {
         const { SidebarView } = await import('./SidebarView');
-        const screen = await renderScreen(<SidebarView />);
+        const screen = await renderScreen(<SidebarView />, { wrapper: SidebarAuthProvider });
 
         expect(screen.findAllByType('VoiceSurface')).toHaveLength(0);
     });
@@ -332,7 +339,7 @@ describe('SidebarView header automations button', () => {
     it('renders VoiceSurface when voice is enabled', async () => {
         featureEnabledState.voice = true;
         const { SidebarView } = await import('./SidebarView');
-        const screen = await renderScreen(<SidebarView />);
+        const screen = await renderScreen(<SidebarView />, { wrapper: SidebarAuthProvider });
 
         expect(screen.findAllByType('VoiceSurface')).toHaveLength(1);
     });
@@ -340,7 +347,7 @@ describe('SidebarView header automations button', () => {
     it('shows friend request counts on the friends header action', async () => {
         friendRequestsState.items = [{ id: 'fr-1' }, { id: 'fr-2' }];
         const { SidebarView } = await import('./SidebarView');
-        const screen = await renderScreen(<SidebarView />);
+        const screen = await renderScreen(<SidebarView />, { wrapper: SidebarAuthProvider });
 
         const friendsButton = findTestInstanceByTypeContainingText(screen.tree, 'Pressable', '2');
 
@@ -351,7 +358,7 @@ describe('SidebarView header automations button', () => {
     it('constrains the server status row to the shrinking title column before the header icons', async () => {
         const { SidebarView } = await import('./SidebarView');
 
-        const screen = await renderScreen(<SidebarView />);
+        const screen = await renderScreen(<SidebarView />, { wrapper: SidebarAuthProvider });
         const control = screen.findByType('ConnectionStatusControl' as any);
         expect(control.props.variant).toBe('sidebar');
 
@@ -369,7 +376,7 @@ describe('SidebarView header automations button', () => {
         socketStatusState.lastError = 'xhr poll error';
 
         const { SidebarView } = await import('./SidebarView');
-        const screen = await renderScreen(<SidebarView sidebarWidthPx={600} />);
+        const screen = await renderScreen(<SidebarView sidebarWidthPx={600} />, { wrapper: SidebarAuthProvider });
 
         expect(findTestInstanceByTypeContainingText(screen.tree, 'Text', 'xhr poll error')).toBeUndefined();
         expect(findTestInstanceByTypeContainingText(screen.tree, 'Text', 'status.error')).toBeUndefined();
@@ -379,7 +386,7 @@ describe('SidebarView header automations button', () => {
         syncErrorState.value = { message: 'xhr poll error', retryable: true, kind: 'unknown', at: Date.now() };
 
         const { SidebarView } = await import('./SidebarView');
-        const screen = await renderScreen(<SidebarView sidebarWidthPx={600} />);
+        const screen = await renderScreen(<SidebarView sidebarWidthPx={600} />, { wrapper: SidebarAuthProvider });
 
         expect(findTestInstanceByTypeContainingText(screen.tree, 'Text', 'common.retry')).toBeUndefined();
     });
@@ -387,7 +394,7 @@ describe('SidebarView header automations button', () => {
     it('shows the header icons inline when the sidebar is wide enough', async () => {
         const { SidebarView } = await import('./SidebarView');
 
-        const screen = await renderScreen(<SidebarView sidebarWidthPx={600} />);
+        const screen = await renderScreen(<SidebarView sidebarWidthPx={600} />, { wrapper: SidebarAuthProvider });
 
         expect(screen.findAllByTestId('sidebar-header-actions-overflow')).toHaveLength(0);
         expect(screen.findAllByTestId('nav-settings').length).toBeGreaterThan(0);
@@ -397,7 +404,7 @@ describe('SidebarView header automations button', () => {
     it('folds header icons into an overflow menu when the sidebar is narrow', async () => {
         const { SidebarView } = await import('./SidebarView');
 
-        const screen = await renderScreen(<SidebarView sidebarWidthPx={250} />);
+        const screen = await renderScreen(<SidebarView sidebarWidthPx={250} />, { wrapper: SidebarAuthProvider });
 
         expect(screen.findAllByTestId('sidebar-header-actions-overflow').length).toBeGreaterThan(0);
         // Compact layout hides inbox/friends into the overflow menu.
@@ -408,7 +415,7 @@ describe('SidebarView header automations button', () => {
     it('keeps the overflow trigger left of real header icons in compact mode', async () => {
         const { SidebarView } = await import('./SidebarView');
 
-        const screen = await renderScreen(<SidebarView sidebarWidthPx={250} />);
+        const screen = await renderScreen(<SidebarView sidebarWidthPx={250} />, { wrapper: SidebarAuthProvider });
 
         const overflow = requireTestInstance(
             screen.findByTestId('sidebar-header-actions-overflow'),
