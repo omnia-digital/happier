@@ -333,12 +333,8 @@ module.exports = { unpackTools, getPlatformDir, getToolsDir, areToolsUnpacked, g
 
 // Run if executed directly
 if (require.main === module) {
-    unpackTools()
-        .then(result => {
-            process.exit(0);
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            process.exit(1);
-        });
+    unpackTools().catch(error => {
+        console.error('Error:', error);
+        process.exitCode = 1;
+    });
 }
