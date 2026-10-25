@@ -9,6 +9,27 @@ vi.mock('@/sync/domains/server/serverRuntime', () => ({
 afterEach(() => vi.unstubAllGlobals());
 
 describe('provider account usage plaintext transport', () => {
+  it('distinguishes an older relay collection-route 404 from authentication failure', async () => {
+    const requestUrl = (input: RequestInfo | URL) => input instanceof Request ? input.url : String(input);
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => (
+      requestUrl(input).endsWith('/health') || requestUrl(input).endsWith('/v1/auth/ping')
+        ? { ok: true, status: 200, json: async () => ({ ok: true }) }
+        : { ok: false, status: 404, json: async () => ({ error: 'not_found' }) }
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+    const { listProviderAccountUsageRecords } = await import('./apiProviderAccountUsageV3');
+    const credentials = { token: 'token', secret: 'secret' };
+    expect(await listProviderAccountUsageRecords(credentials)).toBe('unsupported');
+    expect(fetchMock.mock.calls.some(([url]) => requestUrl(url).includes('/v3/connect/provider-account-usage'))).toBe(true);
+
+    fetchMock.mockImplementation(async (input) => (
+      requestUrl(input).endsWith('/health') || requestUrl(input).endsWith('/v1/auth/ping')
+        ? { ok: true, status: 200, json: async () => ({ ok: true }) }
+        : { ok: false, status: 401, json: async () => ({ error: 'unauthorized' }) }
+    ));
+    await expect(listProviderAccountUsageRecords(credentials)).rejects.toMatchObject({ status: 401 });
+  });
+
   it('restores supplemental subscription and credit facts without losing legacy usage data', async () => {
     const recordKey = { providerId: 'codex', accountSubjectId: 'account', subjectKind: 'account', quotaScope: 'account' } as const;
     const snapshot = {

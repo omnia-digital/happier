@@ -35,6 +35,7 @@ type NormalizedProfileRef = Readonly<{
 export type ConnectedServiceQuotaSnapshotsResult = Readonly<{
   snapshotsByKey: Readonly<Record<string, ConnectedServiceQuotaSnapshotV1 | null>>;
   loadingByKey: Readonly<Record<string, boolean>>;
+  errorByKey: Readonly<Record<string, string | null>>;
 }>;
 
 export type ConnectedServiceQuotaSnapshotsFetchPolicy = 'poll' | 'cache_only';
@@ -129,8 +130,9 @@ export function useConnectedServiceQuotaSnapshots(
   return React.useMemo(() => {
     const snapshotsByKey: Record<string, ConnectedServiceQuotaSnapshotV1 | null> = {};
     const loadingByKey: Record<string, boolean> = {};
+    const errorByKey: Record<string, string | null> = {};
     if (!quotasEnabled) {
-      return { snapshotsByKey, loadingByKey } satisfies ConnectedServiceQuotaSnapshotsResult;
+      return { snapshotsByKey, loadingByKey, errorByKey } satisfies ConnectedServiceQuotaSnapshotsResult;
     }
 
     void version;
@@ -138,14 +140,16 @@ export function useConnectedServiceQuotaSnapshots(
       if (!profile.credentialHealthUsable) {
         snapshotsByKey[profile.key] = null;
         loadingByKey[profile.key] = false;
+        errorByKey[profile.key] = null;
       }
     }
     for (const { key, profileKey } of loadContexts) {
       const entry = getQuotaSnapshotEntry(key);
       snapshotsByKey[profileKey] = entry.snapshot;
       loadingByKey[profileKey] = entry.loading;
+      errorByKey[profileKey] = entry.error;
     }
 
-    return { snapshotsByKey, loadingByKey } satisfies ConnectedServiceQuotaSnapshotsResult;
+    return { snapshotsByKey, loadingByKey, errorByKey } satisfies ConnectedServiceQuotaSnapshotsResult;
   }, [loadContexts, quotasEnabled, version]);
 }

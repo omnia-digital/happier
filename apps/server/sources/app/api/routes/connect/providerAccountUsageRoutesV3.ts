@@ -94,7 +94,7 @@ async function readPlainAccount(accountId: string) {
 }
 
 export function registerProviderAccountUsageRoutesV3(app: Fastify): void {
-    app.get("/v3/connect/provider-account-usage/records", {
+    app.get("/v3/connect/provider-account-usage", {
         config: { rateLimit: resolveApiHotEndpointRateLimit(process.env, "connectedServices.quotas.read") },
         preHandler: app.authenticate,
         schema: { response: { 200: ProviderAccountUsageRecordListV1Schema } },

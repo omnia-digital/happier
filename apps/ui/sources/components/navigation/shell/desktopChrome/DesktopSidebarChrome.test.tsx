@@ -41,6 +41,10 @@ vi.mock('@/components/navigation/ConnectionStatusControl', () => ({
     ConnectionStatusControl: 'ConnectionStatusControl',
 }));
 
+vi.mock('./DesktopSidebarProviderUsage', () => ({
+    DesktopSidebarProviderUsage: () => React.createElement('DesktopSidebarProviderUsage', { testID: 'desktop-sidebar-provider-usage' }),
+}));
+
 vi.mock('@/components/ui/lists/ItemRowActions', () => ({
     ItemRowActions: (props: {
         actions: Array<{ id: string }>;

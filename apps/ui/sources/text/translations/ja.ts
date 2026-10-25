@@ -7468,6 +7468,16 @@ localTailscale: {
 
   sidebar: {
     sessionsTitle: "Happier",
+      providerUsage: {
+          native: "ネイティブ",
+          disabled: "使用量の表示はオフです",
+          discoveryUnsupported: "このリレーではネイティブの使用量を確認できません",
+          discoveryError: "ネイティブの使用量を更新できませんでした",
+          chooseAccount: "アカウントを選択",
+          notConnected: "使用量アカウントが見つかりません",
+          stale: "古いデータ",
+          lastKnownRefreshFailed: "前回のデータ · 更新失敗",
+      },
   },
 
   toolView: {

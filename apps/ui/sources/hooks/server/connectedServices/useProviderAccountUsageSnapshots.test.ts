@@ -141,6 +141,45 @@ describe('useProviderAccountUsageSnapshots', () => {
     await hook.unmount();
   });
 
+  it('shares one in-flight exact-record read across mounted header and chat consumers', async () => {
+    const snapshot = makeUsageSnapshotWith({ fetchedAtMs: Date.now() });
+    let release: ((value: ProviderAccountUsageSnapshotV1) => void) | undefined;
+    getProviderAccountUsageSnapshotPlainSpy.mockImplementation(() => new Promise((resolve) => {
+      release = resolve;
+    }));
+    const { useProviderAccountUsageSnapshots } = await import('./useProviderAccountUsageSnapshots');
+    const header = await renderHook(() => useProviderAccountUsageSnapshots([snapshot.recordId]));
+    const chat = await renderHook(() => useProviderAccountUsageSnapshots([snapshot.recordId]));
+    await flushHookEffects({ cycles: 3, turns: 3 });
+    expect(getProviderAccountUsageSnapshotPlainSpy).toHaveBeenCalledTimes(1);
+    await act(async () => { release?.(snapshot); });
+    await flushHookEffects({ cycles: 3, turns: 3 });
+    expect(header.getCurrent()[snapshot.recordId]).toBe(snapshot);
+    expect(chat.getCurrent()[snapshot.recordId]).toBe(snapshot);
+    await header.unmount();
+    await chat.unmount();
+  });
+
+  it('retires an older credential-scope read before it can replace the new account value', async () => {
+    const oldSnapshot = makeUsageSnapshotWith({ fetchedAtMs: Date.now() });
+    const newSnapshot = makeUsageSnapshotWith({ fetchedAtMs: Date.now() + 1_000 });
+    let releaseOld: ((value: ProviderAccountUsageSnapshotV1) => void) | undefined;
+    getProviderAccountUsageSnapshotPlainSpy.mockImplementation((credentials) => credentials.token === stableCredentials.token
+      ? new Promise((resolve) => { releaseOld = resolve; })
+      : Promise.resolve(newSnapshot));
+    const { useProviderAccountUsageSnapshots } = await import('./useProviderAccountUsageSnapshots');
+    const hook = await renderHook(() => useProviderAccountUsageSnapshots([oldSnapshot.recordId]));
+    await flushHookEffects({ cycles: 3, turns: 3 });
+    currentCredentials = { token: 'other-account-token', secret: stableCredentials.secret };
+    await hook.rerender();
+    await flushHookEffects({ cycles: 3, turns: 3 });
+    expect(hook.getCurrent()[oldSnapshot.recordId]).toBe(newSnapshot);
+    await act(async () => { releaseOld?.(oldSnapshot); });
+    await flushHookEffects({ cycles: 3, turns: 3 });
+    expect(hook.getCurrent()[oldSnapshot.recordId]).toBe(newSnapshot);
+    await hook.unmount();
+  });
+
   it('uses cached provider account usage snapshots without refetching the same record', async () => {
     const snapshot = makeUsageSnapshotWith({ fetchedAtMs: Date.now() });
     const credentialScope = resolveAuthCredentialsScopeKey(stableCredentials);

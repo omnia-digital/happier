@@ -6784,6 +6784,16 @@ export const fr: TranslationStructure = {
 
     sidebar: {
         sessionsTitle: 'Happier',
+        providerUsage: {
+            native: "Natif",
+            disabled: "Le suivi d'utilisation est désactivé",
+            discoveryUnsupported: "L'utilisation native est indisponible sur ce relais",
+            discoveryError: "Impossible d'actualiser l'utilisation native",
+            chooseAccount: "Choisir un compte",
+            notConnected: "Aucun compte d'utilisation trouvé",
+            stale: "Périmé",
+            lastKnownRefreshFailed: "Dernière donnée · actualisation échouée",
+        },
     },
 
     toolView: {

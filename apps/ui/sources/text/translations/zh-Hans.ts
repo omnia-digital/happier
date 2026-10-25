@@ -6988,6 +6988,16 @@ export const zhHans: TranslationStructure = {
 
   sidebar: {
     sessionsTitle: "Happier",
+      providerUsage: {
+          native: "原生",
+          disabled: "用量显示已关闭",
+          discoveryUnsupported: "此中继不支持查看原生用量",
+          discoveryError: "无法刷新原生用量",
+          chooseAccount: "选择账户",
+          notConnected: "未找到用量账户",
+          stale: "已过期",
+          lastKnownRefreshFailed: "上次数据 · 刷新失败",
+      },
   },
 
   toolView: {

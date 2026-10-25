@@ -21,6 +21,7 @@ import { ActionOperationActivityButton } from '@/components/inbox/actionOperatio
 import { InboxPopoverButton } from '@/components/inbox/InboxPopoverButton';
 import { UpdatesEntry } from '@/components/updates/UpdatesPopoverButton';
 import type { InboxSummary } from '@/hooks/inbox/useInboxSummary';
+import { DesktopSidebarProviderUsage } from './DesktopSidebarProviderUsage';
 
 type DesktopSidebarChromeProps = Readonly<{
     sidebarWidthPx?: number | null;
@@ -261,6 +262,7 @@ export const DesktopSidebarChrome = React.memo((props: DesktopSidebarChromeProps
 
                 {actionsRow}
             </View>
+            <DesktopSidebarProviderUsage />
         </View>
     );
 });

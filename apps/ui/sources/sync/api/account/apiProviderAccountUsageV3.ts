@@ -5,11 +5,13 @@ import { backoff } from '@/utils/timing/time';
 
 import {
   ProviderAccountUsageRecordIdSchema,
+  ProviderAccountUsageRecordListV1Schema,
   PROVIDER_ACCOUNT_SUBSCRIPTION_ACCEPT,
   ProviderAccountUsageSnapshotV1Schema,
   StoredJsonContentEnvelopeSchema,
   type ProviderAccountUsageRecordId,
   type ProviderAccountUsageSnapshotV1,
+  type ProviderAccountUsageRecordListV1,
 } from '@happier-dev/protocol';
 import { z } from 'zod';
 
@@ -30,6 +32,30 @@ const ProviderAccountUsageV3ResponseSchema = z.object({
     refreshRequestedAt: z.number().int().nonnegative().optional(),
   }),
 });
+
+/** A missing collection route means this relay predates account-wide discovery. */
+export async function listProviderAccountUsageRecords(
+  credentials: AuthCredentials,
+  opts?: Readonly<{ signal?: AbortSignal }>,
+): Promise<ProviderAccountUsageRecordListV1 | 'unsupported'> {
+  return await backoff(async () => {
+    const response = await serverFetch('/v3/connect/provider-account-usage', {
+      method: 'GET',
+      signal: opts?.signal,
+      headers: { Authorization: `Bearer ${credentials.token}` },
+    }, { includeAuth: false });
+    if (response.status === 404) return 'unsupported';
+    if (!response.ok) {
+      throw new HappyError('Failed to discover provider account usage', false, {
+        status: response.status,
+        kind: 'server',
+      });
+    }
+    const parsed = ProviderAccountUsageRecordListV1Schema.safeParse(await response.json());
+    if (!parsed.success) throw new Error('Invalid provider account usage discovery response');
+    return parsed.data;
+  });
+}
 
 export async function getProviderAccountUsageSnapshotPlain(
   credentials: AuthCredentials,

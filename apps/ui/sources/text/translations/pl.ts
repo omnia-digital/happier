@@ -7216,6 +7216,16 @@ export const pl: TranslationStructure = {
 
   sidebar: {
     sessionsTitle: "Happier",
+      providerUsage: {
+          native: "Natywne",
+          disabled: "Wyświetlanie użycia jest wyłączone",
+          discoveryUnsupported: "Natywne użycie jest niedostępne na tym serwerze",
+          discoveryError: "Nie udało się odświeżyć natywnego użycia",
+          chooseAccount: "Wybierz konto",
+          notConnected: "Nie znaleziono konta użycia",
+          stale: "Nieaktualne",
+          lastKnownRefreshFailed: "Ostatnie dane · odświeżanie nie powiodło się",
+      },
   },
 
   toolView: {

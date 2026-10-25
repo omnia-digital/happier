@@ -6829,6 +6829,16 @@ export const en = {
 
     sidebar: {
         sessionsTitle: 'Happier',
+        providerUsage: {
+            native: "Native",
+            disabled: "Usage is off",
+            discoveryUnsupported: "Native usage is unavailable on this relay",
+            discoveryError: "Native usage could not refresh",
+            chooseAccount: "Choose account",
+            notConnected: "No usage account found",
+            stale: "Stale",
+            lastKnownRefreshFailed: "Last known · refresh failed",
+        },
     },
 
     toolView: {

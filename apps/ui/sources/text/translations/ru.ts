@@ -7199,6 +7199,16 @@ export const ru: TranslationStructure = {
 
   sidebar: {
     sessionsTitle: "Happier",
+      providerUsage: {
+          native: "Нативный",
+          disabled: "Показ использования отключён",
+          discoveryUnsupported: "Нативное использование недоступно на этом сервере",
+          discoveryError: "Не удалось обновить нативное использование",
+          chooseAccount: "Выбрать аккаунт",
+          notConnected: "Аккаунт использования не найден",
+          stale: "Устарело",
+          lastKnownRefreshFailed: "Последние данные · обновление не удалось",
+      },
   },
 
   toolView: {

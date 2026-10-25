@@ -7539,6 +7539,16 @@ export const it: TranslationStructure = {
 
   sidebar: {
     sessionsTitle: "Happier",
+      providerUsage: {
+          native: "Nativo",
+          disabled: "L'utilizzo è disattivato",
+          discoveryUnsupported: "L'utilizzo nativo non è disponibile su questo relay",
+          discoveryError: "Impossibile aggiornare l'utilizzo nativo",
+          chooseAccount: "Scegli account",
+          notConnected: "Nessun account di utilizzo trovato",
+          stale: "Non aggiornato",
+          lastKnownRefreshFailed: "Ultimo dato · aggiornamento non riuscito",
+      },
   },
 
   toolView: {

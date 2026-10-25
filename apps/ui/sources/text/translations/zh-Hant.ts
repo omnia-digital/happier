@@ -6042,6 +6042,16 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
 
     sidebar: {
         sessionsTitle: 'Happier',
+        providerUsage: {
+            native: "原生",
+            disabled: "用量顯示已關閉",
+            discoveryUnsupported: "此中繼不支援查看原生用量",
+            discoveryError: "無法重新整理原生用量",
+            chooseAccount: "選擇帳戶",
+            notConnected: "找不到用量帳戶",
+            stale: "已過期",
+            lastKnownRefreshFailed: "上次資料 · 重新整理失敗",
+        },
     },
 
     toolView: {

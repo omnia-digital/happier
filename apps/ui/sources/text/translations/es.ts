@@ -7197,6 +7197,16 @@ export const es: TranslationStructure = {
 
   sidebar: {
     sessionsTitle: "Happier",
+      providerUsage: {
+          native: "Nativo",
+          disabled: "El uso está desactivado",
+          discoveryUnsupported: "El uso nativo no está disponible en este servidor",
+          discoveryError: "No se pudo actualizar el uso nativo",
+          chooseAccount: "Elegir cuenta",
+          notConnected: "No se encontró una cuenta de uso",
+          stale: "Desactualizado",
+          lastKnownRefreshFailed: "Último dato · error al actualizar",
+      },
   },
 
   toolView: {
