@@ -71,3 +71,50 @@ Hook/spec WIP `1bd1c6b608` is pushed, with account-switch first-render hiding, s
 The hook correction is now pushed at `ecef8d5dca`, with all four independently replayed hook cases green (`/tmp/happier-oh64-hook-independent.log`), including a genuine delayed TokenStorage read across a viewer-account switch. Browser/credential batch `042707e078` passes 81 checks across five suites plus UI typecheck. Existing system-Chrome path-picker browse-and-favorite flow passes 1/1 (`/tmp/happier-oh64-chrome-path-picker-replay3.log`); earlier child-path/testID fixture errors are superseded and are not product-failure cycles. Final launch remains separate: the caller must reject an invalidated target instead of merely skipping recent-path recording; the spawn producer must carry actual target account into admission/custody/RPC and avoid borrowing viewer settings for a foreign account. Actual account-switch REDs and correction checks are in progress. OH-14 owns the shared worktree materializer/service scope correction; current native app stays untouched and native picker acceptance remains open.
 
 OH64-owned launch source is now pushed at `68cc592806`/`518455a9d7`, with housekeeping `ea4574869b`. Final producer/worktree-caller/pending-retry suites pass107/107 (`/tmp/happier-oh64-final-launch-gate.log`), UI typecheck passes, and root independently passes five deciding transport/custody cases (`/tmp/happier-oh64-emission-custody-root-independent.log`). Actual pre-emission account replacement rejects and clears unused custody; after an RPC issue, the existing unresolved pending-recovery contract retains the original attempt/nonce and prevents artifact rollback/new launch. Scoped machine emission uses the existing shared callback owner through final credential validation and synchronous socket send. Shared OH14 dependency `768c3ea418` now has9 independent checks green. Formal OH64 assessment is VERIFY Sol/high,0 formal failed cycles retained. Browser evidence covers picker browse/favorite, not an actual foreign multi-account session launch; native picker/launch and optional absent0.3 destination remain unverified.
+
+### October 25: composed foreign-Home New Session flow
+
+The new browser recipe disproves completion at the earlier lower transport boundary.
+While viewing and initially targeting Home A, choosing B still sends directory
+requests to A's relay and machine. A shared-filesystem directory result initially
+masked that mistake; the deciding RED records actual Socket.IO relay/machine/method
+identity without payloads. The screen model now uses the existing per-Home machine
+groups for its selected target, and scoped machine selection updates the existing
+Home/machine route tuple. The route picker no longer borrows active-Home metadata
+for a missing foreign target. Source checkpoint: `ed194c4607`.
+
+Root review finds a same-ID neighbor: an old draft's persisted path can overwrite
+the new Home's inferred path. `5e812d256f` treats that persisted value as an initial
+scope seed, while retaining explicit route paths, user edits and initial hydration.
+The owner RED and final 21 tests establish that distinction. Retain one failed
+Sol implementation-review cycle for this target-binding batch.
+
+Actual B launch then exposes a separate encrypted-read defect: the scoped session
+adapter detaches real `SessionEncryption` methods, losing their cache receiver.
+`68e6fd5f66` binds both decrypt methods to their owner. The existing foreign encrypted
+hydration test now uses real Encryption and ciphertext; its meaningful RED becomes
+GREEN. Root independently passes all 56 hydration/route/follow-up owner tests and
+sweeps method references across UI/packages, finding no other detached copies.
+UI and fixture typechecks pass at the source boundary.
+
+Final system Chrome passes the full journey: A viewer and initial target, B machine
+selection, actual B filesystem RPC, separately persisted A/B favorites, B provider-safe
+spawn RPC, fake Claude cwd/first-turn receipt, B-scoped session route, visible composer
+and actual `FAKE_CLAUDE_OK_1` reply. The reply expectation first used the fake provider's
+optional echo output instead of its default; that fixture failure is corrected without
+changing product behavior. The final functional replay passes, followed by one required
+visual receipt with a distinct output directory, also 1/1. Root inspects the final screen:
+target-browse title/sidebar, user turn, assistant reply and online composer are visible.
+Log: `.project/logs/tests/oh64-foreign-launch-visual-final.log`.
+Image: `packages/tests/.project/logs/e2e/oh64-foreign-launch-visual-final/newSession.foreignHomeLaun-753d9-g-and-initially-targeting-A/oh64-foreign-b-session.png`.
+The final test checkpoints through `1bf77d2837` are pushed. Earlier default Playwright
+output was reused and its failure images are gone; preserve their RED logs rather
+than claiming those images remain available.
+
+No navigation policy is invented: the B-scoped route renders and receives messages
+without forcing a viewer-Home change. Existing creation replacement/suffix semantics,
+account-currentness guards and launch custody remain. There is no new cache or
+cross-Home state owner. Native QA remains explicitly deferred, real provider execution
+is not tested, and the verified 0.3 destination remains missing. The daily app, daemon,
+hosted account and provider settings are unchanged. The published App guide labels
+the path behavior as a fork preview; docs content/types and 47 tests pass.
