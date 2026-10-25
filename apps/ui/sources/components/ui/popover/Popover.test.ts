@@ -1440,6 +1440,39 @@ describe('Popover (web)', () => {
         expect(flattenStyle(contentViewAfter?.props?.style).opacity).toBe(1);
     });
 
+    it('keeps a measured padded side popover inside the viewport when its outer frame exceeds the boundary', async () => {
+        const { Popover } = await import('./Popover');
+        const anchorRef = {
+            current: {
+                getBoundingClientRect: () => ({
+                    left: 850, top: 380, width: 24, height: 24,
+                    x: 850, y: 380,
+                }),
+            },
+        } as any;
+
+        const screen = await renderScreen(React.createElement(Popover, {
+            open: true,
+            anchorRef,
+            placement: 'left',
+            portal: { web: true, matchAnchorWidth: false },
+            maxHeightCap: 800,
+            edgePadding: { vertical: 8, horizontal: 0 },
+            backdrop: false,
+            children: () => React.createElement('PopoverChild'),
+        }));
+        await act(async () => {
+            await flushRetryPositioning();
+        });
+        const contentView = findPopoverContentView(screen);
+        await act(async () => {
+            contentView?.props?.onLayout?.({ nativeEvent: { layout: { width: 260, height: 807 } } });
+        });
+        const style = flattenStyle(findPopoverContentView(screen)?.props?.style);
+        expect(style.paddingVertical).toBe(8);
+        expect(style.top).toBeGreaterThanOrEqual(0);
+    });
+
     it('keeps top/bottom portal popovers hidden until content layout is known (prevents clamp jiggle)', async () => {
         const { Popover } = await import('./Popover');
 
