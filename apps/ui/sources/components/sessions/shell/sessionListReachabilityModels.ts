@@ -124,7 +124,7 @@ export function buildSessionReachableDisplay(input: Readonly<{
 
     return {
         display,
-        machineKey: resolveMachineKey(display),
+        machineKey: input.item.serverId ? `${input.item.serverId}\u0000${resolveMachineKey(display)}` : resolveMachineKey(display),
         workspace,
     };
 }
@@ -187,10 +187,12 @@ export function buildSessionListReachabilityModels(input: Readonly<{
     for (const item of items) {
         if (item.type !== 'session') continue;
         const serverId = item.serverId ?? '';
-        if (!signaturesByServer.has(serverId)) signaturesByServer.set(serverId, buildReachabilityMachineDisplaySignature(resolveMachineDisplayScope({
+        if (signaturesByServer.has(serverId)) continue;
+        const scope = resolveMachineDisplayScope({
             serverId, activeServerId: state.profileScope?.serverId ?? getActiveServerId(),
             machines: input.machinesById, machineListByServerId,
-        }).machines));
+        });
+        signaturesByServer.set(serverId, JSON.stringify([scope.isActive, buildReachabilityMachineDisplaySignature(scope.machines)]));
     }
     const machineDisplaySignature = JSON.stringify([...signaturesByServer]);
     const retained = retainedReachabilityModelsByItems.get(items);

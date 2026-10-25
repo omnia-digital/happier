@@ -5,6 +5,7 @@ import { installSessionUtilsCommonModuleMocks } from '@/utils/sessions/sessionUt
 type MockStorageState = {
     sessions?: Record<string, unknown>;
     machines?: Record<string, unknown>;
+    machineListByServerId?: Record<string, unknown[]>;
     getProjectForSession?: (sessionId: string) => { key?: { machineId?: string; path?: string } } | null;
 };
 
@@ -15,7 +16,7 @@ installSessionUtilsCommonModuleMocks({
         const { createStorageModuleStub } = await import('@/dev/testkit/mocks/storage');
         return createStorageModuleStub({
             storage: {
-                getState: () => mockStorageState,
+                getState: () => ({ profileScope: { serverId: 'server-a', accountId: 'account-a' }, ...mockStorageState }),
             },
         });
     },
@@ -215,6 +216,7 @@ describe('buildSessionListReachabilityModels', () => {
         mockStorageState = {
             sessions: {},
             machines: {},
+            machineListByServerId: { 'server-b': [{ id: 'machine-b', metadata: { host: 'b.local', displayName: 'Machine B' } }] },
             getProjectForSession: () => null,
         };
 

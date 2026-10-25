@@ -50,18 +50,24 @@ describe('useAllMachines', () => {
             expect(first.reachableSessionDisplayByKey.get('home-b:shared-session')).toMatchObject({ machineId: 'b-successor', machineLabel: 'B machine', workspaceSubtitle: 'repo' });
             const header = projectSessionListMachineView(items, machinesById).find(item => item.type === 'header' && item.headerKind === 'machine');
             expect(header).toMatchObject({ title: 'B machine', machine: { id: 'b-successor' } });
+            const renamedActiveMachines = { ...machinesById, 'a-successor': { ...aSuccessor, metadata: { ...aSuccessor.metadata!, displayName: 'A renamed' } } };
             await act(async () => {
-                storage.setState({ machines: { ...machinesById, 'a-successor': { ...aSuccessor, metadata: { ...aSuccessor.metadata!, displayName: 'A renamed' } } },
+                storage.setState({ machines: renamedActiveMachines, machineDisplayById: renamedActiveMachines,
                     machineListByServerId: { 'home-b': [bOld, { ...bSuccessor, activeAt: bSuccessor.activeAt + 1000 }, bOnly] },
                 });
             });
             expect(headerRenders).toBe(settledHeaderRenders);
             expect(listsHook.getCurrent()).toBe(firstLists);
-            expect(buildSessionListReachabilityModels(input)).toBe(first);
+            expect(buildSessionListReachabilityModels({ ...input, machinesById: renamedActiveMachines })).toBe(first);
             for (const [machineId, expectedLabel] of [['b-only', 'B only'], ['unavailable', 'unavailable']]) {
                 const result = buildSessionListReachabilityModels({ ...input, cache: undefined, items: [{ ...items[0], session: { ...session, metadata: { ...session.metadata!, machineId } } }] });
                 expect(result.reachableSessionDisplayByKey.get('home-b:shared-session')).toMatchObject({ machineId, machineLabel: expectedLabel, workspaceSubtitle: 'repo' });
             }
+            await act(async () => {
+                storage.setState({ machineListByServerId: { 'home-b': [bOld, { ...bSuccessor, metadata: { ...bSuccessor.metadata!, displayName: 'B renamed' } }, bOnly] } });
+            });
+            expect(headerHook.getCurrent()?.machineLabel).toBe('B renamed');
+            expect(buildSessionListReachabilityModels(input).reachableSessionDisplayByKey.get('home-b:shared-session')?.machineLabel).toBe('B renamed');
             await headerHook.unmount();
             await listsHook.unmount();
         } finally {

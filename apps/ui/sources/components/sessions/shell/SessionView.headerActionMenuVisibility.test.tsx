@@ -233,7 +233,8 @@ vi.mock('@/sync/ops', () => ({
 vi.mock('@/sync/ops/actions/defaultActionExecutor', () => ({
   createDefaultActionExecutor: () => ({ execute: vi.fn() }),
 }));
-vi.mock('@/sync/ops/sessionMachineTarget', () => ({
+vi.mock('@/sync/ops/sessionMachineTarget', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/sync/ops/sessionMachineTarget')>(),
   resolveMachineTargetForSessionFromState: (_state: unknown, sessionId: string) => readMachineTargetForSessionSpy(sessionId),
   resolveDisplayMachineTargetForSessionFromState: (_state: unknown, input: unknown) => readDisplayMachineTargetForSessionSpy(input),
   readMachineTargetForSession: (sessionId: string) => readMachineTargetForSessionSpy(sessionId),
@@ -537,14 +538,12 @@ describe('SessionView header action menu visibility', () => {
 
     await renderSessionView();
 
-    expect(readDisplayMachineTargetForSessionSpy).toHaveBeenCalledWith({
-      sessionId: 's1',
-      metadata: sessionState.session.metadata,
-    });
     expect(resolveSessionWorkspacePresentationSpy).toHaveBeenCalledWith(expect.objectContaining({
       target: {
         machineId: 'machine-origin',
         basePath: '/repo/origin',
+        originMachineId: 'machine-origin',
+        replaced: false,
       },
     }));
   });

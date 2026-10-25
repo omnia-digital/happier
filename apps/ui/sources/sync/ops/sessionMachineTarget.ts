@@ -70,7 +70,11 @@ export function resolveSessionWorkspacePresentationFromState(input: Readonly<{
   // Foreign snapshots belong to their authenticated Home. Active projects, sessions with the
   // same id, and replacement decisions must not participate in their display identity.
   const target = resolveDisplayMachineTargetForSessionFromState({
-    state: scope.isActive ? { ...input.state, machines: scope.machines } : { machines: scope.machines },
+    state: scope.isActive ? {
+      sessions: input.state.sessions,
+      getProjectForSession: input.state.getProjectForSession,
+      machines: scope.machines,
+    } : { machines: scope.machines },
     sessionId: input.sessionId,
     metadata: input.metadata,
   });

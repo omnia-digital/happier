@@ -26,7 +26,7 @@ import {
 import { isAutomationLinkedToSession } from '../domains/automations/automationSessionLink';
 import type { LocalSettings } from '../domains/settings/localSettings';
 import { readMachineDisplayColor, readMachineDisplayIcon, resolveMachineDisplayPreferenceScope, type MachineDisplayPreferenceScope } from '../domains/machines/machineDisplayIconPreference';
-import { getActiveServerId, subscribeServerProfiles } from '../domains/server/serverProfiles';
+import { areServerProfileIdentifiersEquivalent, getActiveServerId, subscribeServerProfiles } from '../domains/server/serverProfiles';
 import type { AgentTextMessage, Message } from '../domains/messages/messageTypes';
 import type { Settings } from '../domains/settings/settings';
 import { settingsDefaults } from '../domains/settings/settings';
@@ -1330,14 +1330,17 @@ export function useMachineDisplayById(): Record<string, MachineDisplayRenderable
 }
 
 /** Stable display-only projection of the existing authenticated Home snapshots. */
-export function useSessionMachineDisplayLists(): Readonly<Record<string, readonly MachineDisplayRenderable[] | null>> {
+export function useSessionMachineDisplayLists(serverIds?: readonly string[]): Readonly<Record<string, readonly MachineDisplayRenderable[] | null>> {
+  const serverIdsKey = serverIds ? JSON.stringify([...new Set(serverIds)].sort()) : null;
   const selector = React.useMemo(() => {
+    const selectedServerIds: string[] | null = serverIdsKey ? JSON.parse(serverIdsKey) : null;
     let source: StorageState['machineListByServerId'] | undefined;
     let result: Readonly<Record<string, readonly MachineDisplayRenderable[] | null>> = {};
     return (state: StorageState) => {
       if (source === state.machineListByServerId) return result;
       const next: Record<string, readonly MachineDisplayRenderable[] | null> = {};
       for (const [serverId, machines] of Object.entries(state.machineListByServerId ?? {})) {
+        if (selectedServerIds && !selectedServerIds.some(id => areServerProfileIdentifiersEquivalent(id, serverId))) continue;
         const previous = result[serverId];
         const unchanged = previous === machines || (Array.isArray(previous) && Array.isArray(machines)
           && previous.length === machines.length && machines.every((machine, index) => {
@@ -1354,7 +1357,7 @@ export function useSessionMachineDisplayLists(): Readonly<Record<string, readonl
         || Object.keys(next).some(key => next[key] !== result[key])) result = next;
       return result;
     };
-  }, []);
+  }, [serverIdsKey]);
   return getStorage()(selector);
 }
 

@@ -104,7 +104,7 @@ import { buildNewSessionSourceContextNavigation } from '@/components/sessions/ne
 import { resolveNewSessionDraftRouteIdentity } from '@/components/sessions/new/navigation/newSessionDraftRouteIdentity';
 import { buildNewSessionLaunchRouteParams } from '@/components/sessions/new/navigation/newSessionRouteParams';
 import { sessionAbort, resumeSession } from '@/sync/ops';
-import { storage, useActiveServerAccountScope, useEndpointConnectivity, useIsDataReady, useLaunchSelectionMachines, useLocalSetting, useMachine, useOpenApprovalArtifactsForSession, useProfile, useRealtimeStatus, useSessionAutomationsEnabledCount, useSessionConnectedServiceAccountSwitchEvents, useSessionMessages, useSessionOrganizationProjection, useSessionPendingMessages, useSessionTranscriptIds, useSessionUsage, useSessionVisibleReadSeq, useSetting, useSettingMutable, useSettings, useSocketStatus, useSyncError, useWorkspaceReviewCommentsDrafts } from '@/sync/domains/state/storage';
+import { storage, useActiveServerAccountScope, useEndpointConnectivity, useIsDataReady, useLocalSetting, useMachine, useOpenApprovalArtifactsForSession, useProfile, useRealtimeStatus, useSessionAutomationsEnabledCount, useSessionConnectedServiceAccountSwitchEvents, useSessionMessages, useSessionOrganizationProjection, useSessionPendingMessages, useSessionTranscriptIds, useSessionUsage, useSessionVisibleReadSeq, useSetting, useSettingMutable, useSettings, useSocketStatus, useSyncError, useWorkspaceReviewCommentsDrafts } from '@/sync/domains/state/storage';
 import { canContinueSessionWithFreshSpawn, canResumeSessionWithOptions } from '@/agents/runtime/resumeCapabilities';
 import { DEFAULT_AGENT_ID, getAgentCore, resolveAgentIdFromFlavor, buildResumeSessionExtrasFromUiState } from '@/agents/catalog/catalog';
 import {
@@ -176,7 +176,6 @@ import type { ModelMode, PermissionMode } from '@/sync/domains/permissions/permi
 import { getPermissionModeOverrideForSpawn } from '@/sync/domains/permissions/permissionModeOverride';
 import { getPermissionModeLabelForAgentType, getPermissionModeTitleForAgentType } from '@/sync/domains/permissions/permissionModeOptions';
 import { getModelOverrideForSpawn } from '@/sync/domains/models/modelOverride';
-import { readDisplayMachineTargetForSession } from '@/sync/ops/sessionMachineTarget';
 import { useSessionMachineControlTarget, useSessionMachineTarget } from '@/components/sessions/model/useSessionMachineTarget';
 import { useSessionRecipientState } from '@/components/sessions/agentInput/routing/useSessionRecipientState';
 import {

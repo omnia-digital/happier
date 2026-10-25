@@ -165,14 +165,14 @@ export function useSessionListViewState({
     const [collapsedGroupKeysV1, setCollapsedGroupKeysV1] = useCollapsedGroupKeysMutable('collapsedGroupKeysV1');
     const sessionListDensity = useSetting('sessionListDensity');
     const profile = useProfile();
+    const selection = useResolvedActiveServerSelection();
     const machineDisplayById = useMachineDisplayById();
-    const machineDisplayLists = useSessionMachineDisplayLists();
+    const machineDisplayLists = useSessionMachineDisplayLists(selection.enabled ? selection.allowedServerIds : [selection.activeServerId]);
     const renderMachineDisplayLists = useSessionListSnapshotWhenInactive(machineDisplayLists, sessionListSurfaceDataActive);
     const renderMachineDisplayById = useSessionListSnapshotWhenInactive(
         machineDisplayById,
         sessionListSurfaceDataActive,
     );
-    const selection = useResolvedActiveServerSelection();
     const activeOrganizationServerId = selection.activeServerId ?? null;
     const organizationProjections = useSessionOrganizationProjections(selection.enabled ? selection.allowedServerIds : [selection.activeServerId]);
     const organizationListViewState = React.useMemo(() => buildSessionOrganizationListViewStateForServers(organizationProjections), [organizationProjections]);

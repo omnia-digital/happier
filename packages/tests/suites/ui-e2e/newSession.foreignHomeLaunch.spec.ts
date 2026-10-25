@@ -221,6 +221,19 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
       `[data-testid="new-session-machine-option:${machineBId}"], [data-testid="new-session-machine:${machineBId}"]`,
     );
     await expect(machineBOption).toBeVisible({ timeout: 120_000 });
+    // Capture the rendered friendly label before launch: a machine-id-only assertion cannot
+    // distinguish unavailable decryption from a later presentation-scope regression.
+    const machineBName = await machineBOption.evaluate((element) => {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      while (walker.nextNode()) {
+        const text = walker.currentNode.textContent?.trim() ?? '';
+        if (/[\p{L}\p{N}]/u.test(text)) return text;
+      }
+      return '';
+    });
+    expect(machineBName).not.toBe('');
+    expect(machineBName).not.toBe(machineBId);
+    await expect(machineBOption.getByText(machineBName, { exact: true })).toBeVisible();
     await machineBOption.click();
     await expect.poll(() => new URL(page.url()).searchParams.get('spawnServerId')).not.toBe(serverAId);
     const selectedServerBId = new URL(page.url()).searchParams.get('spawnServerId');
@@ -293,6 +306,11 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
     await expect(page.getByTestId('session-composer-input')).toBeVisible({ timeout: 120_000 });
     await expect(page.locator('[data-testid^="transcript-message-"]:not([data-testid*=":"])')
       .filter({ hasText: 'FAKE_CLAUDE_OK_1' }).first()).toBeVisible({ timeout: 180_000 });
+    const sessionBId = new URL(page.url()).pathname.split('/session/')[1]?.split('/')[0];
+    expect(sessionBId).toBeTruthy();
+    await expect(page.getByTestId('session-header-machine-identity')).toHaveAttribute('aria-label', machineBName);
+    await expect(page.getByTestId(`session-list-machine-identity-${sessionBId}`)).toHaveAttribute('aria-label', machineBName);
+    await expect(page.getByText(new URL(serverA.baseUrl).host, { exact: true }).first()).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('oh64-foreign-b-session.png') });
   });
 });
