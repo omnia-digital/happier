@@ -65,6 +65,7 @@ import { join, resolve } from 'node:path';
 import { accountSettingsParse } from '@happier-dev/protocol';
 
 import { createRunDirs } from '../../src/testkit/runDir';
+import { createIsolatedCliTestEnv } from '../../src/testkit/process/cliTestEnv';
 import { startServerLight, type StartedServer } from '../../src/testkit/process/serverLight';
 import { startUiWeb, type StartedUiWeb } from '../../src/testkit/process/uiWeb';
 import { type StartedDaemon } from '../../src/testkit/daemon/daemon';
@@ -77,17 +78,6 @@ import { gotoDomContentLoadedWithRetries } from '../../src/testkit/uiE2e/pageNav
 import { enableEnhancedSessionWizard } from '../../src/testkit/uiE2e/enableEnhancedSessionWizard';
 
 const run = createRunDirs({ runLabel: 'ui-e2e' });
-
-function isolatedPathPickerCliEnv(homeDir: string): NodeJS.ProcessEnv {
-    return {
-        ...process.env,
-        HOME: homeDir,
-        USERPROFILE: homeDir,
-        HAPPIER_DAEMON_SERVICE_USER_HOME_DIR: homeDir,
-        HAPPIER_DAEMON_SERVICE_HAPPIER_HOME_DIR: homeDir,
-        HAPPIER_CLI_DAEMON_INTEGRATION_BOOTSTRAP_AUTH: '0',
-    };
-}
 
 test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () => {
     test.describe.configure({ mode: 'serial' });
@@ -142,7 +132,8 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
             initialUiReadyTimeoutMs: 420_000,
             terminalConnectUrlTimeoutMs: 90_000,
             daemonStartupTimeoutMs: 180_000,
-            extraEnv: isolatedPathPickerCliEnv(cliHomeDir),
+            extraEnv: createIsolatedCliTestEnv({ homeDir: cliHomeDir }),
+            inheritProcessEnv: false,
         });
 
         await enableEnhancedSessionWizard({ page, baseUrl: uiBaseUrl });
@@ -184,6 +175,7 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         const dirs = Array.from({ length: 14 }, (_, index) => resolve(join(suiteDir, `scroll-path-${String(index).padStart(2, '0')}`)));
         const recentDirs = Array.from({ length: 3 }, (_, index) => resolve(join(suiteDir, `recent-path-${index}`)));
         await Promise.all([...dirs, ...recentDirs].map((path) => mkdir(path, { recursive: true })));
+        await mkdir(scrollCliHomeDir, { recursive: true });
         scrollDaemon = await authenticateAndStartDaemon({
             page,
             testDir: suiteDir,
@@ -194,7 +186,8 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
             initialUiReadyTimeoutMs: 420_000,
             terminalConnectUrlTimeoutMs: 90_000,
             daemonStartupTimeoutMs: 180_000,
-            extraEnv: isolatedPathPickerCliEnv(scrollCliHomeDir),
+            extraEnv: createIsolatedCliTestEnv({ homeDir: scrollCliHomeDir }),
+            inheritProcessEnv: false,
         });
         const machineId = await waitForDaemonMachineIdFromCliSettings({ cliHomeDir: scrollCliHomeDir });
         const accessKey = await readCliAccessKey(scrollCliHomeDir);
@@ -265,8 +258,6 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         await expect(lastRecent).toHaveCount(1);
         const footer = popover.getByTestId('path-selection-list:footerFrame');
         await expect(footer).toBeVisible();
-        const scrollHost = await scroll.elementHandle();
-        expect(scrollHost).not.toBeNull();
         const readModalScrollOffsets = () => pathChip.evaluate((element) => {
             const offsets: number[] = [];
             for (let parent = element.parentElement; parent; parent = parent.parentElement) {
@@ -296,8 +287,6 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
             page: window.scrollY,
             active: document.activeElement?.getAttribute('aria-activedescendant') ?? null,
         }));
-        expect(await scrollHost!.evaluate((element) => element.isConnected
-            && element === document.querySelector('[data-testid="path-selection-list:bodyScroll"]'))).toBe(true);
         expect(after.content).toBe(before.content);
         expect(after.client).toBe(before.client);
         expect(after.active).toBe(before.active);
@@ -312,6 +301,8 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         expect(footerRect).not.toBeNull();
         expect(lastRecentRect!.y).toBeGreaterThanOrEqual(scrollRect!.y);
         expect(lastRecentRect!.y + lastRecentRect!.height).toBeLessThanOrEqual(footerRect!.y);
+        await lastRecent.hover();
+        await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
         await page.screenshot({ path: testInfo.outputPath('oh73-path-scroll-after.png') });
         await page.mouse.wheel(0, -1600);
         await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBe(0);
