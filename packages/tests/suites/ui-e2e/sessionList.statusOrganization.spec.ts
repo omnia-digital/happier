@@ -252,7 +252,12 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             });
             await sidebarScrollHost.evaluate((host) => {
                 if (!(host instanceof HTMLElement)) throw new Error('Fixture sidebar has no scrollable list');
-                host.scrollTop = Math.min(160, host.scrollHeight - host.clientHeight);
+                const trigger = host.querySelector<HTMLElement>('[data-testid="session-list-group-menu-trigger"]');
+                if (!trigger) throw new Error('Fixture scroll host does not contain the Group trigger');
+                // Keep the trigger visible so click actionability does not scroll the list before
+                // the menu-wheel assertion. The Home header scrolls with the list at this width.
+                const triggerOffset = host.scrollTop + trigger.getBoundingClientRect().top - host.getBoundingClientRect().top;
+                host.scrollTop = Math.min(160, host.scrollHeight - host.clientHeight, triggerOffset / 2);
             });
             const sidebarBeforeWheel = await sidebarOffset();
             expect(sidebarBeforeWheel).toBeGreaterThan(0);
@@ -261,19 +266,9 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
                 document: document.scrollingElement?.scrollTop ?? 0,
             }));
             const pageBeforeWheel = await pageOffsets();
-            const logScrollGeometry = async (phase: string) => {
-                console.log('OH71 scroll geometry', JSON.stringify({
-                    phase,
-                    host: await sidebarScrollHost.evaluate((host) => host instanceof HTMLElement
-                        ? { connected: host.isConnected, top: host.scrollTop, height: host.clientHeight, scrollHeight: host.scrollHeight }
-                        : null),
-                    trigger: await page.getByTestId('session-list-group-menu-trigger').first().boundingBox(),
-                }));
-            };
-            await logScrollGeometry('before-open');
             await page.getByTestId('session-list-group-menu-trigger').first().click();
             await expect(page.getByTestId('session-view-flat')).toBeVisible();
-            await logScrollGeometry('after-open');
+            expect(await sidebarOffset()).toBe(sidebarBeforeWheel);
             const groupMenuMetrics = () => page.getByTestId('session-view-flat').evaluate((item) => {
                 let scrollHost = item.parentElement;
                 while (scrollHost && !(scrollHost.scrollHeight > scrollHost.clientHeight + 8 && /auto|scroll/.test(getComputedStyle(scrollHost).overflowY))) {
@@ -288,11 +283,11 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             expect(initialMenu.top).toBeGreaterThanOrEqual(8);
             expect(initialMenu.bottom).toBeLessThanOrEqual(412);
             expect(initialMenu.clientHeight).toBeGreaterThan(320);
+            await page.screenshot({ path: testInfo.outputPath('oh71-group-menu-short-open.png') });
             await page.mouse.move(initialMenu.x, initialMenu.y);
             await page.mouse.wheel(0, 580);
             await expect.poll(async () => (await groupMenuMetrics()).scrollTop).toBeGreaterThan(0);
             const wheelOffset = (await groupMenuMetrics()).scrollTop;
-            await logScrollGeometry('after-wheel');
             expect(await sidebarOffset()).toBe(sidebarBeforeWheel);
             expect(await pageOffsets()).toEqual(pageBeforeWheel);
             await page.mouse.wheel(0, 580);
