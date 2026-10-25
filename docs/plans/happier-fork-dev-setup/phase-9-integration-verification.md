@@ -537,6 +537,20 @@ Verified human upstream author is credited; no native/iOS validation, profile/ru
 change, publication/deployment or0.3destination is implied. Together with the unpacker,
 two intents are adopted from the62-commit range; the other60 have no adoption here.
 
+### October 25 follow-up: complete native approval commands
+
+The next fetch advances parent dev to `29c8454957`, a63-commit range after
+`1b4cd388a0`. Its complete-command display change belongs to the correlated native
+Claude prompt implementation introduced by `338c9dde09`, with read-scope parsing
+from `639cd6990e`. Current fork source lacks both `nativePermissionScreen.ts` and
+the broker's corresponding `resolveVisibleDialog` path. The86-file predecessor
+is a different adoption boundary from this6-file display correction. Keep the
+intent with that native-prompt batch rather than adding another approval owner
+or importing its tests without its producer. This is source/dependency inspection,
+not a tested compatibility verdict or a reproduced fork display defect. Two prior
+intents remain adapted from the63-commit range;61 have no adoption in these batches.
+No provider process, daily CLI/service, native app or release changed.
+
 ### OH-72 sidebar provider usage
 
 Source through `11e451172e` adds the authenticated account-owned usage collection
