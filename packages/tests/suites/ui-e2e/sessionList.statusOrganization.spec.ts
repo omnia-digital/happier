@@ -238,6 +238,8 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
 
             // The menu is genuinely taller than the old 320px cap but remains within a short viewport.
             await page.setViewportSize({ width: 1000, height: 420 });
+            await gotoDomContentLoadedWithRetries(page, baseUrl, 120_000);
+            await expect(page.getByTestId('session-list-group-menu-trigger').first()).toBeVisible({ timeout: 120_000 });
             await page.getByTestId('session-list-group-menu-trigger').first().click();
             await expect(page.getByTestId('session-view-flat')).toBeVisible();
             const groupMenuMetrics = () => page.getByTestId('session-view-flat').evaluate((item) => {
