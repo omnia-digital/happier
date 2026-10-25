@@ -17,6 +17,7 @@ import {
 } from '@/sync/domains/session/listing/sessionListOrderingRules';
 
 const FOLDER_SORT_MODE_ACTION_PREFIX = 'session-folder-sort-mode:';
+const SESSION_MENU_EDGE_PADDING = { vertical: 8, horizontal: 0 } as const;
 
 function resolveFolderSortModeAction(itemId: string): SessionListFolderSortModeV1 | null {
     if (!itemId.startsWith(FOLDER_SORT_MODE_ACTION_PREFIX)) return null;
@@ -242,6 +243,7 @@ export function SessionListViewMenuButton(props: Readonly<{
             matchTriggerWidth={false}
             maxWidthCap={260}
             maxHeightCap={windowHeight}
+            edgePadding={SESSION_MENU_EDGE_PADDING}
             showCategoryTitles={true}
             popoverPortalWebTarget="body"
             trigger={({ toggle }) => (
@@ -271,6 +273,7 @@ export function SessionListViewMenuButton(props: Readonly<{
             matchTriggerWidth={false}
             maxWidthCap={260}
             maxHeightCap={windowHeight}
+            edgePadding={SESSION_MENU_EDGE_PADDING}
             showCategoryTitles={true}
             popoverPortalWebTarget="body"
             trigger={({ toggle }) => (
