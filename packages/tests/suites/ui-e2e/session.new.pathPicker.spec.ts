@@ -195,10 +195,19 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
             await row.getByRole('button', { name: 'Add to favorites' }).click();
             await expect(popover.getByTestId(`path-selection-list:path-root:option:favorite:${path}`)).toHaveCount(1);
         }
-        await input.fill('');
+        await input.press('Escape');
+        await expect(popover).toHaveCount(0);
+        const pathChip = page.getByTestId('agent-input-path-chip');
+        const selectedPathBefore = await pathChip.textContent();
+        await pathChip.click();
+        await expect(popover).toHaveCount(1);
         const scroll = popover.getByTestId('path-selection-list:bodyScroll');
         const lastFavorite = popover.getByTestId(`path-selection-list:path-root:option:favorite:${dirs.at(-1)}`);
         await expect(lastFavorite).toHaveCount(1);
+        const footer = popover.getByTestId('path-selection-list:footerFrame');
+        await expect(footer).toBeVisible();
+        const scrollHost = await scroll.elementHandle();
+        expect(scrollHost).not.toBeNull();
         await scroll.hover();
         await page.mouse.wheel(0, -1600);
         await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBe(0);
@@ -207,12 +216,40 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
             client: element.clientHeight,
             content: element.scrollHeight,
             page: window.scrollY,
+            active: document.activeElement?.getAttribute('aria-activedescendant') ?? null,
         }));
         await page.screenshot({ path: testInfo.outputPath('oh73-path-scroll-before.png') });
         expect(before.content - before.client).toBeGreaterThan(100);
-        await page.mouse.wheel(0, 600);
+        await page.mouse.wheel(0, 1600);
         await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(before.top);
+        const after = await scroll.evaluate((element) => ({
+            top: element.scrollTop,
+            client: element.clientHeight,
+            content: element.scrollHeight,
+            page: window.scrollY,
+            active: document.activeElement?.getAttribute('aria-activedescendant') ?? null,
+        }));
+        expect(await scrollHost!.evaluate((element) => element.isConnected)).toBe(true);
+        expect(after.content).toBe(before.content);
+        expect(after.client).toBe(before.client);
+        expect(after.active).toBe(before.active);
         expect(await page.evaluate(() => window.scrollY)).toBe(before.page);
+        expect(await pathChip.textContent()).toBe(selectedPathBefore);
+        const lastFavoriteRect = await lastFavorite.boundingBox();
+        const scrollRect = await scroll.boundingBox();
+        const footerRect = await footer.boundingBox();
+        expect(lastFavoriteRect).not.toBeNull();
+        expect(scrollRect).not.toBeNull();
+        expect(footerRect).not.toBeNull();
+        expect(lastFavoriteRect!.y).toBeGreaterThanOrEqual(scrollRect!.y);
+        expect(lastFavoriteRect!.y + lastFavoriteRect!.height).toBeLessThanOrEqual(footerRect!.y);
         await page.screenshot({ path: testInfo.outputPath('oh73-path-scroll-after.png') });
+        await page.mouse.wheel(0, -1600);
+        await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBe(0);
+        await page.mouse.wheel(0, 1600);
+        await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+        await lastFavorite.click();
+        await expect(popover).toHaveCount(0);
+        await expect(pathChip).toContainText('scroll-path-13');
     });
 });
