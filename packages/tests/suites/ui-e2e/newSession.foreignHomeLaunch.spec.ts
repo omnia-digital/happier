@@ -103,7 +103,7 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
     await securityBin?.cleanup().catch(() => {});
   });
 
-  test('routes B directory browse while viewing and initially targeting A', async ({ page }) => {
+  test('routes B directory browse while viewing and initially targeting A', async ({ page }, testInfo) => {
     test.setTimeout(360_000);
     if (!serverA || !serverB || !ui || !securityBin) throw new Error('Missing isolated E2E fixtures');
     const uiBaseUrl = ui.baseUrl;
@@ -293,5 +293,6 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
     await expect(page.getByTestId('session-composer-input')).toBeVisible({ timeout: 120_000 });
     await expect(page.locator('[data-testid^="transcript-message-"]:not([data-testid*=":"])')
       .filter({ hasText: 'FAKE_CLAUDE_OK_1' }).first()).toBeVisible({ timeout: 180_000 });
+    await page.screenshot({ path: testInfo.outputPath('oh64-foreign-b-session.png') });
   });
 });
