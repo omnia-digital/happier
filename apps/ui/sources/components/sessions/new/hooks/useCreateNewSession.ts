@@ -69,6 +69,7 @@ import {
 } from '@/utils/errors/daemonUnavailableAlert';
 import { captureExceptionIfEnabled } from '@/utils/system/sentry';
 import { fireAndForget } from '@/utils/system/fireAndForget';
+import { discoverSessionRepositories } from '@/components/sessions/shell/view-state/sessionRepositoryDiscovery';
 import { useMountedRef } from '@/hooks/ui/useMountedRef';
 import { buildScopedSessionRouteHref } from '@/hooks/session/sessionRouteServerScope';
 import type { SessionMcpSelectionV1 } from '@happier-dev/protocol';
@@ -854,6 +855,7 @@ export function useCreateNewSession(params: Readonly<{
             let handedFirstTurnToDaemon = false;
 
             let actualPath = effectiveSelectedPath;
+            let sessionPath: string | null = null;
             let result: Awaited<ReturnType<typeof machineSpawnNewSession>>;
             let operationCustody: MachineSpawnAttemptCustody | undefined;
             let shouldPreserveLaunchAttemptForSpawnRetry = false;
@@ -889,7 +891,7 @@ export function useCreateNewSession(params: Readonly<{
                     current.setIsCreating(false);
                     return;
                 }
-                const sessionPath = checkoutResult.sessionPath.trim() || trimmedEffectiveSelectedPath;
+                sessionPath = checkoutResult.sessionPath.trim() || trimmedEffectiveSelectedPath;
                 rollbackActualPath = actualPath;
 
                 const spawnOptions = {
@@ -1024,6 +1026,18 @@ export function useCreateNewSession(params: Readonly<{
                     launchAttemptRef.current = null;
                     current.setIsCreating(false);
                     return;
+                }
+                const scheduleRepositoryDiscovery = (path: string, machineId: string): void => {
+                    fireAndForget(discoverSessionRepositories({
+                        workspaces: [{ serverId: resolvedTargetServerId, machineId, path }],
+                        verifyNewWorkspace: true,
+                        isCurrent: isLaunchScopeStillActive,
+                    }).then(failures => {
+                        if (failures.length > 0) throw failures[0].error;
+                    }), { tag: 'new-session-repository-discovery' });
+                };
+                if (sessionPath) {
+                    scheduleRepositoryDiscovery(sessionPath, current.selectedMachineId!);
                 }
                 let postSpawnFollowUpError: unknown = null;
                 let postSpawnFollowUpRetry: (() => Promise<void>) | null = null;
@@ -1284,12 +1298,20 @@ export function useCreateNewSession(params: Readonly<{
                     launchAttempt = markNewSessionLaunchAttemptComplete(launchAttempt);
                 }
 
-                await requireSpawnedSessionVisibleForRoute({
+                const hydratedSession = await requireSpawnedSessionVisibleForRoute({
                     sessionId: createdSessionId,
                     serverId: resolvedTargetServerId,
                     getStoredSession: (sessionId) => storage.getState().sessions[sessionId] ?? null,
                     ensureSessionVisibleForMessageRoute: sync.ensureSessionVisibleForMessageRoute,
                 });
+                if (!sessionPath && isLaunchScopeStillActive()) {
+                    const recoveredPath = hydratedSession.metadata?.path;
+                    const recoveredMachineId = hydratedSession.metadata?.machineId ?? restoredOperationCustody?.machineId;
+                    if (typeof recoveredPath === 'string' && recoveredPath.trim()
+                        && typeof recoveredMachineId === 'string' && recoveredMachineId.trim()) {
+                        scheduleRepositoryDiscovery(recoveredPath, recoveredMachineId);
+                    }
+                }
 
                 const firstTurnTextForRoute = handedFirstTurnToDaemon
                     ? daemonFirstTurnText

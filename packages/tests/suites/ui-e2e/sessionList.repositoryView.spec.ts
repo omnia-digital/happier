@@ -15,6 +15,7 @@ import { gotoDomContentLoadedWithRetries, normalizeLoopbackBaseUrl } from '../..
 import { readUiE2eLocalSettings } from '../../src/testkit/uiE2e/localSettingsStorage';
 import { createPlainSession, dragSessionToTarget, readVisibleSessionRowOrder, readSessionFolderDragSettings, resolveCanonicalServerIdForUi } from '../../src/testkit/uiE2e/sessionFoldersDrag';
 import { waitForInitialAppUi } from '../../src/testkit/uiE2e/waitForInitialAppUi';
+import { appendBrowserDiagnostics, collectBrowserDiagnostics } from '../../src/testkit/uiE2e/browserDiagnostics';
 
 const run = createRunDirs({ runLabel: 'ui-e2e-session-list-repository' });
 const MACHINE_IDS = ['repository-machine-one', 'repository-machine-two'] as const;
@@ -254,5 +255,41 @@ test.describe('ui e2e: session list Repository view', () => {
     await expect(headers).toHaveCount(3);
     await expect.poll(manualChoice).toBeNull();
     expect(requests.length).toBe(beforeAssociation);
+  });
+
+  test('automatically associates a new worktree session with its origin repository', async ({ page }) => {
+    test.setTimeout(120_000);
+    if (!server || !uiBaseUrl || !token) throw new Error('missing fixtures');
+    const diagnostics = collectBrowserDiagnostics({ page });
+    try {
+      await page.setViewportSize({ width: 1440, height: 1100 });
+      await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+      await waitForInitialAppUi({ page, timeoutMs: 120_000 });
+      await selectViewMenu(page, 'session-view-repository');
+      const headers = page.locator('[data-testid^="session-list-project-header:"]');
+      await expect(headers.filter({ hasText: 'example.com/team/repo' })).toHaveCount(1);
+      await page.getByTestId('session-list-group-menu-trigger').first().click();
+      await expect(page.getByTestId('session-repository-refresh')).toBeEnabled();
+      await page.keyboard.press('Escape');
+      const headerCount = await headers.count();
+      const worktreePath = '/projects/repo/.dev/worktree/new-session';
+      const sessionId = await createPlainSession({
+        baseUrl: server.baseUrl, token, title: 'New worktree', machineId: MACHINE_IDS[0],
+        rootPath: worktreePath, tagPrefix: 'repository-view-arrival',
+      });
+      await expect(page.getByTestId(`session-list-item-${sessionId}`)).toBeVisible();
+      await expect.poll(async () => {
+        const local = await readUiE2eLocalSettings({ page });
+        return Object.values(local.sessionRepositoryAssociationsV1 as Record<string, { rootPath: string; identity: string | null }>)
+          .find(value => value.rootPath === worktreePath)?.identity;
+      }).toBe('example.com/team/repo');
+      expect(requests.filter(([machineId, path]) => machineId === MACHINE_IDS[0] && path === worktreePath)).toHaveLength(1);
+      await expect(headers).toHaveCount(headerCount);
+      await expect(headers.filter({ hasText: 'example.com/team/repo' })).toHaveCount(1);
+      await expect(headers.filter({ hasText: worktreePath })).toHaveCount(0);
+      await page.screenshot({ path: join(suiteDir, 'new-worktree-origin-repository.png') });
+    } catch (error) {
+      throw appendBrowserDiagnostics(error, diagnostics());
+    }
   });
 });
