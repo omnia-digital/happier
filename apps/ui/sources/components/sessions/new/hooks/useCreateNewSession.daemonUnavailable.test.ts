@@ -9,6 +9,7 @@ import { flushHookEffects, renderHook } from '@/dev/testkit';
 import { createStorageModuleStub } from '@/dev/testkit/mocks/storage';
 import { createTextModuleMock } from '@/dev/testkit/mocks/text';
 import { createSocketIoAckTimeoutError } from '@/sync/runtime/socketIoAckTimeout';
+import { readRepositoryAssociation } from '@/sync/domains/session/listing/sessionRepositoryIdentity';
 
 import { installNewSessionScreenModelCommonModuleMocks } from './newSessionScreenModelTestHelpers';
 import { createNewSessionPromptStore } from '@/components/sessions/new/hooks/screenModel/newSessionPromptStore';
@@ -58,6 +59,14 @@ async function createHarness() {
     errorCode: SPAWN_SESSION_ERROR_CODES.DAEMON_RPC_UNAVAILABLE,
     errorMessage: 'Daemon RPC is not available',
   }));
+  const machineScmStatusSnapshotSpy = vi.fn(async () => ({ success: true, snapshot: {
+    projectKey: 'reentry-repo', fetchedAt: 1,
+    repo: { isRepo: true, rootPath: '/repo/.dev/worktree/recovered', backendId: 'git', mode: '.git',
+      remotes: [{ name: 'origin', fetchUrl: 'git@example.com:team/repo.git' }], worktrees: [] },
+    branch: { head: 'recovered', upstream: null, ahead: 0, behind: 0, detached: false },
+    entries: [], hasConflicts: false, stashCount: 0,
+    totals: { includedFiles: 0, pendingFiles: 0, untrackedFiles: 0, includedAdded: 0, includedRemoved: 0, pendingAdded: 0, pendingRemoved: 0 },
+  } }));
   const machineResolveSpawnSessionByNonceSpy = vi.fn(async (): Promise<ResolveSpawnSessionTestResult> => ({ status: 'not_found' }));
   const machineResolveSpawnSessionByNonceUntilSettledSpy = vi.fn(async (_params: unknown): Promise<ResolveSpawnSessionTestResult> => ({ status: 'not_found' }));
   const modalConfirmSpy = vi.fn(async () => false);
@@ -102,8 +111,10 @@ async function createHarness() {
   const markActionOperationSeenSpy = vi.fn(() => true);
   const storageState = {
     settings: {},
+    profileScope: null as { serverId: string; accountId: string } | null,
+    localSettings: { sessionRepositoryAssociationsV1: {} },
     machines: { m1: { id: 'm1' } },
-    sessions: {} as Record<string, { id: string }>,
+    sessions: {} as Record<string, { id: string; metadata?: { path?: string; machineId?: string } }>,
     updateSessionPermissionMode: vi.fn(),
     updateSessionModelMode: vi.fn(),
     updateSessionDraft: vi.fn(),
@@ -139,12 +150,13 @@ async function createHarness() {
       refreshMachines: vi.fn(async () => {}),
       sendMessage: vi.fn(async () => {}),
       ensureSessionVisibleForMessageRoute: vi.fn(async (sessionId: string) => {
-        storageState.sessions[sessionId] = { id: sessionId };
+        storageState.sessions[sessionId] ??= { id: sessionId };
       }),
       acquireUserRequestLease: () => () => {},
     },
   }));
-  vi.doMock('@/sync/store/settingsWriters', () => ({
+  vi.doMock('@/sync/store/settingsWriters', async () => ({
+    ...await vi.importActual<typeof import('@/sync/store/settingsWriters')>('@/sync/store/settingsWriters'),
     useApplySettings: () => vi.fn(),
   }));
   vi.doMock('@/sync/domains/state/persistence', () => ({
@@ -265,6 +277,10 @@ async function createHarness() {
     completeMachineSpawnAttemptCustody: completeMachineSpawnAttemptCustodySpy,
     resetMachineSpawnAttemptCustody: vi.fn(async () => true),
   }));
+  vi.doMock('@/sync/ops/scm/machineScm', () => ({
+    machineScmStatusSnapshot: machineScmStatusSnapshotSpy,
+    machineScmWorktreesEnrichment: vi.fn(),
+  }));
   vi.doMock('@/sync/ops/machines', async () => {
     const actual = await vi.importActual<typeof import('@/sync/ops/machines')>('@/sync/ops/machines');
     return {
@@ -354,6 +370,8 @@ async function createHarness() {
     for (const sessionId of Object.keys(storageState.sessions)) {
       delete storageState.sessions[sessionId];
     }
+    storageState.profileScope = null;
+    machineScmStatusSnapshotSpy.mockClear();
   };
   return {
     useCreateNewSession,
@@ -362,6 +380,7 @@ async function createHarness() {
     completeMachineSpawnAttemptCustodySpy,
     reconcileSpawnAttemptCustodyFromOperationSpy,
     machineSpawnNewSessionSpy,
+    machineScmStatusSnapshotSpy,
     machineResolveSpawnSessionByNonceSpy,
     machineResolveSpawnSessionByNonceUntilSettledSpy,
     storageState,
@@ -2589,6 +2608,8 @@ describe('useCreateNewSession (daemon unavailable UX)', () => {
     const {
       useCreateNewSession,
       machineSpawnNewSessionSpy,
+      machineScmStatusSnapshotSpy,
+      storageState,
       reconcileSpawnAttemptCustodyFromOperationSpy,
       followUpSpawnedSessionWithServerScopeSpy,
       markActionOperationSeenSpy,
@@ -2596,6 +2617,7 @@ describe('useCreateNewSession (daemon unavailable UX)', () => {
       clearSessionDraftCurrentnessSpy,
       clearSessionDraftLaunchCurrentnessSpy,
     } = await setupHarness();
+    const { getStorage } = await import('@/sync/domains/state/storageStore');
     const router = { push: vi.fn(), replace: vi.fn() };
     const custody = {
       v: 2 as const,
@@ -2609,6 +2631,13 @@ describe('useCreateNewSession (daemon unavailable UX)', () => {
       firstTurnLocalId: 'first-turn-reentry',
       attachmentMessageLocalId: 'attachments-reentry',
     };
+    storageState.profileScope = custody.scope;
+    storageState.sessions['session-reentry'] = { id: 'session-reentry', metadata: {
+      machineId: 'm1', path: '/repo/.dev/worktree/recovered/packages/app',
+    } };
+    const realStore = getStorage();
+    const previousRealState = realStore.getState();
+    try {
     const hook = await renderHook(() => useCreateNewSession({
       draftId: '8e0a5dd1-b1df-43dd-b51e-b7787b30362e',
       launchIntentSignature: 'reentry-intent',
@@ -2672,6 +2701,13 @@ describe('useCreateNewSession (daemon unavailable UX)', () => {
       outcome: { kind: 'succeeded', createdSessionId: 'session-reentry' },
     }));
     expect(machineSpawnNewSessionSpy).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(machineScmStatusSnapshotSpy).toHaveBeenCalledWith(
+      'm1', { cwd: '/repo/.dev/worktree/recovered/packages/app' }, custody.scope,
+    ));
+    await vi.waitFor(() => expect(readRepositoryAssociation(
+      realStore.getState().localSettings.sessionRepositoryAssociationsV1,
+      { ...custody.scope, machineId: 'm1', path: '/repo/.dev/worktree/recovered/packages/app' },
+    )?.identity).toBe('example.com/team/repo'));
     expect(followUpSpawnedSessionWithServerScopeSpy).toHaveBeenCalledOnce();
     expect(followUpSpawnedSessionWithServerScopeSpy).toHaveBeenCalledWith(expect.objectContaining({
       sessionId: 'session-reentry',
@@ -2697,6 +2733,9 @@ describe('useCreateNewSession (daemon unavailable UX)', () => {
     );
     expect(markActionOperationSeenSpy).toHaveBeenCalledWith('operation-reentry');
     await hook.unmount();
+    } finally {
+      realStore.setState(previousRealState, true);
+    }
   });
 
   it('does not surface a socket-disconnected error after the exact tracked spawn is running', async () => {
