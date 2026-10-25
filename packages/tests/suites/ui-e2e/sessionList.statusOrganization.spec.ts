@@ -240,6 +240,27 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await page.setViewportSize({ width: 1000, height: 420 });
             await gotoDomContentLoadedWithRetries(page, baseUrl, 120_000);
             await expect(page.getByTestId('session-list-group-menu-trigger').first()).toBeVisible({ timeout: 120_000 });
+            const sidebarScrollHost = await page.getByTestId('sessions-list-keyboard-zone').first().evaluateHandle((zone) => {
+                const scrollables = Array.from(zone.querySelectorAll<HTMLElement>('*')).filter((element) =>
+                    element.scrollHeight > element.clientHeight + 8 && /auto|scroll/.test(getComputedStyle(element).overflowY));
+                return scrollables.sort((left, right) =>
+                    (right.scrollHeight - right.clientHeight) - (left.scrollHeight - left.clientHeight))[0] ?? null;
+            });
+            const sidebarOffset = () => sidebarScrollHost.evaluate((host) => {
+                if (!(host instanceof HTMLElement)) throw new Error('Fixture sidebar has no scrollable list');
+                return host.scrollTop;
+            });
+            await sidebarScrollHost.evaluate((host) => {
+                if (!(host instanceof HTMLElement)) throw new Error('Fixture sidebar has no scrollable list');
+                host.scrollTop = Math.min(160, host.scrollHeight - host.clientHeight);
+            });
+            const sidebarBeforeWheel = await sidebarOffset();
+            expect(sidebarBeforeWheel).toBeGreaterThan(0);
+            const pageOffsets = () => page.evaluate(() => ({
+                window: window.scrollY,
+                document: document.scrollingElement?.scrollTop ?? 0,
+            }));
+            const pageBeforeWheel = await pageOffsets();
             await page.getByTestId('session-list-group-menu-trigger').first().click();
             await expect(page.getByTestId('session-view-flat')).toBeVisible();
             const groupMenuMetrics = () => page.getByTestId('session-view-flat').evaluate((item) => {
@@ -260,6 +281,20 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await page.mouse.wheel(0, 580);
             await expect.poll(async () => (await groupMenuMetrics()).scrollTop).toBeGreaterThan(0);
             const wheelOffset = (await groupMenuMetrics()).scrollTop;
+            expect(await sidebarOffset()).toBe(sidebarBeforeWheel);
+            expect(await pageOffsets()).toEqual(pageBeforeWheel);
+            await page.mouse.wheel(0, 580);
+            await expect.poll(async () => {
+                const menu = await groupMenuMetrics();
+                return Math.ceil(menu.scrollHeight - menu.clientHeight - menu.scrollTop);
+            }).toBeLessThanOrEqual(1);
+            expect(await sidebarOffset()).toBe(sidebarBeforeWheel);
+            expect(await pageOffsets()).toEqual(pageBeforeWheel);
+            const lowerCategoryOption = page.getByTestId('session-folder-view-toggle');
+            await expect(lowerCategoryOption).toBeInViewport();
+            const beforeHoverOffset = (await groupMenuMetrics()).scrollTop;
+            await lowerCategoryOption.hover();
+            await expect.poll(async () => (await groupMenuMetrics()).scrollTop).toBeGreaterThanOrEqual(beforeHoverOffset);
             await page.screenshot({ path: testInfo.outputPath('oh71-group-menu-short-scrolled.png') });
             // A live session revision must not undo a deliberate wheel position.
             await publishActivity(idlePublisher, idle, true);
