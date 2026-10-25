@@ -93,6 +93,18 @@ artifact checks confirm one account and one machine and a live source symlink.
 This is a pairing proof, not real vendor execution or persistent native-stack
 acceptance; those gates remain open.
 
+For browser fixtures that can probe provider authentication, use the shared
+`createIsolatedCliTestEnv` environment and opt out of ambient inheritance with
+`authenticateAndStartDaemon({ inheritProcessEnv: false, ... })`. New Session
+automatically refreshes provider login status, so a disposable Happier home alone
+does not isolate provider credentials or provider-home overrides. The shared
+environment keeps fixture HOME and service homes separate while allowing only
+the required OS/toolchain variables, including the OS temporary-directory
+settings. Both terminal-login and daemon children receive that chosen base;
+build subprocesses retain their existing separate environment behavior. The
+integration-bootstrap-auth flag controls test account bootstrap and does not
+disable provider probes. This is opt-in test isolation, not product auth policy.
+
 The feature branch contains development previews. A running window requires a coherent source reload before testing newly pushed changes; source checks do not prove its loaded bundle or native acceptance.
 
 OH-66 now organizes Appearance into Global, Left Sidebar and Task View. Global retains app-wide text size and density; Left Sidebar opens the existing session layout settings; Task View contains conversation code-block wrapping. Independent area-size overrides await a product decision. The isolated Chrome journey passes with reload, sidebar geometry, actual navigation and correctly scaled section headings at130% in a dark1000px view. Final adjacent list/Appearance/Inbox687 and text/forms/editor436 tests pass, with UI typecheck. The shared web Text/TextInput delegates font scaling to the existing CSS owner once; native and direct-DOM scaling paths stay intact. Native acceptance and the unavailable0.3destination remain open. This preview is pushed, not merged or released.
