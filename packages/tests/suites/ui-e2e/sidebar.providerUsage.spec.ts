@@ -298,6 +298,22 @@ test.describe('sidebar provider subscription usage', () => {
         await page.reload({ waitUntil: 'domcontentloaded' });
         await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('66');
         await expect(page.getByTestId('agent-input-provider-usage-value')).toHaveText('66');
+
+        await page.clock.install();
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('66');
+        await expect(page.getByTestId('agent-input-provider-usage-value')).toHaveText('66');
+        await page.route(`**/v2/connect/provider-account-usage/${work}*`, async (route) => {
+            if (route.request().method() !== 'GET') return route.continue();
+            await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'unavailable' }) });
+        });
+        await page.clock.fastForward(61_000);
+        await expect(page.getByTestId('sidebar-provider-usage:claude-stale-indicator')).toBeVisible({ timeout: 30_000 });
+        await expect(page.getByTestId('agent-input-provider-usage-stale-indicator')).toBeVisible();
+        await expect(page.getByTestId('sidebar-provider-usage-state:claude')).toBeVisible();
+        await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('66');
+        await expect(page.getByTestId('agent-input-provider-usage-value')).toHaveText('66');
+        await expect(page.getByTestId('sidebar-provider-usage:codex-value')).toHaveText('0');
     });
 
     test('labels unsupported native discovery without declaring the provider unconnected', async ({ page }) => {
@@ -362,5 +378,7 @@ test.describe('sidebar provider subscription usage', () => {
         await page.getByTestId('sidebar-provider-usage-option:claude:connected:claude-subscription:work').click();
         await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('73');
         await expect(page.getByTestId('sidebar-provider-usage-choice:claude')).toContainText('Connected · Connected Work');
+        await page.mouse.move(1000, 700);
+        await page.screenshot({ path: `${suiteDir}/sidebar-provider-usage-connected.png` });
     });
 });
