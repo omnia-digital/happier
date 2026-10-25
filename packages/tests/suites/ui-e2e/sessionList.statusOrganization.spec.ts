@@ -152,7 +152,7 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await choose('session-list-status-group-ticket');
             await expect(page.getByText('Q/A - Dev', { exact: true }).first()).toBeVisible({ timeout: 60_000 });
             await expect(row(idle)).toBeVisible({ timeout: 60_000 });
-            expect((await readFile(readLog, 'utf8')).split('\n')).toContain('DEV-1');
+            await expect.poll(async () => (await readFile(readLog, 'utf8')).split('\n')).toContain('DEV-1');
             await choose('session-list-status-sort-agent');
             await expect.poll(async () => (await position(working)) < (await position(idle))).toBe(true);
             await expect(page.getByTestId('session-row-status-' + working + '-working')).toBeVisible({ timeout: 60_000 });
