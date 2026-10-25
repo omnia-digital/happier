@@ -1,12 +1,23 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildProviderAccountUsageRecordId, PROVIDER_ACCOUNT_SUBSCRIPTION_ACCEPT } from '@happier-dev/protocol';
 
+// Credential invalidation on 401 still runs through TokenStorage; only its OS store is isolated.
+const secureStore = vi.hoisted(() => new Map<string, string>());
+vi.mock('@/auth/storage/nativeSecureStoreWithDevFallback', () => ({
+  readNativeSecureStoreString: async (key: string) => secureStore.get(key) ?? null,
+  writeNativeSecureStoreString: async (key: string, value: string) => { secureStore.set(key, value); },
+  removeNativeSecureStoreString: async (key: string) => { secureStore.delete(key); },
+}));
+
 // Active server selection is an environment boundary; the HTTP adapter and parsing remain real.
 vi.mock('@/sync/domains/server/serverRuntime', () => ({
   getActiveServerSnapshot: () => ({ serverId: 'test', serverUrl: 'https://api.example.test', kind: 'custom', generation: 1 }),
 }));
 
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  secureStore.clear();
+  vi.unstubAllGlobals();
+});
 
 describe('provider account usage plaintext transport', () => {
   it('distinguishes an older relay collection-route 404 from authentication failure', async () => {

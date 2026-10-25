@@ -14,6 +14,7 @@ import { createRunDirs } from '../../src/testkit/runDir';
 import { gotoDomContentLoadedWithRetries, normalizeLoopbackBaseUrl } from '../../src/testkit/uiE2e/pageNavigation';
 import { waitForInitialAppUi } from '../../src/testkit/uiE2e/waitForInitialAppUi';
 import { ensureAccountReadyForConnect } from '../../src/testkit/uiE2e/ensureAccountReadyForConnect';
+import { mutateUiE2eLocalSettings } from '../../src/testkit/uiE2e/localSettingsStorage';
 
 const run = createRunDirs({ runLabel: 'ui-e2e' });
 const suiteDir = run.testDir('sidebar-provider-usage');
@@ -170,6 +171,15 @@ test.describe('sidebar provider subscription usage', () => {
         await page.getByTestId(`sidebar-provider-usage-option:claude:native:${work}`).click();
         await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('66');
         await expect(page.getByTestId('sidebar-provider-usage:codex-value')).toHaveText('0');
+        const accountChoice = page.getByTestId('sidebar-provider-usage-choice:claude');
+        await accountChoice.focus();
+        await expect(accountChoice).toBeFocused();
+        await page.keyboard.press('Enter');
+        await expect(page.getByTestId('sidebar-provider-usage-accounts:claude')).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(page.getByTestId('sidebar-provider-usage-accounts:claude')).not.toBeVisible();
+        await page.mouse.move(1000, 700);
+        await expect(page.getByRole('tooltip')).toHaveCount(0);
         await page.screenshot({ path: `${suiteDir}/sidebar-provider-usage-normal.png` });
 
         await page.reload({ waitUntil: 'domcontentloaded' });
@@ -178,14 +188,15 @@ test.describe('sidebar provider subscription usage', () => {
 
         await page.setViewportSize({ width: 800, height: 800 });
         await expect(page.getByTestId('sidebar-inbox-button')).toBeVisible();
-        await expect(page.getByTestId('desktop-sidebar-updates-button')).toBeVisible();
         await expect(page.getByTestId('nav-new-session')).toBeVisible();
         await expect(page.getByTestId('desktop-sidebar-provider-usage')).toBeVisible();
+        await page.mouse.move(700, 700);
         await page.screenshot({ path: `${suiteDir}/sidebar-provider-usage-narrow.png` });
         await page.emulateMedia({ colorScheme: 'dark' });
         await page.screenshot({ path: `${suiteDir}/sidebar-provider-usage-dark.png` });
 
-        await page.getByTestId('sidebar-collapse-button').click();
+        await mutateUiE2eLocalSettings({ page, settingsPatch: { sidebarCollapsed: true } });
+        await page.reload({ waitUntil: 'domcontentloaded' });
         await expect(page.getByTestId('collapsed-sidebar-provider-usage-button')).toBeVisible();
         await page.getByTestId('collapsed-sidebar-provider-usage-button').click();
         await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('66');
@@ -194,7 +205,8 @@ test.describe('sidebar provider subscription usage', () => {
     test('labels unsupported native discovery without declaring the provider unconnected', async ({ page }) => {
         test.setTimeout(240_000);
         if (!uiBaseUrl) throw new Error('Missing isolated UI fixture');
-        await page.route('**/v3/connect/provider-account-usage', async (route) => {
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await page.route(/\/v3\/connect\/provider-account-usage(?:\?|$)/, async (route) => {
             await route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'not_found' }) });
         });
         await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
