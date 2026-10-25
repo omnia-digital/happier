@@ -263,7 +263,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         marginBottom: 12,
     },
     sessionItem: {
-        height: SESSION_LIST_ROW_HEIGHT_DEFAULT,
+        minHeight: SESSION_LIST_ROW_HEIGHT_DEFAULT,
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 15,
@@ -1526,7 +1526,7 @@ const SessionItemContent = React.memo(
                     isMinimal ? styles.sessionItemMinimal : null,
                     selected || rowSelection.isSelected ? styles.sessionItemSelected : null,
                     embedded && !embeddedIsLast ? styles.embeddedSeparator : null,
-                    { height: sessionListRowHeight },
+                    { minHeight: sessionListRowHeight },
                     { backgroundColor: resolveSessionRowStatusTint(visualStatus, theme) },
                 ]}
                 onPress={handleRowPress}
