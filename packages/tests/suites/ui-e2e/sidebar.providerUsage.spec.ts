@@ -2,8 +2,10 @@ import { test, expect, type Page } from '@playwright/test';
 import { randomBytes } from 'node:crypto';
 import { mkdir } from 'node:fs/promises';
 import {
+    buildConnectedServiceCredentialRecord,
     buildProviderAccountUsageRecordId,
     ProviderAccountUsageSnapshotV1Schema,
+    sealAccountScopedBlobCiphertext,
     sealProviderAccountUsageSnapshot,
 } from '@happier-dev/protocol';
 
@@ -15,6 +17,7 @@ import { gotoDomContentLoadedWithRetries, normalizeLoopbackBaseUrl } from '../..
 import { waitForInitialAppUi } from '../../src/testkit/uiE2e/waitForInitialAppUi';
 import { ensureAccountReadyForConnect } from '../../src/testkit/uiE2e/ensureAccountReadyForConnect';
 import { mutateUiE2eLocalSettings } from '../../src/testkit/uiE2e/localSettingsStorage';
+import { CLAUDE_CODE_E2E_OAUTH_SCOPE } from '../../src/testkit/connectedServicesRecovery';
 
 const run = createRunDirs({ runLabel: 'ui-e2e' });
 const suiteDir = run.testDir('sidebar-provider-usage');
@@ -59,6 +62,7 @@ async function writeNativeUsage(params: Readonly<{
     remaining: number;
     quotaScope?: 'account' | 'organization';
     quotaScopeId?: string;
+    connectedProfileId?: string;
 }>): Promise<string> {
     const now = Date.now();
     const recordKey = {
@@ -91,12 +95,62 @@ async function writeNativeUsage(params: Readonly<{
                 material: { type: 'legacy', secret: params.secret }, snapshot, randomBytes,
             }),
             metadata: { fetchedAt: now, staleAfterMs: snapshot.staleAfterMs, status: 'ok' },
+            ...(params.connectedProfileId ? {
+                source: { serviceId: 'claude-subscription', profileId: params.connectedProfileId, bindingKind: 'profile' },
+            } : {}),
         }),
         timeoutMs: 20_000,
     });
     expect(response.status).toBe(200);
     expect(response.data?.success).toBe(true);
     return recordId;
+}
+
+async function writeConnectedClaudeProfile(params: Readonly<{
+    baseUrl: string;
+    token: string;
+    secret: Uint8Array;
+    profileId: string;
+}>): Promise<void> {
+    const now = Date.now();
+    const record = buildConnectedServiceCredentialRecord({
+        now, serviceId: 'claude-subscription', profileId: params.profileId,
+        kind: 'oauth', expiresAt: now + 3_600_000,
+        oauth: {
+            accessToken: `fixture-${params.profileId}`, refreshToken: `fixture-refresh-${params.profileId}`,
+            idToken: `fixture-id-${params.profileId}`, scope: CLAUDE_CODE_E2E_OAUTH_SCOPE,
+            tokenType: 'Bearer', providerAccountId: `fixture-${params.profileId}`,
+            providerEmail: `${params.profileId}@example.test`,
+        },
+    });
+    const ciphertext = sealAccountScopedBlobCiphertext({
+        kind: 'connected_service_credential', material: { type: 'legacy', secret: params.secret },
+        payload: record, randomBytes: (length) => randomBytes(length),
+    });
+    const write = await fetchJson<{ success?: boolean }>(
+        `${params.baseUrl}/v2/connect/claude-subscription/profiles/${params.profileId}/credential`, {
+            method: 'POST', headers: { Authorization: `Bearer ${params.token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                sealed: { format: 'account_scoped_v1', ciphertext },
+                metadata: {
+                    kind: 'oauth', providerEmail: `${params.profileId}@example.test`,
+                    providerAccountId: `fixture-${params.profileId}`, expiresAt: record.expiresAt,
+                },
+            }), timeoutMs: 20_000,
+        },
+    );
+    expect(write.status).toBe(200);
+    expect(write.data?.success).toBe(true);
+    const health = await fetchJson<{ success?: boolean }>(
+        `${params.baseUrl}/v3/connect/claude-subscription/profiles/${params.profileId}/credential/health`, {
+            method: 'PATCH', headers: { Authorization: `Bearer ${params.token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ health: {
+                v: 1, status: 'connected', reconnectRequired: false, lastRefreshSuccessAt: now,
+            } }), timeoutMs: 20_000,
+        },
+    );
+    expect(health.status).toBe(200);
+    expect(health.data?.success).toBe(true);
 }
 
 async function createNativeUsageSession(params: Readonly<{
@@ -257,5 +311,45 @@ test.describe('sidebar provider subscription usage', () => {
         await enableUsageUi(page, uiBaseUrl);
         await expect(page.getByTestId('sidebar-provider-usage-state:claude')).toContainText('unavailable');
         await expect(page.getByTestId('sidebar-provider-usage-state:codex')).toContainText('unavailable');
+
+        await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/settings/features?happier_hmr=0`, 180_000);
+        const quotaToggle = page.getByTestId('settings-feature-toggle-connectedServices.quotas');
+        await expect(quotaToggle).toHaveAttribute('aria-checked', 'true');
+        await quotaToggle.click();
+        await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+        await expect(page.getByTestId('sidebar-provider-usage-state:claude')).toContainText('off');
+    });
+
+    test('uses the connected profile default while keeping native records separate', async ({ page }) => {
+        test.setTimeout(240_000);
+        if (!server || !uiBaseUrl) throw new Error('Missing isolated UI fixtures');
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+        await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+        await ensureAccountReadyForConnect({ page, timeoutMs: 120_000 });
+        await enableUsageUi(page, uiBaseUrl);
+        const auth = await browserCredentials(page);
+        for (const profileId of ['personal', 'work']) {
+            await writeConnectedClaudeProfile({ baseUrl: server.baseUrl, ...auth, profileId });
+        }
+        await writeNativeUsage({ baseUrl: server.baseUrl, ...auth,
+            providerId: 'claude', accountSubjectId: 'connected-personal', accountLabel: 'Connected Personal',
+            remaining: 20, connectedProfileId: 'personal' });
+        await writeNativeUsage({ baseUrl: server.baseUrl, ...auth,
+            providerId: 'claude', accountSubjectId: 'connected-work', accountLabel: 'Connected Work',
+            remaining: 73, connectedProfileId: 'work' });
+        await gotoDomContentLoadedWithRetries(page,
+            `${uiBaseUrl}/settings/connected-services/profile?serviceId=claude-subscription&profileId=work&happier_hmr=0`, 180_000);
+        const defaultSwitch = page.getByTestId('connected-service-profile:default-switch');
+        await expect(defaultSwitch).toBeVisible({ timeout: 60_000 });
+        if (await defaultSwitch.getAttribute('aria-checked') !== 'true') await defaultSwitch.click();
+        await expect(defaultSwitch).toHaveAttribute('aria-checked', 'true');
+
+        await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+        await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('73', { timeout: 60_000 });
+        await expect(page.getByTestId('sidebar-provider-usage-choice:claude')).toContainText('Connected Work');
+        await page.getByTestId('sidebar-provider-usage-choice:claude').click();
+        await expect(page.getByTestId('sidebar-provider-usage-accounts:claude')).toContainText('Native');
+        await expect(page.getByTestId('sidebar-provider-usage-accounts:claude')).toContainText('Connected');
     });
 });
