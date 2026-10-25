@@ -728,6 +728,17 @@ test.describe('ui e2e: session list attention', () => {
         await expect(page.getByTestId(`session-row-status-${sessions[index]!.id}-${status}`)).toHaveCount(1, { timeout: 60_000 });
         await row(page, sessions[index]!.id).screenshot({ path: test.info().outputPath(`oh57-${status}-light-row.png`) });
       }
+      await page.getByTestId('session-list-ordering-menu-trigger').first().click();
+      await page.getByTestId('session-list-status-sort-agent').click();
+      const visibleSessionIds = () => page.locator('[data-testid^="session-list-item-"]').evaluateAll((nodes) => nodes.map((node) => ({
+        id: node.getAttribute('data-testid')!.slice('session-list-item-'.length),
+        rect: node.getBoundingClientRect(),
+      })).filter((item) => item.rect.width > 0 && item.rect.height > 0).sort((left, right) => left.rect.top - right.rect.top).map((item) => item.id));
+      const expectedAgentOrder = [sessions[3]!.id, sessions[2]!.id, sessions[4]!.id, sessions[1]!.id, sessions[0]!.id];
+      await expect.poll(async () => {
+        const visibleIds = await visibleSessionIds();
+        return visibleIds.filter((id) => expectedAgentOrder.includes(id));
+      }).toEqual(expectedAgentOrder);
       await page.screenshot({ path: test.info().outputPath('oh57-five-statuses-light.png') });
 
       await mutateUiE2eLocalSettings({ page, settingsPatch: { themePreference: 'dark' } });
