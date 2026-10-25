@@ -510,6 +510,33 @@ is blocked on its location; upstream describes this fix as already ported from
 0.3, which is not evidence of a verified local destination. The other58 parent
 commits remain unadopted, and no app, daemon, service or release changed.
 
+### October 25 follow-up: three parent commits
+
+Fresh parent dev is `b1d1df22aa`, three commits after the prior `98c8b26691` audit;
+the complete `1b4cd388a0..b1d1df22aa` range has62commits. Parent v0.3 is now
+`0c818f7892`. This fetch and read-only audit do not certify the range as compatible.
+
+`eb8ac55f86` repairs a missing-router TypeError introduced by unadopted notification
+change `d839a34667`. Current BasePermissionHandler still has the direct RPC fallback
+used by the real offline stub; adopting only the repair is the wrong dependency
+boundary. Revisit that notification/router batch with actual occurrence/local-owner
+security checks. `df23b7f7eb` changes test expectations for attempt counters,
+resumed status and exact-session tmux targets; current fork producers retain the
+prior contracts. Those fixtures stay with their respective unadopted runtime batches.
+Root independently inspects these live source differences; no suite is claimed for
+this read-only audit and no CLI permission/recovery/terminal source is changed.
+
+The compatible profiles-documentation intent `b1d1df22aa` is adapted as
+`47adcb75fd` in the existing published profiles page. It describes add-variable,
+saved-secret binding, a separate profile save and future-start scope. Root source
+review verifies the important correction: Use secret vault initially enables Required,
+but the independent card toggle, ProfileEditForm serializer and protocol boolean
+schema permit false afterward. The upstream unconditional requirement is not copied.
+Docs content/types and47tests pass, preserving their existing analytics/module warnings.
+Verified human upstream author is credited; no native/iOS validation, profile/runtime
+change, publication/deployment or0.3destination is implied. Together with the unpacker,
+two intents are adopted from the62-commit range; the other60 have no adoption here.
+
 ### OH-72 sidebar provider usage
 
 Source through `11e451172e` adds the authenticated account-owned usage collection
