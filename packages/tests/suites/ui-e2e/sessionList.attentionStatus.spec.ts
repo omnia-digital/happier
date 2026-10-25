@@ -101,6 +101,7 @@ async function createPlainSession(params: Readonly<{
   token: string;
   title: string;
   machineId?: string;
+  path?: string;
 }>): Promise<SeededSession> {
   const tag = `session-list-attention-${randomUUID()}`;
   const res = await fetchJson<SessionCreateResponse>(`${params.baseUrl}/v1/sessions`, {
@@ -114,7 +115,7 @@ async function createPlainSession(params: Readonly<{
       metadata: JSON.stringify({
         v: 1,
         name: params.title,
-        path: `/tmp/${tag}`,
+        path: params.path ?? `/tmp/${tag}`,
         flavor: 'claude',
         ...(params.machineId ? { host: params.machineId, machineId: params.machineId } : {}),
       }),
@@ -703,6 +704,7 @@ test.describe('ui e2e: session list attention', () => {
       baseUrl: server!.baseUrl,
       token: token!,
       title: `OH57 ${status} status`,
+      path: '/tmp/oh57-agent-status-order',
     })));
     const publishers: SocketCollector[] = [];
     const stopKeepAlives: Array<() => void> = [];
