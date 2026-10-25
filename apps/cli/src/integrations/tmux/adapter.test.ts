@@ -174,7 +174,7 @@ describe('createTmuxTerminalHostAdapter', () => {
 
     await adapter.dispose(TMUX_HANDLE);
 
-    expect(killWindow).toHaveBeenCalledWith('happy:claude.1');
+    expect(killWindow).toHaveBeenCalledWith('=happy:claude.1');
     expect(executeTmuxCommand).not.toHaveBeenCalledWith(['kill-session'], expect.anything());
   });
 
@@ -194,7 +194,7 @@ describe('createTmuxTerminalHostAdapter', () => {
       attachMetadata: { ...TMUX_HANDLE.attachMetadata, topology: 'exclusive' },
     });
 
-    expect(executeTmuxCommand).toHaveBeenCalledWith(['kill-session'], 'happy');
+    expect(executeTmuxCommand).toHaveBeenCalledWith(['kill-session'], '=happy');
     expect(killWindow).not.toHaveBeenCalled();
   });
 
@@ -234,18 +234,18 @@ describe('createTmuxTerminalHostAdapter', () => {
       ),
     ).resolves.toMatchObject({ status: 'injected' });
 
-    const calls = executeTmuxCommand.mock.calls;
+    const calls = executeTmuxCommand.mock.calls.filter(([args]) => args[0] !== 'has-session');
     const loadArgs = calls[3]?.[0];
     expect(loadArgs?.[0]).toBe('load-buffer');
     const bufferName = loadArgs?.[2];
     expect(typeof bufferName).toBe('string');
     expect(calls.map((call) => call[0])).toEqual([
-      ['display-message', '-p', '-t', 'happy:claude.1', '#{pane_dead}|#{pane_pid}|#{pane_current_command}'],
+      ['display-message', '-p', '-t', '=happy:claude.1', '#{pane_dead}|#{pane_pid}|#{pane_current_command}'],
       ['display-message', '-p', '#{cursor_x}\t#{cursor_y}'],
       ['display-message', '-p', '#{cursor_x}\t#{cursor_y}'],
       ['load-buffer', '-b', bufferName, '-'],
-      ['paste-buffer', '-p', '-r', '-d', '-b', bufferName, '-t', 'happy:claude.1'],
-      ['send-keys', '-t', 'happy:claude.1', 'C-m'],
+      ['paste-buffer', '-p', '-r', '-d', '-b', bufferName, '-t', '=happy:claude.1'],
+      ['send-keys', '-t', '=happy:claude.1', 'C-m'],
     ]);
     expect(calls[3]?.[5]).toBe('queued prompt');
   });
@@ -282,7 +282,7 @@ describe('createTmuxTerminalHostAdapter', () => {
     });
 
     expect(executeTmuxCommand.mock.calls.map((call) => call[0]).filter((args) => args[0] === 'send-keys')).toEqual([
-      ['send-keys', '-t', 'happy:claude.1', 'C-m'],
+      ['send-keys', '-t', '=happy:claude.1', 'C-m'],
     ]);
   });
 
@@ -383,13 +383,13 @@ describe('createTmuxTerminalHostAdapter', () => {
       ),
     ).resolves.toMatchObject({ status: 'injected' });
 
-    const calls = executeTmuxCommand.mock.calls;
+    const calls = executeTmuxCommand.mock.calls.filter(([args]) => args[0] !== 'has-session');
     const bufferName = calls[1]?.[0]?.[2];
     expect(calls.map((call) => call[0])).toEqual([
-      ['display-message', '-p', '-t', 'happy:claude.1', '#{pane_dead}|#{pane_pid}|#{pane_current_command}'],
+      ['display-message', '-p', '-t', '=happy:claude.1', '#{pane_dead}|#{pane_pid}|#{pane_current_command}'],
       ['load-buffer', '-b', bufferName, '-'],
-      ['paste-buffer', '-p', '-r', '-d', '-b', bufferName, '-t', 'happy:claude.1'],
-      ['send-keys', '-t', 'happy:claude.1', 'C-m'],
+      ['paste-buffer', '-p', '-r', '-d', '-b', bufferName, '-t', '=happy:claude.1'],
+      ['send-keys', '-t', '=happy:claude.1', 'C-m'],
     ]);
     expect(calls[1]?.[5]).toBe('alpha\nbeta');
     expect(calls.map((call) => call[0]).some((args) => args[0] === 'send-keys' && args.includes('C-j'))).toBe(false);
@@ -431,17 +431,17 @@ describe('createTmuxTerminalHostAdapter', () => {
       ),
     ).resolves.toMatchObject({ status: 'injected', bytesWritten: Buffer.byteLength(prompt, 'utf8') });
 
-    const calls = executeTmuxCommand.mock.calls;
+    const calls = executeTmuxCommand.mock.calls.filter(([args]) => args[0] !== 'has-session');
     const bufferName = calls[1]?.[0]?.[2];
     expect(calls.map((call) => call[0])).toEqual([
-      ['display-message', '-p', '-t', 'happy:claude.1', '#{pane_dead}|#{pane_pid}|#{pane_current_command}'],
+      ['display-message', '-p', '-t', '=happy:claude.1', '#{pane_dead}|#{pane_pid}|#{pane_current_command}'],
       ['load-buffer', '-b', bufferName, '-'],
-      ['paste-buffer', '-p', '-r', '-d', '-b', bufferName, '-t', 'happy:claude.1'],
-      ['send-keys', '-t', 'happy:claude.1', 'C-m'],
+      ['paste-buffer', '-p', '-r', '-d', '-b', bufferName, '-t', '=happy:claude.1'],
+      ['send-keys', '-t', '=happy:claude.1', 'C-m'],
     ]);
     expect(calls[1]?.[5]).toBe(prompt);
     expect(calls.map((call) => call[0]).filter((args) => args[0] === 'send-keys')).toEqual([
-      ['send-keys', '-t', 'happy:claude.1', 'C-m'],
+      ['send-keys', '-t', '=happy:claude.1', 'C-m'],
     ]);
     expect(calls.flatMap((call) => call[0])).not.toContain(prompt);
     expect(captureCurrentInput).toHaveBeenCalledTimes(3);
@@ -486,7 +486,7 @@ describe('createTmuxTerminalHostAdapter', () => {
       ),
     ).resolves.toMatchObject({ status: 'injected' });
 
-    expect(order).toEqual([
+    expect(order.filter((operation) => operation !== 'has-session')).toEqual([
       'display-message',
       'load-buffer',
       'paste-buffer',
@@ -527,7 +527,7 @@ describe('createTmuxTerminalHostAdapter', () => {
     ).resolves.toMatchObject({ status: 'injected', bytesWritten: Buffer.byteLength(prompt, 'utf8') });
 
     expect(executeTmuxCommand.mock.calls.map((call) => call[0]).filter((args) => args[0] === 'send-keys')).toEqual([
-      ['send-keys', '-t', 'happy:claude.1', 'C-m'],
+      ['send-keys', '-t', '=happy:claude.1', 'C-m'],
     ]);
     expect(captureCurrentInput).toHaveBeenCalledTimes(3);
   });
@@ -567,7 +567,7 @@ describe('createTmuxTerminalHostAdapter', () => {
     ).resolves.toMatchObject({ status: 'injected', bytesWritten: Buffer.byteLength(prompt, 'utf8') });
 
     expect(executeTmuxCommand.mock.calls.map((call) => call[0]).filter((args) => args[0] === 'send-keys')).toEqual([
-      ['send-keys', '-t', 'happy:claude.1', 'C-m'],
+      ['send-keys', '-t', '=happy:claude.1', 'C-m'],
     ]);
   });
 
@@ -605,7 +605,7 @@ describe('createTmuxTerminalHostAdapter', () => {
     ).resolves.toMatchObject({ status: 'injected' });
 
     expect(executeTmuxCommand.mock.calls.map((call) => call[0]).filter((args) => args[0] === 'send-keys')).toEqual([
-      ['send-keys', '-t', 'happy:claude.1', 'C-m'],
+      ['send-keys', '-t', '=happy:claude.1', 'C-m'],
     ]);
   });
 
@@ -651,7 +651,7 @@ describe('createTmuxTerminalHostAdapter', () => {
     ).resolves.toMatchObject({ status: 'injected' });
 
     expect(executeTmuxCommand.mock.calls.map((call) => call[0]).filter((args) => args[0] === 'send-keys')).toEqual([
-      ['send-keys', '-t', 'happy:claude.1', 'C-m'],
+      ['send-keys', '-t', '=happy:claude.1', 'C-m'],
     ]);
   });
 
@@ -685,13 +685,13 @@ describe('createTmuxTerminalHostAdapter', () => {
         ),
       ).resolves.toMatchObject({ status: 'injected' });
 
-      const calls = executeTmuxCommand.mock.calls;
+      const calls = executeTmuxCommand.mock.calls.filter(([args]) => args[0] !== 'has-session');
       const bufferName = calls[1]?.[0]?.[2];
       expect(calls.map((call) => call[0])).toEqual([
-        ['display-message', '-p', '-t', 'happy:claude.1', '#{pane_dead}|#{pane_pid}|#{pane_current_command}'],
+        ['display-message', '-p', '-t', '=happy:claude.1', '#{pane_dead}|#{pane_pid}|#{pane_current_command}'],
         ['load-buffer', '-b', bufferName, '-'],
-        ['paste-buffer', '-p', '-r', '-d', '-b', bufferName, '-t', 'happy:claude.1'],
-        ['send-keys', '-t', 'happy:claude.1', 'C-m'],
+        ['paste-buffer', '-p', '-r', '-d', '-b', bufferName, '-t', '=happy:claude.1'],
+        ['send-keys', '-t', '=happy:claude.1', 'C-m'],
       ]);
       expect(calls[1]?.[5]).toBe('-abcdef');
       expect(calls.flatMap((call) => call[0])).not.toContain('-abcdef');
@@ -750,7 +750,7 @@ describe('createTmuxTerminalHostAdapter', () => {
       attachMetadata: { attachStrategy: 'terminal_host', topology: 'shared' },
     });
 
-    expect(sendKeys).toHaveBeenCalledWith('Escape', 'happy:claude.1');
+    expect(sendKeys).toHaveBeenCalledWith('Escape', '=happy:claude.1');
   });
 
   it('fails with no_target when the handle has no tmux target', async () => {
@@ -816,7 +816,7 @@ describe('createTmuxTerminalHostAdapter', () => {
       recoverable: false,
     });
 
-    expect(executeTmuxCommand).toHaveBeenCalledTimes(1);
+    expect(executeTmuxCommand.mock.calls.filter(([args]) => args[0] !== 'has-session')).toHaveLength(1);
   });
 
   it('defers instead of failing when tmux liveness probe is inconclusive', async () => {
@@ -891,6 +891,7 @@ describe('createTmuxTerminalHostAdapter', () => {
   it('fails with timeout when prompt injection exceeds its deadline', async () => {
     const tmux = new TmuxUtilities();
     vi.spyOn(tmux, 'executeTmuxCommand').mockImplementation(async (args) => {
+      if (args[0] === 'has-session') return { returncode: 0, stdout: '', stderr: '', command: [...args] };
       if (args[0] === 'display-message') {
         return { returncode: 0, stdout: '0|12345|claude\n', stderr: '', command: [...args] };
       }
@@ -934,7 +935,7 @@ describe('createTmuxTerminalHostAdapter', () => {
     const calls: readonly string[][] = [];
     let finishWrite: ((result: { returncode: number; stdout: string; stderr: string; command: string[] }) => void) | undefined;
     vi.spyOn(tmux, 'executeTmuxCommand').mockImplementation(async (args) => {
-      (calls as string[][]).push([...args]);
+      if (args[0] !== 'has-session') (calls as string[][]).push([...args]);
       if (args[0] === 'display-message') {
         return { returncode: 0, stdout: '0|12345|claude\n', stderr: '', command: [...args] };
       }
@@ -978,7 +979,7 @@ describe('createTmuxTerminalHostAdapter', () => {
       recoverable: true,
     });
     expect(calls).toEqual([
-      ['display-message', '-p', '-t', 'happy:claude.1', '#{pane_dead}|#{pane_pid}|#{pane_current_command}'],
+      ['display-message', '-p', '-t', '=happy:claude.1', '#{pane_dead}|#{pane_pid}|#{pane_current_command}'],
       ['load-buffer', '-b', calls[1]?.[2] ?? '', '-'],
       ['delete-buffer', '-b', calls[1]?.[2] ?? ''],
     ]);
@@ -1016,10 +1017,10 @@ describe('createTmuxTerminalHostAdapter', () => {
       ),
     ).resolves.toEqual({ status: 'deferred', reason: 'user_typing', retryAfterMs: 250 });
 
-    expect(executeTmuxCommand).toHaveBeenCalledTimes(3);
+    expect(executeTmuxCommand.mock.calls.filter(([args]) => args[0] !== 'has-session')).toHaveLength(3);
     expect(captureCurrentInput).toHaveBeenCalledTimes(2);
-    expect(captureCurrentInput).toHaveBeenNthCalledWith(1, 'happy:claude.1');
-    expect(captureCurrentInput).toHaveBeenNthCalledWith(2, 'happy:claude.1');
+    expect(captureCurrentInput).toHaveBeenNthCalledWith(1, '=happy:claude.1');
+    expect(captureCurrentInput).toHaveBeenNthCalledWith(2, '=happy:claude.1');
   });
 
   it('authorizes only after final quiet checks and classifies the first post-authorization failure as possible-write', async () => {

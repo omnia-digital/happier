@@ -1,10 +1,11 @@
 import chalk from 'chalk';
 
 import { buildHappyCliSubprocessLaunchSpec } from '@/utils/spawnHappyCLI';
-import { isTmuxAvailable, selectPreferredTmuxSessionName, TmuxUtilities } from '@/integrations/tmux';
+import { formatTmuxSessionIdentifier, isTmuxAvailable, selectPreferredTmuxSessionName, TmuxUtilities } from '@/integrations/tmux';
 import { AGENTS, requireCatalogEntry } from '@/backends/catalog';
 import { DEFAULT_CATALOG_AGENT_ID } from '@/backends/types';
 import { createTerminalAttachmentId } from '@/terminal/attachment/terminalAttachmentInfo';
+import { buildPosixShellCommand } from '@/utils/posixShellCommand';
 import { fail } from '@happier-dev/cli-common/output';
 
 function removeFlag(argv: string[], flag: string): string[] {
@@ -93,10 +94,15 @@ export async function startHappyHeadlessInTmux(argv: string[]): Promise<void> {
 
   console.log(chalk.green('✓ Started Happier in tmux'));
   console.log(`  Target: ${tmuxTarget}`);
+  const exactWindowTarget = formatTmuxSessionIdentifier({
+    session: resolvedSessionName,
+    window: windowName,
+  }, { exactSession: true });
+  const exactSessionTarget = formatTmuxSessionIdentifier({ session: resolvedSessionName }, { exactSession: true });
   if (insideTmux) {
-    console.log(`  Attach: tmux select-window -t ${tmuxTarget}`);
+    console.log(`  Attach: tmux select-window -t ${buildPosixShellCommand([exactWindowTarget])}`);
   } else {
-    console.log(`  Attach: tmux attach -t ${resolvedSessionName}`);
-    console.log(`          tmux select-window -t ${tmuxTarget}`);
+    console.log(`  Attach: tmux attach -t ${buildPosixShellCommand([exactSessionTarget])}`);
+    console.log(`          tmux select-window -t ${buildPosixShellCommand([exactWindowTarget])}`);
   }
 }

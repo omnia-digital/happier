@@ -17,6 +17,7 @@ const mockExecuteTmuxCommand = vi.fn(
 );
 
 vi.mock('@/integrations/tmux', async () => {
+  const { formatTmuxSessionIdentifier } = await import('@/integrations/tmux/identifiers');
   const { selectPreferredTmuxSessionName } = await import('@/integrations/tmux/sessionSelector');
   class TmuxUtilities {
     static DEFAULT_SESSION_NAME = 'happy';
@@ -27,6 +28,7 @@ vi.mock('@/integrations/tmux', async () => {
 
   return {
     isTmuxAvailable: vi.fn(async () => true),
+    formatTmuxSessionIdentifier,
     selectPreferredTmuxSessionName,
     TmuxUtilities,
   };
@@ -110,7 +112,7 @@ describe.sequential('startHappyHeadlessInTmux', () => {
     expect(mockSpawnInTmux.mock.calls[0]?.[0]).toEqual(expect.arrayContaining([
       '--happy-tmux-target', 'my session:happy-123-claude',
     ]));
-    expect(output.lines).toContain("  Attach: 'tmux' 'select-window' '-t' '=my session:happy-123-claude'");
+    expect(output.lines).toContain("  Attach: tmux select-window -t '=my session:happy-123-claude'");
   });
 
   it('does not pass TMUX variables through to the tmux window environment', async () => {
