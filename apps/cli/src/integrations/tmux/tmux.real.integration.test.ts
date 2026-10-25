@@ -388,6 +388,15 @@ describe.skipIf(!shouldRunTmuxIntegration())('tmux (real) integration tests (opt
             });
             expect(result).not.toBe(0);
             expect(runTmux(['-S', socketPath, 'has-session', '-t', '=retired-owner-new']).status).toBe(0);
+            const validResult = await runTmuxAttach({
+                sessionId: 'valid-attachment',
+                terminal: { mode: 'tmux', tmux: { target: 'retired-owner-new:@0' } },
+            }, {
+                isTmuxAvailableFn: async () => true,
+                insideTmux: true,
+                spawnTmuxFn: async ({ args }) => runTmux(['-S', socketPath, ...args]).status ?? 1,
+            });
+            expect(validResult).toBe(0);
         } finally {
             killIsolatedTmuxServer(socketPath);
             removeIsolatedTmuxTempDir(dir);
