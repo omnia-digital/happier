@@ -295,7 +295,7 @@ function createNativeStorageState() {
 }
 
 let storageState: any = createNativeStorageState();
-type NativeVirtualizationStorageStore = ReturnType<typeof import('@/dev/testkit/mocks/storage')['createReactiveStorageStoreMock']>;
+type NativeVirtualizationStorageStore = typeof import('@/sync/domains/state/storageStore')['storage'];
 let nativeVirtualizationStorageStore: NativeVirtualizationStorageStore | null = null;
 
 function syncNativeVirtualizationStorageState() {
@@ -522,9 +522,10 @@ installSessionShellCommonModuleMocks({
         return createModalModuleMock().module;
     },
     storage: async (importOriginal) => {
-        const { createStorageModuleMock, createReactiveStorageStoreMock } = await import('@/dev/testkit/mocks/storage');
-        const reactiveStore = createReactiveStorageStoreMock(storageState);
-        nativeVirtualizationStorageStore = reactiveStore;
+        const { createStorageModuleMock } = await import('@/dev/testkit/mocks/storage');
+        const actual = await importOriginal<typeof import('@/sync/domains/state/storage')>();
+        // The imported reader and the mounted hooks must see one canonical store.
+        nativeVirtualizationStorageStore = actual.storage;
         return createStorageModuleMock({
             importOriginal,
             overrides: {
@@ -544,10 +545,6 @@ installSessionShellCommonModuleMocks({
                 },
                 useHasUnreadMessages: () => false,
                 useAllMachines: () => allMachines,
-                // The storage facade is replaced for this renderer; subscribe the real machine
-                // display inputs to that same boundary store instead of a parallel fixture var.
-                useMachineDisplayById: () => reactiveStore((state) => state.machineDisplayById),
-                useSessionMachineDisplayLists: () => reactiveStore((state) => state.machineListByServerId),
                 useSessionOrganizationProjection: () => buildOrganizationProjectionFromLegacyState(),
                 useSettingMutable: (key: string) => {
                     if (key === 'pinnedSessionKeysV1') return [pinnedSessionKeysV1, setPinnedSessionKeysV1];
@@ -574,7 +571,7 @@ installSessionShellCommonModuleMocks({
                     () => key === 'sessionListShowMachineLabel' ? sessionListShowMachineLabel : localSettingsDefaults[key],
                 )) as typeof import('@/sync/domains/state/storage')['useLocalSetting'],
                 useLocalSettingMutable: useLocalSettingMutableMock,
-                storage: reactiveStore,
+                storage: actual.storage,
             },
         });
     },
@@ -617,13 +614,7 @@ vi.mock('@/sync/ops/sessionMachineTarget', async (importOriginal) => {
         ...actual,
         readSessionWorkspacePresentation: (input: Parameters<typeof actual.readSessionWorkspacePresentation>[0]) => {
             if (typeof input.sessionId === 'string') sessionWorkspacePresentationCalls.push(input.sessionId);
-            if (!nativeVirtualizationStorageStore) throw new Error('native list storage fixture is not initialized');
-            // The facade is replaced at the store boundary; feed its snapshot to the real
-            // presentation owner rather than letting importOriginal read the global store.
-            return actual.resolveSessionWorkspacePresentationFromState({
-                ...input,
-                state: nativeVirtualizationStorageStore.getState(),
-            });
+            return actual.readSessionWorkspacePresentation(input);
         },
     };
 });
@@ -2523,19 +2514,28 @@ describe('SessionsList (native virtualization)', () => {
         // First-mounted inactive rows take one frozen scoped snapshot for half-swipe continuity.
         // The runtime-priority selector itself has no scopes while the surface is inactive.
         expect(sessionListRenderableReadSpy.mock.calls.map(([id]) => id)).toEqual(['sess_a', 'sess_b']);
-        const frozenRowModel = findSessionItem(screen, 'sess_b')?.props.rowModel;
+        const frozenRowModel = expectPresent(
+            findSessionItem(screen, 'sess_b')?.props.rowModel,
+            'expected frozen sess_b row model',
+        );
+        expect(frozenRowModel.session.hasPendingUserActionRequests).toBe(true);
         sessionListRenderableReadSpy.mockClear();
-        nativeVirtualizationStorageStore?.setState({
-            sessionListRenderables: new Proxy({
-                ...sessionListRenderablesForSubscriptionTests,
-                sess_b: { ...sessionListRenderablesForSubscriptionTests.sess_b, hasPendingUserActionRequests: false },
-            }, {
-                get: (target, property, receiver) => {
-                    if (typeof property === 'string') sessionListRenderableReadSpy(property);
-                    return Reflect.get(target, property, receiver);
-                },
-            }),
+        const store = expectPresent(nativeVirtualizationStorageStore, 'expected canonical session list store');
+        const updatedRenderables = new Proxy({
+            ...sessionListRenderablesForSubscriptionTests,
+            sess_b: { ...sessionListRenderablesForSubscriptionTests.sess_b, hasPendingUserActionRequests: false },
+        }, {
+            get: (target, property, receiver) => {
+                if (typeof property === 'string') sessionListRenderableReadSpy(property);
+                return Reflect.get(target, property, receiver);
+            },
         });
+        await act(async () => {
+            store.setState({
+                sessionListRenderables: updatedRenderables,
+            });
+        });
+        expect(store.getState().sessionListRenderables).toBe(updatedRenderables);
         expect(sessionListRenderableReadSpy).not.toHaveBeenCalled();
         expect(findSessionItem(screen, 'sess_b')?.props.rowModel).toBe(frozenRowModel);
     });

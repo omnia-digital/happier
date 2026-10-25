@@ -15,6 +15,10 @@ const machine = {
     metadata: { displayName: 'Studio Mac' },
 } as MachineDisplayRenderable;
 const machines = { [machineId]: machine };
+const machineDisplayScopes = {
+    '': { serverId, legacyServerIds: [] },
+    [serverId]: { serverId, legacyServerIds: [] },
+};
 
 function workspace(path: string) {
     return { t: 'workspaceScope' as const, serverId, machineId, rootPath: path };
@@ -115,7 +119,7 @@ describe('pinned Active workspace projection', () => {
             'session:beta:pinned',
         ]);
         expect(new Set(allPinned.view.filter((item) => item.type === 'session').map((item) => item.session.id)).size).toBe(2);
-        expect(describeRows(projectSessionListMachineView(allPinned.view, machines))).toEqual([
+        expect(describeRows(projectSessionListMachineView(allPinned.view, machines, {}, undefined, machineDisplayScopes))).toEqual([
             'header:pinned:Pinned',
             'header:machine:Studio Mac',
             'session:alpha:pinned',
@@ -175,7 +179,7 @@ describe('pinned Active workspace projection', () => {
             folder('/beta', 'empty'),
         ];
         const { view } = projectList(source, ['pinned']);
-        const machineView = projectSessionListMachineView(view, machines);
+        const machineView = projectSessionListMachineView(view, machines, {}, undefined, machineDisplayScopes);
         const folderView = applySessionFoldersToSessionListViewData(machineView, {
             enabled: true,
             folders: { v: 1, folders: [{
