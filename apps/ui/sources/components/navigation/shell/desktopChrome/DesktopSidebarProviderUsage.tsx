@@ -58,7 +58,9 @@ function ProviderUsageTile(props: Readonly<{
         choiceKey,
     }), [choiceKey, defaultProfileByServiceId, props.connectedProfiles, props.providerId, props.records]);
     const selected = selection.selected;
-    const nativeIds = React.useMemo(() => selected?.kind === 'native' ? [selected.recordId] : [], [selected]);
+    const nativeIds = React.useMemo(() => choiceOpen
+        ? selection.options.flatMap((option) => option.kind === 'native' ? [option.recordId] : [])
+        : selected?.kind === 'native' ? [selected.recordId] : [], [choiceOpen, selected, selection.options]);
     const native = useProviderAccountUsageSnapshotState(nativeIds);
     const connectedRefs = React.useMemo(() => selected?.kind === 'connected'
         ? [{ serviceId: selected.serviceId, profileId: selected.profileId }]
