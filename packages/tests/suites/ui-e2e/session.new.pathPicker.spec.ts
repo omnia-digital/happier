@@ -70,7 +70,8 @@ import { type StartedDaemon } from '../../src/testkit/daemon/daemon';
 import { authenticateAndStartDaemon } from '../../src/testkit/uiE2e/authenticateAndStartDaemon';
 import { readCliAccessKey } from '../../src/testkit/cliAccessKey';
 import { waitForDaemonMachineIdFromCliSettings } from '../../src/testkit/uiE2e/daemonMachineId';
-import { createPlainSession } from '../../src/testkit/uiE2e/sessionFoldersDrag';
+import { createSessionWithCiphertexts } from '../../src/testkit/sessions';
+import { encryptLegacyBase64 } from '../../src/testkit/messageCrypto';
 import { gotoDomContentLoadedWithRetries } from '../../src/testkit/uiE2e/pageNavigation';
 import { enableEnhancedSessionWizard } from '../../src/testkit/uiE2e/enableEnhancedSessionWizard';
 
@@ -188,14 +189,31 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         const machineId = await waitForDaemonMachineIdFromCliSettings({ cliHomeDir: scrollCliHomeDir });
         const accessKey = await readCliAccessKey(scrollCliHomeDir);
         if (!accessKey) throw new Error('expected isolated daemon access key');
+        // The isolated authenticated browser owns the account encryption secret;
+        // the server's session-create route accepts encrypted metadata only.
+        const secretBase64Url = await page.evaluate(() => {
+            const keys = Object.keys(localStorage).filter((key) => key.startsWith('auth_credentials__srv_'));
+            if (keys.length !== 1) throw new Error('expected one isolated fixture account');
+            const credentials: unknown = JSON.parse(localStorage.getItem(keys[0]!) ?? '{}');
+            if (!credentials || typeof credentials !== 'object' || !('secret' in credentials)
+                || typeof credentials.secret !== 'string') throw new Error('missing isolated fixture encryption secret');
+            return credentials.secret;
+        });
+        const fixtureSecret = Uint8Array.from(Buffer.from(secretBase64Url, 'base64url'));
         for (const path of recentDirs) {
-            await createPlainSession({
+            await createSessionWithCiphertexts({
                 baseUrl: server.baseUrl,
                 token: accessKey.token,
-                title: 'Path picker recent fixture',
-                rootPath: path,
-                machineId,
-                tagPrefix: 'oh73-recent',
+                metadataCiphertextBase64: encryptLegacyBase64({
+                    v: 1,
+                    name: 'Path picker recent fixture',
+                    path,
+                    homeDir: suiteDir,
+                    host: machineId,
+                    machineId,
+                    version: '0.2.16',
+                    flavor: 'claude',
+                }, fixtureSecret),
             });
         }
 
