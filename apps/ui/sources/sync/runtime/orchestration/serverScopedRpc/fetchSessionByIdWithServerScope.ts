@@ -36,8 +36,8 @@ function getScopedSessionByIdEncryption(context: Readonly<{
             }
 
             return {
-                decryptAgentState: maybeEncryption.decryptAgentState,
-                decryptMetadata: maybeEncryption.decryptMetadata,
+                decryptAgentState: maybeEncryption.decryptAgentState.bind(candidate),
+                decryptMetadata: maybeEncryption.decryptMetadata.bind(candidate),
             };
         },
     };

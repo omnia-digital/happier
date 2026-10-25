@@ -13,10 +13,11 @@ import { waitForDaemonMachineIdFromCliSettings } from '../../src/testkit/uiE2e/d
 import { ensureAccountReadyForConnect } from '../../src/testkit/uiE2e/ensureAccountReadyForConnect';
 import { enableEnhancedSessionWizard } from '../../src/testkit/uiE2e/enableEnhancedSessionWizard';
 import { gotoDomContentLoadedWithRetries } from '../../src/testkit/uiE2e/pageNavigation';
-import { fakeClaudeFixturePath } from '../../src/testkit/fakeClaude';
+import { fakeClaudeFixturePath, waitForFakeClaudeInvocation, waitForFakeClaudeUserText } from '../../src/testkit/fakeClaude';
 import { createIsolatedCliTestEnv } from '../../src/testkit/process/cliTestEnv';
+import { createTempPathBin, type TempPathBin } from '../../src/testkit/fs/tempPathBin';
+import { installFakeSecurityCli } from '../../src/testkit/process/fakeSecurityCli';
 import { parseRpcCallFrame } from '../../src/testkit/uiE2e/desktopSetup/relayMachineRpcTap';
-import { readUiE2eScopedAccountSettings } from '../../src/testkit/uiE2e/scopedAccountSettingsStorage';
 import type { StartedDaemon } from '../../src/testkit/daemon/daemon';
 
 const run = createRunDirs({ runLabel: 'ui-e2e' });
@@ -31,8 +32,9 @@ function isolatedCliEnv(params: Readonly<{
   fakeClaudeLogPath: string;
   serverUrl: string;
   uiBaseUrl: string;
+  securityBin: TempPathBin;
 }>): NodeJS.ProcessEnv {
-  return {
+  return params.securityBin.extendEnv({
     ...createIsolatedCliTestEnv({ homeDir: params.cliHomeDir }),
     HAPPIER_SERVER_URL: params.serverUrl,
     HAPPIER_WEBAPP_URL: params.uiBaseUrl,
@@ -43,7 +45,7 @@ function isolatedCliEnv(params: Readonly<{
     HAPPIER_E2E_PROVIDER_USE_CLI_SOURCE_ENTRYPOINT: '1',
     HAPPIER_DISABLE_CAFFEINATE: '1',
     HAPPIER_VARIANT: 'dev',
-  };
+  });
 }
 
 test.describe('ui e2e: New Session targets a foreign Home', () => {
@@ -52,6 +54,7 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
   const suiteDir = run.testDir('new-session-foreign-home-launch-suite');
   const cliHomeADir = resolve(join(suiteDir, 'cli-home-a'));
   const cliHomeDir = resolve(join(suiteDir, 'cli-home-b'));
+  const favoriteADir = resolve(join(suiteDir, 'favorite-a'));
   const browseDir = resolve(join(suiteDir, 'target-browse'));
   const fakeClaudeLogPath = resolve(join(suiteDir, 'fake-claude-b.jsonl'));
 
@@ -60,6 +63,7 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
   let ui: StartedUiWeb | null = null;
   let daemonA: StartedDaemon | null = null;
   let daemonB: StartedDaemon | null = null;
+  let securityBin: TempPathBin | null = null;
 
   test.beforeAll(async () => {
     const uiEnv = {
@@ -74,7 +78,14 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
     test.setTimeout(resolveUiWebBeforeAllTimeoutMs(uiEnv));
     await mkdir(cliHomeADir, { recursive: true });
     await mkdir(cliHomeDir, { recursive: true });
+    await mkdir(favoriteADir, { recursive: true });
     await mkdir(browseDir, { recursive: true });
+    securityBin = await createTempPathBin({
+      prefix: 'oh64-security-',
+      baseDir: suiteDir,
+      env: createIsolatedCliTestEnv({ homeDir: cliHomeDir }),
+    });
+    await installFakeSecurityCli(securityBin);
     serverA = await startServerLight({ testDir: resolve(join(suiteDir, 'server-a')), dbProvider: 'sqlite' });
     serverB = await startServerLight({ testDir: resolve(join(suiteDir, 'server-b')), dbProvider: 'sqlite' });
     ui = await startUiWeb({
@@ -89,11 +100,12 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
     await ui?.stop().catch(() => {});
     await serverB?.stop().catch(() => {});
     await serverA?.stop().catch(() => {});
+    await securityBin?.cleanup().catch(() => {});
   });
 
   test('routes B directory browse while viewing and initially targeting A', async ({ page }) => {
     test.setTimeout(360_000);
-    if (!serverA || !serverB || !ui) throw new Error('Missing isolated E2E fixtures');
+    if (!serverA || !serverB || !ui || !securityBin) throw new Error('Missing isolated E2E fixtures');
     const uiBaseUrl = ui.baseUrl;
     await page.setViewportSize({ width: 1440, height: 900 });
     const observedRpcCalls: Array<Readonly<{ host: string; method: string }>> = [];
@@ -115,6 +127,7 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
       fakeClaudeLogPath: resolve(join(suiteDir, 'fake-claude-a.jsonl')),
       serverUrl: serverA.baseUrl,
       uiBaseUrl,
+      securityBin,
     });
     const cliALogin = await startCliAuthLoginForTerminalConnect({
       testDir: daemonATestDir,
@@ -150,7 +163,7 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
     await ensureAccountReadyForConnect({ page, timeoutMs: 120_000 });
     const daemonTestDir = resolve(join(suiteDir, 'daemon-b'));
     await mkdir(daemonTestDir, { recursive: true });
-    const cliEnv = isolatedCliEnv({ cliHomeDir, fakeClaudeLogPath, serverUrl: serverB.baseUrl, uiBaseUrl });
+    const cliEnv = isolatedCliEnv({ cliHomeDir, fakeClaudeLogPath, serverUrl: serverB.baseUrl, uiBaseUrl, securityBin });
     const cliLogin = await startCliAuthLoginForTerminalConnect({
       testDir: daemonTestDir,
       cliHomeDir,
@@ -190,10 +203,10 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
     await page.getByTestId('agent-input-path-chip').click();
     const pathPopover = page.getByTestId('agent-input-content-popover');
     await pathPopover.getByTestId('path-selection-list:header:input').fill(`${suiteDir}/`);
-    const aDirectoryRow = pathPopover.getByTestId(`path-selection-list:path-root:option:in-folder:${browseDir}`);
+    const aDirectoryRow = pathPopover.getByTestId(`path-selection-list:path-root:option:in-folder:${favoriteADir}`);
     await expect(aDirectoryRow).toBeVisible();
     await aDirectoryRow.getByRole('button', { name: 'Add to favorites' }).click();
-    await expect(pathPopover.getByTestId(`path-selection-list:path-root:option:favorite:${browseDir}`)).toBeVisible();
+    await expect(pathPopover.getByTestId(`path-selection-list:path-root:option:favorite:${favoriteADir}`)).toBeVisible();
     await pathPopover.getByTestId('path-selection-list:header:input').press('Escape');
     await expect(pathPopover).toHaveCount(0);
     await page.getByTestId('agent-input-machine-chip').click();
@@ -209,10 +222,14 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
     );
     await expect(machineBOption).toBeVisible({ timeout: 120_000 });
     await machineBOption.click();
+    await expect.poll(() => new URL(page.url()).searchParams.get('spawnServerId')).not.toBe(serverAId);
+    const selectedServerBId = new URL(page.url()).searchParams.get('spawnServerId');
+    expect(selectedServerBId).toBeTruthy();
+    expect(selectedServerBId).not.toBe(serverAId);
 
     await page.getByTestId('agent-input-path-chip').click();
     await expect(pathPopover.getByTestId('path-selection-list:open-tree-browser')).toBeVisible();
-    await expect(pathPopover.getByTestId(`path-selection-list:path-root:option:favorite:${browseDir}`)).toHaveCount(0);
+    await expect(pathPopover.getByTestId(`path-selection-list:path-root:option:favorite:${favoriteADir}`)).toHaveCount(0);
     const browseCallStart = observedRpcCalls.length;
     await pathPopover.getByTestId('path-selection-list:header:input').fill(`${suiteDir}/`);
     const bDirectoryRow = pathPopover.getByTestId(`path-selection-list:path-root:option:in-folder:${browseDir}`);
@@ -225,23 +242,53 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
     });
     await bDirectoryRow.getByRole('button', { name: 'Add to favorites' }).click();
     await expect(pathPopover.getByTestId(`path-selection-list:path-root:option:favorite:${browseDir}`)).toBeVisible();
-    await expect.poll(async () => {
-      const settings = await readUiE2eScopedAccountSettings({ page });
-      const raw = settings.machinePathPreferencesByTargetV1;
-      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-      const matching = Object.entries(raw).flatMap(([key, value]) => {
-        const tuple: unknown = JSON.parse(key);
-        if (!Array.isArray(tuple) || tuple.length !== 3) return [];
-        const favorites = value && typeof value === 'object' && 'favorites' in value ? value.favorites : null;
-        return Array.isArray(favorites) && favorites.includes(browseDir)
-          ? [{ serverId: tuple[0], machineId: tuple[2] }]
-          : [];
-      });
-      return {
-        count: matching.length,
-        distinctServers: new Set(matching.map((entry) => entry.serverId)).size,
-        machineIds: matching.map((entry) => entry.machineId).sort(),
-      };
-    }).toEqual({ count: 2, distinctServers: 2, machineIds: [machineAId, machineBId].sort() });
+    await pathPopover.getByTestId('path-selection-list:header:input').press('Escape');
+    await expect(pathPopover).toHaveCount(0);
+
+    await page.reload();
+    await page.getByTestId('agent-input-path-chip').click();
+    await expect(pathPopover.getByTestId(`path-selection-list:path-root:option:favorite:${browseDir}`)).toBeVisible();
+    await expect(pathPopover.getByTestId(`path-selection-list:path-root:option:favorite:${favoriteADir}`)).toHaveCount(0);
+    await pathPopover.getByTestId('path-selection-list:header:input').press('Escape');
+    await expect(pathPopover).toHaveCount(0);
+
+    await page.getByTestId('agent-input-machine-chip').click();
+    await expect(machineAOption).toBeVisible();
+    await machineAOption.click();
+    await page.getByTestId('agent-input-path-chip').click();
+    await expect(pathPopover.getByTestId(`path-selection-list:path-root:option:favorite:${favoriteADir}`)).toBeVisible();
+    await expect(pathPopover.getByTestId(`path-selection-list:path-root:option:favorite:${browseDir}`)).toHaveCount(0);
+    await pathPopover.getByTestId('path-selection-list:header:input').press('Escape');
+    await expect(pathPopover).toHaveCount(0);
+
+    await page.getByTestId('agent-input-machine-chip').click();
+    await expect(machineBOption).toBeVisible();
+    await machineBOption.click();
+    await page.getByTestId('agent-input-path-chip').click();
+    const favoriteBRow = pathPopover.getByTestId(`path-selection-list:path-root:option:favorite:${browseDir}`);
+    await expect(favoriteBRow).toBeVisible();
+    await favoriteBRow.click();
+    await expect(pathPopover).toHaveCount(0);
+    await expect(page.getByTestId('agent-input-path-chip')).toContainText('target-browse');
+    await expect(page.getByText(new URL(serverA.baseUrl).host, { exact: true }).first()).toBeVisible();
+
+    const launchCallStart = observedRpcCalls.length;
+    const prompt = `oh64 foreign target ${run.runId}`;
+    await page.getByTestId('new-session-composer-input').fill(prompt);
+    await expect(page.getByTestId('new-session-composer-send')).toBeEnabled();
+    await page.getByTestId('new-session-composer-send').click();
+    await expect.poll(() => observedRpcCalls.slice(launchCallStart).filter((call) => (
+      call.method.endsWith(':spawn-happy-session.provider-safe.v1')
+    )), { timeout: 120_000 }).toContainEqual({
+      host: new URL(serverB.baseUrl).host,
+      method: `${machineBId}:spawn-happy-session.provider-safe.v1`,
+    });
+    const invocation = await waitForFakeClaudeInvocation(fakeClaudeLogPath, (event) => (
+      event.mode === 'sdk' && event.cwd === browseDir
+    ), { timeoutMs: 120_000 });
+    expect(invocation.mode).toBe('sdk');
+    expect(invocation.cwd).toBe(browseDir);
+    await waitForFakeClaudeUserText(fakeClaudeLogPath, (text) => text.includes(prompt), { timeoutMs: 120_000 });
+    await page.waitForURL((url) => url.pathname.startsWith('/session/') && url.searchParams.get('serverId') === selectedServerBId, { timeout: 180_000 });
   });
 });
