@@ -1,6 +1,6 @@
 import type { Machine, MachineMetadata } from '@/sync/domains/state/storageTypes';
-import { areServerProfileIdentifiersEquivalent, resolveServerProfileScopeIdForIdentifier } from '@/sync/domains/server/serverProfiles';
 import type { MachineCollection } from './identity/machineCollection';
+import type { MachineDisplayPreferenceScope } from './machineDisplayIconPreference';
 
 export interface MachineDisplayMetadata {
     displayName?: string | null;
@@ -38,17 +38,18 @@ const EMPTY_MACHINE_DISPLAYS: Readonly<Record<string, MachineDisplayRenderable>>
 export function resolveMachineDisplayScope(input: Readonly<{
     serverId?: string | null;
     activeServerId?: string | null;
+    resolvedScope?: MachineDisplayPreferenceScope;
     machines: Readonly<Record<string, MachineDisplayRenderable>>;
     machineListByServerId?: Readonly<Record<string, readonly MachineDisplayRenderable[] | null | undefined>>;
 }>): Readonly<{ isActive: boolean; machines: MachineCollection<MachineDisplayRenderable> }> {
     const serverId = input.serverId?.trim();
-    const isActive = !serverId || Boolean(input.activeServerId && areServerProfileIdentifiersEquivalent(serverId, input.activeServerId));
+    const scopeIds = input.resolvedScope
+        ? [input.resolvedScope.serverId, ...input.resolvedScope.legacyServerIds]
+        : serverId ? [serverId] : [];
+    const isActive = !serverId || Boolean(input.activeServerId && scopeIds.includes(input.activeServerId));
     if (isActive) return { isActive, machines: input.machines };
     const lists = input.machineListByServerId ?? {};
-    const canonicalId = resolveServerProfileScopeIdForIdentifier(serverId);
-    const key = Object.hasOwn(lists, canonicalId) ? canonicalId
-        : Object.hasOwn(lists, serverId) ? serverId
-        : Object.keys(lists).find(id => areServerProfileIdentifiersEquivalent(id, canonicalId));
+    const key = scopeIds.find(id => Object.hasOwn(lists, id));
     return { isActive: false, machines: key ? lists[key] ?? EMPTY_MACHINE_DISPLAYS : EMPTY_MACHINE_DISPLAYS };
 }
 

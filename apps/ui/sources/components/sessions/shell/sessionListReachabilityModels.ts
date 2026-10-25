@@ -1,7 +1,7 @@
 import { resolveMachineDisplayScope, type MachineDisplayRenderable } from '@/sync/domains/machines/machineDisplayRenderable';
 import { resolveSessionWorkspacePresentation } from '@/sync/domains/session/listing/sessionWorkspacePresentation';
 import { storage, type SessionListViewItem } from '@/sync/domains/state/storage';
-import { getActiveServerId } from '@/sync/domains/server/serverProfiles';
+import { findMachineDisplayScope, type MachineDisplayPreferenceScope } from '@/sync/domains/machines/machineDisplayIconPreference';
 import type { MachineCollection } from '@/sync/domains/machines/identity/machineCollection';
 import { readSessionWorkspacePresentation } from '@/sync/ops/sessionMachineTarget';
 import { sessionTagKey } from './sessionTagUtils';
@@ -101,6 +101,7 @@ export function buildSessionReachableDisplay(input: Readonly<{
     item: Extract<SessionListViewItem, { type: 'session' }>;
     machinesById: Readonly<Record<string, MachineDisplayRenderable>>;
     machineListByServerId?: Readonly<Record<string, readonly MachineDisplayRenderable[] | null | undefined>>;
+    machineDisplayScopes?: Readonly<Record<string, MachineDisplayPreferenceScope>>;
     workspaceLabelsV1: Readonly<Record<string, string>>;
 }>): Readonly<{
     display: SessionReachableDisplay;
@@ -110,6 +111,8 @@ export function buildSessionReachableDisplay(input: Readonly<{
     const workspace = readSessionWorkspacePresentation({
         sessionId: input.item.session.id,
         serverId: input.item.serverId,
+        activeServerId: input.machineDisplayScopes?.['']?.serverId,
+        resolvedMachineScope: findMachineDisplayScope(input.machineDisplayScopes, input.item.serverId),
         metadata: input.item.session?.metadata ?? null,
         machines: input.machinesById,
         machineListByServerId: input.machineListByServerId,
@@ -168,6 +171,7 @@ export function buildSessionListReachabilityModels(input: Readonly<{
     items: ReadonlyArray<SessionListViewItem> | null | undefined;
     machinesById: Readonly<Record<string, MachineDisplayRenderable>>;
     machineListByServerId?: Readonly<Record<string, readonly MachineDisplayRenderable[] | null | undefined>>;
+    machineDisplayScopes?: Readonly<Record<string, MachineDisplayPreferenceScope>>;
     workspaceLabelsV1: Readonly<Record<string, string>>;
     cache?: SessionListReachabilityModelsCache;
 }>): SessionListReachabilityModels {
@@ -189,7 +193,8 @@ export function buildSessionListReachabilityModels(input: Readonly<{
         const serverId = item.serverId ?? '';
         if (signaturesByServer.has(serverId)) continue;
         const scope = resolveMachineDisplayScope({
-            serverId, activeServerId: state.profileScope?.serverId ?? getActiveServerId(),
+            serverId, activeServerId: input.machineDisplayScopes?.['']?.serverId ?? state.profileScope?.serverId,
+            resolvedScope: findMachineDisplayScope(input.machineDisplayScopes, serverId),
             machines: input.machinesById, machineListByServerId,
         });
         signaturesByServer.set(serverId, JSON.stringify([scope.isActive, buildReachabilityMachineDisplaySignature(scope.machines)]));
@@ -230,6 +235,7 @@ export function buildSessionListReachabilityModels(input: Readonly<{
                     item,
                     machinesById: input.machinesById,
                     machineListByServerId,
+                    machineDisplayScopes: input.machineDisplayScopes,
                     workspaceLabelsV1: input.workspaceLabelsV1,
                 });
                 return {

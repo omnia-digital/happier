@@ -9,6 +9,7 @@ import {
     useLocalSettingMutable,
     useMachineDisplayById,
     useSessionMachineDisplayLists,
+    useMachineDisplayScopes,
     useProfile,
     useSessionOrganizationProjections,
     useSetting,
@@ -167,7 +168,8 @@ export function useSessionListViewState({
     const profile = useProfile();
     const selection = useResolvedActiveServerSelection();
     const machineDisplayById = useMachineDisplayById();
-    const machineDisplayLists = useSessionMachineDisplayLists(selection.enabled ? selection.allowedServerIds : [selection.activeServerId]);
+    const machineDisplayScopes = useMachineDisplayScopes(['', ...(selection.enabled ? selection.allowedServerIds : [selection.activeServerId])]);
+    const machineDisplayLists = useSessionMachineDisplayLists(machineDisplayScopes);
     const renderMachineDisplayLists = useSessionListSnapshotWhenInactive(machineDisplayLists, sessionListSurfaceDataActive);
     const renderMachineDisplayById = useSessionListSnapshotWhenInactive(
         machineDisplayById,
@@ -344,8 +346,8 @@ export function useSessionListViewState({
 
     const machinePresentedData = React.useMemo(() => {
         if (!data || sessionListMachineViewMode !== 'machine' || sessionListStatusGrouping !== 'none') return data;
-        return projectSessionListMachineView(data, renderMachineDisplayById, workspaceLabelsV1, renderMachineDisplayLists);
-    }, [data, renderMachineDisplayById, renderMachineDisplayLists, sessionListMachineViewMode, sessionListStatusGrouping, workspaceLabelsV1]);
+        return projectSessionListMachineView(data, renderMachineDisplayById, workspaceLabelsV1, renderMachineDisplayLists, machineDisplayScopes);
+    }, [data, renderMachineDisplayById, renderMachineDisplayLists, machineDisplayScopes, sessionListMachineViewMode, sessionListStatusGrouping, workspaceLabelsV1]);
 
     const physicalFolderPresentedData = React.useMemo(() => {
         if (!machinePresentedData || !folderViewEnabled) return machinePresentedData;
@@ -475,10 +477,11 @@ export function useSessionListViewState({
                 items: statusPresentedItems,
                 machinesById: renderMachineDisplayById,
                 machineListByServerId: renderMachineDisplayLists,
+                machineDisplayScopes,
                 workspaceLabelsV1,
             }),
         );
-    }, [statusPresentedItems, renderMachineDisplayById, renderMachineDisplayLists, workspaceLabelsV1]);
+    }, [statusPresentedItems, renderMachineDisplayById, renderMachineDisplayLists, machineDisplayScopes, workspaceLabelsV1]);
 
     const selectedItemsRef = React.useRef<ReadonlyArray<SessionListSelectedItem> | null>(null);
     const visibleListItems = React.useMemo(() => {

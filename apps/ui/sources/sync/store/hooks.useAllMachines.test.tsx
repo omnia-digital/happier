@@ -1,17 +1,62 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act } from 'react-test-renderer';
+import { MMKV } from 'react-native-mmkv';
 
 import { createMachineFixture, createSessionFixture, renderHook, standardCleanup } from '@/dev/testkit';
 
 import { useAllMachines, useFirstVisibleMachineId, useLaunchSelectionMachines, useMachineCliDetectionTarget, useMachineDisplayById, useMachineListByServerId, useSessionChatFooterState, useSessionForkSupportSource } from '@/sync/domains/state/storage';
 import { storage } from '@/sync/domains/state/storageStore';
 import { getActiveServerSnapshot } from '@/sync/domains/server/serverRuntime';
+import { setServerProfileIdentityForUrl, upsertServerProfile } from '@/sync/domains/server/serverProfiles';
 
 afterEach(() => {
     standardCleanup();
 });
 
 describe('useAllMachines', () => {
+    it('refreshes mounted foreign presentation on Home identity promotion without profile reads during projection', async () => {
+        const { useSessionWorkspacePresentation } = await import('@/components/sessions/model/useSessionWorkspacePresentation');
+        const { useMachineDisplayScopes, useSessionMachineDisplayLists } = await import('@/sync/store/hooks');
+        const { buildSessionListReachabilityModels } = await import('@/components/sessions/shell/sessionListReachabilityModels');
+        const { projectSessionListMachineView } = await import('@/components/sessions/shell/view-state/projectSessionListMachineView');
+        const previousState = storage.getState();
+        const profile = upsertServerProfile({ serverUrl: 'https://oh47-presentation-alias.example.test' });
+        const legacy = createMachineFixture({ metadata: { ...createMachineFixture().metadata!, displayName: 'Legacy B' } });
+        const canonical = { ...legacy, metadata: { ...legacy.metadata!, displayName: 'Canonical B' } };
+        const session = createSessionFixture();
+        const items = [{ type: 'session' as const, serverId: profile.id, session }];
+        try {
+            storage.setState({ profileScope: { serverId: 'home-a', accountId: 'account-a' }, machines: {}, machineDisplayById: {}, machineListByServerId: {
+                [profile.id]: [legacy], srv_oh47_presentation_b: [canonical],
+            } });
+            const header = await renderHook(() => useSessionWorkspacePresentation({ serverId: profile.id, sessionId: session.id, metadata: session.metadata }));
+            const list = await renderHook(() => {
+                const scopes = useMachineDisplayScopes(['', 'srv_oh47_presentation_b', profile.id]);
+                return { machineDisplayScopes: scopes, machineListByServerId: useSessionMachineDisplayLists(scopes) };
+            });
+            expect(header.getCurrent()?.machineLabel).toBe('Legacy B');
+            await act(async () => { setServerProfileIdentityForUrl(profile.serverUrl, 'srv_oh47_presentation_b'); });
+            expect(header.getCurrent()?.machineLabel).toBe('Canonical B');
+            const profileReads = vi.spyOn(MMKV.prototype, 'getString');
+            try {
+                const snapshots = list.getCurrent();
+                // Rows retain the original profile id after discovery; selected scopes can use
+                // the canonical id. Both must consume the same already-resolved alias set.
+                const scopes = { '': snapshots.machineDisplayScopes[''], srv_oh47_presentation_b: snapshots.machineDisplayScopes.srv_oh47_presentation_b };
+                const models = buildSessionListReachabilityModels({ items, machinesById: {}, workspaceLabelsV1: {}, ...snapshots, machineDisplayScopes: scopes });
+                expect(models.reachableSessionDisplayByKey.get(`${profile.id}:${session.id}`)?.machineLabel).toBe('Canonical B');
+                expect(projectSessionListMachineView(items, {}, {}, snapshots.machineListByServerId, scopes).find(item => item.type === 'header' && item.headerKind === 'machine')).toMatchObject({ title: 'Canonical B' });
+                await act(async () => storage.setState(state => ({ localSettings: { ...state.localSettings, sessionListShowMachineIdentity: !state.localSettings.sessionListShowMachineIdentity } })));
+                expect(profileReads.mock.calls.filter(([key]) => key === 'server-state-v1')).toEqual([]);
+            } finally {
+                profileReads.mockRestore();
+            }
+            await header.unmount();
+            await list.unmount();
+        } finally {
+            storage.setState(previousState);
+        }
+    });
     it('presents foreign sessions from their Home even when active machine and session ids collide', async () => {
         const { buildSessionListReachabilityModels, createSessionListReachabilityModelsCache } = await import('@/components/sessions/shell/sessionListReachabilityModels');
         const { projectSessionListMachineView } = await import('@/components/sessions/shell/view-state/projectSessionListMachineView');
@@ -46,6 +91,16 @@ describe('useAllMachines', () => {
             expect(headerHook.getCurrent()).toMatchObject({ machineId: 'b-successor', machineLabel: 'B machine', displayPath: '~/repo' });
             const settledHeaderRenders = headerRenders;
             const firstLists = listsHook.getCurrent();
+            const profileReads = vi.spyOn(MMKV.prototype, 'getString');
+            try {
+                await act(async () => storage.setState(state => ({ localSettings: {
+                    ...state.localSettings,
+                    sessionListShowMachineIdentity: !state.localSettings.sessionListShowMachineIdentity,
+                } })));
+                expect(profileReads.mock.calls.filter(([key]) => key === 'server-state-v1')).toEqual([]);
+            } finally {
+                profileReads.mockRestore();
+            }
             const first = buildSessionListReachabilityModels(input);
             expect(first.reachableSessionDisplayByKey.get('home-b:shared-session')).toMatchObject({ machineId: 'b-successor', machineLabel: 'B machine', workspaceSubtitle: 'repo' });
             const header = projectSessionListMachineView(items, machinesById).find(item => item.type === 'header' && item.headerKind === 'machine');

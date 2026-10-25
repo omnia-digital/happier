@@ -13,7 +13,7 @@ import type { Machine } from '@/sync/domains/state/storageTypes';
 import type { MachineDisplayRenderable } from '@/sync/domains/machines/machineDisplayRenderable';
 import { resolveMachineDisplayScope } from '@/sync/domains/machines/machineDisplayRenderable';
 import type { MachineCollection } from '@/sync/domains/machines/identity/machineCollection';
-import { getActiveServerId } from '@/sync/domains/server/serverProfiles';
+import type { MachineDisplayPreferenceScope } from '@/sync/domains/machines/machineDisplayIconPreference';
 import { resolveSessionWorkspacePresentation, type WorkspacePathDisplayModeV1 } from '@/sync/domains/session/listing/sessionWorkspacePresentation';
 import { resolveSessionMachineId } from '@/sync/domains/session/directSessions/resolveSessionMachineId';
 import { normalizeKnownProjectMachineId } from '@/sync/runtime/orchestration/projectKeyIdentity';
@@ -56,6 +56,8 @@ export function resolveSessionWorkspacePresentationFromState(input: Readonly<{
   sessionId?: string | null;
   metadata?: SessionTargetMetadataLike;
   serverId?: string | null;
+  activeServerId?: string | null;
+  resolvedMachineScope?: MachineDisplayPreferenceScope;
   machines?: Readonly<Record<string, MachineDisplayRenderable>>;
   machineListByServerId?: SessionWorkspacePresentationState['machineListByServerId'];
   workspaceLabelsV1?: unknown;
@@ -63,7 +65,8 @@ export function resolveSessionWorkspacePresentationFromState(input: Readonly<{
 }>) {
   const scope = resolveMachineDisplayScope({
     serverId: input.serverId,
-    activeServerId: input.state.profileScope?.serverId ?? getActiveServerId(),
+    activeServerId: input.activeServerId ?? input.state.profileScope?.serverId,
+    resolvedScope: input.resolvedMachineScope,
     machines: input.machines ?? input.state.machineDisplayById ?? input.state.machines ?? {},
     machineListByServerId: input.machineListByServerId ?? input.state.machineListByServerId,
   });

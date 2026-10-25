@@ -26,7 +26,7 @@ import {
 import { isAutomationLinkedToSession } from '../domains/automations/automationSessionLink';
 import type { LocalSettings } from '../domains/settings/localSettings';
 import { readMachineDisplayColor, readMachineDisplayIcon, resolveMachineDisplayPreferenceScope, type MachineDisplayPreferenceScope } from '../domains/machines/machineDisplayIconPreference';
-import { areServerProfileIdentifiersEquivalent, getActiveServerId, subscribeServerProfiles } from '../domains/server/serverProfiles';
+import { getActiveServerId, subscribeServerProfiles } from '../domains/server/serverProfiles';
 import type { AgentTextMessage, Message } from '../domains/messages/messageTypes';
 import type { Settings } from '../domains/settings/settings';
 import { settingsDefaults } from '../domains/settings/settings';
@@ -1330,17 +1330,16 @@ export function useMachineDisplayById(): Record<string, MachineDisplayRenderable
 }
 
 /** Stable display-only projection of the existing authenticated Home snapshots. */
-export function useSessionMachineDisplayLists(serverIds?: readonly string[]): Readonly<Record<string, readonly MachineDisplayRenderable[] | null>> {
-  const serverIdsKey = serverIds ? JSON.stringify([...new Set(serverIds)].sort()) : null;
+export function useSessionMachineDisplayLists(scopes?: Readonly<Record<string, MachineDisplayPreferenceScope>>): Readonly<Record<string, readonly MachineDisplayRenderable[] | null>> {
   const selector = React.useMemo(() => {
-    const selectedServerIds: string[] | null = serverIdsKey ? JSON.parse(serverIdsKey) : null;
+    const selectedServerIds = scopes ? new Set(Object.values(scopes).flatMap(scope => [scope.serverId, ...scope.legacyServerIds])) : null;
     let source: StorageState['machineListByServerId'] | undefined;
     let result: Readonly<Record<string, readonly MachineDisplayRenderable[] | null>> = {};
     return (state: StorageState) => {
       if (source === state.machineListByServerId) return result;
       const next: Record<string, readonly MachineDisplayRenderable[] | null> = {};
       for (const [serverId, machines] of Object.entries(state.machineListByServerId ?? {})) {
-        if (selectedServerIds && !selectedServerIds.some(id => areServerProfileIdentifiersEquivalent(id, serverId))) continue;
+        if (selectedServerIds && !selectedServerIds.has(serverId)) continue;
         const previous = result[serverId];
         const unchanged = previous === machines || (Array.isArray(previous) && Array.isArray(machines)
           && previous.length === machines.length && machines.every((machine, index) => {
@@ -1357,7 +1356,7 @@ export function useSessionMachineDisplayLists(serverIds?: readonly string[]): Re
         || Object.keys(next).some(key => next[key] !== result[key])) result = next;
       return result;
     };
-  }, [serverIdsKey]);
+  }, [scopes]);
   return getStorage()(selector);
 }
 
@@ -2035,13 +2034,21 @@ export function useLocalSetting<K extends keyof LocalSettings>(name: K): LocalSe
 // Unscoped single-Home rows follow the active Home; cached rows can retain a
 // profile identifier from before identity discovery. Resolve both through the
 // server-profile owner and subscribe to the scalar identity, not its whole map.
-function useMachineDisplayScope(serverId?: string | null): MachineDisplayPreferenceScope {
+export function useMachineDisplayScopes(serverIds: readonly string[]): Readonly<Record<string, MachineDisplayPreferenceScope>> {
+  const serverIdsKey = JSON.stringify([...new Set(serverIds)].sort());
   const getScope = React.useCallback(
-    () => JSON.stringify(resolveMachineDisplayPreferenceScope(serverId?.trim() || getActiveServerId())),
-    [serverId],
+    () => JSON.stringify(Object.fromEntries((JSON.parse(serverIdsKey) as string[]).map(serverId => [
+      serverId, resolveMachineDisplayPreferenceScope(serverId.trim() || getActiveServerId()),
+    ]))),
+    [serverIdsKey],
   );
   const serializedScope = React.useSyncExternalStore(subscribeServerProfiles, getScope, getScope);
-  return React.useMemo(() => JSON.parse(serializedScope) as MachineDisplayPreferenceScope, [serializedScope]);
+  return React.useMemo(() => JSON.parse(serializedScope) as Readonly<Record<string, MachineDisplayPreferenceScope>>, [serializedScope]);
+}
+
+function useMachineDisplayScope(serverId?: string | null): MachineDisplayPreferenceScope {
+  const key = serverId?.trim() || '';
+  return useMachineDisplayScopes([key])[key];
 }
 
 export function useMachineDisplayIcon(serverId?: string | null, machineId?: string | null) {

@@ -233,7 +233,7 @@ test.describe('ui e2e: New Session targets a foreign Home', () => {
     });
     expect(machineBName).not.toBe('');
     expect(machineBName).not.toBe(machineBId);
-    await expect(machineBOption.getByText(machineBName, { exact: true })).toBeVisible();
+    await expect(machineBOption.getByText(machineBName, { exact: true }).first()).toBeVisible();
     await machineBOption.click();
     await expect.poll(() => new URL(page.url()).searchParams.get('spawnServerId')).not.toBe(serverAId);
     const selectedServerBId = new URL(page.url()).searchParams.get('spawnServerId');
