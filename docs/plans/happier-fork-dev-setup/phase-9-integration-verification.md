@@ -29,9 +29,15 @@ No nightly workflow or release was dispatched.
 
 Merged-source evidence: 105/105 focused UI owners, all 11 root typecheck entries
 (39.67s), and 12/12 unsigned workflow/source contracts pass. Full UI package
-qualification is in progress; the retained real watcher test is blocked at an
-inconclusive macOS event-delivery boundary. Remaining root packages and the merged
-status-organization browser recipe are pending. Native QA is explicitly deferred;
+qualification also passes: exit 0 in 4112.57s, all 32 unit shards, 3,762 files,
+25,905 passed tests and 3 skipped; prompt 1/1 and host contracts 54/54 pass.
+Root independently verifies the terminal log and sums the shard summaries in
+`.project/logs/tests/oh10-merged-ui-package-full.log`. Source stayed unchanged;
+subsequent checkpoints only change documentation. The retained real watcher test
+is blocked at an inconclusive macOS event-delivery boundary. Remaining root
+packages and the merged status-organization browser recipe are pending capacity
+recovery: only 453 MiB remained at the UI terminal result, and the earlier CLI
+run already encountered ENOSPC. No cleanup is approved. Native QA is deferred;
 installed-host metrics support, actual vendor authentication, Windows/Linux and
 0.3 destination verification retain their existing acceptance gaps. This source
 work is not an installed-app or release qualification.
