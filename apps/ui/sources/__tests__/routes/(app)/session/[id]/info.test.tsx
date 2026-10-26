@@ -4,7 +4,7 @@ import { act } from 'react-test-renderer';
 
 import { flushHookEffects, renderScreen, standardCleanup } from '@/dev/testkit';
 import { createExpoRouterMock } from '@/dev/testkit/mocks/router';
-import { createStorageModuleStub, createStorageStoreProxy } from '@/dev/testkit/mocks/storage';
+import { createStorageModuleMock, createStorageModuleStub, createStorageStoreProxy } from '@/dev/testkit/mocks/storage';
 import { setActiveServerId, upsertServerProfile } from '@/sync/domains/server/serverProfiles';
 import type { LocalSettings } from '@/sync/domains/settings/localSettings';
 import { settingsDefaults } from '@/sync/domains/settings/settings';
@@ -166,12 +166,14 @@ installSessionRouteCommonModuleMocks({
             },
         }).module;
     },
-    storageModule: async () => {
+    storageModule: async (importOriginal) => {
         const store = createStorageStoreProxy(() => {
             if (!realStorageRef.current) throw new Error('Real storage must be initialized before rendering');
             return realStorageRef.current;
         });
-        return createStorageModuleStub({
+        return createStorageModuleMock({
+            importOriginal,
+            overrides: createStorageModuleStub({
                 storage: store,
                 getStorage: () => store,
                 useSession: (sessionId: string) => useSessionSpy(sessionId),
@@ -210,6 +212,7 @@ installSessionRouteCommonModuleMocks({
                     }
                     return [null, vi.fn()];
                 },
+            }),
         });
     },
 });
@@ -1843,8 +1846,8 @@ describe('/session/[id]/info', () => {
             'sessionInfo.stopSessionConfirm',
             {
                 cancelText: 'common.cancel',
-                confirmText: 'sessionInfo.stopSession',
                 confirmOnEnter: false,
+                confirmText: 'sessionInfo.stopSession',
                 destructive: true,
             },
         );

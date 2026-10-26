@@ -20,44 +20,16 @@ SETUP_RELAY_SHORTCUT="0"
 DEBUG_MODE="${HAPPIER_INSTALLER_DEBUG:-0}"
 VERBOSE_MODE="${HAPPIER_INSTALLER_VERBOSE:-0}"
 PURGE_INSTALL_DIR="${HAPPIER_INSTALLER_PURGE:-0}"
-GITHUB_REPO="${HAPPIER_GITHUB_REPO:-omnia-digital/happier}"
-GITHUB_REPO_ID="$(printf '%s' "${GITHUB_REPO}" | tr '[:upper:]' '[:lower:]')"
+GITHUB_REPO="${HAPPIER_GITHUB_REPO:-happier-dev/happier}"
 GITHUB_TOKEN="${HAPPIER_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}"
 RELEASE_ASSETS_DIR="${HAPPIER_RELEASE_ASSETS_DIR:-}"
-decode_minisign_key_payload() {
-  if printf '%s' "$1" | base64 -d 2>/dev/null; then return 0; fi
-  printf '%s' "$1" | base64 -D 2>/dev/null
-}
-minisign_verifier_identity() {
-  local payload="$1" decoded_hex
-  [[ "${payload}" =~ ^[A-Za-z0-9+/]{56}$ ]] || return 1
-  decoded_hex="$(decode_minisign_key_payload "${payload}" | od -An -tx1 -v | tr -d '[:space:]')" || return 1
-  [[ "${#decoded_hex}" -eq 84 && "${decoded_hex:0:4}" == "4564" ]] || return 1
-  printf '%s' "${decoded_hex:20}"
-}
-UPSTREAM_ARCHIVE_KEY_IDENTITY="$(minisign_verifier_identity 'RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t')"
-UPSTREAM_TAURI_KEY_IDENTITY="$(minisign_verifier_identity 'RWTv8bDzGGLpq1HR3/oQAmnG9AXJGyhiGkm81fnFNtzAyYVPuMfVDVZy')"
 DEFAULT_MINISIGN_PUBKEY="$(cat <<'EOF'
 untrusted comment: minisign public key 91AE28177BF6E43C
 RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t
 EOF
 )"
-if [[ "${GITHUB_REPO_ID}" == "happier-dev/happier" ]]; then
-  MINISIGN_PUBKEY="${HAPPIER_MINISIGN_PUBKEY:-${DEFAULT_MINISIGN_PUBKEY}}"
-  MINISIGN_PUBKEY_URL="${HAPPIER_MINISIGN_PUBKEY_URL:-https://happier.dev/happier-release.pub}"
-else
-  MINISIGN_PUBKEY="${HAPPIER_MINISIGN_PUBKEY:-}"
-  MINISIGN_PUBKEY_URL="${HAPPIER_MINISIGN_PUBKEY_URL:-}"
-  # Minisign ignores the untrusted comment; compare the verifier payload.
-  configured_key_line="$(printf '%s\n' "${MINISIGN_PUBKEY}" | awk 'NF { key=$0 } END { gsub(/^[[:space:]]+|[[:space:]]+$/, "", key); print key }')"
-  if [[ -n "${configured_key_line}" ]]; then
-    configured_key_identity="$(minisign_verifier_identity "${configured_key_line}")" || { echo "Fork release has an invalid minisign public key." >&2; exit 1; }
-    if [[ "${configured_key_identity}" == "${UPSTREAM_ARCHIVE_KEY_IDENTITY}" || "${configured_key_identity}" == "${UPSTREAM_TAURI_KEY_IDENTITY}" ]]; then
-      echo "Fork release cannot use the upstream minisign public key." >&2
-      exit 1
-    fi
-  fi
-fi
+MINISIGN_PUBKEY="${HAPPIER_MINISIGN_PUBKEY:-${DEFAULT_MINISIGN_PUBKEY}}"
+MINISIGN_PUBKEY_URL="${HAPPIER_MINISIGN_PUBKEY_URL:-https://happier.dev/happier-release.pub}"
 MINISIGN_BIN="minisign"
 
 INSTALLER_COLOR_MODE="${HAPPIER_INSTALLER_COLOR:-auto}" # auto|always|never
@@ -1844,19 +1816,25 @@ action_version() {
 usage() {
   cat <<'EOF'
 Usage:
-  bash install.sh
+  curl -fsSL https://happier.dev/install | bash
 
 Preview channel:
-  bash install.sh --channel preview
+  curl -fsSL https://happier.dev/install | bash -s -- --channel preview
+  curl -fsSL https://happier.dev/install | HAPPIER_CHANNEL=preview bash
+  curl -fsSL https://happier.dev/install-preview | bash
 
 Dev channel:
-  bash install.sh --channel dev
+  curl -fsSL https://happier.dev/install | bash -s -- --channel dev
+  curl -fsSL https://happier.dev/install | HAPPIER_CHANNEL=dev bash
+  curl -fsSL https://happier.dev/install-dev | bash
 
 Relay setup (install CLI if needed, then host a relay locally):
-  bash install.sh --setup-relay
+  curl -fsSL https://happier.dev/install | bash -s -- --setup-relay
+  curl -fsSL https://happier.dev/install | bash -s -- --channel dev --setup-relay
 
 Unattended install (CI or scripted; never prompts, declines optional automatic startup):
-  bash install.sh --yes
+  curl -fsSL https://happier.dev/install | bash -s -- --yes
+  curl -fsSL https://happier.dev/install | HAPPIER_NONINTERACTIVE=1 bash
 
 Options:
   --channel <stable|preview|dev>
@@ -2433,23 +2411,13 @@ write_minisign_public_key() {
   local target_path="$1"
   if [[ -n "${MINISIGN_PUBKEY}" ]]; then
     printf '%s\n' "${MINISIGN_PUBKEY}" > "${target_path}"
-  else
-    if [[ -z "${MINISIGN_PUBKEY_URL}" ]]; then
-      echo "HAPPIER_MINISIGN_PUBKEY_URL is empty; cannot fetch minisign public key." >&2
-      exit 1
-    fi
-    curl -fsSL "${MINISIGN_PUBKEY_URL}" -o "${target_path}"
+    return
   fi
-  if [[ "${GITHUB_REPO_ID}" != "happier-dev/happier" ]]; then
-    local key_line
-    key_line="$(awk 'NF { key=$0 } END { gsub(/^[[:space:]]+|[[:space:]]+$/, "", key); print key }' "${target_path}")"
-    local key_identity
-    key_identity="$(minisign_verifier_identity "${key_line}")" || { echo "Fork release has an invalid minisign public key." >&2; return 1; }
-    if [[ "${key_identity}" == "${UPSTREAM_ARCHIVE_KEY_IDENTITY}" || "${key_identity}" == "${UPSTREAM_TAURI_KEY_IDENTITY}" ]]; then
-      echo "Fork release cannot use the upstream minisign public key." >&2
-      return 1
-    fi
+  if [[ -z "${MINISIGN_PUBKEY_URL}" ]]; then
+    echo "HAPPIER_MINISIGN_PUBKEY_URL is empty; cannot fetch minisign public key." >&2
+    exit 1
   fi
+  curl -fsSL "${MINISIGN_PUBKEY_URL}" -o "${target_path}"
 }
 
 verify_archive_checksum() {
@@ -2618,9 +2586,7 @@ OS="$(detect_os)"
 ARCH="$(detect_arch)"
 if [[ "${OS}" == "unsupported" || "${ARCH}" == "unsupported" ]]; then
   echo "Unsupported platform: $(uname -s)/$(uname -m)" >&2
-  if [[ "${GITHUB_REPO_ID}" != "happier-dev/happier" ]]; then
-    echo "No verified fork binary or published package is configured for this platform." >&2
-  elif [[ "${PRODUCT}" == "cli" ]]; then
+  if [[ "${PRODUCT}" == "cli" ]]; then
     echo "Fallback: npm install -g @happier-dev/cli" >&2
   elif [[ "${PRODUCT}" == "stack" ]]; then
     echo "Fallback: npx --yes -p @happier-dev/stack@latest hstack --help" >&2
@@ -2667,11 +2633,6 @@ TAG="$(resolve_release_tag "${PRODUCT}" "${CHANNEL}" "${INSTALL_VERSION}")" || {
   echo "Unsupported product/channel combination: ${PRODUCT}/${CHANNEL}" >&2
   exit 1
 }
-
-if [[ "${GITHUB_REPO_ID}" != "happier-dev/happier" && -z "${MINISIGN_PUBKEY}" && -z "${MINISIGN_PUBKEY_URL}" ]]; then
-  echo "Fork release is unconfigured: set HAPPIER_MINISIGN_PUBKEY to the fork public key before installing." >&2
-  exit 1
-fi
 
 print_installer_welcome
 installer_phase "Download"

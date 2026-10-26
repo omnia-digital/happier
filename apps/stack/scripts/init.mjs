@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { ensureCanonicalHomeEnvUpdated, ensureHomeEnvUpdated } from './utils/env/config.mjs';
 import { loadEnvFile } from './utils/env/load_env_file.mjs';
 import { expandHome } from './utils/paths/canonical_home.mjs';
+import { readJsonIfExists } from './utils/fs/json.mjs';
 import { isSandboxed, sandboxAllowsGlobalSideEffects } from './utils/env/sandbox.mjs';
 import { banner, bullets, cmd, kv, sectionTitle } from './utils/ui/layout.mjs';
 import { cyan, dim, green, yellow } from './utils/ui/ansi.mjs';
@@ -14,12 +15,6 @@ import { resolveCommandInvocation } from './utils/process/resolveCommandInvocati
 
 function getCliRootDir() {
   return dirname(dirname(fileURLToPath(import.meta.url)));
-}
-
-export function resolveStackRuntimeInstallSource({ cliRootDir }) {
-  // This source checkout is the authority for its own runtime. A same-version
-  // upstream npm package is not interchangeable with the fork package.
-  return cliRootDir;
 }
 
 function parseArgValue(argv, key) {
@@ -285,21 +280,49 @@ async function main() {
   const skipRuntime = argv.includes('--no-runtime') || (initNoRuntime && !forceRuntime);
   const installRuntime = !skipRuntime;
   if (installRuntime) {
-    const spec = resolveStackRuntimeInstallSource({ cliRootDir });
-    console.log(`${yellow('!')} installing runtime into ${cyan(runtimeDir)} ${dim('(')}${cyan(spec)}${dim(')')}...`);
-    const installInvocation = resolveCommandInvocation({
-      command: 'npm',
-      args: ['install', '--no-audit', '--no-fund', '--silent', '--prefix', runtimeDir, spec],
-      env: process.env,
-    });
-    const res = spawnSync(installInvocation.command, installInvocation.args, {
-      stdio: 'inherit',
-      ...(process.platform === 'win32'
-        ? { windowsHide: true, windowsVerbatimArguments: installInvocation.windowsVerbatimArguments }
-        : null),
-    });
-    if (res.status !== 0) {
-      process.exit(res.status ?? 1);
+    const cliPkg = await readJsonIfExists(join(cliRootDir, 'package.json'));
+    const cliVersion = String(cliPkg?.version ?? '').trim() || 'latest';
+    const spec = cliVersion === '0.0.0' ? '@happier-dev/stack@latest' : `@happier-dev/stack@${cliVersion}`;
+
+    const runtimePkgPath = join(runtimeDir, 'node_modules', '@happier-dev', 'stack', 'package.json');
+    const runtimePkg = await readJsonIfExists(runtimePkgPath);
+    const runtimeVersion = String(runtimePkg?.version ?? '').trim();
+    const sameVersionInstalled = Boolean(cliVersion && cliVersion !== '0.0.0' && runtimeVersion && runtimeVersion === cliVersion);
+
+    if (!forceRuntime && sameVersionInstalled) {
+      console.log(`${green('✓')} runtime already installed ${dim('(')}${cyan(runtimeDir)}${dim(')')} ${dim('@happier-dev/stack@')}${cyan(runtimeVersion)}`);
+    } else {
+      console.log(`${yellow('!')} installing runtime into ${cyan(runtimeDir)} ${dim('(')}${cyan(spec)}${dim(')')}...`);
+      const installInvocation = resolveCommandInvocation({
+        command: 'npm',
+        args: ['install', '--no-audit', '--no-fund', '--silent', '--prefix', runtimeDir, spec],
+        env: process.env,
+      });
+      let res = spawnSync(installInvocation.command, installInvocation.args, {
+        stdio: 'inherit',
+        ...(process.platform === 'win32'
+          ? { windowsHide: true, windowsVerbatimArguments: installInvocation.windowsVerbatimArguments }
+          : null),
+      });
+      if (res.status !== 0) {
+        // Pre-publish developer experience: if the package isn't on npm yet (E404),
+        // fall back to installing the local checkout into the runtime prefix.
+        console.log(`${yellow('!')} runtime install failed; attempting local install from ${cyan(cliRootDir)}...`);
+        const localInstallInvocation = resolveCommandInvocation({
+          command: 'npm',
+          args: ['install', '--no-audit', '--no-fund', '--silent', '--prefix', runtimeDir, cliRootDir],
+          env: process.env,
+        });
+        res = spawnSync(localInstallInvocation.command, localInstallInvocation.args, {
+          stdio: 'inherit',
+          ...(process.platform === 'win32'
+            ? { windowsHide: true, windowsVerbatimArguments: localInstallInvocation.windowsVerbatimArguments }
+            : null),
+        });
+        if (res.status !== 0) {
+          process.exit(res.status ?? 1);
+        }
+      }
     }
   }
 
@@ -472,9 +495,7 @@ async function main() {
   console.log(bullets([cmd(`export PATH="${join(homeDir, 'bin')}:$PATH"`), cmd('hstack setup-from-source')]));
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  main().catch((err) => {
-    console.error('[init] failed:', err);
-    process.exit(1);
-  });
-}
+main().catch((err) => {
+  console.error('[init] failed:', err);
+  process.exit(1);
+});

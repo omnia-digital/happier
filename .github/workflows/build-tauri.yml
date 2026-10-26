@@ -67,6 +67,11 @@ on:
         type: string
   workflow_call:
     inputs:
+      cassian_build:
+        description: "Omnia nightly only — Build the unsigned Apple Silicon candidate on Cassian"
+        required: false
+        default: false
+        type: boolean
       preparation_only:
         description: "Build unsigned same-run candidates without finalizing or publishing"
         required: false
@@ -164,6 +169,31 @@ jobs:
             *) echo "Untrusted workflow control ref: $WORKFLOW_REF" >&2; exit 1 ;;
           esac
 
+      - name: Admit Cassian nightly build
+        id: admit_cassian
+        env:
+          CASSIAN_BUILD: ${{ inputs.cassian_build }}
+          CALLER_WORKFLOW_REF: ${{ github.workflow_ref }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+          PREPARATION_ONLY: ${{ inputs.preparation_only }}
+        run: |
+          set -euo pipefail
+          if [ "$CASSIAN_BUILD" != true ]; then
+            exit 0
+          fi
+          # A persistent personal Mac may execute only the exact dev source
+          # admitted by the fork nightly's CI gate, never a PR or arbitrary SHA.
+          test "$GITHUB_REPOSITORY" = omnia-digital/happier
+          test "$GITHUB_REF" = refs/heads/dev
+          test "$CALLER_WORKFLOW_REF" = omnia-digital/happier/.github/workflows/omnia-production.yml@refs/heads/dev
+          test "$PREPARATION_ONLY" = true
+          [[ "$SOURCE_REF" =~ ^[0-9a-f]{40}$ ]]
+          test "$SOURCE_REF" = "$GITHUB_SHA"
+          case "$GITHUB_EVENT_NAME" in
+            schedule|workflow_dispatch) ;;
+            *) echo "Cassian accepts only trusted nightly runs." >&2; exit 1 ;;
+          esac
+
   release_actor_guard:
     needs: [trusted_ref_guard]
     name: Release actor guard
@@ -183,6 +213,9 @@ jobs:
         uses: ./.github/actions/release-actor-guard
         with:
           team_slug: release-admins
+          # Cassian admission above binds this exception to the fork's exact,
+          # certified dev source and unsigned nightly preparation.
+          trusted_actors: ${{ inputs.cassian_build && 'github-actions[bot],github-actions,andorcassian' || 'github-actions[bot],github-actions' }}
           app_id: ${{ secrets.RELEASE_BOT_APP_ID }}
           private_key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
 
@@ -374,7 +407,7 @@ jobs:
   build:
     name: Build desktop candidate (${{ matrix.platform_key }})
     if: ${{ !cancelled() && !inputs.use_prepared && needs.resolve_source.result == 'success' && needs.resolve_source.outputs.retry_version == '' && needs.resolve_source.outputs.build_needed == 'true' }}
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ inputs.cassian_build && matrix.platform_key == 'darwin-aarch64' && fromJSON('["self-hosted", "macOS", "ARM64", "cassian-happier-nightly"]') || matrix.os }}
     timeout-minutes: 180
     needs: [resolve_source]
     permissions:
@@ -399,10 +432,23 @@ jobs:
           persist-credentials: false
 
       - name: Setup Xcode (pin) (macOS only)
-        if: runner.os == 'macOS'
+        if: runner.os == 'macOS' && !(inputs.cassian_build && matrix.platform_key == 'darwin-aarch64')
         uses: ./.github/actions/setup-xcode
         with:
           xcode_version: "26.2"
+
+      - name: Select Cassian Xcode for this job
+        id: cassian_xcode
+        if: inputs.cassian_build && matrix.platform_key == 'darwin-aarch64'
+        env:
+          DEVELOPER_DIR: /Applications/Xcode.app/Contents/Developer
+        run: |
+          set -euo pipefail
+          version="$(xcodebuild -version)"
+          printf '%s\n' "$version"
+          test "${version%%$'\n'*}" = 'Xcode 26.5'
+          # Do not change xcode-select for Cassian's other CI services.
+          echo "DEVELOPER_DIR=$DEVELOPER_DIR" >> "$GITHUB_ENV"
 
       - name: Enforce trusted refs for manual dispatch
         run: |

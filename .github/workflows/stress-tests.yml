@@ -26,7 +26,7 @@ concurrency:
 
 jobs:
   stress-scheduled:
-    if: ${{ github.event_name == 'schedule' }}
+    if: ${{ github.event_name == 'schedule' && github.repository == 'happier-dev/happier' }}
     permissions:
       contents: read
       pull-requests: read

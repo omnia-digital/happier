@@ -54,7 +54,7 @@ import {
   relocateServerRuntimeArtifactClosure,
 } from '@happier-dev/cli-common/firstPartyRuntime/serverRuntimeArtifactLayout';
 import { commandExistsOnPath } from '@happier-dev/cli-common/process';
-import * as releaseMinisign from '@happier-dev/release-runtime/minisign';
+import { DEFAULT_MINISIGN_PUBLIC_KEY } from '@happier-dev/release-runtime/minisign';
 import {
   PUBLIC_RELEASE_RING_IDS,
   getReleaseRingCatalogEntry,
@@ -70,7 +70,7 @@ import { listVersionedDirectoryIdsNewestFirst, pruneVersionedDirectories } from 
 
 const SUPPORTED_CHANNELS = new Set(PUBLIC_RELEASE_RING_IDS);
 const DEFAULTS = Object.freeze({
-  githubRepo: releaseMinisign.FIRST_PARTY_RELEASE_REPOSITORY ?? 'omnia-digital/happier',
+  githubRepo: 'happier-dev/happier',
   installRoot: '/opt/happier',
   binDir: '/usr/local/bin',
   configDir: '/etc/happier',
@@ -1166,13 +1166,8 @@ async function checkHealth({ port }) {
 }
 
 export function resolveMinisignPublicKeyText(env = process.env) {
-  if (!releaseMinisign.resolveFirstPartyReleasePublicKey) {
-    throw new Error('Fork release verification requires the current bundled release-runtime; rebuild the stack package before downloading.');
-  }
-  return releaseMinisign.resolveFirstPartyReleasePublicKey({
-    githubRepo: String(env?.HAPPIER_GITHUB_REPO ?? DEFAULTS.githubRepo).trim() || DEFAULTS.githubRepo,
-    configuredPublicKey: env?.HAPPIER_MINISIGN_PUBKEY,
-  });
+  const inline = String(env?.HAPPIER_MINISIGN_PUBKEY ?? '').trim();
+  return inline || DEFAULT_MINISIGN_PUBLIC_KEY;
 }
 
 export async function installBinaryAtomically({ sourceBinaryPath, targetBinaryPath, previousBinaryPath, versionedTargetPath }) {

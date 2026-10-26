@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const boundary = vi.hoisted(() => ({
   home: '',
+  publicKey: '',
   release: { assets: [] as Array<{ name: string; browser_download_url: string }> },
   requests: [] as string[],
   offline: false,
@@ -39,6 +40,10 @@ vi.mock('@happier-dev/release-runtime/http', async (importOriginal) => {
     },
   };
 });
+vi.mock('@happier-dev/release-runtime/minisign', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@happier-dev/release-runtime/minisign')>(),
+  get DEFAULT_MINISIGN_PUBLIC_KEY() { return boundary.publicKey; },
+}));
 vi.mock('node:fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:fs')>();
   return {
@@ -99,7 +104,7 @@ async function prepareSignedMemoryRelease(kind: 'memory' | 'difftastic' = 'memor
   const keys = generateKeyPairSync('ed25519');
   const keyId = Buffer.from('0123456789abcdef', 'hex');
   const publicBytes = Buffer.from(keys.publicKey.export({ format: 'jwk' }).x!, 'base64url');
-  vi.stubEnv('HAPPIER_MINISIGN_PUBKEY', `untrusted comment: test key\n${Buffer.concat([Buffer.from('Ed'), keyId, publicBytes]).toString('base64')}\n`);
+  boundary.publicKey = `untrusted comment: test key\n${Buffer.concat([Buffer.from('Ed'), keyId, publicBytes]).toString('base64')}\n`;
   const signature = sign(null, Buffer.from(checksums), keys.privateKey);
   const suffix = Buffer.from('test');
   const signedFile = [

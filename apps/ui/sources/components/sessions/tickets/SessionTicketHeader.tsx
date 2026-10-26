@@ -59,7 +59,18 @@ export function SessionTicketHeader({ sessionId, metadata, accessLevel, serverId
     const edit = () => {
         const scope = getActiveServerAccountScope();
         if (!scope || scope.serverId !== serverId) return;
-        Modal.show({ component: SessionTicketLinkEditor, props: { sessionId, scope, association, initialDirectory: metadata?.path ?? '', initialMachineId: metadata?.machineId ?? '' } });
+        Modal.show({
+            component: SessionTicketLinkEditor,
+            props: { sessionId, scope, association, initialDirectory: metadata?.path ?? '', initialMachineId: metadata?.machineId ?? '' },
+            chrome: {
+                kind: 'card',
+                title: t(association ? 'sessionTickets.change' : 'sessionTickets.link'),
+                testID: 'session-ticket-link-modal',
+                layout: 'fill',
+                bodyScroll: 'none',
+                dimensions: { size: 'md' },
+            },
+        });
     };
     if (association) return <LinkedTicketHeader association={association} serverId={serverId} onEdit={canEdit ? edit : undefined} />;
     return canEdit ? <Pressable testID="session-ticket-link" accessibilityRole="button" accessibilityLabel={t('sessionTickets.link')} onPress={edit} style={styles.ticketLink}><Icon name="link" size={14} /><Text style={styles.title}>{t('sessionTickets.link')}</Text></Pressable> : null;

@@ -61,7 +61,7 @@ describe('readCliUpdateFacts (K5)', () => {
     })).toMatchObject({ installSource: 'managed', canUpdateRemotely: false, updateCommand: 'happier self update' });
   });
 
-  it('does not direct an npm-installed fork CLI to the upstream package without an explicit update source', () => {
+  it('names the package manager\'s command for an npm install and never offers a remote update', () => {
     const packageRoot = join(homeDir, 'global', 'node_modules', '@happier-dev', 'cli');
     mkdirSync(join(packageRoot, 'bin'), { recursive: true });
     writeFileSync(join(packageRoot, 'package.json'), JSON.stringify({ name: '@happier-dev/cli' }));
@@ -77,16 +77,11 @@ describe('readCliUpdateFacts (K5)', () => {
       npmPackageName: '@happier-dev/cli',
     })).toMatchObject({
       installSource: 'npm',
-      updateCommand: null,
+      updateCommand: 'npm install -g @happier-dev/cli@latest',
       canUpdateRemotely: false,
       lastUpdate: null,
       latestVersion: null,
     });
-    expect(readCliUpdateFacts({
-      homeDir, publicReleaseRing: 'stable', currentVersion: '0.2.12',
-      execPath: '/usr/bin/node', invokedPath: join(packageRoot, 'bin', 'happier.mjs'),
-      platform: 'linux', npmPackageName: '@happier-dev/cli', npmUpdatePackageName: '@omnia/happier-cli',
-    })).toMatchObject({ installSource: 'npm', updateCommand: 'npm install -g @omnia/happier-cli@latest' });
   });
 
   it.skipIf(process.platform === 'win32')('never names Homebrew for a CLI that only runs on a Homebrew Node', () => {
@@ -110,7 +105,7 @@ describe('readCliUpdateFacts (K5)', () => {
     });
     expect(read(join(packageRoot, 'bin', 'happier.mjs'))).toMatchObject({
       installSource: 'npm',
-      updateCommand: null,
+      updateCommand: 'npm install -g @happier-dev/cli@latest',
     });
     expect(read(checkout)).toMatchObject({ installSource: 'other', updateCommand: null });
   });

@@ -6,8 +6,7 @@ import { commandExists } from './utils/proc/commands.mjs';
 import { getComponentDir, getComponentRepoDir, getRootDir, isHappyMonorepoRoot } from './utils/paths/paths.mjs';
 import { getServerComponentName } from './utils/server/server.mjs';
 import { ensureCliBuilt, ensureDepsInstalled, ensureHappyCliLocalNpmLinked } from './utils/proc/pm.mjs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { mkdir } from 'node:fs/promises';
 import { installService, uninstallService } from './service.mjs';
 import { printResult, wantsHelp, wantsJson } from './utils/cli/cli.mjs';
@@ -34,10 +33,9 @@ import { createStepPrinter } from '@happier-dev/cli-common/output';
 // - clone the canonical repo as `upstream`
 // - use their fork as `origin`
 const DEFAULT_MONOREPO_REPO_URL = 'https://github.com/happier-dev/happier.git';
-const DEFAULT_FORK_MONOREPO_REPO_URL = 'https://github.com/omnia-digital/happier.git';
 
 const DEFAULT_FORK_REPOS = {
-  monorepo: DEFAULT_FORK_MONOREPO_REPO_URL,
+  monorepo: DEFAULT_MONOREPO_REPO_URL,
 };
 
 const DEFAULT_UPSTREAM_REPOS = {
@@ -57,27 +55,28 @@ function repoUrlsFromOwners({ forkOwner, upstreamOwner }) {
   };
 }
 
-export function resolveRepoSource({ flags, env = process.env }) {
+function resolveRepoSource({ flags }) {
   if (flags.has('--forks')) {
     return 'forks';
   }
   if (flags.has('--upstream')) {
     return 'upstream';
   }
-  const fromEnv = (env.HAPPIER_STACK_REPO_SOURCE ?? '').trim().toLowerCase();
+  const fromEnv = (process.env.HAPPIER_STACK_REPO_SOURCE ?? '').trim().toLowerCase();
   if (fromEnv === 'fork' || fromEnv === 'forks') {
     return 'forks';
   }
   if (fromEnv === 'upstream') {
     return 'upstream';
   }
-  return 'forks';
+  // Default for external contributors.
+  return 'upstream';
 }
 
-export function getRepoUrls({ repoSource, env = process.env }) {
+function getRepoUrls({ repoSource }) {
   const defaults = repoSource === 'upstream' ? DEFAULT_UPSTREAM_REPOS : DEFAULT_FORK_REPOS;
   const monorepo =
-    env.HAPPIER_STACK_REPO_URL?.trim() ||
+    process.env.HAPPIER_STACK_REPO_URL?.trim() ||
     defaults.monorepo;
 
   return { monorepo };
@@ -177,21 +176,21 @@ async function ensureUpstreamRemote({ repoDir, upstreamUrl }) {
 async function interactiveWizard({ rootDir, defaults }) {
   return await withRl(async (rl) => {
     // Repo source is intentionally not prompted during bootstrap:
-    // - default: this fork
-    // - explicit --upstream selects the source project
+    // - default: upstream (best for external contributors)
+    // - advanced: pass --forks (then we prompt for fork owner)
     const repoSource = defaults.repoSource;
 
     // eslint-disable-next-line no-console
     console.log(
       dim(
         `Repo source: ${cyan(repoSource)}${
-          repoSource === 'forks' ? ` ${green('(recommended)')}` : ''
-        }`
+          repoSource === 'upstream' ? ` ${green('(recommended)')}` : ''
+        }${repoSource === 'forks' ? ` ${dim('(advanced)')}` : ''}`
       )
     );
     if (repoSource === 'upstream') {
       // eslint-disable-next-line no-console
-      console.log(dim(`Using the original Happier source. To use this fork, re-run: ${cyan('hstack bootstrap --interactive --forks')}`));
+      console.log(dim(`Tip: to use forks, re-run: ${cyan('hstack bootstrap --interactive --forks')}`));
     }
 
     let forkOwner = defaults.forkOwner;
@@ -361,7 +360,7 @@ async function main() {
   const defaultRepoSource = resolveRepoSource({ flags });
   const defaults = {
     repoSource: defaultRepoSource,
-    forkOwner: process.env.HAPPIER_STACK_FORK_OWNER || 'omnia-digital',
+    forkOwner: process.env.GITHUB_USER || process.env.USER || 'your-github-username',
     upstreamOwner: 'happier-dev',
     serverComponentName: getServerComponentName({ kv }),
     allowClone: !flags.has('--no-clone') && ((process.env.HAPPIER_STACK_CLONE_MISSING ?? '1') !== '0' || flags.has('--clone')),
@@ -545,9 +544,7 @@ async function main() {
   });
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  main().catch((err) => {
-    console.error('[local] install failed:', err);
-    process.exit(1);
-  });
-}
+main().catch((err) => {
+  console.error('[local] install failed:', err);
+  process.exit(1);
+});

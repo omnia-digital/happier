@@ -4,7 +4,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { writeConfiguredForkTauriFiles } from './testkit/forkReleaseConfig.mjs';
 
 test('the candidate builder compiles hsetup for the requested bundle target before invoking Tauri', { skip: process.platform === 'win32' }, (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tauri-sidecar-target-'));
@@ -12,7 +11,6 @@ test('the candidate builder compiles hsetup for the requested bundle target befo
   const uiDir = path.join(root, 'ui');
   const binDir = path.join(root, 'bin');
   fs.mkdirSync(uiDir);
-  writeConfiguredForkTauriFiles(uiDir);
   fs.mkdirSync(binDir);
   const capture = path.join(root, 'target.json');
   // Yarn and rustup are external process boundaries. Run the real pipeline and

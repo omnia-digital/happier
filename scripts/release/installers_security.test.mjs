@@ -13,52 +13,6 @@ const installShPath = join(sourceRoot, 'install.sh');
 const installPs1Path = join(sourceRoot, 'install.ps1');
 const publicKeyPath = join(sourceRoot, 'happier-release.pub');
 
-test('standalone installers refuse unconfigured fork trust and comment-edited upstream trust before download', async (t) => {
-  const home = await mkdtemp(join(tmpdir(), 'fork-installer-trust-'));
-  t.after(() => rm(home, { recursive: true, force: true }));
-  const upstreamKey = (await readFile(publicKeyPath, 'utf8')).trim();
-  const upstreamPayload = upstreamKey.split('\n').at(-1);
-  const alteredKeyIdBytes = Buffer.from(upstreamPayload, 'base64');
-  alteredKeyIdBytes[2] ^= 1;
-  const tauriConfig = JSON.parse(await readFile(join(repoRoot, 'apps/ui/src-tauri/tauri.conf.json'), 'utf8'));
-  const upstreamTauriKey = Buffer.from(tauriConfig.plugins.updater.pubkey, 'base64').toString('utf8').trim();
-  for (const [label, key, repo] of [
-    ['missing', '', ''],
-    ['edited comment', upstreamKey.replace('minisign public key ', 'minisign public key fork '), ''],
-    ['payload whitespace', upstreamKey.replace(upstreamPayload, `${upstreamPayload.slice(0, 10)} ${upstreamPayload.slice(10)}`), ''],
-    ['altered key id', upstreamKey.replace(upstreamPayload, alteredKeyIdBytes.toString('base64')), ''],
-    ['case-variant fork', upstreamKey.replace('minisign public key ', 'minisign public key fork '), 'Omnia-Digital/Happier'],
-    ['upstream Tauri verifier', upstreamTauriKey.replace('minisign public key: ', 'minisign public key: fork '), ''],
-  ]) {
-    const env = { ...process.env, USERPROFILE: home, HOME: home, HAPPIER_INSTALL_DIR: join(home, 'install'),
-      HAPPIER_GITHUB_REPO: repo, HAPPIER_MINISIGN_PUBKEY: key, HAPPIER_MINISIGN_PUBKEY_URL: '', HAPPIER_RELEASE_ASSETS_DIR: '' };
-    for (const [command, args] of [['bash', [installShPath, '--yes']], ['pwsh', ['-NoProfile', '-File', installPs1Path, '-Yes']]]) {
-      const result = spawnSync(command, args, { env, encoding: 'utf8' });
-      if (result.error?.code === 'ENOENT' && command === 'pwsh') continue;
-      assert.ifError(result.error);
-      assert.notEqual(result.status, 0, `${command}: ${label}`);
-      assert.match(result.stderr + result.stdout, /fork release (?:is unconfigured|cannot use the upstream minisign public key|has an invalid minisign public key)/i);
-      assert.doesNotMatch(result.stderr + result.stdout, /Fetching .*release metadata/i);
-    }
-  }
-});
-
-test('server installer wrappers enter the local fork installer without fetching an upstream script', async (t) => {
-  const home = await mkdtemp(join(tmpdir(), 'fork-server-wrapper-'));
-  t.after(() => rm(home, { recursive: true, force: true }));
-  for (const wrapper of ['install-server', 'install-server.sh']) {
-    const source = await readFile(join(sourceRoot, wrapper), 'utf8');
-    assert.doesNotMatch(source, /https:\/\/happier\.dev\/install/);
-    const result = spawnSync('bash', [join(sourceRoot, wrapper), '--yes'], {
-      encoding: 'utf8', env: { ...process.env, HOME: home, HAPPIER_INSTALL_DIR: join(home, 'install'),
-        HAPPIER_GITHUB_REPO: '', HAPPIER_MINISIGN_PUBKEY: '', HAPPIER_MINISIGN_PUBKEY_URL: '',
-        HAPPIER_INSTALLER_SCRIPT_URL: '', HAPPIER_RELEASE_ASSETS_DIR: '' },
-    });
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr + result.stdout, /Fork release is unconfigured/i);
-  }
-});
-
 test('release-owned installer scripts enforce minisign verification defaults', async () => {
   const installSh = await readFile(installShPath, 'utf8');
   const publicKey = (await readFile(publicKeyPath, 'utf8')).trim();

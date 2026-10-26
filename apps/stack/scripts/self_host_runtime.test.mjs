@@ -1683,13 +1683,10 @@ test('resolveConfig expands ~/ self-host path overrides against HOME', async () 
   }
 });
 
-test('self-host fork releases require fork signature trust and preserve explicit upstream choice', () => {
-  assert.throws(() => resolveMinisignPublicKeyText({}), /fork release.*public key/i);
-  const forkKey = `untrusted comment: minisign public key for test only\n${Buffer.concat([
-    Buffer.from('Ed'), Buffer.alloc(8, 1), Buffer.alloc(32, 2),
-  ]).toString('base64')}`;
-  assert.equal(resolveMinisignPublicKeyText({ HAPPIER_MINISIGN_PUBKEY: forkKey }), forkKey);
-  assert.match(resolveMinisignPublicKeyText({ HAPPIER_GITHUB_REPO: 'happier-dev/happier' }), /minisign public key/i);
+test('resolveMinisignPublicKeyText prefers inline override and otherwise returns bundled key', () => {
+  const bundled = resolveMinisignPublicKeyText({});
+  assert.match(bundled, /minisign public key/i);
+  assert.equal(resolveMinisignPublicKeyText({ HAPPIER_MINISIGN_PUBKEY: 'hello' }), 'hello');
 });
 
 test('renderServerEnvFile emits sqlite/local defaults for self-host mode', () => {

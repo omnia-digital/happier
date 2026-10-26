@@ -1,0 +1,148 @@
+name: OMNIA — Nightly Production Branch
+
+on:
+  schedule:
+    - cron: '17 2 * * *'
+      timezone: America/Los_Angeles
+  # GitHub requires repository write access for manual dispatch. The candidate
+  # job below also admits only this fork's dev ref and exact successful push CI.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: omnia-production
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    name: Bind exact dev source and successful push CI
+    if: ${{ github.repository == 'omnia-digital/happier' && github.ref == 'refs/heads/dev' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      source_sha: ${{ steps.source.outputs.source_sha }}
+      ci_run_id: ${{ steps.ci.outputs.ci_run_id }}
+    steps:
+      - name: Bind triggering dev SHA
+        id: source
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Invalid triggering source SHA." >&2
+            exit 1
+          fi
+          echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
+      - name: Find successful canonical push CI for this SHA
+        id: ci
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          endpoint="repos/${GITHUB_REPOSITORY}/actions/workflows/tests.yml/runs?branch=dev&event=push&head_sha=${SOURCE_SHA}&status=success&per_page=100"
+          ci_run_id="$(gh api "$endpoint" --jq '.workflow_runs | map(select(.head_branch == "dev" and .event == "push" and .status == "completed" and .conclusion == "success")) | sort_by(.id) | last | .id // empty')"
+          if [ -z "$ci_run_id" ]; then
+            echo "::error::No successful canonical dev push CI exists for ${SOURCE_SHA}; production was not changed."
+            exit 1
+          fi
+          echo "ci_run_id=$ci_run_id" >> "$GITHUB_OUTPUT"
+
+  verify_source_ci:
+    name: Verify exact source CI lanes and artifact
+    needs: [candidate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout trusted workflow control
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.x
+      - name: Verify canonical push CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ needs.candidate.outputs.source_sha }}
+          CI_RUN_ID: ${{ needs.candidate.outputs.ci_run_id }}
+        run: |
+          set -euo pipefail
+          node scripts/pipeline/release/verify-existing-ci.mjs \
+            --repository "$GITHUB_REPOSITORY" \
+            --source-sha "$SOURCE_SHA" \
+            --source-branch dev \
+            --run-id "$CI_RUN_ID"
+
+  desktop_candidate:
+    name: Build certified native source (Apple Silicon on Cassian)
+    needs: [candidate, verify_source_ci]
+    # The reusable release owner declares write permission for its publishing
+    # phases. Every unsigned build job explicitly reduces this to contents:read.
+    permissions:
+      contents: write
+      actions: read
+    uses: ./.github/workflows/build-tauri.yml
+    with:
+      source_ref: ${{ needs.candidate.outputs.source_sha }}
+      environment: production
+      preparation_only: true
+      publish_release: false
+      cassian_build: true
+      release_message: Omnia nightly candidate ${{ needs.candidate.outputs.source_sha }}
+
+  promote:
+    name: Fast-forward production to certified dev SHA
+    needs: [candidate, verify_source_ci, desktop_candidate]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout trusted workflow control
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.x
+      - name: Create fork GitHub App token
+        id: app_token
+        uses: actions/create-github-app-token@d72941d797fd3113feb6b93fd0dec494b13a2547
+        with:
+          app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-workflows: write
+      - name: Promote certified source through canonical branch owner
+        env:
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
+          GH_REPO: ${{ github.repository }}
+          SOURCE_SHA: ${{ needs.candidate.outputs.source_sha }}
+        run: |
+          set -euo pipefail
+          node scripts/pipeline/run.mjs promote-branch \
+            --source dev \
+            --source-sha "$SOURCE_SHA" \
+            --target production \
+            --mode fast_forward \
+            --allow-reset false \
+            --confirm 'promote production from dev' \
+            --summary-file "$GITHUB_STEP_SUMMARY"

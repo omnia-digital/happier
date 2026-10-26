@@ -61,8 +61,11 @@ export function buildStackTauriDevConfig({ baseConfig, overlayConfig, devUrl, en
   return applyHtml5FileDragDropWindowPolicy(merged);
 }
 
-export function buildStackTauriBundleConfig({ baseConfig, overlayConfig, frontendDist, env = process.env } = {}) {
-  const merged = mergeTauriConfig(baseConfig ?? {}, overlayConfig ?? {});
+export function buildStackTauriBundleConfig({ baseConfig, overlayConfig, variant = 'dev', frontendDist, env = process.env } = {}) {
+  if (variant !== 'dev' && variant !== 'production') {
+    throw new Error(`Unsupported Stack Tauri bundle variant: ${variant}`);
+  }
+  const merged = mergeTauriConfig(baseConfig ?? {}, variant === 'dev' ? overlayConfig ?? {} : {});
   merged.build = {
     ...(merged.build ?? {}),
     frontendDist,

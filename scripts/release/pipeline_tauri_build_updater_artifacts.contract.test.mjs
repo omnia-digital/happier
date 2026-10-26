@@ -6,17 +6,9 @@ import os from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createTauriActoolEnvironment } from '../../apps/ui/scripts/tauriActoolEnvironment.mjs';
-import { writeConfiguredForkTauriFiles } from '../pipeline/tauri/testkit/forkReleaseConfig.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '..', '..');
-
-function makeConfiguredUiFixture(t) {
-  const uiDir = fs.mkdtempSync(resolve(os.tmpdir(), 'tauri-fork-release-config-'));
-  t.after(() => fs.rmSync(uiDir, { recursive: true, force: true }));
-  writeConfiguredForkTauriFiles(uiDir);
-  return uiDir;
-}
 
 test('macOS Tauri build and bundle reopen actool stdin without changing tool arguments or environment', {
   skip: process.platform === 'win32' && 'macOS process boundary uses POSIX tools',
@@ -26,7 +18,6 @@ test('macOS Tauri build and bundle reopen actool stdin without changing tool arg
   const bin = resolve(root, 'bin');
   const tools = resolve(root, "Xcode tool's $directory");
   const temp = resolve(root, 'tmp');
-  writeConfiguredForkTauriFiles(root);
   for (const dir of [bin, tools, temp]) fs.mkdirSync(dir);
   const platformPreload = resolve(root, 'platform.mjs');
   // The platform and external Xcode/Tauri executables are the only substituted
@@ -85,7 +76,6 @@ exec actool "--compile" "path with spaces" "quote' dollar$" "$2"
 `, { mode: 0o755 });
 
   const uiDir = resolve(repoRoot, 'apps/ui');
-  fs.symlinkSync(resolve(uiDir, 'scripts'), resolve(root, 'scripts'), 'dir');
   const packageScripts = JSON.parse(fs.readFileSync(resolve(uiDir, 'package.json'), 'utf8')).scripts;
   assert.equal(packageScripts.tauri, undefined, 'generic third-party CLI must not recursively wrap the pipeline adapter');
   for (const mode of ['build', 'bundle', 'dev', 'preview', 'production']) {
@@ -118,7 +108,7 @@ exec actool "--compile" "path with spaces" "quote' dollar$" "$2"
     const invoke = (childEnv) => pipeline
       ? spawnSync(process.execPath, args, { env: childEnv, encoding: 'utf8' })
       : spawnSync('/bin/sh', ['-c', packageScripts[`tauri:build:${mode}`]], {
-        cwd: root,
+        cwd: uiDir,
         env: { ...childEnv, NODE_OPTIONS: `--import=${platformPreload} --require=${fakeCli}` },
         encoding: 'utf8',
       });
@@ -163,8 +153,7 @@ test('tauri build-updater-artifacts script enables Expo Router web modal support
   assert.doesNotMatch(script, /EXPO_UNSTABLE_WEB_MODAL:\s*'1'/);
 });
 
-test('tauri build-updater-artifacts script supports preview dry-run', async (t) => {
-  const uiDir = makeConfiguredUiFixture(t);
+test('tauri build-updater-artifacts script supports preview dry-run', async () => {
   const out = execFileSync(
     process.execPath,
     [
@@ -173,7 +162,6 @@ test('tauri build-updater-artifacts script supports preview dry-run', async (t) 
       'preview',
       '--build-version',
       '1.2.3-preview.123',
-      '--ui-dir', uiDir,
       '--dry-run',
     ],
     {
@@ -194,8 +182,7 @@ test('tauri build-updater-artifacts script supports preview dry-run', async (t) 
   assert.match(out, /tauri\.version\.override\.json/);
 });
 
-test('tauri build-updater-artifacts script supports dev dry-run', async (t) => {
-  const uiDir = makeConfiguredUiFixture(t);
+test('tauri build-updater-artifacts script supports dev dry-run', async () => {
   const out = execFileSync(
     process.execPath,
     [
@@ -204,7 +191,6 @@ test('tauri build-updater-artifacts script supports dev dry-run', async (t) => {
       'dev',
       '--build-version',
       '1.2.3-dev.123',
-      '--ui-dir', uiDir,
       '--dry-run',
     ],
     {
@@ -223,15 +209,13 @@ test('tauri build-updater-artifacts script supports dev dry-run', async (t) => {
   assert.match(out, /tauri\.version\.override\.json/);
 });
 
-test('tauri build-updater-artifacts script supports production dry-run', async (t) => {
-  const uiDir = makeConfiguredUiFixture(t);
+test('tauri build-updater-artifacts script supports production dry-run', async () => {
   const out = execFileSync(
     process.execPath,
     [
       resolve(repoRoot, 'scripts', 'pipeline', 'tauri', 'build-updater-artifacts.mjs'),
       '--environment',
       'production',
-      '--ui-dir', uiDir,
       '--dry-run',
     ],
     {

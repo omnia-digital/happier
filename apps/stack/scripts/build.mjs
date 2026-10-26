@@ -40,17 +40,18 @@ async function main() {
   if (wantsHelp(argv, { flags })) {
     printResult({
       json,
-      data: { flags: ['--web', '--server', '--daemon', '--all', '--activate-runtime', '--force-rebuild', '--tauri', '--no-tauri', '--no-ui'], json: true },
+      data: { flags: ['--web', '--server', '--daemon', '--all', '--activate-runtime', '--force-rebuild', '--tauri', '--no-tauri', '--tauri-production', '--no-ui'], json: true },
       text: [
         '[build] usage:',
-        '  hstack build [--tauri] [--json]',
+        '  hstack build [--tauri] [--tauri-production] [--json]',
         '  hstack stack build <name> [--web|--server|--daemon|--all] [--activate-runtime] [--force-rebuild] [--json]',
-        '  node scripts/build.mjs [--web|--server|--daemon|--all] [--activate-runtime] [--tauri|--no-tauri] [--no-ui] [--json]',
+        '  node scripts/build.mjs [--web|--server|--daemon|--all] [--activate-runtime] [--tauri|--no-tauri] [--tauri-production] [--no-ui] [--json]',
         '',
         'note:',
         '  If run from inside the Happier UI checkout/worktree, the build uses that checkout.',
         '  Explicit component flags build stack-local artifacts for named stacks in v1.',
         '  Building artifacts alone does not switch the active runtime; use `hstack stack runtime <name> activate ...` or `--activate-runtime`.',
+        '  --tauri-production uses the stable Tauri config; --tauri defaults to the dev variant.',
         '  --tauri remains a legacy local UI/Tauri build flag and cannot be mixed with stack-local artifact/runtime flags in v1.',
       ].join('\n'),
     });
@@ -72,6 +73,9 @@ async function main() {
 
   const selection = parseBuildSelection({ argv });
   const wantsArtifactBuild = shouldBuildStackArtifacts({ selection, argv, env: process.env });
+  if (flags.has('--tauri-production') && (!flags.has('--tauri') || flags.has('--no-tauri') || flags.has('--no-ui'))) {
+    throw new Error('[build] --tauri-production requires a Tauri bundle build (--tauri).');
+  }
   if (wantsArtifactBuild) {
     const result = await buildStackArtifacts({ rootDir, argv, env: process.env });
     if (json) {
@@ -238,6 +242,7 @@ async function main() {
   const tauriConfig = buildStackTauriBundleConfig({
     baseConfig: JSON.parse(tauriConfigRaw),
     overlayConfig: JSON.parse(tauriDevConfigRaw),
+    variant: flags.has('--tauri-production') ? 'production' : 'dev',
     frontendDist: tauriDistDir === join(uiDir, 'dist') ? '../dist' : tauriDistDir,
     env: process.env,
   });

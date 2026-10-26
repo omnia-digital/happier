@@ -29,7 +29,7 @@ import {
 } from '@happier-dev/cli-common/firstPartyRuntime';
 import { resolveReleaseAssetBundle } from '@happier-dev/release-runtime/assets';
 import { fetchGitHubReleaseByTag } from '@happier-dev/release-runtime/github';
-import * as releaseMinisign from '@happier-dev/release-runtime/minisign';
+import { DEFAULT_MINISIGN_PUBLIC_KEY } from '@happier-dev/release-runtime/minisign';
 import { downloadVerifiedReleaseAssetBundle } from '@happier-dev/release-runtime/verifiedDownload';
 
 import { resolveHappierGithubRepo, resolveRelayReleaseTag } from './_releaseTagsAndRepo';
@@ -609,13 +609,6 @@ export async function installOrUpdateRelayRuntime(params: RelayRuntimeTaskParams
       extractedRoot = dirname(explicitBinaryPath);
       source = 'local';
     } else {
-      if (!releaseMinisign.resolveFirstPartyReleasePublicKey) {
-        throw new Error('Fork release verification requires the current bundled release-runtime.');
-      }
-      const pubkeyFile = releaseMinisign.resolveFirstPartyReleasePublicKey({
-        githubRepo: config.githubRepo,
-        configuredPublicKey: process.env.HAPPIER_MINISIGN_PUBKEY,
-      });
       const release = await fetchGitHubReleaseByTag({
         githubRepo: config.githubRepo,
         tag: resolveReleaseTag(config.channel),
@@ -633,7 +626,7 @@ export async function installOrUpdateRelayRuntime(params: RelayRuntimeTaskParams
       const downloaded = await downloadVerifiedReleaseAssetBundle({
         bundle,
         destDir: tempDir,
-        pubkeyFile,
+        pubkeyFile: DEFAULT_MINISIGN_PUBLIC_KEY,
         userAgent: 'happier-system-tasks',
       });
       extractedRoot = await extractReleasePayloadRootFromArchive({

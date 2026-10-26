@@ -17,11 +17,14 @@ installSessionActionsCommonModuleMocks({
         useLocalSearchParams: () => ({ id: testState.session?.id ?? 'session-1' }),
         useRouter: () => ({ push: vi.fn(), back: vi.fn(), replace: vi.fn() }),
     }),
-    storage: async () => {
-        const { createStorageModuleStub } = await import('@/dev/testkit/mocks/storage');
-        return createStorageModuleStub({
-            useSession: () => testState.session,
-            useIsDataReady: () => true,
+    storage: async (importOriginal) => {
+        const { createStorageModuleMock, createStorageModuleStub } = await import('@/dev/testkit/mocks/storage');
+        return createStorageModuleMock({
+            importOriginal,
+            overrides: createStorageModuleStub({
+                useSession: () => testState.session,
+                useIsDataReady: () => true,
+            }),
         });
     },
 });

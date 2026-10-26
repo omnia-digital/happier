@@ -387,8 +387,9 @@ test.describe('ui e2e: session list multi-select actions', () => {
       expect(pendingSessionId).not.toBeNull();
       // Minimal rows put status on the accessible trailing indicator instead of a subtitle.
       const pendingStatus = page.getByTestId(testIds.row(pendingSessionId!))
-        .getByRole('img', { name: /archiving/i });
+        .getByTestId(`session-row-attention-indicator-${pendingSessionId}-trailing`);
       await expect(pendingStatus).toBeVisible({ timeout: 60_000 });
+      await expect(pendingStatus).toHaveAccessibleName(/archiving/i);
 
       archiveGate.resolve();
 

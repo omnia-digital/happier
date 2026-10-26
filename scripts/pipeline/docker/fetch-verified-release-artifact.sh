@@ -6,7 +6,7 @@ fail() {
   exit 1
 }
 
-base_url=""
+base_url="https://github.com/happier-dev/happier/releases/download"
 release_tag=""
 product=""
 version=""

@@ -2,8 +2,7 @@
 
 FROM debian:12-slim AS devbox-artifacts
 ARG TARGETARCH
-ARG HAPPIER_RELEASE_BASE_URL=""
-ARG HAPPIER_RELEASE_PUBLIC_KEY_BASE64=""
+ARG HAPPIER_RELEASE_BASE_URL="https://github.com/happier-dev/happier/releases/download"
 ARG HAPPIER_DEVBOX_CLI_RELEASE_TAG=""
 ARG HAPPIER_DEVBOX_CLI_VERSION=""
 
@@ -12,11 +11,10 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY scripts/pipeline/docker/fetch-verified-release-artifact.sh /usr/local/bin/fetch-verified-release-artifact
+COPY scripts/release/installers/happier-release.pub /tmp/happier-release.pub
 RUN chmod +x /usr/local/bin/fetch-verified-release-artifact
 
 RUN set -eux; \
-  test -n "$HAPPIER_RELEASE_PUBLIC_KEY_BASE64"; \
-  printf '%s' "$HAPPIER_RELEASE_PUBLIC_KEY_BASE64" | base64 -d > /tmp/happier-release.pub; \
   case "$TARGETARCH" in \
     amd64) artifact_arch="x64" ;; \
     arm64) artifact_arch="arm64" ;; \

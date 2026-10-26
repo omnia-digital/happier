@@ -2,13 +2,14 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import * as releaseMinisign from '@happier-dev/release-runtime/minisign';
 
 import {
   normalizePublicReleaseChannel,
   resolveRollingVersionSuffix,
 } from '../release/lib/public-release-rings.mjs';
 import { versionedComponents } from '../release/component-registry.mjs';
+
+const DEFAULT_RELEASE_BASE_URL = 'https://github.com/happier-dev/happier/releases/download';
 
 const ARTIFACT_SPECS = Object.freeze({
   server: Object.freeze({
@@ -53,8 +54,8 @@ function normalizeBaseVersion(version) {
 /**
  * @param {string} value
  */
-function normalizeBaseUrl(value, githubRepo) {
-  const raw = String(value ?? '').trim() || `https://github.com/${githubRepo}/releases/download`;
+function normalizeBaseUrl(value) {
+  const raw = String(value ?? '').trim() || DEFAULT_RELEASE_BASE_URL;
   return raw.endsWith('/') ? raw.slice(0, -1) : raw;
 }
 
@@ -136,16 +137,8 @@ export async function resolveDockerReleaseArtifactInputs(params) {
     includeDevBox ? resolveArtifactInput({ ...common, spec: ARTIFACT_SPECS.cli }) : Promise.resolve(null),
   ]);
 
-  const githubRepo = String(env.HAPPIER_GITHUB_REPO ?? '').trim()
-    || releaseMinisign.FIRST_PARTY_RELEASE_REPOSITORY;
-  const releasePublicKey = releaseMinisign.resolveFirstPartyReleasePublicKey({
-    githubRepo,
-    configuredPublicKey: env.HAPPIER_MINISIGN_PUBKEY,
-  });
-
   return {
-    releaseBaseUrl: normalizeBaseUrl(env.HAPPIER_DOCKER_RELEASE_BASE_URL, githubRepo),
-    releasePublicKeyBase64: Buffer.from(releasePublicKey, 'utf8').toString('base64'),
+    releaseBaseUrl: normalizeBaseUrl(env.HAPPIER_DOCKER_RELEASE_BASE_URL),
     relay: { server },
     devBox: { cli },
   };
@@ -156,10 +149,7 @@ export async function resolveDockerReleaseArtifactInputs(params) {
  * @param {'relay' | 'dev-box'} image
  */
 export function dockerReleaseArtifactInputsToBuildArgs(inputs, image) {
-  const base = [
-    '--build-arg', `HAPPIER_RELEASE_BASE_URL=${inputs.releaseBaseUrl}`,
-    '--build-arg', `HAPPIER_RELEASE_PUBLIC_KEY_BASE64=${inputs.releasePublicKeyBase64}`,
-  ];
+  const base = ['--build-arg', `HAPPIER_RELEASE_BASE_URL=${inputs.releaseBaseUrl}`];
   if (image === 'relay') {
     if (!inputs.relay.server) {
       throw new Error('[pipeline] relay Docker artifact inputs were not resolved');

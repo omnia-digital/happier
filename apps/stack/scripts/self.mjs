@@ -3,7 +3,6 @@ import './utils/env/env.mjs';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 import { normalizePublicReleaseRingId } from '@happier-dev/release-runtime/releaseRings';
 import { compareVersions, installRuntimeFromNpm, readNpmDistTagVersion, resolveNpmPackageNameOverride } from '@happier-dev/cli-common/update';
@@ -11,6 +10,7 @@ import { installVersionedPayload } from '@happier-dev/cli-common/firstPartyRunti
 
 import { parseArgs } from './utils/cli/args.mjs';
 import { pathExists } from './utils/fs/fs.mjs';
+import { run } from './utils/proc/proc.mjs';
 import { expandHome } from './utils/paths/canonical_home.mjs';
 import { getHappyStacksHomeDir, getRootDir } from './utils/paths/paths.mjs';
 import { printResult, wantsHelp, wantsJson } from './utils/cli/cli.mjs';
@@ -78,17 +78,6 @@ function resolveStackSelfNpmDistTag(channel) {
   return channel === 'stable' ? 'latest' : 'next';
 }
 
-export function resolveStackRuntimeUpdateSource({ rootDir, env = process.env, to = '', channel = 'stable' }) {
-  const configured = String(env.HAPPIER_STACK_UPDATE_PACKAGE_NAME ?? '').trim();
-  const packageName = resolveNpmPackageNameOverride({ envValue: configured, fallback: '' });
-  if (configured && !packageName) throw new Error('[self] invalid HAPPIER_STACK_UPDATE_PACKAGE_NAME package');
-  if (!packageName) {
-    if (to) throw new Error('[self] --to requires a configured npm package for the fork runtime');
-    return { spec: rootDir, packageName: null };
-  }
-  return { spec: `${packageName}@${to || resolveStackSelfNpmDistTag(channel)}`, packageName };
-}
-
 async function fetchLatestVersion({ packageName, distTag, cwd }) {
   const pkg = String(packageName ?? '').trim();
   if (!pkg) return null;
@@ -103,16 +92,20 @@ async function cmdStatus({ rootDir, argv }) {
   const distTag = resolveStackSelfNpmDistTag(channel);
 
   const { updateJson, cacheDir } = cachePaths();
-  const { packageName } = resolveStackRuntimeUpdateSource({ rootDir, channel });
+  const invoker = await readJsonIfExists(join(rootDir, 'package.json'), { defaultValue: null });
+  const packageName = resolveNpmPackageNameOverride({
+    envValue: process.env.HAPPIER_STACK_UPDATE_PACKAGE_NAME,
+    fallback: String(invoker?.name ?? '').trim(),
+  });
   const invokerVersion = await getInvokerVersion({ rootDir });
   const runtimeDir = getRuntimeDir();
   const runtimeVersion = await getRuntimeInstalledVersion();
 
   const cached = await readJsonIfExists(updateJson, { defaultValue: null });
 
-  let latest = packageName ? (cached?.latest ?? null) : null;
-  let checkedAt = packageName ? (cached?.checkedAt ?? null) : null;
-  let updateAvailable = packageName && Boolean(cached?.updateAvailable);
+  let latest = cached?.latest ?? null;
+  let checkedAt = cached?.checkedAt ?? null;
+  let updateAvailable = Boolean(cached?.updateAvailable);
 
   if (doCheck) {
     try {
@@ -141,7 +134,7 @@ async function cmdStatus({ rootDir, argv }) {
       ok: true,
       invoker: { version: invokerVersion, rootDir },
       runtime: { dir: runtimeDir, installed: Boolean(runtimeVersion), version: runtimeVersion },
-      update: { cachedLatest: packageName ? (cached?.latest ?? null) : null, latest, checkedAt, updateAvailable },
+      update: { cachedLatest: cached?.latest ?? null, latest, checkedAt, updateAvailable },
     },
     text: [
       '',
@@ -170,7 +163,13 @@ async function cmdUpdate({ rootDir, argv }) {
   const runtimeDir = getRuntimeDir();
   const to = (kvArgs.get('--to') ?? '').trim();
   const channel = parseSelfChannel({ flags, kv: kvArgs });
-  const { spec, packageName } = resolveStackRuntimeUpdateSource({ rootDir, to, channel });
+  const invoker = await readJsonIfExists(join(rootDir, 'package.json'), { defaultValue: null });
+  const pkgName = resolveNpmPackageNameOverride({
+    envValue: process.env.HAPPIER_STACK_UPDATE_PACKAGE_NAME,
+    fallback: String(invoker?.name ?? '').trim(),
+  });
+  if (!pkgName) throw new Error('[self] unable to resolve package name (missing package.json name)');
+  const spec = to ? `${pkgName}@${to}` : `${pkgName}@${resolveStackSelfNpmDistTag(channel)}`;
 
   // Ensure runtime dir exists.
   await mkdir(runtimeDir, { recursive: true });
@@ -178,12 +177,27 @@ async function cmdUpdate({ rootDir, argv }) {
   // Install/update runtime package.
   const installRes = installRuntimeFromNpm({ runtimeDir, spec, cwd: rootDir, env: process.env });
   if (!installRes.ok) {
-    throw new Error(installRes.errorMessage);
+    // Pre-publish dev fallback: allow updating runtime from the local checkout.
+    if (!to && !String(process.env.HAPPIER_STACK_UPDATE_PACKAGE_NAME ?? '').trim() && existsSync(join(rootDir, 'package.json'))) {
+      try {
+        const raw = await readFile(join(rootDir, 'package.json'), 'utf-8');
+        const pkg = JSON.parse(raw);
+        if (pkg?.name === pkgName) {
+          await run('npm', ['install', '--no-audit', '--no-fund', '--silent', '--prefix', runtimeDir, rootDir], { cwd: rootDir });
+        } else {
+          throw new Error(installRes.errorMessage);
+        }
+      } catch {
+        throw new Error(installRes.errorMessage);
+      }
+    } else {
+      throw new Error(installRes.errorMessage);
+    }
   }
 
   // Refresh cache best-effort.
   try {
-    const latest = await fetchLatestVersion({ packageName, distTag: resolveStackSelfNpmDistTag(channel), cwd: rootDir });
+    const latest = await fetchLatestVersion({ packageName: pkgName, distTag: resolveStackSelfNpmDistTag(channel), cwd: rootDir });
     const runtimeVersion = await getRuntimeInstalledVersion();
     const invokerVersion = await getInvokerVersion({ rootDir });
     const current = runtimeVersion || invokerVersion;
@@ -222,7 +236,11 @@ async function cmdCheck({ rootDir, argv }) {
   const runtimeVersion = await getRuntimeInstalledVersion();
   const invokerVersion = await getInvokerVersion({ rootDir });
   const current = runtimeVersion || invokerVersion;
-  const { packageName } = resolveStackRuntimeUpdateSource({ rootDir, channel });
+  const invoker = await readJsonIfExists(join(rootDir, 'package.json'), { defaultValue: null });
+  const packageName = resolveNpmPackageNameOverride({
+    envValue: process.env.HAPPIER_STACK_UPDATE_PACKAGE_NAME,
+    fallback: String(invoker?.name ?? '').trim(),
+  });
 
   let latest = null;
   try {
@@ -496,10 +514,8 @@ async function main() {
   throw new Error(`[self] unknown command: ${cmd}`);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  main().catch((err) => {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[self] failed: ${msg}`);
-    process.exit(1);
-  });
-}
+main().catch((err) => {
+  const msg = err instanceof Error ? err.message : String(err);
+  console.error(`[self] failed: ${msg}`);
+  process.exit(1);
+});

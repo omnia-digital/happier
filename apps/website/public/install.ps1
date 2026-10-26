@@ -63,7 +63,7 @@ function Normalize-Channel {
 
 $Channel = Normalize-Channel -Raw ([string]$Channel)
 
-$Repo = if ($env:HAPPIER_GITHUB_REPO) { $env:HAPPIER_GITHUB_REPO } else { "omnia-digital/happier" }
+$Repo = if ($env:HAPPIER_GITHUB_REPO) { $env:HAPPIER_GITHUB_REPO } else { "happier-dev/happier" }
 $Token = if ($env:HAPPIER_GITHUB_TOKEN) { $env:HAPPIER_GITHUB_TOKEN } elseif ($env:GITHUB_TOKEN) { $env:GITHUB_TOKEN } else { "" }
 $ReleaseAssetsDir = if ($env:HAPPIER_RELEASE_ASSETS_DIR) { $env:HAPPIER_RELEASE_ASSETS_DIR } else { "" }
 $GitHubHeaders = @{
@@ -108,34 +108,8 @@ $DefaultMinisignPubKey = @"
 untrusted comment: minisign public key 91AE28177BF6E43C
 RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t
 "@
-function Get-MinisignVerifierIdentity {
-  param ([Parameter(Mandatory = $true)] [string] $Payload)
-  if ($Payload -cnotmatch '^[A-Za-z0-9+/]{56}$') {
-    throw "Fork release has an invalid minisign public key."
-  }
-  try { $decoded = [Convert]::FromBase64String($Payload) }
-  catch { throw "Fork release has an invalid minisign public key." }
-  if ($decoded.Length -ne 42 -or $decoded[0] -ne 69 -or $decoded[1] -ne 100) {
-    throw "Fork release has an invalid minisign public key."
-  }
-  return [Convert]::ToBase64String([byte[]]$decoded[10..41])
-}
-$UpstreamArchiveKeyIdentity = Get-MinisignVerifierIdentity -Payload "RWQ85PZ7FyiukYbL3qv/bKnwgbT68wLVzotapeMFIb8n+c7pBQ7U8W2t"
-$UpstreamTauriKeyIdentity = Get-MinisignVerifierIdentity -Payload "RWTv8bDzGGLpq1HR3/oQAmnG9AXJGyhiGkm81fnFNtzAyYVPuMfVDVZy"
-if ($Repo -eq "happier-dev/happier") {
-  $MinisignPubKey = if ($env:HAPPIER_MINISIGN_PUBKEY) { $env:HAPPIER_MINISIGN_PUBKEY } else { $DefaultMinisignPubKey.Trim() }
-  $MinisignPubKeyUrl = if ($env:HAPPIER_MINISIGN_PUBKEY_URL) { $env:HAPPIER_MINISIGN_PUBKEY_URL } else { "https://happier.dev/happier-release.pub" }
-} else {
-  $MinisignPubKey = if ($env:HAPPIER_MINISIGN_PUBKEY) { $env:HAPPIER_MINISIGN_PUBKEY } else { "" }
-  $MinisignPubKeyUrl = if ($env:HAPPIER_MINISIGN_PUBKEY_URL) { $env:HAPPIER_MINISIGN_PUBKEY_URL } else { "" }
-  if ($MinisignPubKey) {
-    $configuredKeyLine = @($MinisignPubKey -split '\r?\n' | Where-Object { $_.Trim() })[-1].Trim()
-    $configuredIdentity = Get-MinisignVerifierIdentity -Payload $configuredKeyLine
-    if ($configuredIdentity -eq $UpstreamArchiveKeyIdentity -or $configuredIdentity -eq $UpstreamTauriKeyIdentity) {
-      throw "Fork release cannot use the upstream minisign public key."
-    }
-  }
-}
+$MinisignPubKey = if ($env:HAPPIER_MINISIGN_PUBKEY) { $env:HAPPIER_MINISIGN_PUBKEY } else { $DefaultMinisignPubKey.Trim() }
+$MinisignPubKeyUrl = if ($env:HAPPIER_MINISIGN_PUBKEY_URL) { $env:HAPPIER_MINISIGN_PUBKEY_URL } else { "https://happier.dev/happier-release.pub" }
 
 function Resolve-CliShimName {
   if ($Channel -eq "preview") { return "hprev" }
@@ -2513,24 +2487,14 @@ function Resolve-MinisignPublicKey {
   )
   if ($MinisignPubKey) {
     Set-Content -Path $TargetPath -Value "$MinisignPubKey`n" -NoNewline
-  } else {
-    if (-not $MinisignPubKeyUrl) {
-      throw "HAPPIER_MINISIGN_PUBKEY_URL is empty; cannot fetch minisign public key."
-    }
-    Invoke-InstallerWebRequestWithRetry -Uri $MinisignPubKeyUrl -OutFile $TargetPath
+    return
   }
-  if ($Repo -ne "happier-dev/happier") {
-    $keyLine = @([IO.File]::ReadAllText($TargetPath) -split '\r?\n' | Where-Object { $_.Trim() })[-1].Trim()
-    $keyIdentity = Get-MinisignVerifierIdentity -Payload $keyLine
-    if ($keyIdentity -eq $UpstreamArchiveKeyIdentity -or $keyIdentity -eq $UpstreamTauriKeyIdentity) {
-      throw "Fork release cannot use the upstream minisign public key."
-    }
+  if (-not $MinisignPubKeyUrl) {
+    throw "HAPPIER_MINISIGN_PUBKEY_URL is empty; cannot fetch minisign public key."
   }
+  Invoke-InstallerWebRequestWithRetry -Uri $MinisignPubKeyUrl -OutFile $TargetPath
 }
 
-if ($Repo -ne "happier-dev/happier" -and -not $MinisignPubKey -and -not $MinisignPubKeyUrl) {
-  throw "Fork release is unconfigured: set HAPPIER_MINISIGN_PUBKEY to the fork public key before installing."
-}
 $tag = if ($Version) { "cli-v$Version" } elseif ($Channel -eq "preview") { "cli-preview" } elseif ($Channel -eq "publicdev") { "cli-dev" } else { "cli-stable" }
 Write-InstallerHeader
 Write-InstallerStage -Name "Download"

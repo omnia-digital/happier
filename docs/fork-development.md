@@ -111,7 +111,7 @@ OH-66 now organizes Appearance into Global, Left Sidebar and Task View. Global r
 
 OH-12's October 24 follow-through selectively adopts the three newest parent fixes through `f7484f23d5`: profile environment edits avoid stale feedback and clear vault fallbacks, Claude numeric controls accept existing schema-valid integers, and source CLI prompts stay pending when runtime settings are refused. Running-model metadata now follows observed provider evidence; the failure report labels its cached value as a model setting. Isolated Chrome passes both UI journeys, 77 broader UI tests and 82 focused/207 adjacent CLI tests pass, and root independently passes 113 delivery/runner cases. Immutable CLI 0.2.16 already supports the retained settings and applied-model shapes. The installed daily CLI remains 0.2.16; live Claude/native/platform acceptance, the 0.3 port and full upstream integration remain open.
 
-Use the sidebar view menu to choose Original layout, Group by machine, or the unreleased Group by repository (OH-14). Machine view, search, collapse and exact order roundtrips passed native QA. Repository source now passes root 24 deciding checks and the isolated Chrome flow at `1d7e1d4060`: explicit discovery/Refresh, matching and separate repositories, cross-machine A/B/A2 drag, saved ranks, view/reload, and manual association/reset persistence. Native two-machine/restart acceptance remains open. [App guidance](../apps/docs/content/docs/apps/app.mdx#session-sidebar-views) explains the controls and local association choices. OH-19 shows machine identity in normal and Pinned rows by default; the local Preferences switch hides row identity while the session detail header keeps its independent host information. Native toggle/reload/restart and compact layout checks passed. OH-48 empty Active-header correction also passed native pin/unpin, folder-collapse and reload checks.
+Use the sidebar view menu to choose Original layout, Group by machine, or the unreleased Group by repository (OH-14). Machine view, search, collapse and exact order roundtrips passed native QA. Repository source now passes root 24 deciding checks and the isolated Chrome flow at `1d7e1d4060`: explicit discovery/Refresh, matching and separate repositories, cross-machine A/B/A2 drag, saved ranks, view/reload, and manual association/reset persistence. New workspaces arriving while Repository view is open and successful app launches use the existing scoped SCM discovery and origin-remote identity owner. Launch discovery also runs when the sidebar is absent; mounting, restoring the view and credential changes do not initiate a scan. Native two-machine/restart acceptance remains open. [App guidance](../apps/docs/content/docs/apps/app.mdx#session-sidebar-views) explains the controls and local association choices. OH-19 shows machine identity in normal and Pinned rows by default; the local Preferences switch hides row identity while the session detail header keeps its independent host information. Native toggle/reload/restart and compact layout checks passed. OH-48 empty Active-header correction also passed native pin/unpin, folder-collapse and reload checks.
 
 OH-17 adds macOS Command+1 through Command+9 for visible sessions and held-Command number hints. Keyboard shortcuts V2 must be enabled; individual commands are available in Keyboard shortcuts settings for disabling or rebinding. Those settings are account-scoped. The generated [keyboard reference](../apps/docs/content/docs/apps/keyboard-shortcuts.mdx) includes the numbered commands and macOS availability. Settings, guards, hint lifecycle and reference generation pass source tests; Josh explicitly deferred native navigation/hotkey acceptance.
 
@@ -125,7 +125,7 @@ OH-15 is implemented through `0ed0585e79` on the setup feature branch. Desktop/w
 
 ## Repository and change flow
 
-Planning lives in Linear team **Happier (OH)**, in [Happier fork — development and first stable release](https://linear.app/omniachurchapps/project/happier-fork-development-and-first-stable-release-9a3eb3200232). Use OH issue IDs for future task branches and link evidence to the owning issue. The initial backlog is OH-1 through OH-12, with milestones for development readiness, native app validation, and daily-use release readiness. OH-12 owns ongoing upstream maintenance. OH-10 tracks CI and Linear release-pipeline setup; no release pipeline is configured yet.
+Planning lives in Linear team **Happier (OH)**, in [Happier fork — development and first stable release](https://linear.app/omniachurchapps/project/happier-fork-development-and-first-stable-release-9a3eb3200232). Use OH issue IDs for future task branches and link evidence to the owning issue. The initial backlog is OH-1 through OH-12, with milestones for development readiness, native app validation, and daily-use release readiness. OH-12 owns ongoing upstream maintenance. OH-10 owns the [nightly source-promotion pipeline and protected local checkouts](fork-production.md); packaged distribution and authenticated daily-use acceptance remain separate gates.
 
 Josh requires every work item on this fork to have an OH task before work starts. Reuse the owning issue for its implementation, investigation, testing and review; create a task first for work outside existing issue scope. Keep its status and actual verification evidence current. Current priority is OH-19 machine identifiers throughout the sidebar and detail header, plus OH-14's machine grouping view, following Josh's pinned-list screenshot.
 
@@ -141,10 +141,21 @@ or GitHub write has been attempted.
 - `origin`: `https://github.com/omnia-digital/happier.git`
 - `upstream`: `https://github.com/happier-dev/happier.git`
 - Development base and PR target: `dev`.
-- Setup branch: `chore/happier-fork-dev-setup`.
-- Local checkout: `/Users/Josh/Developer/Projects/Omnia/apps/happier`.
+- Permanent development checkout: `/Users/Josh/Developer/Projects/Omnia/apps/happier-dev`, always on `dev`.
+- Permanent stable checkout: `/Users/Josh/Developer/Projects/Omnia/apps/happier-production`, always on protected `production`.
 
-Create ticket-named feature branches from the fork's current `origin/dev`. Commit and push completed steps, including their plan documents. Review upstream changes on a feature branch and merge through a PR into the fork's `dev`; do not automatically overwrite fork changes. Use `preview` for a tested release candidate and promote through the repository's branch model when release automation is ready. A fast-moving upstream `dev` snapshot is not a stable daily-use release.
+Create ticket-named feature worktrees from the permanent dev clone at the fork's
+current `origin/dev`. Commit and push completed steps and open PRs targeting
+`dev`. After a task is merged and its local data/processes are safely handled,
+remove its worktree. Nightly promotion moves tested `dev` into `production`;
+the stable checkout accepts only guarded updates from GitHub. See the
+[canonical checkout and release workflow](fork-production.md) for commands.
+
+The old `happier` directory and `chore/happier-fork-dev-setup` branch are temporary
+migration state, not another permanent development repo. Preserve their existing
+work until it has been integrated through PRs and their active runtimes have moved;
+start new tasks in worktrees owned by `happier-dev`. Review upstream changes in a
+task worktree too, preserving fork functionality and targeting `dev` through a PR.
 
 The full clone includes upstream history; fetch updates without changing the working tree:
 
@@ -183,7 +194,7 @@ At initial setup the Mac had approximately 9 GiB free after cloning. Dependency 
 
 ## Daily source workflow
 
-Once storage and toolchains are ready, run from the repository root:
+Once storage and toolchains are ready, run from the task worktree's root:
 
 ```sh
 yarn install --frozen-lockfile

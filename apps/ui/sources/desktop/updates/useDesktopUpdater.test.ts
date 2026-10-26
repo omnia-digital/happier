@@ -118,18 +118,24 @@ describe('desktop app updater (one owner for every surface)', () => {
         expect(dev.getCurrent()?.phase).toBe('idle');
     });
 
-    it('surfaces a native source refusal when update checks are explicitly enabled in development', async () => {
-        (globalThis as { __DEV__?: boolean }).__DEV__ = true;
-        const invoke = vi.fn(async () => {
-            throw new Error('Desktop updates are unavailable in development builds');
-        });
+    it('keeps automatic and manual updates idle when disabled in a production bundle', async () => {
+        process.env[UPDATE_CHECKS_ENV] = '0';
+        (globalThis as { __DEV__?: boolean }).__DEV__ = false;
+        const invoke = vi.fn(async () => offer('9.9.9'));
         installDesktop(invoke);
         store = createDesktopUpdaterStore();
         const hook = await renderHook(() => useDesktopUpdater(store));
         await settle();
 
-        expect(invoke).toHaveBeenCalledWith('desktop_fetch_update', undefined);
-        expect(hook.getCurrent()).toMatchObject({ phase: 'failed', failure: 'check' });
+        await act(async () => {
+            await store.check({ force: true });
+            await store.download();
+            await store.install();
+            await store.retry();
+        });
+
+        expect(invoke).not.toHaveBeenCalled();
+        expect(hook.getCurrent()?.phase).toBe('idle');
     });
 
     it('never checks from the pet overlay webview: the main window owns the one pending update', async () => {

@@ -55,6 +55,25 @@ describe('repository grouping identity', () => {
         ]);
     });
 
+    it('inherits the physical repository association when discovery finds a newly created worktree', () => {
+        const workspace = { serverId: 'home', accountId: 'account', machineId: 'machine', path: '/repo' };
+        const original = { identity: 'example.com/team/repo', label: 'Repository', rootPath: '/repo', worktreePaths: ['/existing-worktree'] };
+        const manual = { identity: 'manual:project', label: 'My project' };
+        let values = withRepositoryAssociation({}, workspace, original);
+        values = withManualRepositoryAssociation(values, workspace, manual);
+        const newWorktree = { ...workspace, path: '/new-worktree/packages/app' };
+        const discovered = { ...original, rootPath: '/new-worktree', worktreePaths: ['/repo', '/existing-worktree', '/new-worktree'] };
+
+        const next = withRepositoryAssociation(values, newWorktree, discovered);
+
+        expect(readRepositoryAssociation(next, newWorktree)?.manual).toEqual(manual);
+        expect(readRepositoryAssociation(next, { ...workspace, path: '/new-worktree' })?.manual).toEqual(manual);
+        expect(readRepositoryAssociation(next, workspace)?.manual).toEqual(manual);
+        const reset = withManualRepositoryAssociation(next, newWorktree, null);
+        expect(readRepositoryAssociation(reset, workspace)?.manual).toBeUndefined();
+        expect(readRepositoryAssociation(reset, newWorktree)?.manual).toBeUndefined();
+    });
+
     it('combines conventional transport aliases without merging namespaces, forks or ports', () => {
         const canonical = 'github.com/owner/project';
         for (const url of ['git@github.com:owner/project.git', 'ssh://git@github.com:22/owner/project.git', 'https://user:secret@GITHUB.com:443/owner/project.git/']) {
