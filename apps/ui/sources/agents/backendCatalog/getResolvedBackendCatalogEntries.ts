@@ -20,6 +20,8 @@ export function getResolvedBackendCatalogEntries(params: Readonly<{
     enabledAgentIds: readonly AgentId[];
     acpCatalogSettingsV1: AcpCatalogSettingsV1;
     backendEnabledByTargetKey?: Readonly<Record<string, boolean>> | null;
+    /** Keep the running configured backend available to its existing session controls. */
+    currentBackendTargetKey?: string | null;
     collapseConfiguredBackendProviderSentinels?: boolean;
 }>): ResolvedBackendCatalogEntry[] {
     const builtIns: ResolvedBackendCatalogEntry[] = params.enabledAgentIds
@@ -45,7 +47,7 @@ export function getResolvedBackendCatalogEntries(params: Readonly<{
     const configuredBackends: ResolvedBackendCatalogEntry[] = catalog.backends.flatMap((backend) => {
         const target: BackendTargetRefV1 = { kind: 'configuredAcpBackend', backendId: backend.id };
         const targetKey = buildBackendTargetKey(target);
-        if (params.backendEnabledByTargetKey?.[targetKey] === false) {
+        if (params.backendEnabledByTargetKey?.[targetKey] === false && targetKey !== params.currentBackendTargetKey) {
             return [];
         }
         return [{

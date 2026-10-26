@@ -10732,6 +10732,7 @@ settingsSession: {
         actions: {
             viewEnvironmentVariables: 'Umgebungsvariablen',
             addToFavorites: 'Zu Favoriten hinzufügen',
+            favoriteModelsEmptyGuidance: 'Wähle einen Agent-Tab und markiere ein Modell, um es hier hinzuzufügen',
             removeFromFavorites: 'Aus Favoriten entfernen',
             editProfile: 'Profil bearbeiten',
             duplicateProfile: 'Profil duplizieren',

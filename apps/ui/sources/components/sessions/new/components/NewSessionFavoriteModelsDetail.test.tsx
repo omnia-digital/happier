@@ -70,9 +70,13 @@ vi.mock('@/agents/catalog/catalog', async (importOriginal) => {
     const actual = await importOriginal<typeof import('@/agents/catalog/catalog')>();
     return {
         ...actual,
-        getAgentCore: (agentId: AgentId) => ({
-            model: agentCoreById[agentId] ?? { dynamicProbe: 'dynamic' },
-        }),
+        getAgentCore: (agentId: AgentId) => {
+            const core = actual.getAgentCore(agentId);
+            return {
+                ...core,
+                model: { ...core.model, ...(agentCoreById[agentId] ?? {}) },
+            };
+        },
     };
 });
 
@@ -81,6 +85,11 @@ const preflightModelsByTargetKey: Record<string, {
     preflightModels: PreflightModelList | null;
     probePhase?: 'idle' | 'loading' | 'refreshing';
 }> = {};
+const EMPTY_MODEL_OPTIONS: ModelOption[] = [];
+const EMPTY_PREFLIGHT_MODELS: PreflightModelList = {
+    availableModels: [],
+    supportsFreeform: false,
+};
 const preflightModelsHookCalls = vi.hoisted(() => ({
     value: [] as Array<{
         targetKey: string;
@@ -98,11 +107,8 @@ vi.mock('@/components/sessions/new/hooks/screenModel/useNewSessionPreflightModel
             : `acpBackend:${backendTarget.backendId}`;
         preflightModelsHookCalls.value.push({ targetKey, connectedServices });
         return {
-            modelOptions: preflightModelsByTargetKey[targetKey]?.modelOptions ?? [],
-            preflightModels: preflightModelsByTargetKey[targetKey]?.preflightModels ?? {
-                availableModels: [],
-                supportsFreeform: false,
-            },
+            modelOptions: preflightModelsByTargetKey[targetKey]?.modelOptions ?? EMPTY_MODEL_OPTIONS,
+            preflightModels: preflightModelsByTargetKey[targetKey]?.preflightModels ?? EMPTY_PREFLIGHT_MODELS,
             probe: { phase: preflightModelsByTargetKey[targetKey]?.probePhase ?? 'idle' },
         };
     },
@@ -311,7 +317,7 @@ describe('NewSessionFavoriteModelsDetail', () => {
         const availablePickerProps = optionPickerOverlayProps.at(-1);
         availablePickerProps?.onSelect?.('agent:codex\x1fgpt-5.5');
 
-        expect(onSelectFavoriteModel).toHaveBeenCalledWith(codexEntry, 'gpt-5.5', {});
+        expect(onSelectFavoriteModel).toHaveBeenCalledWith(codexEntry, 'gpt-5.5', {}, expect.objectContaining({ preflightUpdatedAt: undefined }));
     });
 
     it('selects favorite from merged model options when preflight omits it', async () => {
@@ -355,7 +361,7 @@ describe('NewSessionFavoriteModelsDetail', () => {
         const latestPickerProps = optionPickerOverlayProps.at(-1);
         latestPickerProps?.onSelect?.('agent:codex\x1fgpt-5.5');
 
-        expect(onSelectFavoriteModel).toHaveBeenCalledWith(codexEntry, 'gpt-5.5', {});
+        expect(onSelectFavoriteModel).toHaveBeenCalledWith(codexEntry, 'gpt-5.5', {}, expect.objectContaining({ preflightUpdatedAt: undefined }));
     });
 
 
@@ -398,7 +404,7 @@ describe('NewSessionFavoriteModelsDetail', () => {
         const latestPickerProps = optionPickerOverlayProps.at(-1);
         latestPickerProps?.onSelect?.('agent:codex\x1fgpt-5.5');
 
-        expect(onSelectFavoriteModel).toHaveBeenCalledWith(codexEntry, 'gpt-5.5', {});
+        expect(onSelectFavoriteModel).toHaveBeenCalledWith(codexEntry, 'gpt-5.5', {}, expect.objectContaining({ preflightUpdatedAt: undefined }));
     });
 
     it('renders selected favorite model controls and routes control changes through the selected favorite backend', async () => {
@@ -486,6 +492,118 @@ describe('NewSessionFavoriteModelsDetail', () => {
         expect(onSelectFavoriteModelOptionValue).toHaveBeenCalledWith(codexEntry, 'gpt-5.5', 'reasoning_effort', 'medium');
     });
 
+    it('uses the current Session model projection when probe controls lag the applied model controls', async () => {
+        preflightModelsByTargetKey['agent:codex'] = {
+            modelOptions: [{
+                value: 'gpt-5.5',
+                label: 'GPT 5.5',
+                description: 'Codex model.',
+                modelOptions: [{
+                    id: 'reasoning_effort',
+                    name: 'Thinking',
+                    type: 'select',
+                    currentValue: 'medium',
+                    options: [
+                        { value: 'medium', name: 'Medium' },
+                        { value: 'high', name: 'High' },
+                    ],
+                }],
+            }],
+            preflightModels: {
+                availableModels: [{ id: 'gpt-5.5', name: 'GPT 5.5', modelOptions: [{
+                    id: 'reasoning_effort',
+                    name: 'Thinking',
+                    type: 'select',
+                    currentValue: 'medium',
+                    options: [
+                        { value: 'medium', name: 'Medium' },
+                        { value: 'high', name: 'High' },
+                    ],
+                }] }],
+                supportsFreeform: false,
+            },
+        };
+        const { NewSessionFavoriteModelsDetail } = await import('./NewSessionFavoriteModelsDetail');
+        const codexEntry = createBuiltInEntry('codex', 'Codex');
+
+        const favoriteProps = {
+            favoriteModelSelections: [{
+                backendTargetKey: 'agent:codex',
+                providerAgentId: 'codex',
+                builtInAgentId: 'codex',
+                modelId: 'gpt-5.5',
+                modelLabel: 'GPT 5.5',
+            }],
+            resolvedBackendEntries: [codexEntry],
+            selectedBackendTargetKey: 'agent:codex',
+            currentBackendTargetKey: 'agent:codex',
+            currentModelId: 'gpt-5.5',
+            currentConfigOverrides: {},
+            currentSessionMetadata: { sessionModelsV1: {
+                v: 1,
+                provider: 'codex',
+                updatedAt: 10_000,
+                currentModelId: 'gpt-5.5',
+                availableModels: [{
+                    id: 'gpt-5.5',
+                    name: 'GPT 5.5',
+                    modelOptions: [{
+                        id: 'reasoning_effort',
+                        name: 'Thinking',
+                        type: 'select',
+                        currentValue: 'high',
+                        options: [
+                            { value: 'medium', name: 'Medium' },
+                            { value: 'high', name: 'High' },
+                        ],
+                    }],
+                }],
+            } } as never,
+            selectedModelId: 'gpt-5.5',
+            selectedMachineId: 'machine-1',
+            capabilityServerId: 'server-1',
+            cwd: '/repo',
+            settings,
+            onSelectFavoriteModel: vi.fn(),
+            onToggleFavoriteModel: vi.fn(),
+        };
+        const screen = await renderScreen(<NewSessionFavoriteModelsDetail {...favoriteProps} />);
+
+        expect(optionPickerOverlayProps.at(-1)?.selectedOptionControls?.[0]).toMatchObject({
+            option: { id: 'reasoning_effort', currentValue: 'high' },
+            effectiveValue: 'high',
+        });
+
+        await screen.update(<NewSessionFavoriteModelsDetail
+            {...favoriteProps}
+            currentSessionMetadata={{ sessionModelsV1: {
+                v: 1,
+                provider: 'codex',
+                updatedAt: 10_001,
+                currentModelId: 'gpt-5.5',
+                availableModels: [{
+                    id: 'gpt-5.5',
+                    name: 'GPT 5.5',
+                    modelOptions: [{
+                        id: 'reasoning_effort',
+                        name: 'Thinking',
+                        type: 'select',
+                        currentValue: 'high',
+                        options: [
+                            { value: 'medium', name: 'Medium' },
+                            { value: 'high', name: 'High' },
+                            { value: 'xhigh', name: 'Extra high' },
+                        ],
+                    }],
+                }],
+            } } as never}
+        />);
+
+        const refreshedControl = optionPickerOverlayProps.at(-1)?.selectedOptionControls?.[0];
+        expect(refreshedControl?.effectiveValue).toBe('high');
+        expect(refreshedControl?.option.options?.map((option) => option.value)).toContain('xhigh');
+    });
+
     it('drops incompatible model option overrides when selecting a favorite model', async () => {
         const onSelectFavoriteModel = vi.fn();
         preflightModelsByTargetKey['agent:codex'] = {
@@ -564,7 +682,7 @@ describe('NewSessionFavoriteModelsDetail', () => {
 
         expect(onSelectFavoriteModel).toHaveBeenCalledWith(codexEntry, 'gpt-5.5', {
             service_tier: 'fast',
-        });
+        }, expect.objectContaining({ preflightUpdatedAt: undefined }));
     });
 
     it('renders stale favorite models with a remove affordance instead of dropping the pane', async () => {

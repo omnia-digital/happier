@@ -11,6 +11,8 @@ import {
     shouldSuppressAutomaticMarkViewed,
 } from '@/sync/domains/session/readState/sessionManualUnreadHold';
 import type { LocalSettings } from '@/sync/domains/settings/localSettings';
+import { settingsDefaults } from '@/sync/domains/settings/settings';
+import { createUseSettingMutableMock } from '@/dev/testkit/mocks/storage';
 import { resolveSessionReadableSeq } from '@/sync/domains/session/readCursor/resolveSessionReadableSeq';
 import { installSessionShellCommonModuleMocks } from './sessionShellTestHelpers';
 
@@ -301,6 +303,7 @@ installSessionShellCommonModuleMocks({
             useSessionReviewCommentsDrafts: () => [],
             useSessionUsage: () => null,
             useSetting: () => null,
+            useSettingMutable: createUseSettingMutableMock((key) => settingsDefaults[key]),
             useSettings: () => ({ experiments: true, featureToggles: {} }),
             useLocalSettings: () => localSettingsDefaults,
             useLocalSetting: readLocalSetting,

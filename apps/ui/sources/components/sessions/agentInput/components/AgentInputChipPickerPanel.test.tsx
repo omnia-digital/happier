@@ -57,6 +57,25 @@ vi.mock('./AgentInputChipPickerOptionSelector', () => ({
 }));
 
 describe('AgentInputChipPickerPanel', () => {
+    it('opens the preferred detail without selecting it or overriding subsequent user focus', async () => {
+        const { AgentInputChipPickerPanel } = await import('./AgentInputChipPickerPanel');
+        const onSelect = vi.fn();
+        const options = [
+            { id: 'favorites', label: 'Favorites', initialFocus: true, detailDescription: 'Saved models' },
+            { id: 'engine:codex', label: 'Codex', detailDescription: 'Current Agent' },
+        ];
+        const props = { title: 'Pick', options, selectedOptionId: 'engine:codex', onSelect, onRequestClose: vi.fn() };
+        const screen = await renderScreen(<AgentInputChipPickerPanel {...props} />);
+
+        expect(screen.findByTestId('agent-input-chip-picker.detail-pane')?.props.option.id).toBe('favorites');
+        expect(onSelect).not.toHaveBeenCalled();
+
+        await screen.pressByTestIdAsync('agent-input-chip-picker.option:engine:codex');
+        await screen.update(<AgentInputChipPickerPanel {...props} options={[...options]} />);
+        expect(screen.findByTestId('agent-input-chip-picker.detail-pane')?.props.option.id).toBe('engine:codex');
+        expect(onSelect).not.toHaveBeenCalled();
+    });
+
     it('reconciles an external selection change without a passive follow-up render', async () => {
         const { AgentInputChipPickerPanel } = await import('./AgentInputChipPickerPanel');
         const options = [

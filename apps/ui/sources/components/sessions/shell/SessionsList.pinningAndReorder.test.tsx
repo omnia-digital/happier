@@ -42,7 +42,6 @@ let sessionTagsV1: Record<string, string[]> = {};
 const setSessionTagsV1 = vi.fn();
 let workspaceLabelsV1: Record<string, string> = {};
 const setWorkspaceLabelsV1 = vi.fn();
-const readMachineTargetForSessionMock = vi.hoisted(() => vi.fn());
 const mockMachinesState = vi.hoisted(() => ({ current: [] as any[] }));
 const sessionOrganizationOps = vi.hoisted(() => ({
     deleteSessionFolder: vi.fn(async () => undefined),
@@ -274,11 +273,6 @@ vi.mock('@/sync/ops', async (importOriginal) => {
 
 vi.mock('@/sync/ops/sessionOrganization', () => sessionOrganizationOps);
 
-vi.mock('@/sync/ops/sessionMachineTarget', () => ({
-    readMachineTargetForSession: (sessionId: string) => readMachineTargetForSessionMock(sessionId),
-    readDisplayMachineTargetForSession: (params: { sessionId: string }) => readMachineTargetForSessionMock(params.sessionId),
-}));
-
 vi.mock('@/hooks/session/useNavigateToSession', () => ({
     useNavigateToSession: () => vi.fn(),
 }));
@@ -421,7 +415,7 @@ function createEmptySessionOrganizationProjection(): SessionOrganizationProjecti
 }
 
 describe('SessionsList pinning + per-group ordering', () => {
-    beforeEach(() => {
+    beforeEach(async () => {
         pinnedSessionKeysV1 = [];
         sessionListGroupOrderV1 = {};
         sessionTagsV1 = {};
@@ -439,7 +433,8 @@ describe('SessionsList pinning + per-group ordering', () => {
         hideInactiveSessions = false;
         sessionListAttentionPromotionMode = null;
         sessionListAttentionStandingDefault = false;
-        readMachineTargetForSessionMock.mockReset();
+        const { storage } = await import('@/sync/domains/state/storage');
+        storage.setState({ sessions: {}, machines: {} });
         mockMachinesState.current = [];
         sessionOrganizationProjection = createEmptySessionOrganizationProjection();
         resetVisibleSessionListViewData();
@@ -802,14 +797,12 @@ describe('SessionsList pinning + per-group ordering', () => {
             metadata: { machineId: 'machine-stale-2', host: 'Old workstation 2', path: '/home/u/stale-b', homeDir: '/home/u' },
         } as any;
 
-        readMachineTargetForSessionMock.mockImplementation((sessionId: string) => {
-            if (sessionId === 'sess_live_1') {
-                return { machineId: 'machine-live-1', basePath: '/home/u/live-a' };
-            }
-            if (sessionId === 'sess_live_2') {
-                return { machineId: 'machine-live-2', basePath: '/home/u/live-b' };
-            }
-            return null;
+        const { storage } = await import('@/sync/domains/state/storage');
+        storage.setState({
+            sessions: {
+                [sess1.id]: { ...sess1, metadata: { ...sess1.metadata, machineId: 'machine-live-1', path: '/home/u/live-a' } },
+                [sess2.id]: { ...sess2, metadata: { ...sess2.metadata, machineId: 'machine-live-2', path: '/home/u/live-b' } },
+            },
         });
 
         mockVisibleSessionListViewData = [
@@ -887,14 +880,12 @@ describe('SessionsList pinning + per-group ordering', () => {
             metadata: { machineId: 'machine-stale-2', host: 'Old workstation 2', path: '/home/u/stale-b', homeDir: '/home/u' },
         } as any;
 
-        readMachineTargetForSessionMock.mockImplementation((sessionId: string) => {
-            if (sessionId === 'sess_live_1') {
-                return { machineId: 'machine-live-1', basePath: '/home/u/live-a' };
-            }
-            if (sessionId === 'sess_live_2') {
-                return { machineId: 'machine-live-2', basePath: '/home/u/live-b' };
-            }
-            return null;
+        const { storage } = await import('@/sync/domains/state/storage');
+        storage.setState({
+            sessions: {
+                [sess1.id]: { ...sess1, metadata: { ...sess1.metadata, machineId: 'machine-live-1', path: '/home/u/live-a' } },
+                [sess2.id]: { ...sess2, metadata: { ...sess2.metadata, machineId: 'machine-live-2', path: '/home/u/live-b' } },
+            },
         });
 
         mockVisibleSessionListViewData = [

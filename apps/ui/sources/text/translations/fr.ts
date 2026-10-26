@@ -10719,6 +10719,7 @@ settingsSession: {
         actions: {
             viewEnvironmentVariables: 'Variables d’environnement',
             addToFavorites: 'Ajouter aux favoris',
+            favoriteModelsEmptyGuidance: 'Choisissez un onglet Agent et ajoutez un modèle en favori pour le voir ici',
             removeFromFavorites: 'Retirer des favoris',
             editProfile: 'Modifier le profil',
             duplicateProfile: 'Dupliquer le profil',
