@@ -4,13 +4,49 @@ Josh explicitly chose **Keep native QA deferred** on October 24. This supersedes
 
 ## OH-58 ticket linking
 
+### Next integration PR: remaining fork changes
+
+Josh assigned this session the next `chore/happier-fork-dev-setup` → `dev` PR.
+Merge `74f444006e` includes current dev `91dd9b9e97`, including PRs #7–#10,
+#12 and #13. The next PR describes the remaining delta rather than presenting
+those merged features again:
+
+- Separate sidebar Group and Sort menus, flat view, stable drag/scroll behavior,
+  scoped repository ordering and foreign-Home machine presentation.
+- Compact machine metrics with click/keyboard disclosure and scalable typography;
+  provider usage in desktop chrome through the existing authenticated usage owner.
+- Correct foreign-Home path selection and session hydration through real scoped
+  routing, plus isolated fixture process environments.
+- Parent-derived profile/numeric field refinements, Claude model/control state,
+  tmux session ownership and natural tool-unpacker exit.
+
+Deferred OH-5 release-trust code and dependent tests are excluded from the net
+change, including their base intents. Historical commits remain reachable because
+the authorized integration is a merge, not a history rewrite. Root checks all 61
+deferred-footprint paths: 58 match dev exactly; only three history/deferral docs
+differ. Unsigned nightly workflow and Tauri candidate/publisher owners match dev.
+No nightly workflow or release was dispatched.
+
+Merged-source evidence: 105/105 focused UI owners, all 11 root typecheck entries
+(39.67s), and 12/12 unsigned workflow/source contracts pass. Full UI package
+qualification is in progress; the retained real watcher test is blocked at an
+inconclusive macOS event-delivery boundary. Remaining root packages and the merged
+status-organization browser recipe are pending. Native QA is explicitly deferred;
+installed-host metrics support, actual vendor authentication, Windows/Linux and
+0.3 destination verification retain their existing acceptance gaps. This source
+work is not an installed-app or release qualification.
+
+PR creation requires Josh to configure `happier-bot` with `yarn ghops auth store`.
+Standing authority covers creating/updating this PR against dev, but no personal
+credential fallback, shared-branch merge, workflow dispatch, signing or release.
+
 ### Link-ticket dialog readability correction (2026-10-24)
 
 The link/change action now opts into the canonical modal card surface and header, retaining the editor's single scroll owner and standard responsive dimensions. Editor labels, loading text and resolved ticket details use the primary theme text color. This corrects the transparent dialog and the black-on-dark labels exposed during visual verification; ticket-reader and persistence behavior are unchanged.
 
 The original browser regression failed because the dialog had no opaque surface. Final Chrome replay passes in light/dark at 1360×900 and 390×844, including opaque coverage, label contrast of at least 4.5:1, long-directory input/cancel, and the existing link/read/save/change/remove/reload workflow. All four dialog screenshots were captured; desktop light and compact dark were visually inspected. Browser diagnostics contain no console, page or HTTP response errors; navigation cancelled three in-flight requests. Focused header/card/modal tests pass 19/19, and UI plus E2E-package typechecks pass. Independent review found no blocking issue. Logs: `/tmp/happier-ticket-browser-red.log`, `/tmp/happier-ticket-browser-final.log`, `/tmp/happier-ticket-modal-focused-vitest.log`, `/tmp/happier-ticket-modal-ui-typecheck.log`, and `/tmp/happier-ticket-e2e-types-final.log`. Screenshots are in `packages/tests/.project/logs/e2e/ui-playwright/session.ticketLinking-sess-b6c85-oves-and-persists-on-reload/ticket-dialog-*.png`.
 
-This is unmerged source work on `fix/link-ticket-modal-background`, targeting `dev`; the installed native app has not been updated or tested. PR creation awaits an exception to the standing rule prohibiting GitHub writes other than branch pushes. Notion publication is blocked: title/content search and the configured Omnia Software Documentation data source did not identify a canonical Happier page. This paragraph is the ready-to-publish update; next steps are to identify that page, open the PR when authorized, and validate the native app after integration.
+This correction is now merged into dev through PR #12 and included in merge `74f444006e`; the installed native app has not been updated or tested. The older PR-authorization blocker is superseded by Josh's standing authority. Notion publication remains blocked because the earlier title/content search and configured Omnia Software Documentation data source did not identify a canonical Happier page. Native validation remains deferred until Josh resumes it.
 
 - 🟢 Protocol/CLI fixed-read reader remains opt-in and machine-only. Root independently passes reader/adapter 9 and encrypted machine/session authorization 4 (the latter overlaps OH-59).
 - 🟢 Root independently passes status/transport/opener 14 in `/tmp/happier-oh58-ui-root-final.log`.
