@@ -3928,15 +3928,16 @@ function SessionViewLoaded({
         ));
         return group ? group.policy.quotaLimitSelection : null;
     }, [connectedServiceQuotaAuthGroups.groups, connectedServiceQuotaProfileRef?.groupId]);
-    const sessionAgentCatalogEntries = React.useMemo(() => getResolvedBackendCatalogEntries({
-        enabledAgentIds,
-        acpCatalogSettingsV1: settings.acpCatalogSettingsV1,
-        backendEnabledByTargetKey: settings.backendEnabledByTargetKey,
-    }), [enabledAgentIds, settings.acpCatalogSettingsV1, settings.backendEnabledByTargetKey]);
     const sessionAgentCurrentTargetKey = React.useMemo(() => buildBackendTargetKey(
         sessionActionDefaultBackend?.backendTarget
         ?? { kind: 'builtInAgent', agentId: liveComposerState.agentId },
     ), [liveComposerState.agentId, sessionActionDefaultBackend?.backendTarget]);
+    const sessionAgentCatalogEntries = React.useMemo(() => getResolvedBackendCatalogEntries({
+        enabledAgentIds,
+        acpCatalogSettingsV1: settings.acpCatalogSettingsV1,
+        backendEnabledByTargetKey: settings.backendEnabledByTargetKey,
+        currentBackendTargetKey: sessionAgentCurrentTargetKey,
+    }), [enabledAgentIds, sessionAgentCurrentTargetKey, settings.acpCatalogSettingsV1, settings.backendEnabledByTargetKey]);
     const [favoriteModelSelections, setFavoriteModelSelections] = useSettingMutable('favoriteModelSelectionsV1');
     const currentFavoriteBackend = React.useMemo(() => {
         const entry = sessionAgentCatalogEntries.find((candidate) => candidate.targetKey === sessionAgentCurrentTargetKey);

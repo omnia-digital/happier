@@ -62,11 +62,12 @@ describe('getResolvedBackendCatalogEntries', () => {
         ]);
     });
 
-    it('omits configured ACP backends disabled by target key', () => {
-        const entries = getResolvedBackendCatalogEntries({
+    it('omits disabled configured backends unless they are the exact current session backend', () => {
+        const params = {
             enabledAgentIds: ['claude', 'customAcp'],
             backendEnabledByTargetKey: {
                 'acpBackend:review-bot': false,
+                'acpBackend:other-bot': false,
             },
             acpCatalogSettingsV1: {
                 v: 2,
@@ -94,9 +95,16 @@ describe('getResolvedBackendCatalogEntries', () => {
                     },
                 ],
             },
+        } satisfies Parameters<typeof getResolvedBackendCatalogEntries>[0];
+        params.acpCatalogSettingsV1.backends.push({
+            ...params.acpCatalogSettingsV1.backends[0]!, id: 'other-bot', name: 'other-bot',
         });
 
-        expect(entries.map((entry) => entry.targetKey)).toEqual(['agent:claude']);
+        expect(getResolvedBackendCatalogEntries(params).map((entry) => entry.targetKey)).toEqual(['agent:claude']);
+        expect(getResolvedBackendCatalogEntries({
+            ...params,
+            currentBackendTargetKey: 'acpBackend:review-bot',
+        }).map((entry) => entry.targetKey)).toEqual(['agent:claude', 'acpBackend:review-bot']);
     });
 
     it('keeps configured ACP backends visible when sentinel collapsing is enabled', () => {
