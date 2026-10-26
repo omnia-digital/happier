@@ -301,8 +301,8 @@ async function main() {
       }
 
       // CocoaPods repo state can be stale on first runs; `--repo-update` fixes missing specs.
-      const podCmd = shouldClean ? 'cd ios && pod install --repo-update' : 'cd ios && pod install';
-      await run('sh', ['-lc', podCmd], { cwd: uiDir, env });
+      const podArgs = ['install', ...(shouldClean ? ['--repo-update'] : [])];
+      await run('pod', podArgs, { cwd: join(uiDir, 'ios'), env });
     }
   }
 
