@@ -35,19 +35,6 @@ vi.mock('node:fs', async (importOriginal) => {
   };
 });
 
-const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
-if (!originalPlatformDescriptor) throw new Error('process.platform descriptor is required for this test');
-const platformDescriptor: PropertyDescriptor = originalPlatformDescriptor;
-
-async function withPlatform<T>(platform: NodeJS.Platform, run: () => Promise<T>): Promise<T> {
-  Object.defineProperty(process, 'platform', { ...platformDescriptor, value: platform });
-  try {
-    return await run();
-  } finally {
-    Object.defineProperty(process, 'platform', platformDescriptor);
-  }
-}
-
 function binaryName(): string {
   return process.platform === 'win32' ? 'happier.exe' : 'happier';
 }
@@ -143,45 +130,42 @@ describe('runManagedCliUpdate — the one CLI update transaction', () => {
     expect(existsSync(`${layout.installRoot}.mutation.lock`)).toBe(false);
   });
 
-  for (const platform of ['linux', 'win32'] as const) {
-    it(`restores every piece of activation state and restarts the previous binary when the restart is not proven (${platform})`, async () => {
-      await withPlatform(platform, async () => {
-        await installInitial('1.0.0');
-        const layout = resolveFirstPartyInstallLayout({ componentId: 'happier-cli', processEnv: env });
-        const defaultChannelPath = resolveDefaultManagedReleaseChannelStatePath({ processEnv: env });
-        const defaultChannelBefore = await readFile(defaultChannelPath, 'utf8');
-        const restarts: Array<Readonly<{ phase: string; expectedVersion: string; shim: string }>> = [];
+  // Real filesystem transactions use the host OS; native runners provide platform coverage.
+  it(`restores every piece of activation state and restarts the previous binary when the restart is not proven (${process.platform})`, async () => {
+    await installInitial('1.0.0');
+    const layout = resolveFirstPartyInstallLayout({ componentId: 'happier-cli', processEnv: env });
+    const defaultChannelPath = resolveDefaultManagedReleaseChannelStatePath({ processEnv: env });
+    const defaultChannelBefore = await readFile(defaultChannelPath, 'utf8');
+    const restarts: Array<Readonly<{ phase: string; expectedVersion: string; shim: string }>> = [];
 
-        const result = await runManagedCliUpdate({
-          channel: 'stable',
-          processEnv: env,
-          preparePayload: prepareFrom('2.0.0'),
-          readVersion: readFixtureVersion,
-          restartServiceDaemon: async ({ phase, expectedVersion }) => {
-            restarts.push({ phase, expectedVersion, shim: await readFile(join(layout.shimDir, binaryName()), 'utf8') });
-            if (phase === 'activated') throw new Error('the new daemon never became the owner');
-          },
-        });
-
-        expect(result).toMatchObject({ outcome: 'rolledBack', previousVersion: '1.0.0', targetVersion: '2.0.0' });
-        expect(restarts).toEqual([
-          { phase: 'activated', expectedVersion: '2.0.0', shim: 'binary-2.0.0' },
-          { phase: 'restored', expectedVersion: '1.0.0', shim: 'binary-1.0.0' },
-        ]);
-        expect(await readInstalledVersionMarkers(layout)).toEqual({ currentVersionId: '1.0.0', previousVersionId: null });
-        expect(await readFile(join(layout.currentPath, binaryName()), 'utf8')).toBe('binary-1.0.0');
-        expect(await readFile(join(layout.shimDir, binaryName()), 'utf8')).toBe('binary-1.0.0');
-        expect(await readFile(defaultChannelPath, 'utf8')).toBe(defaultChannelBefore);
-        expect(existsSync(layout.previousPath)).toBe(false);
-        expect(readLastCliUpdateResult({ channel: 'stable', processEnv: env })).toMatchObject({
-          outcome: 'rolledBack',
-          targetVersion: '2.0.0',
-          message: expect.stringContaining('the new daemon never became the owner'),
-        });
-        expect(existsSync(`${layout.installRoot}.mutation.lock`)).toBe(false);
-      });
+    const result = await runManagedCliUpdate({
+      channel: 'stable',
+      processEnv: env,
+      preparePayload: prepareFrom('2.0.0'),
+      readVersion: readFixtureVersion,
+      restartServiceDaemon: async ({ phase, expectedVersion }) => {
+        restarts.push({ phase, expectedVersion, shim: await readFile(join(layout.shimDir, binaryName()), 'utf8') });
+        if (phase === 'activated') throw new Error('the new daemon never became the owner');
+      },
     });
-  }
+
+    expect(result).toMatchObject({ outcome: 'rolledBack', previousVersion: '1.0.0', targetVersion: '2.0.0' });
+    expect(restarts).toEqual([
+      { phase: 'activated', expectedVersion: '2.0.0', shim: 'binary-2.0.0' },
+      { phase: 'restored', expectedVersion: '1.0.0', shim: 'binary-1.0.0' },
+    ]);
+    expect(await readInstalledVersionMarkers(layout)).toEqual({ currentVersionId: '1.0.0', previousVersionId: null });
+    expect(await readFile(join(layout.currentPath, binaryName()), 'utf8')).toBe('binary-1.0.0');
+    expect(await readFile(join(layout.shimDir, binaryName()), 'utf8')).toBe('binary-1.0.0');
+    expect(await readFile(defaultChannelPath, 'utf8')).toBe(defaultChannelBefore);
+    expect(existsSync(layout.previousPath)).toBe(false);
+    expect(readLastCliUpdateResult({ channel: 'stable', processEnv: env })).toMatchObject({
+      outcome: 'rolledBack',
+      targetVersion: '2.0.0',
+      message: expect.stringContaining('the new daemon never became the owner'),
+    });
+    expect(existsSync(`${layout.installRoot}.mutation.lock`)).toBe(false);
+  });
 
   it('reports a failed restore as failed, never as rolled back', async () => {
     await installInitial('1.0.0');
