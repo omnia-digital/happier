@@ -165,3 +165,4 @@ _.env.pipeline.production.local
 
 # Leftovers of an interrupted apps/stack atomic_dir_swap
 **/.backup.*/
+/.happier/uploads/
