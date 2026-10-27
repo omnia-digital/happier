@@ -72,7 +72,7 @@ function ProviderUsageTile(props: Readonly<{
     const connectedSnapshot = connectedKey ? connected.snapshotsByKey[connectedKey] ?? null : null;
     const snapshotSource = selectProviderUsageDisplaySnapshot({
         providerId: props.providerId,
-        metadataRecordIds: nativeIds,
+        metadataRecordIds: selected?.kind === 'native' ? [selected.recordId] : [],
         accountUsageSnapshotsByRecordId: native.snapshotsByRecordId,
         connectedServiceProfileRef: selected?.kind === 'connected'
             ? { serviceId: selected.serviceId, profileId: selected.profileId, provenance: 'connected_binding_profile' }
