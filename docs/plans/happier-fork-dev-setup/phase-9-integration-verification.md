@@ -8,11 +8,10 @@ Josh explicitly chose **Keep native QA deferred** on October 24. This supersedes
 
 Proposed title: `feat(desktop): refine session organization, machine visibility and usage`.
 
-Josh assigned this session the next `chore/happier-fork-dev-setup` → `dev` PR.
-Merge `5d9517cb09` includes current dev `a83e1a2a67`, including PR #11 model
-favorites. Its predecessor merge `74f444006e` brought in PRs #7–#10, #12 and #13.
-The next PR describes the remaining delta rather than presenting those merged
-features again:
+Josh assigned this session the next `chore/happier-fork-dev-setup` → `dev` PR
+and explicitly requested finishing and merging it. Merge `d883ec3a5d` includes
+dev `1847cd98b8` (PR #14); predecessor merges include PRs #7–#13. The next PR
+describes the remaining delta:
 
 - Separate sidebar Group and Sort menus, flat view, stable drag/scroll behavior,
   scoped repository ordering and foreign-Home machine presentation.
@@ -25,39 +24,53 @@ features again:
 
 Deferred OH-5 release-trust code and dependent tests are excluded from the net
 change, including their base intents. Historical commits remain reachable because
-the authorized integration is a merge, not a history rewrite. Root checks all 61
-deferred-footprint paths: 58 match dev exactly; only three history/deferral docs
-differ. Unsigned nightly workflow and Tauri candidate/publisher owners match dev.
-No nightly workflow or release was dispatched.
+the integration is a merge. The 61-path audit has 58 exact matches to dev and only
+three differing history/deferral documents. Unsigned nightly workflow and Tauri
+candidate/publisher owners match dev. No release workflow was dispatched.
 
-Current merge checks pass: 118 session-list lifecycle/pinning/web tests and 315
-affected favorites/SessionView tests across 18 files; all 11 root typecheck entries
-(86.23s); documentation content, 47 guard tests and docs types. Logs are
-`oh10-dev11-list-fixtures-merged.log`, `oh10-dev11-favorites-sessionview.log`,
-`oh10-dev11-root-typecheck.log` and `oh10-dev11-docs-{content,tests,types}.log`
-under `.project/logs/tests`. Root reviews the fixture and production auto-merge
-deltas and verifies the terminal results.
+At the PR #11 integration boundary, 118 session-list lifecycle/pinning/web tests,
+315 favorites/SessionView tests, all 11 root typecheck entries, docs content,
+47 docs guards and docs types passed. The PR #14 merge adds 16 passing Stack
+mobile-owner tests. At predecessor merge `74f444006e`, the full UI package passed
+32 unit shards, 3,762 files, 25,905 tests and 3 skips, plus prompt 1/1 and host
+contracts 54/54. This is retained evidence for those sources, not a current
+whole-root verdict.
 
-At predecessor merge `74f444006e`, the full UI package passed 32 unit shards,
-3,762 files, 25,905 tests and 3 skips, plus prompt 1/1 and host contracts 54/54.
-That remains evidence for its recorded source, not a new full-package verdict
-after PR #11. Unsigned workflow/source contracts passed 12/12 and their owners
-still match dev. The retained watcher remains blocked at an inconclusive macOS
-event-delivery boundary. After approved OH-67 cleanup restored capacity, CLI
-qualification exposed a separately reproduced import-stage timeout before its
-service assertion; full CLI/root qualification and the merged status browser
-recipe remain incomplete. Native QA is deferred;
-installed-host metrics support, actual vendor authentication, Windows/Linux and
-0.3 destination verification retain their existing acceptance gaps. This source
-work is not an installed-app or release qualification.
+Final review found PU-1: opening the provider account chooser could display
+another account's gauge. Chrome reproduced the unchosen gauge before the fix;
+all three browser flows pass after restricting display to the selected native
+record while retaining option-label prefetch. Adjacent 32 tests, UI types and
+E2E fixture types pass; independent delta review resolves the finding. Logs are
+`oh10-finish-provider-usage-{red,green,owners}.log` and
+`oh10-finish-{ui,fixture}-typecheck.log` under `.project/logs/tests`.
 
-Josh's October 26 actor update supersedes the missing `happier-bot` credential
-blocker for this fork. GitHub API/UI actions use `andorcassian` through Cassian's
-existing authenticated Mac mini session. Once current dev is merged, OH-5 is
-handled, required checks are green and the branch is pushed, send that session
-the PR title and description for this branch → dev. No request to create the PR
-is sent before those conditions hold. No local personal-token fallback,
-shared-branch merge, workflow dispatch, signing or release is authorized.
+Current full CLI qualification completed all 64 shards but failed on ten cases:
+eight stale exact-tmux target expectations, one Codex fixture candidate and one
+relay timeout. Isolation had one handoff readiness failure; import-cycle tail did
+not run. Focused recovery passes 24/24 across attach, isolated Codex startup and
+unchanged relay tests, plus 22/22 attach eligibility tests. Handoff fixture
+readiness now observes actual OS link contention instead of a transient directory
+notification, preserving real recovery/lease/lock behavior; focused 1/1 and the
+canonical isolated group 19/19 pass. Remaining CLI types/import tail, package
+qualification and current merged browser recipes are still being reconciled.
+No full CLI or whole-root PASS is claimed.
+
+The updater owner file passes 13/13 without skips on an isolated exact-source
+Windows worktree after consolidating its simulated-platform rollback duplicate
+into the real native-host transaction. All nine rollback assertions remain.
+Actual Windows watcher and filename-less events pass. The unresolved Mac event
+notification diagnosis remains visible; no watcher workaround, timeout increase
+or skip was added. Linux-native CI remains separate.
+
+GitHub API/UI actions use `andorcassian` through Cassian's existing authenticated
+Mac mini session, replacing the former bot requirement. Send the ready exact head,
+PR title and description once required qualification is reconciled and the branch
+is pushed. Josh authorizes opening and merging this PR into dev after current-head
+CI and review pass. Do not use this Mac's personal GitHub API credential. This
+authority excludes workflow dispatch, signing, release, promotion and daily app,
+daemon, service or account changes. Native QA remains explicitly deferred;
+installed-host metrics support, real-provider acceptance and the missing 0.3
+destination retain their existing task dispositions.
 
 ### Link-ticket dialog readability correction (2026-10-24)
 
