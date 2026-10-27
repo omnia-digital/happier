@@ -132,11 +132,16 @@ Josh requires every work item on this fork to have an OH task before work starts
 Current external-write policy allows Linear planning, ordinary feature-branch
 checkpoints, and creating or updating the fork's PR when work is ready. Josh's
 October 25 replacement instructions explicitly authorize that PR handoff; target
-`dev`. GitHub API/UI operations still use the required `happier-bot` transport.
-Merges, releases, repository settings/secrets and workflow dispatch are separate
-actions and remain user-owned unless explicitly authorized. The bot authentication
-preflight currently exits 2 for a missing credential; no personal-token fallback
-or GitHub write has been attempted.
+`dev`. Josh's October 26 update replaces `happier-bot` with `andorcassian` for
+this fork's GitHub API/UI actions, including PR creation. Use Cassian's existing
+Mac mini session, “Happier - work dev tasks,” where that account is authenticated;
+do not substitute this Mac's `joshtorres` account or a personal-token fallback.
+Once current `origin/dev` is merged, OH-5 is explicitly excluded or approved,
+required checks are green and the branch is pushed, send that session the PR
+title and description for `chore/happier-fork-dev-setup` → `dev`. Ordinary Git
+checkpoints keep the current machine's configured Git identity and transport.
+Merges to shared branches, releases, repository settings/secrets and workflow
+dispatch remain separate user-owned actions unless explicitly authorized.
 
 - `origin`: `https://github.com/omnia-digital/happier.git`
 - `upstream`: `https://github.com/happier-dev/happier.git`

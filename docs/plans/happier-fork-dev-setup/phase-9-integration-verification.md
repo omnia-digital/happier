@@ -42,9 +42,13 @@ installed-host metrics support, actual vendor authentication, Windows/Linux and
 0.3 destination verification retain their existing acceptance gaps. This source
 work is not an installed-app or release qualification.
 
-PR creation requires Josh to configure `happier-bot` with `yarn ghops auth store`.
-Standing authority covers creating/updating this PR against dev, but no personal
-credential fallback, shared-branch merge, workflow dispatch, signing or release.
+Josh's October 26 actor update supersedes the missing `happier-bot` credential
+blocker for this fork. GitHub API/UI actions use `andorcassian` through Cassian's
+existing authenticated Mac mini session. Once current dev is merged, OH-5 is
+handled, required checks are green and the branch is pushed, send that session
+the PR title and description for this branch → dev. No request to create the PR
+is sent before those conditions hold. No local personal-token fallback,
+shared-branch merge, workflow dispatch, signing or release is authorized.
 
 ### Link-ticket dialog readability correction (2026-10-24)
 
