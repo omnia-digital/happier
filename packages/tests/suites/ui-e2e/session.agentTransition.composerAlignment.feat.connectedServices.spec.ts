@@ -17,6 +17,7 @@ import { appendBrowserDiagnostics, collectBrowserDiagnostics } from '../../src/t
 import { ensureUiFeatureEnabled } from '../../src/testkit/uiE2e/ensureUiFeatureEnabled';
 import { gotoDomContentLoadedWithPathFallback, normalizeLoopbackBaseUrl, waitForAuthenticatedRouteUi } from '../../src/testkit/uiE2e/pageNavigation';
 import { spawnSessionFromDaemon } from '../../src/testkit/uiE2e/spawnSessionFromDaemon';
+import { readUiE2eScopedAccountSettings } from '../../src/testkit/uiE2e/scopedAccountSettingsStorage';
 
 const run = createRunDirs({ runLabel: 'ui-e2e' });
 // Reuse the composed cross-Agent transition contract's scenario budget.
@@ -69,7 +70,7 @@ test.describe('UI e2e: armed Agent composer alignment', () => {
     if (failures.length > 0) throw new AggregateError(failures, 'Failed to stop owned composer-alignment fixtures');
   });
 
-  test('projects Claude defaults and safety intent while Codex remains the running Session, then admits Send', async ({ page }) => {
+  test('persists cross-provider favorites and projects the chosen favorite before admitting Send', async ({ page }, testInfo) => {
     test.setTimeout(scenarioTimeoutMs);
     if (!server || !ui || !providerHttp) throw new Error('missing server/UI/provider fixtures');
     const uiBaseUrl = normalizeLoopbackBaseUrl(ui.baseUrl);
@@ -151,12 +152,63 @@ test.describe('UI e2e: armed Agent composer alignment', () => {
       if (!sourceUsageLabel) throw new Error('missing source provider usage accessibility label');
 
       await page.getByTestId('agent-input-agent-chip').click();
+      const favoritesTab = page.getByTestId('agent-input-chip-picker.top-selector-option:favorite-models');
+      const expectPickerSettled = async () => {
+        await expect.poll(() => page.getByTestId('new-session-favorite-model-option:agent:codex\u001fgpt-5.4').evaluate((element) => {
+          let ancestor: Element | null = element;
+          let opacity = 1;
+          while (ancestor) {
+            opacity *= Number(getComputedStyle(ancestor).opacity);
+            ancestor = ancestor.parentElement;
+          }
+          return opacity;
+        })).toBeGreaterThan(0.999);
+      };
+      await expect(favoritesTab).toBeVisible();
+      await expect(page.locator('[data-testid^="agent-input-chip-picker.top-selector-option:"]').first()).toHaveAttribute(
+        'data-testid', 'agent-input-chip-picker.top-selector-option:favorite-models');
+      await page.getByTestId('agent-input-chip-picker.top-selector-option:engine:codex').click();
+      await page.getByTestId('model-picker-overlay-option-favorite:gpt-5.4').click();
+      await expect(page.getByTestId('model-picker-overlay-option-favorite:gpt-5.4')).toHaveAttribute('aria-label', /remove.*favorite/i);
       await page.getByTestId(`agent-input-chip-picker.top-selector-option:${buildBackendTargetKey({ kind: 'builtInAgent', agentId: 'claude' })}`).click();
       const runningCodex = page.getByTestId('agent-input-chip-picker.top-selector-option:engine:codex');
       await expect(runningCodex).toHaveAttribute('aria-label', /Codex.*Running this Session/i);
       await expect(page.getByTestId('model-picker-overlay-option:claude-fixture-work')).toContainText('Fixture Claude Work', { timeout: scenarioTimeoutMs });
       expect(providerHttp.requests().some((request) => request.path.startsWith('/v1/models'))).toBe(true);
-      await page.getByTestId('model-picker-overlay-option:claude-fixture-work').click();
+      await page.getByTestId('model-picker-overlay-option-favorite:claude-fixture-work').click();
+      await expect.poll(async () => (await readUiE2eScopedAccountSettings({ page })).favoriteModelSelectionsV1).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ modelId: 'gpt-5.4' }),
+          expect.objectContaining({ modelId: 'claude-fixture-work' }),
+        ]));
+      await page.keyboard.press('Escape');
+      await page.reload();
+      await expect(composer).toBeVisible({ timeout: scenarioTimeoutMs });
+      await page.getByTestId('agent-input-agent-chip').click();
+      const codexFavorite = page.getByTestId('new-session-favorite-model-option:agent:codex\u001fgpt-5.4');
+      const claudeFavorite = page.getByTestId('new-session-favorite-model-option:agent:claude\u001fclaude-fixture-work');
+      await expect(codexFavorite).toBeVisible({ timeout: scenarioTimeoutMs });
+      await expect(claudeFavorite).toBeVisible({ timeout: scenarioTimeoutMs });
+      await expectPickerSettled();
+      await page.screenshot({ path: testInfo.outputPath('model-favorites-compact.png') });
+      await page.keyboard.press('Escape');
+      await page.setViewportSize({ width: 1360, height: 900 });
+      await page.getByTestId('agent-input-agent-chip').click();
+      await expect(claudeFavorite).toBeVisible();
+      await expectPickerSettled();
+      await page.screenshot({ path: testInfo.outputPath('model-favorites-desktop.png') });
+      await claudeFavorite.click();
+      await expect(page.getByTestId('agent-input-agent-chip')).toContainText('Fixture Claude Work');
+      await expect(codexFavorite).toBeVisible();
+      await codexFavorite.click();
+      await expect(page.getByTestId('agent-input-agent-chip')).not.toContainText('Fixture Claude Work');
+      await expect(authChip).toHaveAttribute('data-auth-source', 'native');
+      await expect(claudeFavorite).toBeVisible();
+      await page.getByTestId('new-session-favorite-model-option-favorite:agent:codex\u001fgpt-5.4').click();
+      await expect(codexFavorite).toHaveCount(0);
+      await expect.poll(async () => (await readUiE2eScopedAccountSettings({ page })).favoriteModelSelectionsV1).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ modelId: 'gpt-5.4' })]));
+      await claudeFavorite.click();
       await page.keyboard.press('Escape');
       await expect(page.getByTestId('agent-input-agent-chip')).toContainText('Fixture Claude Work');
       await expect(authChip).toHaveAttribute('data-auth-source', 'connected');
@@ -194,5 +246,6 @@ test.describe('UI e2e: armed Agent composer alignment', () => {
     } catch (error) {
       throw appendBrowserDiagnostics(error, diagnostics());
     }
+    finally { await testInfo.attach('browser-diagnostics', { body: diagnostics(), contentType: 'text/plain' }); }
   });
 });

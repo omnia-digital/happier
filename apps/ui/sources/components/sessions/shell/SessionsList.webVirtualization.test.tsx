@@ -386,11 +386,6 @@ vi.mock('@/sync/ops', async (importOriginal) => {
     });
 });
 
-vi.mock('@/sync/ops/sessionMachineTarget', () => ({
-    readMachineTargetForSession: () => null,
-    readDisplayMachineTargetForSession: () => null,
-}));
-
 vi.mock('@/hooks/session/useNavigateToSession', () => ({
     useNavigateToSession: () => vi.fn(),
 }));

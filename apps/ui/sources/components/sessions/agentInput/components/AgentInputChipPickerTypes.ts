@@ -1,4 +1,5 @@
 import { t } from '@/text';
+import type { SessionModelOptionsContext } from '@/sync/domains/models/modelOptions';
 
 export type AgentInputChipPickerDetailSelectOption = Readonly<{
     id: string;
@@ -15,6 +16,13 @@ export type AgentInputChipPickerOptionRailAction = Readonly<{
     selected?: boolean;
     disabled?: boolean;
     onPress: () => void;
+}>;
+
+export type AgentInputChipPickerCurrentModelContext = Readonly<{
+    modelId: string;
+    configOverrides?: Readonly<Record<string, string>>;
+    onSelectModel: (modelId: string, modelOptionsContext?: SessionModelOptionsContext) => void;
+    onSelectConfigOptionValue?: (configId: string, valueId: string) => void;
 }>;
 
 export const AGENT_INPUT_CHIP_PICKER_DETAIL_MIN_HEIGHT = 272;
@@ -36,6 +44,8 @@ export type AgentInputChipPickerOption = Readonly<{
      * but can still be focused/inspected in detailed pickers.
      */
     muted?: boolean;
+    initialFocus?: boolean;
+    preserveFocusOnExternalSelectionChange?: boolean;
     sectionId?: string;
     sectionLabel?: string;
     detailTitle?: string;
@@ -64,7 +74,6 @@ export type AgentInputChipPickerOption = Readonly<{
      * inheriting the panel-wide label.
      */
     applyLabel?: string;
-    preserveFocusOnExternalSelectionChange?: boolean;
     /**
      * A non-selection state mark for the row's indicator slot — drawn only when the
      * row is NOT the selection, so it stands in the checkmark's place rather than

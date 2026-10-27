@@ -228,7 +228,7 @@ installSessionShellCommonModuleMocks({
         return modalMock.module;
     },
     storage: async (importOriginal) => {
-        const { createStorageModuleStub, createStorageStoreMock } = await import('@/dev/testkit/mocks/storage');
+        const { createStorageModuleStub, createStorageStoreMock, createUseSettingMutableMock } = await import('@/dev/testkit/mocks/storage');
         const { settingsDefaults } = await import('@/sync/domains/settings/settings');
         const defaultSessionMetadata = {
             machineId: 'm-stale',
@@ -433,7 +433,8 @@ installSessionShellCommonModuleMocks({
             useActiveServerAccountScope: () => ({ serverId: 'server-cache', accountId: 'account-cache' }),
             useLocalSetting: (key: keyof LocalSettings) => (localSettingsFixture as any)[key],
             useLocalSettingMutable: (key: keyof LocalSettings) => [(localSettingsFixture as any)[key], vi.fn()],
-            useSetting: (key: keyof Settings) => ((settingsState.current as any)[key] ?? (settingsFixture as any)[key]),
+            useSetting: (key: keyof Settings) => ((settingsState.current as any)[key] ?? (settingsFixture as any)[key] ?? settingsDefaults[key]),
+            useSettingMutable: createUseSettingMutableMock((key) => ((settingsState.current as any)[key] ?? (settingsFixture as any)[key] ?? settingsDefaults[key])),
             useSettings: () => ({
                 ...settingsFixture,
                 ...settingsState.current,

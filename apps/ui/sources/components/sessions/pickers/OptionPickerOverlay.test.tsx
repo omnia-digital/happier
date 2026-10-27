@@ -953,7 +953,7 @@ describe('OptionPickerOverlay', () => {
         expect(onSelectOptionControlValue).toHaveBeenCalledWith('fast', 'true');
     });
 
-    it('renders the favorite toggle only inside the selected option card and routes favorite changes separately from selection', async () => {
+    it('renders favorite toggles on selectable options and routes favorite changes separately from selection', async () => {
         const onSelect = vi.fn();
         const onToggleFavorite = vi.fn();
         const { OptionPickerOverlay } = await import('./OptionPickerOverlay');
@@ -977,13 +977,13 @@ describe('OptionPickerOverlay', () => {
         />);
 
         expect(screen.findByTestId('model-picker-overlay-option-favorite:gpt-5.4')).toBeTruthy();
-        expect(screen.findByTestId('model-picker-overlay-option-favorite:gpt-5.4-mini')).toBeNull();
+        expect(screen.findByTestId('model-picker-overlay-option-favorite:gpt-5.4-mini')).toBeTruthy();
 
-        await screen.pressByTestIdAsync('model-picker-overlay-option-favorite:gpt-5.4');
+        await screen.pressByTestIdAsync('model-picker-overlay-option-favorite:gpt-5.4-mini');
 
         expect(onToggleFavorite).toHaveBeenCalledWith(expect.objectContaining({
-            value: 'gpt-5.4',
-            label: 'GPT 5.4',
+            value: 'gpt-5.4-mini',
+            label: 'GPT 5.4 Mini',
         }));
         expect(onSelect).not.toHaveBeenCalled();
     });

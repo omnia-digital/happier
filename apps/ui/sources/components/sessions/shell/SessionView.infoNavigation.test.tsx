@@ -8,6 +8,7 @@ import { createExpoRouterMock } from '@/dev/testkit/mocks/router';
 import { createReactNativeWebMock } from '@/dev/testkit/mocks/reactNative';
 import { createTextModuleMock } from '@/dev/testkit/mocks/text';
 import { createUnistylesMock } from '@/dev/testkit/mocks/unistyles';
+import { createUseSettingMutableMock } from '@/dev/testkit/mocks/storage';
 import { localSettingsDefaults, type LocalSettings } from '@/sync/domains/settings/localSettings';
 import { settingsDefaults, type Settings } from '@/sync/domains/settings/settings';
 
@@ -121,6 +122,7 @@ installSessionShellCommonModuleMocks({
                 if (key === 'workspaceLabelsV1') return workspaceLabelsV1 as Settings[K];
                 return settingsDefaults[key];
             },
+            useSettingMutable: createUseSettingMutableMock((key) => key === 'workspaceLabelsV1' ? workspaceLabelsV1 : settingsDefaults[key]),
             useSettings: () => ({ ...settingsDefaults, experiments: true, featureToggles: {} }),
             useAutomations: () => [],
             useSessionAutomationsEnabledCount: () => 0,

@@ -2,6 +2,8 @@ import * as React from 'react';
 import renderer, { act } from 'react-test-renderer';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { findTestInstanceByTypeWithProps, invokeTestInstanceHandler, renderScreen } from '@/dev/testkit';
+import { settingsDefaults } from '@/sync/domains/settings/settings';
+import { createUseSettingMutableMock } from '@/dev/testkit/mocks/storage';
 import { installSessionShellCommonModuleMocks } from './sessionShellTestHelpers';
 import { clearSessionAttachmentDrafts } from '@/components/sessions/attachments/sessionAttachmentDraftStore';
 import { existingSessionDraftSemanticValues } from '@/sync/domains/input/drafts/existingSessionDraftSemanticValues';
@@ -585,7 +587,7 @@ installSessionShellCommonModuleMocks({
                 return null;
             },
             useLocalSettingMutable: () => [null, vi.fn()],
-            useSettingMutable: () => [null, vi.fn()],
+            useSettingMutable: createUseSettingMutableMock((key) => settingsDefaults[key]),
         });
         const { registerStorageStateReader } = await import('@/sync/domains/state/storageStateReaderBridge');
         registerStorageStateReader(() => module.storage.getState());

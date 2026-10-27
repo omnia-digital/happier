@@ -1,6 +1,7 @@
 import { buildServerFeaturesResponse } from '@/hooks/server/serverFeaturesTestUtils';
 import { RPC_METHODS } from '@happier-dev/protocol/rpc';
 import type { AgentInputChipPickerOption } from '@/components/sessions/agentInput/components/AgentInputChipPickerTypes';
+import type { ResolvedBackendCatalogEntry } from '@/agents/backendCatalog/getResolvedBackendCatalogEntries';
 import type { SessionArmedAgentContinuation } from '@/sync/domains/input/draftValues/sessionDraftValueTypes';
 import { flushHookEffects } from '@/dev/testkit/hooks/flushHookEffects';
 import * as React from 'react';
@@ -123,6 +124,7 @@ const getSessionRunnerRuntimeStatusSpy = vi.hoisted(() =>
   vi.fn<(_request: unknown) => Promise<unknown>>(async () => null),
 );
 const setUsageLimitRecoverySettingsSpy = vi.hoisted(() => vi.fn());
+const setFavoriteModelSelectionsSpy = vi.hoisted(() => vi.fn<(value: Settings['favoriteModelSelectionsV1']) => void>());
 const deleteSessionReviewCommentDraftSpy = vi.hoisted(() => vi.fn());
 const clearSessionReviewCommentDraftsSpy = vi.hoisted(() => vi.fn());
 const deleteWorkspaceReviewCommentDraftSpy = vi.hoisted(() => vi.fn());
@@ -383,9 +385,11 @@ installSessionShellCommonModuleMocks({
           readSetting(key),
           key === 'usageLimitRecoverySettingsV1'
             ? setUsageLimitRecoverySettingsSpy
-            : vi.fn<(value: Settings[K]) => void>(),
+            : key === 'favoriteModelSelectionsV1'
+              ? setFavoriteModelSelectionsSpy
+              : vi.fn<(value: Settings[K]) => void>(),
         ],
-        useSettings: () => ({ ...settingsDefaults, experiments: true, featureToggles: {}, codexBackendMode: 'acp' }),
+        useSettings: () => ({ ...settingsDefaults, experiments: true, featureToggles: {}, codexBackendMode: 'acp', ...settingsState.current }),
         useAutomations: () => [],
         useSessionAutomationsEnabledCount: () => 0,
         useArtifacts: () => Object.values(storageState.artifacts),
@@ -763,6 +767,53 @@ describe('SessionView (direct sessions)', () => {
       vi.unstubAllGlobals();
       const { resetServerFeaturesClientForTests } = await import('@/sync/api/capabilities/serverFeaturesClient');
       resetServerFeaturesClientForTests();
+    });
+
+    it('keeps current model favorites and foreign favorite selection usable after disabling the running configured backend', async () => {
+      settingsState.current = {
+        acpCatalogSettingsV1: {
+          v: 2,
+          backends: [{
+            id: 'running-bot', name: 'running-bot', title: 'Running Bot', description: '',
+            command: 'agent', args: [], env: {}, transportProfile: 'generic',
+            defaultMode: 'plan', defaultModel: 'current-model',
+            capabilities: {
+              supportsLoadSession: false, supportsModes: 'unknown', supportsModels: 'unknown',
+              supportsConfigOptions: 'unknown', promptImageSupport: 'unknown',
+            },
+            createdAt: 1, updatedAt: 1,
+          }],
+        } satisfies Settings['acpCatalogSettingsV1'],
+        backendEnabledByTargetKey: { 'acpBackend:running-bot': false },
+      };
+      storageState.sessions.s1.metadata = {
+        ...storageState.sessions.s1.metadata,
+        flavor: 'customAcp',
+        acpConfiguredBackendV1: { v: 1, backendId: 'running-bot', title: 'Running Bot', updatedAt: 1 },
+      };
+      const screen = await renderSessionViewAndSettle();
+      await act(async () => {
+        findAgentInput(screen).props.onToggleFavoriteModel({ modelId: 'current-model', modelLabel: 'Current Model' });
+      });
+      expect(setFavoriteModelSelectionsSpy).toHaveBeenCalledWith([expect.objectContaining({
+        backendTargetKey: 'acpBackend:running-bot', configuredBackendId: 'running-bot',
+        providerAgentId: 'customAcp', modelId: 'current-model',
+      })]);
+      await act(async () => { findAgentInput(screen).props.onAgentPickerIntent(); });
+      await settleDirectSessionView();
+      const favoriteDetail = readOptions(screen).find((option) => option.id === 'favorite-models')
+        ?.renderDetailContent?.() as React.ReactElement<{
+          resolvedBackendEntries: readonly ResolvedBackendCatalogEntry[];
+          onSelectFavoriteModel: (entry: ResolvedBackendCatalogEntry, modelId: string) => void;
+        }>;
+      const foreign = favoriteDetail.props.resolvedBackendEntries.find((entry) => entry.targetKey === 'agent:claude');
+      expect(foreign).toBeDefined();
+      await act(async () => { favoriteDetail.props.onSelectFavoriteModel(foreign!, 'claude-favorite'); });
+      await settleDirectSessionView();
+      expect(readArm()?.intent).toMatchObject({
+        sourceBackendTarget: { kind: 'configuredAcpBackend', backendId: 'running-bot' },
+        selection: { agentId: 'claude', modelId: 'claude-favorite' },
+      });
     });
 
     it('removes the accepted submission from the draft and offers Agents again after remount', async () => {
@@ -1218,6 +1269,7 @@ describe('SessionView (direct sessions)', () => {
     connectedServiceQuotaRecoveryCreditConsumeSpy.mockReset();
     connectedServiceQuotaRecoveryCreditConsumeSpy.mockResolvedValue({ ok: false, errorCode: 'no_recovery_credit_available', error: 'no_recovery_credit_available' });
     setUsageLimitRecoverySettingsSpy.mockClear();
+    setFavoriteModelSelectionsSpy.mockClear();
     deleteSessionReviewCommentDraftSpy.mockReset();
     clearSessionReviewCommentDraftsSpy.mockReset();
     deleteWorkspaceReviewCommentDraftSpy.mockReset();
@@ -3529,10 +3581,10 @@ describe('SessionView (direct sessions)', () => {
     expect(agentInput.props.agentType).toBe('codex');
     // The composer still builds its own current-Agent rows: SessionView never hands it a
     // wholesale replacement projection. The in-session picker only *extends* that list and
-    // reports which row is armed — null here, because no continuation has been selected.
+    // reports the current engine row when no continuation is armed.
     expect(agentInput.props.agentPickerOptions).toBeUndefined();
     expect(agentInput.props.composeAgentPickerOptions).toBeTypeOf('function');
-    expect(agentInput.props.agentPickerSelectedOptionId).toBeNull();
+    expect(agentInput.props.agentPickerSelectedOptionId).toBe('engine:codex');
     expect(agentInput.props.agentPickerApplyLabel).toBeUndefined();
     expect(agentInput.props.metadata).toEqual(session.metadata);
     expect(typeof agentInput.props.onModelModeChange).toBe('function');

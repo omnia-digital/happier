@@ -10584,6 +10584,7 @@ settingsSession: {
         actions: {
             viewEnvironmentVariables: 'Variables d\'entorn',
             addToFavorites: 'Afegeix als preferits',
+            favoriteModelsEmptyGuidance: 'Tria una pestanya d’Agent i marca un model per afegir-lo aquí',
             removeFromFavorites: 'Treu dels preferits',
             editProfile: 'Edita el perfil',
             duplicateProfile: 'Duplica el perfil',

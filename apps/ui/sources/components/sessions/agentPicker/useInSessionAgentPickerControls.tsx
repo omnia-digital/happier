@@ -12,6 +12,7 @@ import {
 
 import { getAgentCore } from '@/agents/catalog/catalog';
 import type { ResolvedBackendCatalogEntry } from '@/agents/backendCatalog/getResolvedBackendCatalogEntries';
+import { NewSessionFavoriteModelsDetail } from '@/components/sessions/new/components/NewSessionFavoriteModelsDetail';
 import { resolveNewSessionConnectedServicesBindingsForAgent } from '@/components/sessions/new/modules/connectedServicesNewSessionBindings';
 import {
     APPLIED_RUNTIME_MARKER_ICON,
@@ -19,7 +20,7 @@ import {
     resolveAppliedRuntimeStatus,
     type AppliedRuntimeStatus,
 } from '@/components/sessions/agentInput/appliedRuntimeMarker';
-import type { AgentInputChipPickerOption } from '@/components/sessions/agentInput/components/AgentInputChipPickerTypes';
+import type { AgentInputChipPickerCurrentModelContext, AgentInputChipPickerOption } from '@/components/sessions/agentInput/components/AgentInputChipPickerTypes';
 import { announceAccessibilityMessage } from '@/components/ui/accessibility/announceAccessibilityMessage';
 import { Icon } from '@/components/ui/icons/Icon';
 import { randomUUID } from '@/platform/randomUUID';
@@ -36,6 +37,11 @@ import {
     type ServerAccountScope,
 } from '@/sync/domains/scope/serverAccountScope';
 import type { Settings } from '@/sync/domains/settings/settings';
+import type { Metadata } from '@/sync/domains/state/storageTypes';
+import {
+    toggleFavoriteModelSelection,
+    type FavoriteModelSelectionV1,
+} from '@/sync/domains/models/favoriteModelSelections';
 import { fireAndForget } from '@/utils/system/fireAndForget';
 
 import {
@@ -137,6 +143,9 @@ type UseInSessionAgentPickerControlsParams = Readonly<{
     currentAgentSessionActive?: boolean | null;
     entries: readonly ResolvedBackendCatalogEntry[];
     favoriteBackendTargetKeys?: ReadonlyArray<string>;
+    favoriteModelSelections?: readonly FavoriteModelSelectionV1[];
+    setFavoriteModelSelections?: (favorites: FavoriteModelSelectionV1[]) => void;
+    currentSessionMetadata?: Metadata | null;
     /**
      * The `sessions.agentSwitching` decision for this Session's server, resolved
      * by the canonical feature-decision runtime, which reads the server bit as
@@ -279,6 +288,7 @@ export type InSessionAgentPickerControls = Readonly<{
      */
     composeAgentPickerOptions: (
         currentAgentOptions: ReadonlyArray<AgentInputChipPickerOption>,
+        currentModelContext?: AgentInputChipPickerCurrentModelContext,
     ) => ReadonlyArray<AgentInputChipPickerOption>;
     /** The armed target, or null so the composer keeps selecting the current Agent. */
     agentPickerSelectedOptionId: string | null;
@@ -594,7 +604,14 @@ export function useInSessionAgentPickerControls(
         }
     }
 
+    const pendingArmRef = React.useRef<Readonly<{
+        targetKey: string;
+        sourceAgentId: string;
+        sourceBackendTargetKey: string | null;
+        selection: SessionAgentPickerSelection;
+    }> | null>(null);
     const clearArmedContinuation = React.useCallback(() => {
+        pendingArmRef.current = null;
         persistArmedContinuation(null);
     }, [persistArmedContinuation]);
 
@@ -756,15 +773,6 @@ export function useInSessionAgentPickerControls(
 
     const armedTargetKey = featureEnabled ? armed?.backendTargetKey ?? null : null;
 
-    // The picker detail remains the selection owner. This reference merely
-    // waits for the inspection request carrying its exact current selection;
-    // it does not create another selection or authorization policy.
-    const pendingArmRef = React.useRef<Readonly<{
-        targetKey: string;
-        sourceAgentId: string;
-        sourceBackendTargetKey: string | null;
-        selection: SessionAgentPickerSelection;
-    }> | null>(null);
 
     const armExactSelection = React.useCallback((
         entry: ResolvedBackendCatalogEntry,
@@ -789,6 +797,144 @@ export function useInSessionAgentPickerControls(
             ? { targetKey: entry.targetKey, sourceAgentId, sourceBackendTargetKey: source.currentBackendTargetKey, selection }
             : null;
     }, [persistArmedContinuation, readInspection, source]);
+
+    const buildFavoriteModelOption = React.useCallback((currentModelContext?: AgentInputChipPickerCurrentModelContext): AgentInputChipPickerOption | null => {
+        if (!params.setFavoriteModelSelections) return null;
+        const currentEntry = entries.find((entry) => entry.targetKey === source.currentBackendTargetKey) ?? null;
+        const eligibleForeignEntries = featureEnabled && railOffersRows && retainedSubmissionArm === null
+            ? targetRows.flatMap(({ entry, eligibility }) => eligibility.status === 'eligible' || eligibility.status === 'checking' ? [entry] : [])
+            : [];
+        const favoriteEntries = [
+            ...(currentEntry ? [currentEntry] : []),
+            ...eligibleForeignEntries,
+        ];
+        if (favoriteEntries.length === 0) return null;
+        const connectedServicesByTargetKey = Object.fromEntries(favoriteEntries.map((entry) => [
+            entry.targetKey,
+            resolveNewSessionConnectedServicesBindingsForAgent({
+                agentId: entry.providerAgentId,
+                agentCore: getAgentCore(entry.providerAgentId),
+                agentOptionState: null,
+                accountProfileConnectedServicesV2: params.detail.accountProfileConnectedServicesV2 ?? [],
+                settings: params.detail.settings,
+                connectedServicesFeatureEnabled: params.detail.connectedServicesFeatureEnabled === true,
+                accountGroupsFeatureEnabled: params.detail.accountGroupsFeatureEnabled === true,
+            }).connectedServicesBindingsPayload,
+        ]));
+        return {
+            id: 'favorite-models',
+            label: t('profiles.groups.favorites'),
+            icon: <Icon name="star" size={18} />,
+            detailTitle: t('profiles.groups.favorites'),
+            initialFocus: true,
+            preserveFocusOnExternalSelectionChange: true,
+            deferRenderDetailContent: true,
+            deferredDetailContentCacheKey: 'session-favorite-models',
+            renderDetailContent: () => {
+                const selectedEntry = favoriteEntries.find((entry) => entry.targetKey === (armedTargetKey ?? source.currentBackendTargetKey)) ?? currentEntry;
+                const selection = selectedEntry?.targetKey === source.currentBackendTargetKey
+                    ? {
+                        modelId: currentModelContext?.modelId ?? 'default',
+                        configOverrides: currentModelContext?.configOverrides ?? {},
+                    }
+                    : selectedEntry ? readTargetSelection(selectedEntry.targetKey) : DEFAULT_TARGET_SELECTION;
+                return (
+                    <NewSessionFavoriteModelsDetail
+                        favoriteModelSelections={params.favoriteModelSelections ?? []}
+                        resolvedBackendEntries={favoriteEntries}
+                        selectedBackendTargetKey={selectedEntry?.targetKey ?? ''}
+                        currentBackendTargetKey={source.currentBackendTargetKey ?? undefined}
+                        currentSessionMetadata={params.currentSessionMetadata}
+                        currentModelId={currentModelContext?.modelId}
+                        currentConfigOverrides={currentModelContext?.configOverrides}
+                        selectedModelId={selection.modelId}
+                        selectedConfigOverrides={selection.configOverrides}
+                        selectedMachineId={params.detail.machineId}
+                        capabilityServerId={params.detail.capabilityServerId}
+                        cwd={params.detail.cwd}
+                        profileId={params.detail.profileId ?? null}
+                        settings={params.detail.settings}
+                        connectedServicesByTargetKey={connectedServicesByTargetKey}
+                        onSelectFavoriteModel={(entry, modelId, configOverrides, modelOptionsContext) => {
+                            if (entry.targetKey === source.currentBackendTargetKey) {
+                                clearArmedContinuation();
+                                currentModelContext?.onSelectModel(modelId, modelOptionsContext);
+                                return;
+                            }
+                            if (!featureEnabled || currentEntry === null) return;
+                            const selection: SessionAgentPickerSelection = {
+                                ...readTargetSelection(entry.targetKey),
+                                modelId,
+                                modelLabel: params.favoriteModelSelections?.find((favorite) => (
+                                    favorite.backendTargetKey === entry.targetKey && favorite.modelId === modelId
+                                ))?.modelLabel ?? null,
+                                configOverrides: configOverrides ?? {},
+                            };
+                            setSelectionByTargetKey((current) => {
+                                const next = new Map(current);
+                                next.set(entry.targetKey, selection);
+                                return next;
+                            });
+                            armExactSelection(entry, currentAgentId ?? '', selection);
+                        }}
+                        onSelectFavoriteModelOptionValue={(entry, modelId, configId, valueId) => {
+                            if (entry.targetKey === source.currentBackendTargetKey) {
+                                currentModelContext?.onSelectConfigOptionValue?.(configId, valueId);
+                                return;
+                            }
+                            if (!featureEnabled) return;
+                            const selection: SessionAgentPickerSelection = {
+                                ...readTargetSelection(entry.targetKey),
+                                modelId,
+                                configOverrides: { ...readTargetSelection(entry.targetKey).configOverrides, [configId]: valueId },
+                            };
+                            setSelectionByTargetKey((current) => {
+                                const next = new Map(current);
+                                next.set(entry.targetKey, selection);
+                                return next;
+                            });
+                            armExactSelection(entry, currentAgentId ?? '', selection);
+                        }}
+                        onToggleFavoriteModel={(entry, model) => {
+                            params.setFavoriteModelSelections?.(toggleFavoriteModelSelection({
+                                favorites: params.favoriteModelSelections ?? [],
+                                backend: {
+                                    backendTargetKey: entry.targetKey,
+                                    providerAgentId: entry.providerAgentId,
+                                    builtInAgentId: entry.builtInAgentId,
+                                    configuredBackendId: entry.target.kind === 'configuredAcpBackend' ? entry.target.backendId : null,
+                                },
+                                modelId: model.modelId,
+                                modelLabel: model.modelLabel,
+                                backendLabel: entry.title,
+                                addedAtMs: Date.now(),
+                            }));
+                        }}
+                        onRemoveFavoriteModelSelection={(favorite) => {
+                            params.setFavoriteModelSelections?.((params.favoriteModelSelections ?? []).filter((item) => item !== favorite));
+                        }}
+                    />
+                );
+            },
+        };
+    }, [
+        armExactSelection,
+        currentAgentId,
+        entries,
+        featureEnabled,
+        params.detail,
+        params.favoriteModelSelections,
+        params.setFavoriteModelSelections,
+        railOffersRows,
+        readTargetSelection,
+        source.currentBackendTargetKey,
+        targetRows,
+        retainedSubmissionArm,
+        armedTargetKey,
+        clearArmedContinuation,
+        params.currentSessionMetadata,
+    ]);
+
 
     React.useEffect(() => {
         const pending = pendingArmRef.current;
@@ -894,6 +1040,22 @@ export function useInSessionAgentPickerControls(
                             accountGroupsFeatureEnabled: params.detail.accountGroupsFeatureEnabled === true,
                         }).connectedServicesBindingsPayload,
                         settings: params.detail.settings,
+                        favoriteModelSelections: params.favoriteModelSelections ?? [],
+                        onToggleFavoriteModel: (model) => {
+                            params.setFavoriteModelSelections?.(toggleFavoriteModelSelection({
+                                favorites: params.favoriteModelSelections ?? [],
+                                backend: {
+                                    backendTargetKey: entry.targetKey,
+                                    providerAgentId: entry.providerAgentId,
+                                    builtInAgentId: entry.builtInAgentId,
+                                    configuredBackendId: entry.target.kind === 'configuredAcpBackend' ? entry.target.backendId : null,
+                                },
+                                modelId: model.modelId,
+                                modelLabel: model.modelLabel,
+                                backendLabel: entry.title,
+                                addedAtMs: Date.now(),
+                            }));
+                        },
                         // The same disclosure, told truthfully for this Session:
                         // an empty transcript has no conversation to carry, so the
                         // line keeps only the half that still holds.
@@ -937,6 +1099,8 @@ export function useInSessionAgentPickerControls(
         featureEnabled,
         params.detail,
         params.favoriteBackendTargetKeys,
+        params.favoriteModelSelections,
+        params.setFavoriteModelSelections,
         armExactSelection,
         railOffersRows,
         readTargetSelection,
@@ -950,13 +1114,17 @@ export function useInSessionAgentPickerControls(
     const { agentPickerSelectedOptionId } = useSessionAgentPickerControls({
         options: targetOptions,
         preferredOptionId: armedTargetKey,
+        fallbackOptionId: params.setFavoriteModelSelections && currentAgentId ? `engine:${currentAgentId}` : null,
     });
 
     const composeAgentPickerOptions = React.useCallback((
         currentAgentOptions: ReadonlyArray<AgentInputChipPickerOption>,
+        currentModelContext?: AgentInputChipPickerCurrentModelContext,
     ): ReadonlyArray<AgentInputChipPickerOption> => {
-        if (targetOptions.length === 0) return currentAgentOptions;
+        const favoriteOption = buildFavoriteModelOption(currentModelContext);
+        if (targetOptions.length === 0 && favoriteOption === null) return currentAgentOptions;
         return [
+            ...(favoriteOption ? [favoriteOption] : []),
             ...currentAgentOptions.map((option) => ({
                 ...option,
                 // One checkmark, on the selection — the same shape every sibling model
@@ -997,7 +1165,7 @@ export function useInSessionAgentPickerControls(
             })),
             ...targetOptions,
         ];
-    }, [armedTargetKey, clearArmedContinuation, currentAgentAppliedStatus, currentAgentLabel, targetOptions]);
+    }, [armedTargetKey, buildFavoriteModelOption, clearArmedContinuation, currentAgentAppliedStatus, currentAgentLabel, targetOptions]);
 
     return {
         composeAgentPickerOptions,

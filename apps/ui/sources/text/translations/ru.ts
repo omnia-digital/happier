@@ -11315,6 +11315,7 @@ settingsSession: {
     actions: {
       viewEnvironmentVariables: "Переменные окружения",
       addToFavorites: "Добавить в избранное",
+      favoriteModelsEmptyGuidance: "Выберите вкладку агента и отметьте модель звездой, чтобы добавить её сюда",
       removeFromFavorites: "Убрать из избранного",
       editProfile: "Редактировать профиль",
       duplicateProfile: "Дублировать профиль",
