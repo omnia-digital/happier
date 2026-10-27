@@ -95,6 +95,15 @@ daemon, service or account changes. Native QA remains explicitly deferred;
 installed-host metrics support, real-provider acceptance and the missing 0.3
 destination retain their existing task dispositions.
 
+The ready title/body handoff was sent at `febc7b8aca` but remains queued in the
+designated session. Subsequent read-only checks through the configured Cassian SSH
+alias return HTTP 401; `gh auth status` identifies `andorcassian` and reports its
+saved credential invalid, including under the normal login shell. PR creation and
+merge are blocked until Josh reauthenticates that account. No token was inspected
+or copied, personal account substituted, PR created or merge performed. Use the
+current pushed head after authentication is restored; source qualification below
+remains applicable and hosted current-head CI/review are still required.
+
 ### Link-ticket dialog readability correction (2026-10-24)
 
 The link/change action now opts into the canonical modal card surface and header, retaining the editor's single scroll owner and standard responsive dimensions. Editor labels, loading text and resolved ticket details use the primary theme text color. This corrects the transparent dialog and the black-on-dark labels exposed during visual verification; ticket-reader and persistence behavior are unchanged.
