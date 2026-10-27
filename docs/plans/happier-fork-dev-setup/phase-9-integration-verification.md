@@ -51,9 +51,32 @@ not run. Focused recovery passes 24/24 across attach, isolated Codex startup and
 unchanged relay tests, plus 22/22 attach eligibility tests. Handoff fixture
 readiness now observes actual OS link contention instead of a transient directory
 notification, preserving real recovery/lease/lock behavior; focused 1/1 and the
-canonical isolated group 19/19 pass. Remaining CLI types/import tail, package
-qualification and current merged browser recipes are still being reconciled.
-No full CLI or whole-root PASS is claimed.
+canonical isolated group 19/19 pass. CLI types and the import-cycle tail pass.
+No new full CLI or whole-root PASS is claimed; current-head hosted CI must still
+qualify the PR before merge.
+
+Final current-source browser gates pass: provider usage 3/3 in 71s,
+status organization 1/1 in 71s, and strict foreign-Home launch 1/1 in 113s.
+The last flow first reproduced a real UUID sidebar label despite a correct detail
+header. Commits `924ab598c1` and `3a0843b85c` retain the session's existing Home
+through list projection, preserve distinct Home ownership during alias binding,
+subscribe to actual row Homes, and omit foreign rows from the active Home/account
+warm cache. Its existing format and reader remain unchanged. Three real-store RED
+boundaries precede GREEN; 200 owner/adjacent tests and UI TS7 pass. Root reviews
+mixed-Home, same-id, rename/removal, selection and persistence neighbors and the
+final Chrome screenshot. Both optional 0.3 destination paths remain absent, so
+that port is blocked rather than represented as completed.
+
+Full server qualification passes 1,552/1,552 across 269 files with private Bun
+1.4.2. An initial four-case Sharp failure used local Bun 1.2.17; the unchanged
+focused cases and full pinned rerun pass. Stack passes 2,072 tests with six skips.
+The shared runner's twelve other selected entries pass; its website entry first
+failed because the old temporary source fixtures were absent, then passes all
+184 Vitest and three Node tests with fresh inputs from the same immutable source
+commits. CLI-common's remaining 102 files pass 588 tests with five skips; its
+updater owner is deliberately qualified separately on actual Windows below,
+without retrying the inconclusive Mac watcher diagnostic. These are explicit
+package/platform slices, not a claim that the unchanged whole-root command ran.
 
 The updater owner file passes 13/13 without skips on an isolated exact-source
 Windows worktree after consolidating its simulated-platform rollback duplicate
