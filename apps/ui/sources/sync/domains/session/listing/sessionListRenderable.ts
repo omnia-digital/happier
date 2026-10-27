@@ -972,6 +972,7 @@ export function didSessionListRenderableWarmCacheFieldsChange(
     next: SessionListRenderableSession,
 ): boolean {
     if (!previous) return true;
+    if ((previous.serverId ?? null) !== (next.serverId ?? null)) return true;
     if (previous.seq !== next.seq) return true;
     if (previous.updatedAt !== next.updatedAt) return true;
     if ((previous.meaningfulActivityAt ?? null) !== (next.meaningfulActivityAt ?? null)) return true;
@@ -1027,6 +1028,7 @@ export function isSessionListRenderableWarmCacheProgressOnlyChange(
 ): boolean {
     if (!previous) return false;
     if (previous.active !== true || next.active !== true) return false;
+    if ((previous.serverId ?? null) !== (next.serverId ?? null)) return false;
     if (previous.active !== next.active) return false;
     if (previous.createdAt !== next.createdAt) return false;
     if (previous.presence !== next.presence) return false;

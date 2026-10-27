@@ -114,23 +114,17 @@ export function buildSessionListViewDataWithServerScope(params: {
 }): SessionListViewItem[] {
     const snapshot = getActiveServerSnapshot();
     const serverId = resolveServerProfileScopeIdForIdentifier(normalizeNonEmptyString(params.serverId) ?? snapshot.serverId);
-    const partitions = new Map<string, Record<string, SessionListRenderableSession>>();
     const resolvedIds = new Map<string, string>([[serverId, serverId]]);
-    for (const session of Object.values(params.sessions)) {
+    const sessionScopeId = (session: SessionListRenderableSession): string => {
         const rawId = normalizeNonEmptyString(session.serverId ?? params.sessionRecords?.[session.id]?.serverId) ?? serverId;
         let scopeId = resolvedIds.get(rawId);
         if (scopeId === undefined) {
             scopeId = resolveServerProfileScopeIdForIdentifier(rawId);
             resolvedIds.set(rawId, scopeId);
         }
-        let partition = partitions.get(scopeId);
-        if (!partition) {
-            partition = {};
-            partitions.set(scopeId, partition);
-        }
-        partition[session.id] = session;
-    }
-    return [...partitions].flatMap(([scopeId, partition]) => {
+        return scopeId;
+    };
+    const buildScope = (scopeId: string, sessions: Record<string, SessionListRenderableSession>): SessionListViewItem[] => {
         const scope = resolveMachineDisplayScope({
             serverId: scopeId, activeServerId: serverId,
             resolvedScope: resolveMachineDisplayPreferenceScope(scopeId),
@@ -140,7 +134,7 @@ export function buildSessionListViewDataWithServerScope(params: {
             ? Object.fromEntries(scope.machines.map(machine => [machine.id, machine]))
             : scope.machines as Readonly<Record<string, MachineDisplayRenderable>>;
         const reachableSessions = applyReachableTargetsToSessionListRenderables({
-            sessions: partitions.size === 1 ? params.sessions : partition,
+            sessions,
             sessionRecords: params.sessionRecords,
             machines,
             machineRecords: scope.isActive ? params.machineRecords : machines,
@@ -158,5 +152,31 @@ export function buildSessionListViewDataWithServerScope(params: {
                 serverName: getServerProfileById(scopeId)?.name,
             },
         });
-    });
+    };
+    let onlyScopeId: string | undefined;
+    let mixedHomes = false;
+    for (const id in params.sessions) {
+        if (!Object.hasOwn(params.sessions, id)) continue;
+        const scopeId = sessionScopeId(params.sessions[id]);
+        if (onlyScopeId === undefined) onlyScopeId = scopeId;
+        else if (onlyScopeId !== scopeId) {
+            mixedHomes = true;
+            break;
+        }
+    }
+    // The ordinary single-Home path reuses the source record without copying every row.
+    if (!mixedHomes) return buildScope(onlyScopeId ?? serverId, params.sessions);
+    const partitions = new Map<string, Record<string, SessionListRenderableSession>>();
+    for (const id in params.sessions) {
+        if (!Object.hasOwn(params.sessions, id)) continue;
+        const session = params.sessions[id];
+        const scopeId = sessionScopeId(session);
+        let partition = partitions.get(scopeId);
+        if (!partition) {
+            partition = {};
+            partitions.set(scopeId, partition);
+        }
+        partition[id] = session;
+    }
+    return [...partitions].flatMap(([scopeId, sessions]) => buildScope(scopeId, sessions));
 }
