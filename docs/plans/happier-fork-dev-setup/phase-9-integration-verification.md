@@ -9,9 +9,10 @@ Josh explicitly chose **Keep native QA deferred** on October 24. This supersedes
 Proposed title: `feat(desktop): refine session organization, machine visibility and usage`.
 
 Josh assigned this session the next `chore/happier-fork-dev-setup` → `dev` PR.
-Merge `74f444006e` includes current dev `91dd9b9e97`, including PRs #7–#10,
-#12 and #13. The next PR describes the remaining delta rather than presenting
-those merged features again:
+Merge `5d9517cb09` includes current dev `a83e1a2a67`, including PR #11 model
+favorites. Its predecessor merge `74f444006e` brought in PRs #7–#10, #12 and #13.
+The next PR describes the remaining delta rather than presenting those merged
+features again:
 
 - Separate sidebar Group and Sort menus, flat view, stable drag/scroll behavior,
   scoped repository ordering and foreign-Home machine presentation.
@@ -29,17 +30,23 @@ deferred-footprint paths: 58 match dev exactly; only three history/deferral docs
 differ. Unsigned nightly workflow and Tauri candidate/publisher owners match dev.
 No nightly workflow or release was dispatched.
 
-Merged-source evidence: 105/105 focused UI owners, all 11 root typecheck entries
-(39.67s), and 12/12 unsigned workflow/source contracts pass. Full UI package
-qualification also passes: exit 0 in 4112.57s, all 32 unit shards, 3,762 files,
-25,905 passed tests and 3 skipped; prompt 1/1 and host contracts 54/54 pass.
-Root independently verifies the terminal log and sums the shard summaries in
-`.project/logs/tests/oh10-merged-ui-package-full.log`. Source stayed unchanged;
-subsequent checkpoints only change documentation. The retained real watcher test
-is blocked at an inconclusive macOS event-delivery boundary. Remaining root
-packages and the merged status-organization browser recipe are pending capacity
-recovery: only 453 MiB remained at the UI terminal result, and the earlier CLI
-run already encountered ENOSPC. No cleanup is approved. Native QA is deferred;
+Current merge checks pass: 118 session-list lifecycle/pinning/web tests and 315
+affected favorites/SessionView tests across 18 files; all 11 root typecheck entries
+(86.23s); documentation content, 47 guard tests and docs types. Logs are
+`oh10-dev11-list-fixtures-merged.log`, `oh10-dev11-favorites-sessionview.log`,
+`oh10-dev11-root-typecheck.log` and `oh10-dev11-docs-{content,tests,types}.log`
+under `.project/logs/tests`. Root reviews the fixture and production auto-merge
+deltas and verifies the terminal results.
+
+At predecessor merge `74f444006e`, the full UI package passed 32 unit shards,
+3,762 files, 25,905 tests and 3 skips, plus prompt 1/1 and host contracts 54/54.
+That remains evidence for its recorded source, not a new full-package verdict
+after PR #11. Unsigned workflow/source contracts passed 12/12 and their owners
+still match dev. The retained watcher remains blocked at an inconclusive macOS
+event-delivery boundary. After approved OH-67 cleanup restored capacity, CLI
+qualification exposed a separately reproduced import-stage timeout before its
+service assertion; full CLI/root qualification and the merged status browser
+recipe remain incomplete. Native QA is deferred;
 installed-host metrics support, actual vendor authentication, Windows/Linux and
 0.3 destination verification retain their existing acceptance gaps. This source
 work is not an installed-app or release qualification.
