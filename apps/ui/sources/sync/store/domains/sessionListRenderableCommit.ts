@@ -61,6 +61,7 @@ export type SessionListRenderableCommitState = Readonly<{
     sessionListViewDataByServerId: Record<string, SessionListViewItem[] | null>;
     machines: Record<string, Machine>;
     machineDisplayById: Record<string, MachineDisplayRenderable>;
+    machineListByServerId?: Readonly<Record<string, readonly MachineDisplayRenderable[] | null | undefined>>;
     settings: SessionListRenderableCommitSettings;
     getProjectForSession?: (sessionId: string) => ProjectLookupResult;
 }>;
@@ -174,6 +175,7 @@ export function buildSessionListViewDataForRenderableState(
         sessionRecords: state.sessions,
         machines: state.machineDisplayById,
         machineRecords: state.machines,
+        machineListByServerId: state.machineListByServerId,
         serverId: options?.serverId,
         groupInactiveSessionsByProject: state.settings.groupInactiveSessionsByProject === true,
         activeGroupingV1: state.settings.sessionListActiveGroupingV1,

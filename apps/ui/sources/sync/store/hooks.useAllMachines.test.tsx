@@ -7,13 +7,68 @@ import { createMachineFixture, createSessionFixture, renderHook, standardCleanup
 import { useAllMachines, useFirstVisibleMachineId, useLaunchSelectionMachines, useMachineCliDetectionTarget, useMachineDisplayById, useMachineListByServerId, useSessionChatFooterState, useSessionForkSupportSource } from '@/sync/domains/state/storage';
 import { storage } from '@/sync/domains/state/storageStore';
 import { getActiveServerSnapshot } from '@/sync/domains/server/serverRuntime';
-import { setServerProfileIdentityForUrl, upsertServerProfile } from '@/sync/domains/server/serverProfiles';
+import { getActiveServerId, setActiveServerId, setServerProfileIdentityForUrl, upsertServerProfile } from '@/sync/domains/server/serverProfiles';
 
 afterEach(() => {
     standardCleanup();
 });
 
 describe('useAllMachines', () => {
+    it('keeps a rendered foreign row on its own machine metadata while only the active Home is selected', async () => {
+        const { useSessionListViewState } = await import('@/components/sessions/shell/view-state/useSessionListViewState');
+        const { useResolvedActiveServerSelection } = await import('@/hooks/server/useEffectiveServerSelection');
+        const previousState = storage.getState();
+        const previousActiveServerId = getActiveServerId();
+        const homeA = upsertServerProfile({ serverUrl: 'https://list-selected-a.example.test' });
+        const homeB = upsertServerProfile({ serverUrl: 'https://list-rendered-b.example.test' });
+        const homeC = upsertServerProfile({ serverUrl: 'https://list-unrendered-c.example.test' });
+        const baseMachine = createMachineFixture();
+        const machineA = createMachineFixture({ id: 'shared-machine', metadata: { ...baseMachine.metadata!, displayName: 'A machine', homeDir: '/a' } });
+        const machineB = createMachineFixture({ id: 'shared-machine', metadata: { ...baseMachine.metadata!, displayName: 'B machine', homeDir: '/b' } });
+        const session = createSessionFixture({ metadata: { ...createSessionFixture().metadata!, machineId: machineB.id, path: '/b/repo', homeDir: '/b' } });
+        const data = [{ type: 'session' as const, serverId: homeB.id, session }];
+        const rowKey = `${homeB.id}:${session.id}`;
+        try {
+            setActiveServerId(homeA.id, { scope: 'device' });
+            storage.setState({
+                profileScope: { serverId: homeA.id, accountId: 'account-a' },
+                settings: { ...previousState.settings, serverSelectionActiveTargetKind: 'server', serverSelectionActiveTargetId: homeA.id },
+                machines: {}, machineDisplayById: {}, machineListByServerId: {},
+            });
+            storage.getState().applyMachines([machineA], true, { sourceServerId: homeA.id });
+            storage.getState().applyMachines([machineB], true, { sourceServerId: homeB.id });
+            const hook = await renderHook(() => ({
+                selection: useResolvedActiveServerSelection(),
+                list: useSessionListViewState({ data, pathname: `/session/${session.id}` }),
+            }));
+            try {
+                expect(hook.getCurrent().selection.allowedServerIds).toEqual([homeA.id]);
+                expect(hook.getCurrent().list.reachableSessionDisplayByKey.get(rowKey)).toMatchObject({
+                    machineId: machineB.id, machineLabel: 'B machine', workspaceSubtitle: 'repo',
+                });
+                const initialDisplay = hook.getCurrent().list.reachableSessionDisplayByKey;
+                await act(async () => {
+                    storage.getState().applyMachines([{ ...machineA, metadata: { ...machineA.metadata!, displayName: 'A renamed' } }], true, { sourceServerId: homeA.id });
+                    storage.getState().applyMachines([{ ...machineB, metadata: { ...machineB.metadata!, displayName: 'C machine' } }], true, { sourceServerId: homeC.id });
+                });
+                expect(hook.getCurrent().list.reachableSessionDisplayByKey).toBe(initialDisplay);
+                await act(async () => {
+                    storage.getState().applyMachines([{ ...machineB, metadata: { ...machineB.metadata!, displayName: 'B renamed' } }], true, { sourceServerId: homeB.id });
+                });
+                expect(hook.getCurrent().list.reachableSessionDisplayByKey.get(rowKey)?.machineLabel).toBe('B renamed');
+                await act(async () => {
+                    storage.getState().applyMachines([], true, { sourceServerId: homeB.id });
+                });
+                expect(hook.getCurrent().list.reachableSessionDisplayByKey.get(rowKey)?.machineLabel).toBe(machineB.id);
+                expect(hook.getCurrent().selection.allowedServerIds).toEqual([homeA.id]);
+            } finally {
+                await hook.unmount();
+            }
+        } finally {
+            setActiveServerId(previousActiveServerId, { scope: 'device' });
+            storage.setState(previousState);
+        }
+    });
     it('refreshes mounted foreign presentation on Home identity promotion without profile reads during projection', async () => {
         const { useSessionWorkspacePresentation } = await import('@/components/sessions/model/useSessionWorkspacePresentation');
         const { useMachineDisplayScopes, useSessionMachineDisplayLists } = await import('@/sync/store/hooks');

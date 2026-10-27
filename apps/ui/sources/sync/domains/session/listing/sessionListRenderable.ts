@@ -100,6 +100,7 @@ export interface SessionListRenderableMetadata {
 
 export interface SessionListRenderableSession {
     id: string;
+    serverId?: string;
     seq: number;
     createdAt: number;
     updatedAt: number;
@@ -373,6 +374,7 @@ export function buildSessionListRenderableFromSession(
     const hasUnreadMessages = deriveSessionListRenderableHasUnreadMessagesFromSession(session, messages, aggregate);
     return {
         id: session.id,
+        serverId: session.serverId,
         seq: session.seq,
         createdAt: session.createdAt,
         updatedAt: session.updatedAt,
@@ -612,6 +614,7 @@ export function areSessionListRenderablesEqual(
     if (!previous) return false;
 
     return previous.id === next.id
+        && (previous.serverId ?? null) === (next.serverId ?? null)
         && previous.seq === next.seq
         && previous.createdAt === next.createdAt
         && previous.updatedAt === next.updatedAt
@@ -793,6 +796,7 @@ export function didSessionListRenderableStructuralFieldsChange(
     next: SessionListRenderableSession,
 ): boolean {
     if (!previous) return true;
+    if ((previous.serverId ?? null) !== (next.serverId ?? null)) return true;
     if (previous.active !== next.active) return true;
     if (previous.createdAt !== next.createdAt) return true;
     if ((previous.archivedAt ?? null) !== (next.archivedAt ?? null)) return true;

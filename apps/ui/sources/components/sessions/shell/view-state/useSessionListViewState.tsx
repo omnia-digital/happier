@@ -168,7 +168,12 @@ export function useSessionListViewState({
     const profile = useProfile();
     const selection = useResolvedActiveServerSelection();
     const machineDisplayById = useMachineDisplayById();
-    const machineDisplayScopes = useMachineDisplayScopes(['', ...(selection.enabled ? selection.allowedServerIds : [selection.activeServerId])]);
+    const machineDisplayServerIds = React.useMemo(() => [
+        '',
+        ...(selection.enabled ? selection.allowedServerIds : [selection.activeServerId]),
+        ...normalizeStringArray(data?.flatMap(item => item.serverId ? [item.serverId] : [])),
+    ], [data, selection.enabled, selection.allowedServerIds, selection.activeServerId]);
+    const machineDisplayScopes = useMachineDisplayScopes(machineDisplayServerIds);
     const machineDisplayLists = useSessionMachineDisplayLists(machineDisplayScopes);
     const renderMachineDisplayLists = useSessionListSnapshotWhenInactive(machineDisplayLists, sessionListSurfaceDataActive);
     const renderMachineDisplayById = useSessionListSnapshotWhenInactive(
