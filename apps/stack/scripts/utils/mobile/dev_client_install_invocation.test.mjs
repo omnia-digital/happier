@@ -29,7 +29,7 @@ test('buildMobileDevClientInstallInvocation sets EXPO_APP_SCHEME for dev-client 
   const invocation = buildMobileDevClientInstallInvocation({
     rootDir: '/repo/apps/stack',
     argv: ['--install'],
-    baseEnv: { USER: 'leeroy', EXPO_APP_SLUG: 'custom-slug' },
+    baseEnv: { USER: 'leeroy' },
   });
 
   assert.equal(invocation.env.EXPO_APP_SCHEME, invocation.identity.scheme);
@@ -41,6 +41,40 @@ test('buildMobileDevClientInstallInvocation sets EXPO_APP_SCHEME for dev-client 
     'expected EXPO_APP_SLUG to be explicitly blank so pipeline env files/Keychain bundles cannot override it',
   );
 });
+
+for (const platform of ['ios', 'android']) {
+  test(`buildMobileDevClientInstallInvocation preserves configured Expo project identity for ${platform}`, () => {
+    const invocation = buildMobileDevClientInstallInvocation({
+      rootDir: '/repo/apps/stack',
+      argv: ['--install', `--platform=${platform}`],
+      baseEnv: {
+        EXPO_APP_SLUG: 'omnia-happier',
+        EXPO_APP_OWNER: 'omnia-digital',
+        EXPO_PUBLIC_EAS_PROJECT_ID: 'fork-public-project-id',
+        EAS_PROJECT_ID: 'fork-project-id',
+        EXPO_EAS_PROJECT_ID: 'fork-expo-project-id',
+      },
+    });
+
+    assert.equal(invocation.env.EXPO_APP_SLUG, 'omnia-happier');
+    assert.equal(invocation.env.EXPO_APP_OWNER, 'omnia-digital');
+    assert.equal(invocation.env.EXPO_PUBLIC_EAS_PROJECT_ID, 'fork-public-project-id');
+    assert.equal(invocation.env.EAS_PROJECT_ID, 'fork-project-id');
+    assert.equal(invocation.env.EXPO_EAS_PROJECT_ID, 'fork-expo-project-id');
+  });
+}
+
+for (const slug of [undefined, '', ' \t ']) {
+  test(`buildMobileDevClientInstallInvocation suppresses inherited slug overrides when configured slug is ${JSON.stringify(slug)}`, () => {
+    const invocation = buildMobileDevClientInstallInvocation({
+      rootDir: '/repo/apps/stack',
+      argv: ['--install'],
+      baseEnv: { EXPO_APP_SLUG: slug },
+    });
+
+    assert.equal(invocation.env.EXPO_APP_SLUG, '');
+  });
+}
 
 test('buildMobileDevClientInstallInvocation selects public dev profile identities', async () => {
   const invocation = buildMobileDevClientInstallInvocation({

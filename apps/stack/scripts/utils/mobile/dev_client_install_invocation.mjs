@@ -110,11 +110,11 @@ export function buildMobileDevClientInstallInvocation({
     env.GRADLE_OPTS = resolveAndroidDevClientGradleOpts(baseEnv.GRADLE_OPTS);
     env.HAPPIER_STACK_CLEAR_ANDROID_NATIVE_BUILD_STATE = '1';
   }
-  // Keep Expo slug stable so EAS local builds don't fail when `extra.eas.projectId` is configured.
-  // Dev/prod isolation should be done via EXPO_APP_SCHEME (and bundle id), not slug.
-  // Explicitly blank EXPO_APP_SLUG so higher-precedence pipeline env sources (env-files/Keychain bundles)
-  // cannot accidentally override it back to a non-matching slug.
-  env.EXPO_APP_SLUG = '';
+  // Keep an explicitly configured slug paired with its Expo owner/project identity.
+  // Dev/prod isolation uses the scheme and bundle id, not a different Expo project.
+  // When no slug is configured, blank it so pipeline env files/Keychain bundles
+  // cannot replace the app config's canonical default with an unrelated slug.
+  env.EXPO_APP_SLUG = String(baseEnv.EXPO_APP_SLUG ?? '').trim();
 
   return {
     nodeArgs,
