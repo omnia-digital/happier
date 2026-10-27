@@ -5,6 +5,8 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { AppPaneProvider } from '@/components/appShell/panes/AppPaneProvider';
 import { createSessionFixture, flushHookEffects, renderScreen } from '@/dev/testkit';
 import { MetadataSchema } from '@/sync/domains/state/storageTypes';
+import { settingsDefaults } from '@/sync/domains/settings/settings';
+import { createUseSettingMutableMock } from '@/dev/testkit/mocks/storage';
 import { installSessionShellCommonModuleMocks } from './sessionShellTestHelpers';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -129,6 +131,7 @@ installSessionShellCommonModuleMocks({
       },
       useLocalSettingMutable: () => [null, vi.fn()],
       useSetting: () => null,
+      useSettingMutable: createUseSettingMutableMock((key) => settingsDefaults[key]),
       useSettings: () => ({ experiments: true, featureToggles: {} }),
       useAutomations: () => [],
       useSessionAutomationsEnabledCount: () => 0,

@@ -10967,6 +10967,7 @@ settingsSession: {
     actions: {
       viewEnvironmentVariables: "环境变量",
       addToFavorites: "添加到收藏",
+      favoriteModelsEmptyGuidance: "选择一个 Agent 标签页并为模型加星，即可将其添加到此处",
       removeFromFavorites: "从收藏中移除",
       editProfile: "编辑配置文件",
       duplicateProfile: "复制配置文件",

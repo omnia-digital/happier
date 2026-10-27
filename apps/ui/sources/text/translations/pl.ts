@@ -11426,6 +11426,7 @@ settingsSession: {
     actions: {
       viewEnvironmentVariables: "Zmienne środowiskowe",
       addToFavorites: "Dodaj do ulubionych",
+      favoriteModelsEmptyGuidance: "Wybierz kartę agenta i oznacz model gwiazdką, aby dodać go tutaj",
       removeFromFavorites: "Usuń z ulubionych",
       editProfile: "Edytuj profil",
       duplicateProfile: "Duplikuj profil",

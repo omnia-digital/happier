@@ -60,6 +60,7 @@ import { getProfileDisplayName } from '@/components/profiles/profileDisplay';
 import { useScrollEdgeFades } from '@/components/ui/scroll/useScrollEdgeFades';
 import { AgentInputScrollableChipRow } from './layout/AgentInputScrollableChipRow';
 import { PathAndResumeRow } from './layout/PathAndResumeRow';
+import type { AgentInputChipPickerCurrentModelContext } from './components/AgentInputChipPickerTypes';
 import {
     getHasAnyAgentInputActions,
     resolveAgentInputActionBarLayout,
@@ -343,11 +344,14 @@ interface AgentInputProps {
      */
     composeAgentPickerOptions?: (
         currentAgentOptions: ReadonlyArray<AgentInputChipPickerOption>,
+        currentModelContext?: AgentInputChipPickerCurrentModelContext,
     ) => ReadonlyArray<AgentInputChipPickerOption>;
     /** One descriptor-level signal shared by direct and overflow picker entry points. */
     onAgentPickerIntent?: () => void;
     onAgentPickerVisibilityChange?: (visible: boolean) => void;
     agentPickerSelectedOptionId?: string | null;
+    favoriteModelValues?: ReadonlySet<string>;
+    onToggleFavoriteModel?: (model: Readonly<{ modelId: string; modelLabel: string }>) => void;
     onAgentPickerSelect?: (id: string) => void;
     agentPickerApplyLabel?: string;
     agentPickerProbe?: OptionPickerProbeState;
@@ -2197,6 +2201,9 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                 modelNotes={modelNotes}
                 modelEmptyText={t('agentInput.model.configureInCli')}
                 canEnterCustomModel={canEnterCustomModel}
+                favoriteModelValues={props.favoriteModelValues}
+                isModelFavoritable={(option) => option.value !== 'default'}
+                onToggleFavoriteModel={(option) => props.onToggleFavoriteModel?.({ modelId: option.value, modelLabel: option.label })}
                 // Keep a single refresh affordance in the model section, but wire it to refresh all
                 // probe surfaces that feed the engine popover (CLI detection, models, modes/config).
                 modelProbe={mergeOptionPickerProbes([unifiedEnginePickerProbe, probe])}
@@ -2234,6 +2241,8 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
         unifiedEnginePickerProbe,
         props.onSessionConfigOptionChange,
         props.onModelModeChange,
+        props.favoriteModelValues,
+        props.onToggleFavoriteModel,
         theme.colors.text.secondary,
     ]);
 
@@ -2304,16 +2313,26 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
         const currentAgentOptions = ownsCurrentAgentDetail
             ? internalAgentPickerOptions
             : (currentAgentPickerRow ? [currentAgentPickerRow] : []);
-        const composed = composeAgentPickerOptions(currentAgentOptions);
+        const composed = composeAgentPickerOptions(currentAgentOptions, {
+            modelId: effectiveModelPolicy.selectedModelId,
+            configOverrides: Object.fromEntries(Object.entries(props.acpConfigOptionOverridesOverride?.overrides ?? {})
+                .flatMap(([configId, override]) => typeof override?.value === 'string' ? [[configId, override.value] as const] : [])),
+            onSelectModel: (modelId, modelOptionsContext) => props.onModelModeChange?.(modelId, modelOptionsContext),
+            onSelectConfigOptionValue: (configId, valueId) => props.onSessionConfigOptionChange?.(configId, valueId),
+        });
         if (!ownsCurrentAgentDetail && composed.length <= currentAgentOptions.length) {
             return [];
         }
         return composed;
     }, [
         currentAgentPickerRow,
+        effectiveModelPolicy.selectedModelId,
         internalAgentPickerOptions,
         props.agentPickerOptions,
         props.composeAgentPickerOptions,
+        props.onModelModeChange,
+        props.acpConfigOptionOverridesOverride,
+        props.onSessionConfigOptionChange,
     ]);
 
     const effectiveAgentPickerSelectedOptionId = React.useMemo(() => {

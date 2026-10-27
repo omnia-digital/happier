@@ -30,6 +30,8 @@ import {
     type FavoriteModelBackendIdentity,
     type FavoriteModelSelectionV1,
 } from '@/sync/domains/models/favoriteModelSelections';
+import { getModelOptionsForSession, type SessionModelOptionsContext } from '@/sync/domains/models/modelOptions';
+import type { Metadata } from '@/sync/domains/state/storageTypes';
 import { t } from '@/text';
 
 type FavoriteModelTogglePayload = Readonly<{
@@ -47,6 +49,7 @@ type FavoriteModelOption = Readonly<{
 type FavoriteModelSnapshot = Readonly<{
     entry: ResolvedBackendCatalogEntry;
     modelOptions: ReturnType<typeof useNewSessionPreflightModelsState>['modelOptions'];
+    modelOptionsContext: SessionModelOptionsContext;
     options: readonly FavoriteModelOption[];
     favoriteValues: readonly string[];
     availableValues: readonly string[];
@@ -62,6 +65,10 @@ export type NewSessionFavoriteModelsDetailProps = Readonly<{
     favoriteModelSelections: readonly FavoriteModelSelectionV1[];
     resolvedBackendEntries: readonly ResolvedBackendCatalogEntry[];
     selectedBackendTargetKey: string;
+    currentBackendTargetKey?: string;
+    currentSessionMetadata?: Metadata | null;
+    currentModelId?: string;
+    currentConfigOverrides?: Readonly<Record<string, string>>;
     selectedModelId: string;
     selectedConfigOverrides?: Readonly<Record<string, string>>;
     selectedMachineId: string | null;
@@ -75,6 +82,7 @@ export type NewSessionFavoriteModelsDetailProps = Readonly<{
         entry: ResolvedBackendCatalogEntry,
         modelId: string,
         configOverrides?: Readonly<Record<string, string>>,
+        modelOptionsContext?: SessionModelOptionsContext,
     ) => void;
     onSelectFavoriteModelOptionValue?: (
         entry: ResolvedBackendCatalogEntry,
@@ -125,9 +133,12 @@ function areFavoriteModelMapsEqual(
 function areFavoriteModelSnapshotsEqual(a: FavoriteModelSnapshot, b: FavoriteModelSnapshot): boolean {
     if (a.entry.targetKey !== b.entry.targetKey) return false;
     if (a.entry.iconAgentId !== b.entry.iconAgentId) return false;
+    if (a.modelOptions !== b.modelOptions) return false;
     if (a.selectedValue !== b.selectedValue) return false;
     if (a.selectedLabel !== b.selectedLabel) return false;
     if (a.probe?.phase !== b.probe?.phase) return false;
+    if (a.modelOptionsContext.preflightUpdatedAt !== b.modelOptionsContext.preflightUpdatedAt) return false;
+    if (a.modelOptionsContext.preflight !== b.modelOptionsContext.preflight) return false;
     if (!areStringArraysEqual(a.favoriteValues, b.favoriteValues)) return false;
     if (!areStringArraysEqual(a.availableValues, b.availableValues)) return false;
     if (!areFavoriteModelMapsEqual(a.modelByValue, b.modelByValue)) return false;
@@ -136,9 +147,10 @@ function areFavoriteModelSnapshotsEqual(a: FavoriteModelSnapshot, b: FavoriteMod
         const left = a.selectedOptionControls?.[index];
         const right = b.selectedOptionControls?.[index];
         if (
-            left?.option.id !== right?.option.id
-            || left?.effectiveValue !== right?.effectiveValue
+            left?.effectiveValue !== right?.effectiveValue
             || left?.requestedValue !== right?.requestedValue
+            || left?.disabled !== right?.disabled
+            || left?.disabledByOptionName !== right?.disabledByOptionName
         ) {
             return false;
         }
@@ -173,6 +185,10 @@ function FavoriteBackendModelsCollector(props: Readonly<{
     entry: ResolvedBackendCatalogEntry;
     favoriteModelSelections: readonly FavoriteModelSelectionV1[];
     selectedBackendTargetKey: string;
+    currentBackendTargetKey?: string;
+    currentSessionMetadata?: Metadata | null;
+    currentModelId?: string;
+    currentConfigOverrides?: Readonly<Record<string, string>>;
     selectedModelId: string;
     selectedConfigOverrides?: Readonly<Record<string, string>>;
     selectedMachineId: string | null;
@@ -200,13 +216,31 @@ function FavoriteBackendModelsCollector(props: Readonly<{
         probeContext: capabilityProbeContext,
         connectedServices: props.connectedServices ?? null,
     });
+    const modelOptionsContext = React.useMemo<SessionModelOptionsContext>(() => ({
+        preflight: preflightModels,
+        preflightUpdatedAt: modelProbe.refreshedAt,
+    }), [modelProbe.refreshedAt, preflightModels]);
+    const isCurrentBackendProjection = props.entry.targetKey === props.currentBackendTargetKey && props.currentSessionMetadata != null;
+    const effectiveModelOptions = React.useMemo(() => isCurrentBackendProjection
+        ? getModelOptionsForSession(props.entry.providerAgentId, props.currentSessionMetadata, {
+            ...modelOptionsContext,
+            selectedModelId: props.currentModelId,
+        } satisfies SessionModelOptionsContext)
+        : modelOptions, [
+        isCurrentBackendProjection,
+        modelOptions,
+        modelOptionsContext,
+        props.currentModelId,
+        props.currentSessionMetadata,
+        props.entry.providerAgentId,
+    ]);
 
     const providerCore = React.useMemo(() => getAgentCore(props.entry.providerAgentId), [props.entry.providerAgentId]);
     const availabilityById = React.useMemo(() => buildFavoriteModelAvailabilityById({
         mode: providerCore.model.dynamicProbe === 'static-only' ? 'static-only' : 'dynamic',
-        modelOptions,
-        preflightModels,
-    }), [modelOptions, preflightModels, providerCore.model.dynamicProbe]);
+        modelOptions: effectiveModelOptions,
+        preflightModels: isCurrentBackendProjection ? null : preflightModels,
+    }), [effectiveModelOptions, isCurrentBackendProjection, preflightModels, providerCore.model.dynamicProbe]);
 
     const availableFavorites = React.useMemo(() => resolveAvailableFavoriteModelsForBackend({
         favorites: props.favoriteModelSelections,
@@ -225,7 +259,7 @@ function FavoriteBackendModelsCollector(props: Readonly<{
     )), [backendIdentity, props.favoriteModelSelections]);
 
     const provisionalFavorites = React.useMemo((): readonly AvailableFavoriteModel[] => {
-        const hasResolvedDynamicModels = (preflightModels?.availableModels.length ?? 0) > 0;
+        const hasResolvedDynamicModels = isCurrentBackendProjection || (preflightModels?.availableModels.length ?? 0) > 0;
         const canUseProvisionalFavorites = providerCore.model.dynamicProbe !== 'static-only'
             && !hasResolvedDynamicModels
             && modelProbe.phase !== 'idle';
@@ -246,7 +280,7 @@ function FavoriteBackendModelsCollector(props: Readonly<{
             });
         }
         return out;
-    }, [availableFavorites, matchingFavorites, modelProbe.phase, preflightModels?.availableModels.length, props.entry.title, providerCore.model.dynamicProbe]);
+    }, [availableFavorites, isCurrentBackendProjection, matchingFavorites, modelProbe.phase, preflightModels?.availableModels.length, props.entry.title, providerCore.model.dynamicProbe]);
 
     const selectableFavorites = React.useMemo(() => (
         provisionalFavorites.length > 0 ? [...availableFavorites, ...provisionalFavorites] : availableFavorites
@@ -299,14 +333,17 @@ function FavoriteBackendModelsCollector(props: Readonly<{
         },
     ] as const)), [props.entry, selectableFavorites]);
     const modelOptionByValue = React.useMemo(() => new Map(selectableFavorites.flatMap((model) => {
-        const option = modelOptions.find((candidate) => candidate.value === model.modelId) ?? null;
+        const option = effectiveModelOptions.find((candidate) => candidate.value === model.modelId) ?? null;
         return option ? [[buildFavoriteOptionValue(props.entry, model.modelId), option] as const] : [];
-    })), [modelOptions, props.entry, selectableFavorites]);
+    })), [effectiveModelOptions, props.entry, selectableFavorites]);
 
     const selectedValue = props.selectedBackendTargetKey === props.entry.targetKey
         ? buildFavoriteOptionValue(props.entry, props.selectedModelId)
         : '';
     const selectedOption = options.find((option) => option.value === selectedValue) ?? null;
+    const selectedConfigOverrides = props.entry.targetKey === props.currentBackendTargetKey
+        ? props.currentConfigOverrides
+        : props.selectedConfigOverrides;
     const selectedOptionControls = React.useMemo(() => {
         const selectedModelOption = modelOptionByValue.get(selectedValue) ?? null;
         if (!selectedModelOption?.modelOptions?.length) return null;
@@ -317,13 +354,13 @@ function FavoriteBackendModelsCollector(props: Readonly<{
                     : props.entry.target.agentId,
             configOptions: selectedModelOption.modelOptions,
             overrides: Object.fromEntries(
-                Object.entries(props.selectedConfigOverrides ?? {}).map(([optionId, value]) => [optionId, { value }]),
+                Object.entries(selectedConfigOverrides ?? {}).map(([optionId, value]) => [optionId, { value }]),
             ),
         }) ?? null;
     }, [
         modelOptionByValue,
         props.entry.target,
-        props.selectedConfigOverrides,
+        selectedConfigOverrides,
         selectedValue,
     ]);
     const unifiedProbe = React.useMemo(() => mergeOptionPickerProbes([
@@ -334,7 +371,8 @@ function FavoriteBackendModelsCollector(props: Readonly<{
     React.useEffect(() => {
         props.onSnapshot(props.entry.targetKey, {
             entry: props.entry,
-            modelOptions,
+            modelOptions: effectiveModelOptions,
+            modelOptionsContext,
             options,
             favoriteValues,
             availableValues,
@@ -349,7 +387,8 @@ function FavoriteBackendModelsCollector(props: Readonly<{
         availableValues,
         favoriteValues,
         modelByValue,
-        modelOptions,
+        effectiveModelOptions,
+        modelOptionsContext,
         options,
         props,
         selectedOptionControls,
@@ -431,6 +470,10 @@ export function NewSessionFavoriteModelsDetail(props: NewSessionFavoriteModelsDe
                     entry={entry}
                     favoriteModelSelections={props.favoriteModelSelections}
                     selectedBackendTargetKey={props.selectedBackendTargetKey}
+                    currentBackendTargetKey={props.currentBackendTargetKey}
+                    currentSessionMetadata={props.currentSessionMetadata}
+                    currentModelId={props.currentModelId}
+                    currentConfigOverrides={props.currentConfigOverrides}
                     selectedModelId={props.selectedModelId}
                     selectedConfigOverrides={props.selectedConfigOverrides}
                     selectedMachineId={props.selectedMachineId}
@@ -443,14 +486,13 @@ export function NewSessionFavoriteModelsDetail(props: NewSessionFavoriteModelsDe
                     onSnapshot={handleSnapshot}
                 />
             ))}
-            {options.length > 0 || unifiedProbe?.phase !== 'idle' ? (
-                <OptionPickerOverlay
+            <OptionPickerOverlay
                     title={t('profiles.groups.favorites')}
                     effectiveLabel={selectedSnapshot?.selectedLabel}
                     notes={[]}
                     options={options}
                     selectedValue={selectedValue}
-                    emptyText={t('agentInput.model.configureInCli')}
+                    emptyText={t('profiles.actions.favoriteModelsEmptyGuidance')}
                     canEnterCustomValue={false}
                     optionTestIDPrefix="new-session-favorite-model-option"
                     refreshTestID="new-session-favorite-model-refresh"
@@ -500,10 +542,10 @@ export function NewSessionFavoriteModelsDetail(props: NewSessionFavoriteModelsDe
                                 selectedModelId: model.modelId,
                                 selectedConfigOverrides: props.selectedConfigOverrides ?? {},
                             }),
+                            snapshot.modelOptionsContext,
                         );
                     }}
-                />
-            ) : null}
+            />
         </View>
     );
 }

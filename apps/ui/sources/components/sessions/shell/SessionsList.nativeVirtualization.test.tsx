@@ -2492,7 +2492,7 @@ describe('SessionsList (native virtualization)', () => {
         expect(reactivatedList.props.data.some((item: any) => item.type === 'session' && item.session.id === 'sess_hidden_refresh')).toBe(true);
     });
 
-    it('does not read runtime-priority rows while the list surface is inactive', async () => {
+    it('keeps a first-mounted inactive row snapshot without later runtime-priority reads', async () => {
         sessionListRenderablesForSubscriptionTests.sess_a = {
             ...sessionA,
             id: 'sess_a',
@@ -2510,7 +2510,6 @@ describe('SessionsList (native virtualization)', () => {
             interactive: false,
             dataActive: false,
         });
-
         // First-mounted inactive rows take one frozen scoped snapshot for half-swipe continuity.
         // The runtime-priority selector itself has no scopes while the surface is inactive.
         expect(sessionListRenderableReadSpy.mock.calls.map(([id]) => id)).toEqual(['sess_a', 'sess_b']);
@@ -2538,6 +2537,31 @@ describe('SessionsList (native virtualization)', () => {
         expect(store.getState().sessionListRenderables).toBe(updatedRenderables);
         expect(sessionListRenderableReadSpy).not.toHaveBeenCalled();
         expect(findSessionItem(screen, 'sess_b')?.props.rowModel).toBe(frozenRowModel);
+    });
+
+    it('does not reread runtime-priority rows after an active surface becomes inactive', async () => {
+        sessionListRenderablesForSubscriptionTests.sess_a = { ...sessionA, id: 'sess_a' };
+        sessionListRenderablesForSubscriptionTests.sess_b = {
+            ...sessionB,
+            id: 'sess_b',
+            hasPendingUserActionRequests: true,
+            pendingRequestObservedAt: 10,
+        };
+
+        const screen = await renderSessionsListWithSurfaceOwnership({
+            ownerKey: 'phone-root', visible: true, interactive: true, dataActive: true,
+        });
+        sessionListRenderableReadSpy.mockClear();
+        const { SessionsList } = await import('./SessionsList');
+        await screen.update(<SessionsList surfaceOwnership={{
+            ownerKey: 'phone-root', visible: true, interactive: false, dataActive: false,
+        }} />);
+        const store = expectPresent(nativeVirtualizationStorageStore, 'expected canonical session list store');
+        await act(async () => {
+            store.setState({ sessions: { ...store.getState().sessions } });
+        });
+
+        expect(sessionListRenderableReadSpy).not.toHaveBeenCalled();
     });
 
     it('does not expose a load-more handler when the surface is not data-active', async () => {
@@ -3393,6 +3417,12 @@ describe('SessionsList (native virtualization)', () => {
                 ...sessionA.metadata,
                 machineId: 'machine-target',
                 path: '/home/coder/repo',
+                sessionWorkspaceLocationV1: {
+                    v: 1,
+                    machineId: 'machine-target',
+                    agentPath: '/home/coder/repo',
+                    machinePath: '/Users/test/repo',
+                },
             },
         };
         const getProjectForSession = storageState.getProjectForSession;
@@ -3958,6 +3988,8 @@ describe('SessionsList (native virtualization)', () => {
             machineListByServerId: {},
             getProjectForSession: () => null,
         };
+        const { storage } = await import('@/sync/domains/state/storage');
+        storage.setState(storageState);
         machineDisplayById = {
             'machine-a': {
                 id: 'machine-a',

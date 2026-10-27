@@ -800,8 +800,8 @@ describe('SessionsList pinning + per-group ordering', () => {
                 { id: machine.id, updatedAt: 0, active: true, activeAt: 0, metadataVersion: 1, metadata: machine.metadata },
             ])),
             sessions: {
-                sess_live_1: { ...sess1, metadata: { machineId: 'machine-live-1', path: '/home/u/live-a', homeDir: '/home/u' } },
-                sess_live_2: { ...sess2, metadata: { machineId: 'machine-live-2', path: '/home/u/live-b', homeDir: '/home/u' } },
+                sess_live_1: { ...sess1, metadata: { ...sess1.metadata, machineId: 'machine-live-1', path: '/home/u/live-a' } },
+                sess_live_2: { ...sess2, metadata: { ...sess2.metadata, machineId: 'machine-live-2', path: '/home/u/live-b' } },
             },
         });
 
@@ -886,8 +886,8 @@ describe('SessionsList pinning + per-group ordering', () => {
                 { id: machine.id, updatedAt: 0, active: true, activeAt: 0, metadataVersion: 1, metadata: machine.metadata },
             ])),
             sessions: {
-                sess_live_1: { ...sess1, metadata: { machineId: 'machine-live-1', path: '/home/u/live-a', homeDir: '/home/u' } },
-                sess_live_2: { ...sess2, metadata: { machineId: 'machine-live-2', path: '/home/u/live-b', homeDir: '/home/u' } },
+                sess_live_1: { ...sess1, metadata: { ...sess1.metadata, machineId: 'machine-live-1', path: '/home/u/live-a' } },
+                sess_live_2: { ...sess2, metadata: { ...sess2.metadata, machineId: 'machine-live-2', path: '/home/u/live-b' } },
             },
         });
 

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppPaneProvider, useAppPaneContext } from '@/components/appShell/panes/AppPaneProvider';
 import { pressTestInstance, renderScreen, standardCleanup, type RenderScreenResult } from '@/dev/testkit';
 import { createToolCallMessageFixture } from '@/dev/testkit/fixtures/transcriptFixtures';
+import { settingsDefaults } from '@/sync/domains/settings/settings';
 import { installSessionShellCommonModuleMocks } from './sessionShellTestHelpers';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -383,6 +384,7 @@ installSessionShellCommonModuleMocks({
         return null;
       },
       useSettingMutable: (key: string) => {
+        if (key === 'favoriteModelSelectionsV1') return [settingsDefaults.favoriteModelSelectionsV1, vi.fn()];
         if (key === 'mobileWorkspaceExperienceV1') {
           return [mobileWorkspaceExperienceState.value ?? null, mobileWorkspaceExperienceState.setValue];
         }

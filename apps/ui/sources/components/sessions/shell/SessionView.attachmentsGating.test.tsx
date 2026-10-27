@@ -6,9 +6,10 @@ import { renderScreen } from '@/dev/testkit';
 import { createModalModuleMock } from '@/dev/testkit/mocks/modal';
 import { createReactNativeWebMock } from '@/dev/testkit/mocks/reactNative';
 import { createExpoRouterMock } from '@/dev/testkit/mocks/router';
-import { createStorageModuleStub } from '@/dev/testkit/mocks/storage';
+import { createStorageModuleStub, createUseSettingMutableMock } from '@/dev/testkit/mocks/storage';
 import { createTextModuleMock } from '@/dev/testkit/mocks/text';
 import { createUnistylesMock } from '@/dev/testkit/mocks/unistyles';
+import { settingsDefaults } from '@/sync/domains/settings/settings';
 import { installSessionShellCommonModuleMocks } from './sessionShellTestHelpers';
 
 
@@ -142,7 +143,7 @@ installSessionShellCommonModuleMocks({
       useOpenApprovalArtifactsForSession: () => [],
       useMachine: () => null,
       useLocalSettingMutable: () => [false, vi.fn()],
-      useSettingMutable: () => [null, vi.fn()],
+      useSettingMutable: createUseSettingMutableMock((key) => settingsDefaults[key]),
     }),
 });
 
