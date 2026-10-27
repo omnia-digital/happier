@@ -243,6 +243,8 @@ test.describe('sidebar provider subscription usage', () => {
         await page.getByTestId('sidebar-provider-usage-choice:claude').click();
         await expect(page.getByTestId(`sidebar-provider-usage-option:claude:native:${personal}`)).toContainText('Claude Personal · account');
         await expect(page.getByTestId(`sidebar-provider-usage-option:claude:native:${organization}`)).toContainText('Claude Personal · organization · org-1');
+        await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveCount(0);
+        await expect(page.getByTestId('sidebar-provider-usage-state:claude')).toContainText('Choose account');
         await page.getByTestId(`sidebar-provider-usage-option:claude:native:${personal}`).click();
         await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('29');
         await expect(page.getByTestId('sidebar-provider-usage-choice:claude')).toContainText('Claude Personal');
@@ -250,6 +252,9 @@ test.describe('sidebar provider subscription usage', () => {
         await expect(page.getByTestId('sidebar-provider-usage:claude-popover')).toContainText('Weekly');
         await page.keyboard.press('Escape');
         await page.getByTestId('sidebar-provider-usage-choice:claude').click();
+        await expect(page.getByTestId(`sidebar-provider-usage-option:claude:native:${work}`)).toBeVisible();
+        await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('29');
+        await expect(page.getByTestId('sidebar-provider-usage-choice:claude')).toContainText('Claude Personal');
         await page.getByTestId(`sidebar-provider-usage-option:claude:native:${work}`).click();
         await expect(page.getByTestId('sidebar-provider-usage:claude-value')).toHaveText('66');
         await expect(page.getByTestId('sidebar-provider-usage:codex-value')).toHaveText('0');
