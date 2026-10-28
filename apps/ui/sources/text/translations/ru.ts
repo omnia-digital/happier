@@ -5933,6 +5933,15 @@ export const ru: TranslationStructure = {
   },
 
   session: {
+    messageReply: {
+      action: "Ответить на сообщение",
+      replyingTo: "Ответ на",
+      user: "Вы",
+      assistant: "Ассистент",
+      cancel: "Убрать ссылку на сообщение",
+      sourceUnavailable: "Исходное сообщение недоступно",
+      sourceMissingSend: "Исходное сообщение недоступно. Загрузите его снова или уберите ссылку перед отправкой.",
+    },
     inputPlaceholder: "Введите сообщение...",
     transcriptNavigation: {
       title: "Навигация",

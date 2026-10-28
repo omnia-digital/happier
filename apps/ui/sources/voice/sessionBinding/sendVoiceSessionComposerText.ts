@@ -11,6 +11,8 @@ export type VoiceTextTurnPendingPort = Readonly<{
   enqueuePendingMessage: (params: Readonly<{
     conversationSessionId: string;
     text: string;
+    displayText?: string;
+    metaOverrides?: Record<string, unknown>;
     localId: string;
   }>) => Promise<PendingMessageEnqueueResultV2>;
   blockPendingDelivery: (params: Readonly<{
@@ -35,8 +37,8 @@ export type DurableVoiceTextTurnResult =
     };
 
 export const voiceTextTurnPendingPort: VoiceTextTurnPendingPort = {
-  enqueuePendingMessage: async ({ conversationSessionId, text, localId }) =>
-    await sync.enqueuePendingMessage(conversationSessionId, text, undefined, undefined, {
+  enqueuePendingMessage: async ({ conversationSessionId, text, displayText, metaOverrides, localId }) =>
+    await sync.enqueuePendingMessage(conversationSessionId, text, displayText, metaOverrides, {
       localId,
       deliveryMode: 'external_handoff',
       requestedAction: { v: 1, kind: 'send_now' },
@@ -48,6 +50,8 @@ export const voiceTextTurnPendingPort: VoiceTextTurnPendingPort = {
 export async function submitDurableVoiceTextTurn(params: Readonly<{
   conversationSessionId: string;
   text: string;
+  displayText?: string;
+  metaOverrides?: Record<string, unknown>;
   localId?: string;
   pendingPort?: VoiceTextTurnPendingPort;
   dispatch: (params: Readonly<{
@@ -66,6 +70,8 @@ export async function submitDurableVoiceTextTurn(params: Readonly<{
     enqueueResult = await pendingPort.enqueuePendingMessage({
       conversationSessionId: params.conversationSessionId,
       text: params.text,
+      ...(params.displayText !== undefined ? { displayText: params.displayText } : {}),
+      ...(params.metaOverrides ? { metaOverrides: params.metaOverrides } : {}),
       localId,
     });
   } catch (error) {
@@ -161,6 +167,8 @@ export async function submitDurableVoiceTextTurn(params: Readonly<{
 export async function sendVoiceSessionComposerText(params: Readonly<{
   conversationSessionId: string;
   text: string;
+  displayText?: string;
+  metaOverrides?: Record<string, unknown>;
   store?: typeof voiceSessionBindingStore;
   sessionMetadata?: unknown;
   getAdapter: (adapterId: string) => VoiceAdapterController | null;
@@ -188,6 +196,8 @@ export async function sendVoiceSessionComposerText(params: Readonly<{
   return await submitDurableVoiceTextTurn({
     conversationSessionId: routing.binding.conversationSessionId,
     text: params.text,
+    ...(params.displayText !== undefined ? { displayText: params.displayText } : {}),
+    ...(params.metaOverrides ? { metaOverrides: params.metaOverrides } : {}),
     localId: params.localId,
     pendingPort: params.pendingPort,
     dispatch: async ({ localId, handoffMode }) => {

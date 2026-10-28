@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
 
   onChangeText: vi.fn(),
   onSend: vi.fn(),
+  focusInput: vi.fn(),
   recordLargeTextInputDiagnostic: vi.fn(),
 }));
 
@@ -195,7 +196,7 @@ vi.mock('@/components/ui/forms/MultiTextInput', () => {
       },
       getText: () => (typeof props.value === 'string' ? props.value : ''),
       flushPendingTextChange: () => (typeof props.value === 'string' ? props.value : ''),
-      focus: () => {},
+      focus: mocks.focusInput,
       blur: () => {},
     }));
 
@@ -272,6 +273,24 @@ function findMultiTextInput(screen: Awaited<ReturnType<typeof renderScreen>>) {
 }
 
 describe('AgentInput (history navigation)', () => {
+  it('focuses the existing input for a reply request without changing the drafted text', async () => {
+    const { AgentInput } = await import('./AgentInput');
+    const onChangeText = vi.fn();
+    await renderScreen(
+      <AgentInput
+        sessionId="s1"
+        value="Keep this draft"
+        placeholder="p"
+        onChangeText={onChangeText}
+        onSend={mocks.onSend}
+        inputFocusRequest={{ messageId: 'earlier' }}
+        autocompleteKinds={[]}
+        autocompleteSuggestions={async () => []}
+      />,
+    );
+    expect(mocks.focusInput).toHaveBeenCalled();
+    expect(onChangeText).not.toHaveBeenCalled();
+  });
   afterEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();

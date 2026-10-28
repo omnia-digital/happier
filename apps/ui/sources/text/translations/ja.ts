@@ -5651,6 +5651,15 @@ localTailscale: {
   sessionHandoff: sessionHandoffTranslationExtensions.ja,
 
   session: {
+    messageReply: {
+      action: "メッセージに返信",
+      replyingTo: "返信先",
+      user: "あなた",
+      assistant: "アシスタント",
+      cancel: "返信先を解除",
+      sourceUnavailable: "元のメッセージを利用できません",
+      sourceMissingSend: "元のメッセージを利用できません。再読み込みするか、返信先を解除してから送信してください。",
+    },
     inputPlaceholder: "メッセージを入力...",
     transcriptNavigation: {
       title: "ナビゲート",
