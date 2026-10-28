@@ -4,7 +4,7 @@ import { StyleSheet } from 'react-native-unistyles';
 
 import { Text } from '@/components/ui/text/Text';
 import { PressableSurface } from '@/components/ui/interaction/PressableSurface';
-import { useMessageReplySource } from '@/sync/store/hooks';
+import { useMessageReplySource } from '@/sync/domains/state/storage';
 import { readMessageReplyTarget, type MessageReplyTarget } from '@/sync/domains/messages/messageReply';
 import { t } from '@/text';
 import { stripMarkdown } from '@/utils/sessions/messageUtils';
