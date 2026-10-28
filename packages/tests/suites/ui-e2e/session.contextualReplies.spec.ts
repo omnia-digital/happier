@@ -136,7 +136,7 @@ test.describe('ui e2e: contextual message replies', () => {
         HAPPIER_BUILD_FEATURES_DENY: 'sharing.contentKeys,providers.claude.unifiedTerminal',
         HAPPIER_FEATURE_AUTH_LOGIN__KEY_CHALLENGE_ENABLED: '1',
         HAPPIER_FEATURE_ENCRYPTION__STORAGE_POLICY: 'optional',
-        HAPPIER_FEATURE_ENCRYPTION__ALLOW_ACCOUNT_OPTOUT: '1',
+        HAPPIER_FEATURE_ENCRYPTION__DEFAULT_ACCOUNT_MODE: 'plain',
       },
     });
 
@@ -165,7 +165,7 @@ test.describe('ui e2e: contextual message replies', () => {
     test.setTimeout(240_000);
     if (!server || !uiBaseUrl) throw new Error('missing server/ui fixtures');
     const browserDiagnostics = collectBrowserDiagnostics({ page });
-    let observedReplyTarget: MessageReplyTarget | null = null;
+    const observedReply: { target: MessageReplyTarget | null } = { target: null };
 
     page.on('websocket', (socket) => {
       if (new URL(socket.url()).pathname !== '/v1/updates/') return;
@@ -173,31 +173,18 @@ test.describe('ui e2e: contextual message replies', () => {
         const frame = typeof payload === 'string' ? payload : Buffer.isBuffer(payload) ? payload.toString('utf8') : null;
         if (!frame) return;
         const target = parseReplyTargetFromSessionRpcFrame(frame);
-        if (target) observedReplyTarget = target;
+        if (target) observedReply.target = target;
       });
     });
     page.on('request', (request) => {
       const target = parseReplyTargetFromPlainHttpRequest(request);
-      if (target) observedReplyTarget = target;
+      if (target) observedReply.target = target;
     });
 
     try {
       await page.setViewportSize({ width: 1440, height: 900 });
       await gotoDomContentLoadedWithRetries(page, uiBaseUrl);
       await ensureAccountReadyForConnect({ page, timeoutMs: 120_000 });
-
-      await page.goto(`${uiBaseUrl}/settings/account`, { waitUntil: 'domcontentloaded' });
-      await expect(page.getByTestId('settings-account-encryption-mode-switch')).toHaveCount(1, { timeout: 120_000 });
-      const plainModeMigration = page.waitForResponse((response) =>
-        new URL(response.url()).pathname === '/v1/account/encryption/migrate'
-        && response.request().method() === 'POST'
-        && response.status() === 200,
-        { timeout: 60_000 },
-      );
-      await page.getByTestId('settings-account-encryption-mode-switch').click();
-      const plainModeResponse = await plainModeMigration;
-      expect(plainModeResponse.request().postDataJSON()).toMatchObject({ toMode: 'plain' });
-      expect(await plainModeResponse.json()).toMatchObject({ success: true, mode: 'plain' });
       await selectThemePreference(page, uiBaseUrl, 'dark');
 
       const testDir = resolve(join(suiteDir, 't1-contextual-reply'));
@@ -222,10 +209,15 @@ test.describe('ui e2e: contextual message replies', () => {
       });
 
       const machineId = await waitForDaemonMachineIdFromCliSettings({ cliHomeDir, timeoutMs: 120_000 });
-      const longSourceText = `OH76_SOURCE_${run.runId} ` + 'The earlier design decision described the blue cedar workspace, its preserved branches, and its tested deployment boundary. '.repeat(14);
+      const longSourceText = `OH76_SOURCE_${run.runId} ` + 'The earlier design decision described the blue cedar workspace, its preserved branches, and its tested deployment boundary. '.repeat(14).trimEnd();
       const latestSimilarText = `OH76_LATEST_${run.runId}: The later note also describes the blue cedar workspace, preserved branches, and deployment boundary.`;
       const sourceResponse = fakeClaudeEchoResponseText(longSourceText);
       const latestResponse = fakeClaudeEchoResponseText(latestSimilarText);
+      // Preview excerpts are readable Markdown text; transcript/provider assertions below
+      // still use the exact raw fixtures. These are explicit golden values for these markers.
+      const sourceExcerpt = longSourceText.replace('OH76_SOURCE_', 'OH76SOURCE');
+      const latestExcerpt = latestSimilarText.replace('OH76_LATEST_', 'OH76LATEST');
+      const assistantExcerpt = latestResponse.replace('FAKE_CLAUDE_ECHO_', 'FAKECLAUDEECHO_');
 
       const session = await createSessionFromNewSessionComposer({
         page,
@@ -278,7 +270,7 @@ test.describe('ui e2e: contextual message replies', () => {
       const previewAuthor = page.getByTestId('session-composer-reply-preview-author');
       const previewExcerpt = page.getByTestId('session-composer-reply-preview-excerpt');
       await expect(previewAuthor).toContainText('Replying to');
-      await expect(previewExcerpt).toContainText(longSourceText.slice(0, 35));
+      await expect(previewExcerpt).toHaveText(sourceExcerpt);
       const previewMetrics = await previewExcerpt.evaluate((element) => {
         const renderedBounds = element.getBoundingClientRect();
         const clone = element.cloneNode(true) as HTMLElement;
@@ -311,7 +303,7 @@ test.describe('ui e2e: contextual message replies', () => {
           backgroundColor,
         };
       });
-      expect(previewMetrics.text).toBe(longSourceText);
+      expect(previewMetrics.text).toBe(sourceExcerpt);
       expect(previewMetrics.renderedHeight).toBeGreaterThan(0);
       expect(previewMetrics.naturalHeight).toBeGreaterThan(previewMetrics.renderedHeight * 2);
       const darkSurfaceChannels = previewMetrics.backgroundColor.match(/\d+(?:\.\d+)?/gu)?.slice(0, 3).map(Number);
@@ -319,6 +311,9 @@ test.describe('ui e2e: contextual message replies', () => {
       expect(Math.max(...(darkSurfaceChannels ?? []))).toBeLessThan(180);
 
       await page.setViewportSize({ width: 390, height: 844 });
+      await expect(replyPreview).toBeVisible();
+      await expect(previewExcerpt).toHaveText(sourceExcerpt);
+      await expect(composer).toHaveValue(draft);
       await page.screenshot({ path: testInfo.outputPath('reply-preview-mobile-dark.png') });
 
       // Capture the same composed preview in the other real app theme. Theme changes route through
@@ -346,6 +341,7 @@ test.describe('ui e2e: contextual message replies', () => {
         throw new Error('reloaded transcript response did not include the latest assistant record');
       }
       const stableSourceMessageId = `server:${sourceRecord.id}`;
+      expect(sourceRecord.content).toMatchObject({ t: 'plain' });
       expect(sourceRecord.messageRole).toBe('user');
       expect(sourceRecord.seq).toBeLessThan(latestAssistantRecord.seq);
       await expect(sourceMessage).toBeVisible({ timeout: 60_000 });
@@ -376,7 +372,7 @@ test.describe('ui e2e: contextual message replies', () => {
       assistantMessageId = reloadedAssistantTestId.slice('transcript-message-'.length);
       await latestAssistantMessage.hover();
       await page.getByTestId(`transcript-message-reply:${assistantMessageId}`).click();
-      await expect(replyPreview).toContainText(latestResponse.slice(0, 24));
+      await expect(previewExcerpt).toHaveText(assistantExcerpt);
       await expect(page.getByTestId('session-composer-reply-preview-author')).toContainText(/assistant/i);
       await expect(composer).toHaveValue(draft);
       await page.getByTestId('session-composer-reply-cancel').click();
@@ -390,8 +386,8 @@ test.describe('ui e2e: contextual message replies', () => {
       await expect(send).toBeEnabled();
       await send.click();
 
-      await expect.poll(() => observedReplyTarget, { timeout: 60_000 }).not.toBeNull();
-      const replyTarget = observedReplyTarget;
+      await expect.poll(() => observedReply.target, { timeout: 60_000 }).not.toBeNull();
+      const replyTarget = observedReply.target;
       if (!replyTarget) throw new Error('reply submission did not carry source metadata');
       expect(replyTarget).toMatchObject({
         sessionId: session.sessionId,
@@ -410,8 +406,8 @@ test.describe('ui e2e: contextual message replies', () => {
       const sentMessageId = sentTestId.slice('transcript-message-'.length);
       const sentRelationship = page.getByTestId(`transcript-message-reply-source:${sentMessageId}`);
       await expect(sentRelationship).toBeVisible({ timeout: 60_000 });
-      await expect(sentRelationship).toContainText(longSourceText.slice(0, 35));
-      await expect(sentRelationship).not.toContainText(latestSimilarText.slice(0, 32));
+      await expect(page.getByTestId(`transcript-message-reply-source:${sentMessageId}-excerpt`)).toHaveText(sourceExcerpt);
+      await expect(sentRelationship).not.toContainText(latestExcerpt.slice(0, 32));
 
       // The sent relationship must resolve after transcript rehydration, when reducer IDs are regenerated.
       await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/session/${encodeURIComponent(session.sessionId)}?happier_hmr=0`, 180_000);
@@ -421,8 +417,8 @@ test.describe('ui e2e: contextual message replies', () => {
       const reloadedSentMessageId = reloadedSentTestId.slice('transcript-message-'.length);
       const reloadedSentRelationship = page.getByTestId(`transcript-message-reply-source:${reloadedSentMessageId}`);
       await expect(reloadedSentRelationship).toBeVisible({ timeout: 60_000 });
-      await expect(reloadedSentRelationship).toContainText(longSourceText.slice(0, 35));
-      await expect(reloadedSentRelationship).not.toContainText(latestSimilarText.slice(0, 32));
+      await expect(page.getByTestId(`transcript-message-reply-source:${reloadedSentMessageId}-excerpt`)).toHaveText(sourceExcerpt);
+      await expect(reloadedSentRelationship).not.toContainText(latestExcerpt.slice(0, 32));
 
       const expectedAgentInput = `Earlier conversation message (JSON data):\n${JSON.stringify({ ...replyTarget, text: longSourceText })}\n\nReply to that message:\n${draft}`;
       const expectedAgentInputSha256 = createHash('sha256').update(expectedAgentInput).digest('hex');
