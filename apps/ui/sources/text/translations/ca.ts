@@ -5051,6 +5051,15 @@ deps: {
     sessionHandoff: sessionHandoffTranslationExtensions.ca,
 
     session: {
+        messageReply: {
+            action: "Respon al missatge",
+            replyingTo: "Responent a",
+            user: "Tu",
+            assistant: "Assistent",
+            cancel: "Elimina el destinatari de la resposta",
+            sourceUnavailable: "Missatge original no disponible",
+            sourceMissingSend: "El missatge original no està disponible. Torna a carregar-lo o elimina la resposta abans d’enviar.",
+        },
         inputPlaceholder: 'Escriu un missatge...',
         transcriptNavigation: {
             title: 'Navega',

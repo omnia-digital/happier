@@ -5035,6 +5035,15 @@ export const fr: TranslationStructure = {
     },
 
     session: {
+        messageReply: {
+            action: "Répondre au message",
+            replyingTo: "En réponse à",
+            user: "Vous",
+            assistant: "Assistant",
+            cancel: "Retirer le message de référence",
+            sourceUnavailable: "Message d’origine indisponible",
+            sourceMissingSend: "Le message d’origine est indisponible. Rechargez-le ou retirez la référence avant d’envoyer.",
+        },
         inputPlaceholder: 'Sur quoi veux-tu travailler ?',
         transcriptNavigation: {
             title: 'Naviguer',

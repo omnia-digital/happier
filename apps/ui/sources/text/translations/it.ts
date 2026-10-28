@@ -5724,6 +5724,15 @@ export const it: TranslationStructure = {
   sessionHandoff: sessionHandoffTranslationExtensions.it,
 
   session: {
+    messageReply: {
+      action: "Rispondi al messaggio",
+      replyingTo: "In risposta a",
+      user: "Tu",
+      assistant: "Assistente",
+      cancel: "Rimuovi il riferimento alla risposta",
+      sourceUnavailable: "Messaggio originale non disponibile",
+      sourceMissingSend: "Il messaggio originale non è disponibile. Ricaricalo o rimuovi il riferimento prima di inviare.",
+    },
     inputPlaceholder: "Scrivi un messaggio ...",
     transcriptNavigation: {
       title: "Naviga",

@@ -33,6 +33,38 @@ NUL-bearing object keys and ciphertext are rejected as `invalid-params`: rewriti
 keys could merge distinct fields, and encrypted content is opaque. This correction
 is development source behavior; release availability is tracked separately.
 
+## Contextual message replies (development)
+
+The session composer can reference a specific earlier user or assistant message.
+`SessionView` captures that message's identity and resolves its full text from the
+existing transcript before any asynchronous submission work. The composer and
+sent-message previews show a compact excerpt; visual clipping does not shorten
+the context sent to the Agent. An unavailable or mismatched source blocks the
+send and preserves the draft.
+
+`sync/domains/messages/messageReply.ts` owns the provider-neutral representation:
+the existing user text contains a JSON source context followed by the new reply,
+`displayText` retains the visible reply, and additive
+`meta.happierMessageReplyV1` carries `sessionId`, a canonical stable route
+`messageId` (for example `server:<record id>`), `role`, and optional `seq` and
+`transcriptBlockIndex`. The route identifies the persisted record and the block
+coordinates distinguish text blocks within it after rehydration. Existing queue, encryption, retry and provider
+paths carry that same outgoing record. Editing a queued reply preserves its
+captured source context. Older clients may ignore the metadata; Agents still
+receive the context through ordinary input text.
+
+Reply selection belongs to the mounted session composer, scoped by server,
+account and session. Replacing or canceling it preserves text and attachments.
+Only a matching admitted submission clears it; a failed handoff can restore its
+matching draft. This selection is not a separate transcript, a thread, or a
+cross-device/restart-persisted draft value. Release availability is tracked
+separately from this development behavior.
+
+The existing execution-run recipient route is a run-control RPC, not a parent
+conversation user-message write. Contextual text reaches that run's existing
+prompt/steer owner; this route does not create a parent chat row or a compact
+parent sent-message relationship.
+
 ## Authentication
 Most endpoints require `Authorization: Bearer <token>`. The same token is also used in the Socket.IO handshake. Full auth flows and endpoints are documented in `api.md`.
 

@@ -4717,6 +4717,15 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
     sessionHandoff: sessionHandoffTranslationExtensions['zh-Hant'],
 
       session: {
+          messageReply: {
+              action: '回覆訊息',
+              replyingTo: '正在回覆',
+              user: '你',
+              assistant: '助理',
+              cancel: '取消回覆對象',
+              sourceUnavailable: '原訊息無法使用',
+              sourceMissingSend: '原訊息無法使用。請重新載入，或取消回覆對象後再傳送。',
+          },
           inputPlaceholder: '輸入訊息...',
           transcriptNavigation: {
               title: '導覽',

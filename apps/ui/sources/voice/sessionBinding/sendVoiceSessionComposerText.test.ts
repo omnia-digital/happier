@@ -19,6 +19,22 @@ function createAcceptedPendingPort() {
 }
 
 describe('sendVoiceSessionComposerText', () => {
+  it('retains contextual reply display and identity in durable voice custody before dispatch', async () => {
+    const pendingPort = createAcceptedPendingPort();
+    const target = { sessionId: 'carrier-s1', messageId: 'earlier', role: 'assistant' };
+    await submitDurableVoiceTextTurn({
+      conversationSessionId: 'carrier-s1',
+      text: 'Full contextual provider input',
+      displayText: 'My reply',
+      metaOverrides: { happierMessageReplyV1: target },
+      localId: 'reply-local',
+      pendingPort,
+      dispatch: async () => {},
+    });
+    expect(pendingPort.enqueuePendingMessage).toHaveBeenCalledWith(expect.objectContaining({
+      text: 'Full contextual provider input', displayText: 'My reply', metaOverrides: { happierMessageReplyV1: target },
+    }));
+  });
   afterEach(() => {
     vi.restoreAllMocks();
   });

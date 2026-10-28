@@ -5397,6 +5397,15 @@ export const pl: TranslationStructure = {
   sessionHandoff: sessionHandoffTranslationExtensions.pl,
 
   session: {
+    messageReply: {
+      action: "Odpowiedz na wiadomość",
+      replyingTo: "W odpowiedzi na",
+      user: "Ty",
+      assistant: "Asystent",
+      cancel: "Usuń odniesienie do wiadomości",
+      sourceUnavailable: "Wiadomość źródłowa jest niedostępna",
+      sourceMissingSend: "Wiadomość źródłowa jest niedostępna. Wczytaj ją ponownie lub usuń odniesienie przed wysłaniem.",
+    },
     inputPlaceholder: "Wpisz wiadomość...",
     transcriptNavigation: {
       title: "Nawiguj",

@@ -5198,6 +5198,15 @@ export const zhHans: TranslationStructure = {
   sessionHandoff: sessionHandoffTranslationExtensions['zh-Hans'],
 
   session: {
+    messageReply: {
+      action: "回复消息",
+      replyingTo: "正在回复",
+      user: "你",
+      assistant: "助手",
+      cancel: "取消回复目标",
+      sourceUnavailable: "原消息不可用",
+      sourceMissingSend: "原消息不可用。请重新加载，或取消回复目标后再发送。",
+    },
     inputPlaceholder: "输入消息...",
     transcriptNavigation: {
       title: "导航",

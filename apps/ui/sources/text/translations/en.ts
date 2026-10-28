@@ -5056,6 +5056,15 @@ export const en = {
     },
 
     session: {
+        messageReply: {
+            action: "Reply to message",
+            replyingTo: "Replying to",
+            user: "You",
+            assistant: "Assistant",
+            cancel: "Remove reply target",
+            sourceUnavailable: "Source message unavailable",
+            sourceMissingSend: "The source message is unavailable. Load it again, or remove the reply target before sending.",
+        },
         inputPlaceholder: 'What would you like to work on?',
         transcriptNavigation: {
             title: 'Navigate',
