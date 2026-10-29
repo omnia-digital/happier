@@ -104,6 +104,52 @@ is still `1847cd98b8`, already integrated; no PR exists for this feature branch.
 PR #15 is separate OH-76 work. Use the current pushed head and prepared body to
 open this PR; hosted current-head CI/review remain required before merge.
 
+### PR #16: hosted source-CI correction batch (October 28)
+
+[PR #16](https://github.com/omnia-digital/happier/pull/16) is open as
+`andorcassian`, targeting dev. The separate configured PAT resolves the earlier
+plain-CLI authentication failure. CI run `40816105779`, attempt 1, at head
+`32bc350db0` completed with 24 successful jobs, 18 routed skips and three failed
+jobs. The aggregate failure reflects two causal failures; both CLI parts, UI
+unit/integration and the remaining independent lanes passed. Complete canonical
+failure collection is `/tmp/happier-ci-run-40816105779-attempt-1/summary.json`.
+
+The resume-ID browser smoke failed twice after machine selection. Its screenshot
+shows React error 185, and an unchanged local replay reproduces it. The exact
+loaded bundle identifies the idle snapshot state update in
+`SlideTransitionSwitch`. Idle content already renders from props; the next
+outgoing snapshot now stays in a committed ref without publishing another React
+render. The existing profiler/content-continuity case first records two commits
+instead of one, then passes with the correction. Transition keys, incoming draft
+state, interruption, completion, reduced-motion, no-flash and unmount guards
+remain covered. All 22 motion tests pass; the original full Chrome flow passes
+unchanged in 98s. Independent source/lifecycle review finds no blocking issue.
+
+Broader coverage exposes a related measured-popover no-op publication: a repeated
+sub-pixel layout report still scheduled React work. Its existing zero-commit
+assertion failed before correction. The canonical height owner now rejects
+duplicates against its last accepted segment snapshot before scheduling state;
+normalization, epsilon, cap, shrink timing and disabled-state behavior remain
+unchanged. The focused measurement/motion set passes 125 tests. The native-only
+height gate is disabled in the passing web recipe, so that browser evidence
+remains applicable. Native acceptance is still explicitly deferred.
+
+The core retention failure is fixture setup: a separate `sqlite3` writer reported
+`SQLITE_BUSY` while the server's retention worker was active. Both retention
+fixtures now consume the server's existing exported SQLite busy-timeout budget
+instead of the CLI's no-wait default. The real two-spec pair and E2E-package types
+pass; floor, cursor, 410 and pruning assertions are retained. A local baseline
+also passes, so the hosted contention failure is the deciding RED. No production
+retention policy or new timeout/retry was added.
+
+The final broader UI lane passes all 586 tests across 105 files; UI TS7 also
+passes after the height correction. Current-head hosted CI remains required
+before merge; this correction batch does not reuse the failed run as a green gate.
+Optional 0.3 destination checkouts remain absent; these corrections have blocked
+port dispositions, not an invented destination implementation. Parent dev was
+refreshed to `07a887dd42`; its transition owner has no newer change after
+`a4a61d862c`. No unrelated parent batch was adopted.
+
 ### Link-ticket dialog readability correction (2026-10-24)
 
 The link/change action now opts into the canonical modal card surface and header, retaining the editor's single scroll owner and standard responsive dimensions. Editor labels, loading text and resolved ticket details use the primary theme text color. This corrects the transparent dialog and the black-on-dark labels exposed during visual verification; ticket-reader and persistence behavior are unchanged.

@@ -30,7 +30,8 @@ export function useSelectionListMeasuredPopoverHeight(
 ): SelectionListMeasuredPopoverHeightResult {
     const boundedMaxHeight = normalizePositiveHeight(config.maxHeight);
     const enabled = config.enabled && boundedMaxHeight !== undefined;
-    const [segmentHeights, setSegmentHeights] = React.useState<MeasuredSegmentHeights>({});
+    const acceptedSegmentHeightsRef = React.useRef<MeasuredSegmentHeights>({});
+    const [segmentHeights, setSegmentHeights] = React.useState<MeasuredSegmentHeights>(acceptedSegmentHeightsRef.current);
     const [height, setHeight] = React.useState<number | undefined>(boundedMaxHeight);
     const [visible, setVisible] = React.useState<boolean>(false);
     const shrinkTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -110,13 +111,14 @@ export function useSelectionListMeasuredPopoverHeight(
     const updateSegmentHeight = React.useCallback((segment: keyof MeasuredSegmentHeights, event: LayoutChangeEvent) => {
         const nextHeight = normalizeMeasuredHeight(event.nativeEvent.layout.height);
         if (nextHeight === undefined) return;
-        setSegmentHeights((current) => {
-            const previous = current[segment];
-            if (previous !== undefined && Math.abs(previous - nextHeight) <= HEIGHT_EPSILON) {
-                return current;
-            }
-            return { ...current, [segment]: nextHeight };
-        });
+        // Reject duplicate OS measurements before scheduling React work, including
+        // consecutive reports that arrive before the previous publication commits.
+        const current = acceptedSegmentHeightsRef.current;
+        const previous = current[segment];
+        if (previous !== undefined && Math.abs(previous - nextHeight) <= HEIGHT_EPSILON) return;
+        const next = { ...current, [segment]: nextHeight };
+        acceptedSegmentHeightsRef.current = next;
+        setSegmentHeights(next);
     }, []);
 
     const onHeaderLayout = React.useCallback((event: LayoutChangeEvent) => {
