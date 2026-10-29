@@ -95,14 +95,14 @@ daemon, service or account changes. Native QA remains explicitly deferred;
 installed-host metrics support, real-provider acceptance and the missing 0.3
 destination retain their existing task dispositions.
 
-The ready title/body handoff was sent at `febc7b8aca` but remains queued in the
-designated session. Subsequent read-only checks through the configured Cassian SSH
-alias return HTTP 401; `gh auth status` identifies `andorcassian` and reports its
-saved credential invalid, including under the normal login shell. PR creation and
-merge are blocked until Josh reauthenticates that account. No token was inspected
-or copied, personal account substituted, PR created or merge performed. Use the
-current pushed head after authentication is restored; source qualification below
-remains applicable and hosted current-head CI/review are still required.
+The ready title/body handoff was sent at `febc7b8aca`. Plain remote `gh` returned
+HTTP 401, but Josh's October 28 instruction identified a separate configured PAT
+that validates as `andorcassian` with repository push access. This resolves the
+authentication blocker without changing an account or credential store. Token
+values remain out of logs, command arguments and repository files. Current dev
+is still `1847cd98b8`, already integrated; no PR exists for this feature branch.
+PR #15 is separate OH-76 work. Use the current pushed head and prepared body to
+open this PR; hosted current-head CI/review remain required before merge.
 
 ### Link-ticket dialog readability correction (2026-10-24)
 

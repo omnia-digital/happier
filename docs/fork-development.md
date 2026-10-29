@@ -135,12 +135,15 @@ Current external-write policy allows Linear planning, ordinary feature-branch
 checkpoints, and creating or updating the fork's PR when work is ready. Josh's
 October 25 replacement instructions explicitly authorize that PR handoff; target
 `dev`. Josh's October 26 update replaces `happier-bot` with `andorcassian` for
-this fork's GitHub API/UI actions, including PR creation. Use Cassian's existing
-Mac mini session, “Happier - work dev tasks,” where that account is authenticated;
-do not substitute this Mac's `joshtorres` account or a personal-token fallback.
+this fork's GitHub API/UI actions, including PR creation. Josh's October 28
+clarification authorizes the configured `andorcassian` PAT; verify the login
+before API mutations and keep token values out of logs, command arguments and
+repository files. Cassian's existing Mac mini session remains an available
+handoff path. Do not substitute this Mac's `joshtorres` account.
 Once current `origin/dev` is merged, OH-5 is explicitly excluded or approved,
-required checks are green and the branch is pushed, send that session the PR
-title and description for `chore/happier-fork-dev-setup` → `dev`. Ordinary Git
+required checks are green and the branch is pushed, create the PR through the
+verified `andorcassian` transport or send that session its title and description
+for `chore/happier-fork-dev-setup` → `dev`. Ordinary Git
 checkpoints keep the current machine's configured Git identity and transport.
 Merges to shared branches, releases, repository settings/secrets and workflow
 dispatch remain separate user-owned actions unless explicitly authorized.
