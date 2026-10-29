@@ -11,6 +11,14 @@ import { useSessionRepositoryView } from './useSessionRepositoryView';
 import { discoverSessionRepositories } from './sessionRepositoryDiscovery';
 import { TokenStorage } from '@/auth/storage/tokenStorage';
 import { upsertServerProfile } from '@/sync/domains/server/serverProfiles';
+import { buildSessionListIndexFromViewData } from '@/sync/domains/session/listing/sessionListIndex';
+import { buildSessionListTreeRows } from '../drop-resolution/buildSessionListTreeRows';
+import { buildSessionListDragSource } from '../drop-resolution/buildSessionListDragSource';
+import { resolveSessionListInstruction } from '../drop-resolution/resolveSessionListInstruction';
+import { treeRowId } from '../drop-resolution/treeRowId';
+import { buildSessionListKeyboardMoveResult } from '../move-sheet/buildSessionListKeyboardMoveResult';
+import { applySessionListTreeDropOperation } from '../commit/applySessionListTreeDropOperation';
+import { projectSessionListFlatView } from './projectSessionListFlatView';
 import { createScmCapabilities, type ScmStatusSnapshotResponse, type ScmWorkingSnapshot } from '@happier-dev/protocol';
 
 vi.mock('@/sync/ops/scm/machineScm', () => ({ machineScmStatusSnapshot: vi.fn(), machineScmWorktreesEnrichment: vi.fn() }));
@@ -49,6 +57,107 @@ beforeEach(() => {
 afterEach(() => { standardCleanup(); storage.setState(previous, true); vi.restoreAllMocks(); });
 
 describe('Repository view intent lifecycle', () => {
+    it('rejects an unpersistable cross-Home flat order while admitting a same-Home move in the mixed band', async () => {
+        const first = items[0];
+        if (first.type !== 'session') throw new Error('Expected session');
+        const source: SessionListViewItem[] = [
+            { type: 'header', title: 'Active', headerKind: 'active' },
+            { type: 'header', title: 'A', headerKind: 'project', groupKey: 'project-a', serverId: 'home-a' },
+            { ...first, serverId: 'home-a', workspace: { ...first.workspace!, serverId: 'home-a' }, session: { ...first.session, id: 'a' }, groupKey: 'project-a', groupKind: 'project' },
+            { type: 'header', title: 'B', headerKind: 'project', groupKey: 'project-b', serverId: 'home-b' },
+            ...['b1', 'b2'].map(id => ({ ...first, serverId: 'home-b', workspace: { ...first.workspace!, serverId: 'home-b' }, session: { ...first.session, id }, groupKey: 'project-b', groupKind: 'project' as const })),
+        ];
+        const projected = projectSessionListFlatView({ items: source });
+        const tree = buildSessionListTreeRows({ items: buildSessionListIndexFromViewData(projected)!, rowBoundsById: new Map([
+            [treeRowId.session('home-a', 'a'), { x: 0, y: 0, width: 320, height: 40 }],
+            [treeRowId.session('home-b', 'b1'), { x: 0, y: 40, width: 320, height: 40 }],
+            [treeRowId.session('home-b', 'b2'), { x: 0, y: 80, width: 320, height: 40 }],
+        ]) });
+        const b1 = buildSessionListDragSource({ tree, sourceRowId: treeRowId.session('home-b', 'b1') });
+        const b2 = buildSessionListDragSource({ tree, sourceRowId: treeRowId.session('home-b', 'b2') });
+        expect(resolveSessionListInstruction({ tree, source: b1, pointer: { x: 20, y: 10 }, foldersFeatureEnabled: true }).instruction.kind).toBe('blocked');
+        expect(resolveSessionListInstruction({ tree, source: b2, pointer: { x: 20, y: 50 }, foldersFeatureEnabled: true }).instruction.kind).toBe('reorder-before');
+        expect(buildSessionListKeyboardMoveResult({ tree, source: b1, direction: 'up' }).instruction.kind).toBe('blocked');
+        const valid = buildSessionListKeyboardMoveResult({ tree, source: b2, direction: 'up' });
+        expect(valid.instruction.kind).toBe('reorder-before');
+        const setOrder = vi.fn();
+        const context = {
+            sessionFoldersV1: { v: 1 as const, folders: [] }, sessionListGroupOrderV1: {}, now: () => 1,
+            setSessionFoldersV1: vi.fn(), setSessionListGroupOrderV1: setOrder,
+            setSessionFolderAssignment: vi.fn(async () => undefined),
+        };
+        const rawInvalid = { instruction: { kind: 'reorder-before' as const, targetId: treeRowId.session('home-a', 'a'),
+            containerId: b1.metadata.containerId, parentId: null, depth: 0 }, visual: { kind: 'none' as const } };
+        expect(await applySessionListTreeDropOperation({ tree, source: b1, result: rawInvalid, context })).toMatchObject({ ok: false });
+        expect(setOrder).not.toHaveBeenCalled();
+        expect(await applySessionListTreeDropOperation({ tree, source: b2, result: valid, context })).toMatchObject({ ok: true });
+        expect(setOrder).toHaveBeenCalledWith(expect.objectContaining({ [b2.metadata.containerGroupKey]: ['home-a:a', 'home-b:b2', 'home-b:b1'] }));
+
+        const reverseHomeOrder = projectSessionListFlatView({ items: [source[0]!, ...source.slice(3), ...source.slice(1, 3)] });
+        const reverseTree = buildSessionListTreeRows({ items: buildSessionListIndexFromViewData(reverseHomeOrder)! });
+        const reverseB2 = buildSessionListDragSource({ tree: reverseTree, sourceRowId: treeRowId.session('home-b', 'b2') });
+        expect(buildSessionListKeyboardMoveResult({ tree: reverseTree, source: reverseB2, direction: 'up' }).instruction.kind).toBe('reorder-before');
+    });
+
+    it('flattens derived project and date groups while sorting sessions within retained sections', async () => {
+        const first = items[0];
+        if (first.type !== 'session') throw new Error('Expected session');
+        const source: SessionListViewItem[] = [
+            { type: 'header', title: 'Active', headerKind: 'active', serverId: scope.serverId },
+            { type: 'header', title: 'Checkout A', headerKind: 'project', groupKey: 'project-a', serverId: scope.serverId },
+            { ...first, session: { ...first.session, id: 'a', createdAt: 10 }, section: 'active', groupKey: 'project-a', groupKind: 'project' },
+            { type: 'header', title: 'Checkout B', headerKind: 'project', groupKey: 'project-b', serverId: scope.serverId },
+            { ...first, session: { ...first.session, id: 'b', createdAt: 20 }, section: 'active', groupKey: 'project-b', groupKind: 'project' },
+            { ...first, session: { ...first.session, id: 'aa', createdAt: 20 }, section: 'active', groupKey: 'project-b', groupKind: 'project' },
+            { type: 'header', title: 'Inactive', headerKind: 'inactive', serverId: scope.serverId },
+            { type: 'header', title: 'Yesterday', headerKind: 'date', groupKey: 'date-a', serverId: scope.serverId },
+            { ...first, session: { ...first.session, id: 'c', createdAt: 30 }, section: 'inactive', groupKey: 'date-a', groupKind: 'date' },
+            { type: 'header', title: 'Today', headerKind: 'date', groupKey: 'date-b', serverId: scope.serverId },
+            { ...first, session: { ...first.session, id: 'd', createdAt: 40 }, section: 'inactive', groupKey: 'date-b', groupKind: 'date' },
+        ];
+        const hook = await renderHook(() => useSessionRepositoryView({ items: source, mode: 'flat', setMode: () => {}, onFailure, orderingMode: 'created' }));
+        const projected = hook.getCurrent().items ?? [];
+        expect(projected.filter(item => item.type === 'header').map(item => item.headerKind)).toEqual(['active', 'inactive']);
+        expect(projected.filter(item => item.type === 'session').map(item => item.session.id)).toEqual(['aa', 'b', 'a', 'd', 'c']);
+        expect(projected.filter(item => item.type === 'session').every(item => item.workspace === first.workspace && item.serverId === scope.serverId)).toBe(true);
+        expect(projected.filter(item => item.type === 'session').every(item => item.groupKind === 'flat' && item.variant === 'default')).toBe(true);
+        expect(machineScmStatusSnapshot).not.toHaveBeenCalled();
+    });
+
+    it('keeps real folders and Home ownership while removing project grouping', async () => {
+        const first = items[0];
+        if (first.type !== 'session') throw new Error('Expected session');
+        const foreignHome = upsertServerProfile({ serverUrl: 'https://flat-foreign-home.test', name: 'Flat foreign Home' });
+        vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue({ token: `e30.${btoa(JSON.stringify({ sub: 'foreign-account' }))}.signature` });
+        const foreignWorkspace = { t: 'workspaceScope' as const, serverId: foreignHome.id, machineId: 'foreign-machine', rootPath: '/foreign' };
+        const source: SessionListViewItem[] = [
+            { type: 'header', title: 'Pinned', headerKind: 'pinned', groupKey: 'pinned-v1' },
+            { ...first, session: { ...first.session, id: 'pinned' }, groupKey: 'pinned-v1', groupKind: 'pinned', pinned: true },
+            { type: 'header', title: 'Active', headerKind: 'active' },
+            { type: 'header', title: 'First checkout', headerKind: 'project', groupKey: 'project-a', serverId: scope.serverId },
+            { type: 'header', title: 'Real folder', headerKind: 'folder', groupKey: 'project-a:folder:folder-a', folderId: 'folder-a', depth: 0, serverId: scope.serverId, workspace: first.workspace },
+            { ...first, session: { ...first.session, id: 'filed' }, groupKey: 'project-a:folder:folder-a', groupKind: 'folder', folderId: 'folder-a', folderDepth: 1 },
+            { ...first, session: { ...first.session, id: 'local' }, section: 'active', groupKey: 'project-a', groupKind: 'project' },
+            { type: 'header', title: 'Other checkout', headerKind: 'project', groupKey: 'project-b', serverId: foreignHome.id },
+            { ...first, session: { ...first.session, id: 'foreign' }, serverId: foreignHome.id, workspace: foreignWorkspace, section: 'active', groupKey: 'project-b', groupKind: 'project' },
+            { type: 'header', title: 'Shared', headerKind: 'shared', groupKey: 'shared-v1' },
+            { ...first, session: { ...first.session, id: 'shared' }, groupKey: 'shared-v1', groupKind: 'shared' },
+        ];
+        const hook = await renderHook(() => useSessionRepositoryView({ items: source, mode: 'flat', setMode: () => {}, onFailure, orderingMode: 'custom', folderSortMode: 'mixed' }));
+        const projected = hook.getCurrent().items ?? [];
+        expect(projected.filter(item => item.type === 'header').map(item => item.headerKind)).toEqual(['pinned', 'active', 'folder', 'shared']);
+        const rows = projected.filter((item): item is Extract<SessionListViewItem, { type: 'session' }> => item.type === 'session');
+        expect(rows.map(item => item.session.id)).toEqual(['pinned', 'filed', 'local', 'foreign', 'shared']);
+        expect(rows.find(item => item.session.id === 'filed')).toMatchObject({ folderId: 'folder-a', serverId: scope.serverId, workspace: first.workspace });
+        expect(rows.find(item => item.session.id === 'foreign')).toMatchObject({ serverId: foreignHome.id, workspace: foreignWorkspace });
+        const flatKey = rows.find(item => item.session.id === 'local')?.groupKey;
+        expect(flatKey).toBeTruthy();
+        expect(rows.find(item => item.session.id === 'foreign')?.groupKey).toBe(flatKey);
+        await vi.waitFor(() => expect(hook.getCurrent().orderScopes[flatKey!]?.map(value => value.serverId).sort()).toEqual([foreignHome.id, scope.serverId].sort()));
+        expect(rows.find(item => item.session.id === 'pinned')?.groupKey).toBe('pinned-v1');
+        expect(rows.find(item => item.session.id === 'shared')?.groupKey).toBe('shared-v1');
+    });
+
     it('associates the exact nested session path while inheriting a manual choice from its discovered repository', async () => {
         const machineId = 'nested-manual-machine';
         const sessionPath = '/repo/.dev/worktree/manual/packages/app';

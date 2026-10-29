@@ -9,6 +9,7 @@ import { buildSessionListDragSource } from '../drop-resolution/buildSessionListD
 import { resolveSessionListInstruction } from '../drop-resolution/resolveSessionListInstruction';
 import { applySessionListTreeDropOperation } from '../commit/applySessionListTreeDropOperation';
 import { treeRowId } from '../drop-resolution/treeRowId';
+import { buildSessionListKeyboardMoveResult } from '../move-sheet/buildSessionListKeyboardMoveResult';
 
 const scope = { serverId: 'home', accountId: 'account' };
 const scopes = { home: scope };
@@ -23,6 +24,32 @@ const associations = Object.fromEntries(['m1', 'm2'].map(machineId => [repositor
 const band: SessionListViewItem = { type: 'header', headerKind: 'active', title: 'Active', groupKey: 'active' };
 
 describe('repository view projection', () => {
+    it('rejects cross-Home display interleaving in pinned and repository groups while retaining within-Home moves', () => {
+        const foreignScope = { serverId: 'home-b', accountId: 'account-b' };
+        const a = row('A', 'm1');
+        const foreign = (id: string): SessionListViewItem => {
+            const item = row(id, 'm1');
+            return { ...item, serverId: foreignScope.serverId, workspace: { ...item.workspace!, serverId: foreignScope.serverId } };
+        };
+        const pinned: SessionListViewItem[] = [
+            { type: 'header', headerKind: 'pinned', title: 'Pinned', groupKey: 'pinned-v1' },
+            ...[a, foreign('B1'), foreign('B2')].map(item => ({ ...item, pinned: true, groupKind: 'pinned' as const, groupKey: 'pinned-v1' })),
+        ];
+        const repoAssociations = { ...associations,
+            [repositoryWorkspaceKey({ ...foreignScope, machineId: 'm1', path: '/repo' })]: associations[repositoryWorkspaceKey({ ...scope, machineId: 'm1', path: '/repo' })]!,
+        };
+        const repository = projectSessionListRepositoryView({
+            items: [band, a, foreign('B1'), foreign('B2')], scopes: { ...scopes, [foreignScope.serverId]: foreignScope }, associations: repoAssociations,
+        });
+        for (const projected of [pinned, repository]) {
+            const tree = buildSessionListTreeRows({ items: buildSessionListIndexFromViewData(projected)! });
+            const b1 = buildSessionListDragSource({ tree, sourceRowId: treeRowId.session('home-b', 'B1') });
+            const b2 = buildSessionListDragSource({ tree, sourceRowId: treeRowId.session('home-b', 'B2') });
+            expect(buildSessionListKeyboardMoveResult({ tree, source: b1, direction: 'up' }).instruction.kind).toBe('blocked');
+            expect(buildSessionListKeyboardMoveResult({ tree, source: b2, direction: 'up' }).instruction.kind).toBe('reorder-before');
+        }
+    });
+
     it('uses captured canonical scope for implicit-active and legacy rows while retaining physical action targets', () => {
         const implicit = { ...row('implicit', 'm1'), serverId: undefined };
         const alias = { ...row('alias', 'm2'), serverId: 'old-profile' };

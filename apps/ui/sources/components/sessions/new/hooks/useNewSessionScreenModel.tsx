@@ -483,7 +483,23 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         return allProfiles.filter((profile) => isProfileEnabled(profile, settings.profileEnabledById));
     }, [allProfiles, settings.profileEnabledById]);
     const selectableProfileMap = useProfileMap(selectableProfiles);
-    const machines = useLaunchSelectionMachines();
+    const activeMachines = useLaunchSelectionMachines();
+    const selectedMachineServerId = targetServerId || activeServerSource.activeServerId;
+    const machinePopoverServerIds = allowedTargetServerIds.length > 0
+        ? allowedTargetServerIds
+        : resolvedSettingsTarget.allowedServerIds.length > 0
+            ? resolvedSettingsTarget.allowedServerIds
+            : selectedMachineServerId ? [selectedMachineServerId] : [];
+    const machinePopoverGroups = useServerScopedMachineOptions({
+        allowedServerIds: machinePopoverServerIds,
+        activeServerId: activeServerSource.activeServerId,
+        activeMachines,
+        refreshToken: activeServerSource.serverProfilesSignature,
+    });
+    const targetMachineGroup = machinePopoverGroups.find((group) => group.serverId === selectedMachineServerId);
+    const machines = targetMachineGroup && !targetMachineGroup.loading && !targetMachineGroup.signedOut
+        ? targetMachineGroup.machines
+        : [];
     const sessionRecentPathEntries = useSessionRecentPathEntries();
     const hasExplicitSeededProfileSelection = React.useMemo(() => {
         if (!useProfiles) {
@@ -704,6 +720,7 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
     const {
         selectedMachineId,
         setSelectedMachineId,
+        selectMachine,
         selectedPath,
         setSelectedPath,
         setDraftSelectedPath,
@@ -1255,15 +1272,6 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
     });
 
     const selectedServerId = targetServerId;
-    const machinePopoverServerIds = allowedTargetServerIds.length > 0
-        ? allowedTargetServerIds
-        : resolvedSettingsTarget.allowedServerIds;
-    const machinePopoverGroups = useServerScopedMachineOptions({
-        allowedServerIds: machinePopoverServerIds,
-        activeServerId: activeServerSource.activeServerId,
-        activeMachines: machines,
-        refreshToken: activeServerSource.serverProfilesSignature,
-    });
     const handleToggleFavoriteDirectory = React.useCallback((absolutePath: string) => {
         void pathPreferences.toggleFavorite(absolutePath);
     }, [pathPreferences.toggleFavorite]);
@@ -1366,13 +1374,24 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
                 favoriteMachines={favoriteMachineItems}
                 serverId={selectedServerId}
                 onSelectMachine={(machine) => {
-                    setSelectedMachineId(machine.id);
-                    setSelectedPath(getBestPathForMachineRef.current(machine.id));
+                    selectMachine(machine.id, getBestPathForMachineRef.current(machine.id));
                     deferAgentInputPopoverClose(requestClose);
                 }}
                 onSelectScopedMachine={(machine) => {
-                    setSelectedMachineId(machine.id);
-                    setSelectedPath(getBestPathForMachineRef.current(machine.id));
+                    const nextServerId = machine.serverId;
+                    const isCurrentTarget = nextServerId === targetServerId;
+                    if (!isCurrentTarget) {
+                        router.setParams({
+                            spawnServerId: nextServerId,
+                            machineId: machine.id,
+                            path: undefined,
+                            directory: undefined,
+                        });
+                    }
+                    selectMachine(
+                        machine.id,
+                        isCurrentTarget ? getBestPathForMachineRef.current(machine.id) : machine.metadata?.homeDir ?? '',
+                    );
                     deferAgentInputPopoverClose(requestClose);
                 }}
                 showSearch={useMachinePickerSearch}
@@ -1390,8 +1409,9 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         initialVisibility: { top: true, bottom: true },
     }), [
         machinePopoverSignature,
-        setSelectedMachineId,
-        setSelectedPath,
+        router,
+        selectMachine,
+        targetServerId,
     ]);
 
     const resolvePreferredCompatibleProfileBackendEntry = React.useCallback((profile: AIBackendProfile) => {

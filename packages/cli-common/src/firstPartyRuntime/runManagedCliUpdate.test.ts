@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   installVersionedPayload,
@@ -16,18 +16,24 @@ import {
   withFirstPartyPayloadMutationLock,
 } from './index.js';
 
-const originalPlatformDescriptor = Object.getOwnPropertyDescriptor(process, 'platform');
-if (!originalPlatformDescriptor) throw new Error('process.platform descriptor is required for this test');
-const platformDescriptor: PropertyDescriptor = originalPlatformDescriptor;
+const watchBoundary = vi.hoisted(() => ({
+  replaceEvents: false,
+  emit: null as ((filename: string | null) => void) | null,
+}));
 
-async function withPlatform<T>(platform: NodeJS.Platform, run: () => Promise<T>): Promise<T> {
-  Object.defineProperty(process, 'platform', { ...platformDescriptor, value: platform });
-  try {
-    return await run();
-  } finally {
-    Object.defineProperty(process, 'platform', platformDescriptor);
-  }
-}
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  return {
+    ...actual,
+    watch: (path: string, options: { persistent?: boolean }, listener: (event: string, filename: string | Buffer | null) => void) => {
+      if (watchBoundary.replaceEvents) {
+        watchBoundary.emit = (filename) => listener('rename', filename);
+        return actual.watch(path, options, () => {});
+      }
+      return actual.watch(path, options, listener);
+    },
+  };
+});
 
 function binaryName(): string {
   return process.platform === 'win32' ? 'happier.exe' : 'happier';
@@ -56,6 +62,8 @@ describe('runManagedCliUpdate — the one CLI update transaction', () => {
     env = { ...process.env, HAPPIER_HOME_DIR: homeDir };
   });
   afterEach(async () => {
+    watchBoundary.replaceEvents = false;
+    watchBoundary.emit = null;
     await rm(homeDir, { recursive: true, force: true });
   });
 
@@ -122,45 +130,42 @@ describe('runManagedCliUpdate — the one CLI update transaction', () => {
     expect(existsSync(`${layout.installRoot}.mutation.lock`)).toBe(false);
   });
 
-  for (const platform of ['linux', 'win32'] as const) {
-    it(`restores every piece of activation state and restarts the previous binary when the restart is not proven (${platform})`, async () => {
-      await withPlatform(platform, async () => {
-        await installInitial('1.0.0');
-        const layout = resolveFirstPartyInstallLayout({ componentId: 'happier-cli', processEnv: env });
-        const defaultChannelPath = resolveDefaultManagedReleaseChannelStatePath({ processEnv: env });
-        const defaultChannelBefore = await readFile(defaultChannelPath, 'utf8');
-        const restarts: Array<Readonly<{ phase: string; expectedVersion: string; shim: string }>> = [];
+  // Real filesystem transactions use the host OS; native runners provide platform coverage.
+  it(`restores every piece of activation state and restarts the previous binary when the restart is not proven (${process.platform})`, async () => {
+    await installInitial('1.0.0');
+    const layout = resolveFirstPartyInstallLayout({ componentId: 'happier-cli', processEnv: env });
+    const defaultChannelPath = resolveDefaultManagedReleaseChannelStatePath({ processEnv: env });
+    const defaultChannelBefore = await readFile(defaultChannelPath, 'utf8');
+    const restarts: Array<Readonly<{ phase: string; expectedVersion: string; shim: string }>> = [];
 
-        const result = await runManagedCliUpdate({
-          channel: 'stable',
-          processEnv: env,
-          preparePayload: prepareFrom('2.0.0'),
-          readVersion: readFixtureVersion,
-          restartServiceDaemon: async ({ phase, expectedVersion }) => {
-            restarts.push({ phase, expectedVersion, shim: await readFile(join(layout.shimDir, binaryName()), 'utf8') });
-            if (phase === 'activated') throw new Error('the new daemon never became the owner');
-          },
-        });
-
-        expect(result).toMatchObject({ outcome: 'rolledBack', previousVersion: '1.0.0', targetVersion: '2.0.0' });
-        expect(restarts).toEqual([
-          { phase: 'activated', expectedVersion: '2.0.0', shim: 'binary-2.0.0' },
-          { phase: 'restored', expectedVersion: '1.0.0', shim: 'binary-1.0.0' },
-        ]);
-        expect(await readInstalledVersionMarkers(layout)).toEqual({ currentVersionId: '1.0.0', previousVersionId: null });
-        expect(await readFile(join(layout.currentPath, binaryName()), 'utf8')).toBe('binary-1.0.0');
-        expect(await readFile(join(layout.shimDir, binaryName()), 'utf8')).toBe('binary-1.0.0');
-        expect(await readFile(defaultChannelPath, 'utf8')).toBe(defaultChannelBefore);
-        expect(existsSync(layout.previousPath)).toBe(false);
-        expect(readLastCliUpdateResult({ channel: 'stable', processEnv: env })).toMatchObject({
-          outcome: 'rolledBack',
-          targetVersion: '2.0.0',
-          message: expect.stringContaining('the new daemon never became the owner'),
-        });
-        expect(existsSync(`${layout.installRoot}.mutation.lock`)).toBe(false);
-      });
+    const result = await runManagedCliUpdate({
+      channel: 'stable',
+      processEnv: env,
+      preparePayload: prepareFrom('2.0.0'),
+      readVersion: readFixtureVersion,
+      restartServiceDaemon: async ({ phase, expectedVersion }) => {
+        restarts.push({ phase, expectedVersion, shim: await readFile(join(layout.shimDir, binaryName()), 'utf8') });
+        if (phase === 'activated') throw new Error('the new daemon never became the owner');
+      },
     });
-  }
+
+    expect(result).toMatchObject({ outcome: 'rolledBack', previousVersion: '1.0.0', targetVersion: '2.0.0' });
+    expect(restarts).toEqual([
+      { phase: 'activated', expectedVersion: '2.0.0', shim: 'binary-2.0.0' },
+      { phase: 'restored', expectedVersion: '1.0.0', shim: 'binary-1.0.0' },
+    ]);
+    expect(await readInstalledVersionMarkers(layout)).toEqual({ currentVersionId: '1.0.0', previousVersionId: null });
+    expect(await readFile(join(layout.currentPath, binaryName()), 'utf8')).toBe('binary-1.0.0');
+    expect(await readFile(join(layout.shimDir, binaryName()), 'utf8')).toBe('binary-1.0.0');
+    expect(await readFile(defaultChannelPath, 'utf8')).toBe(defaultChannelBefore);
+    expect(existsSync(layout.previousPath)).toBe(false);
+    expect(readLastCliUpdateResult({ channel: 'stable', processEnv: env })).toMatchObject({
+      outcome: 'rolledBack',
+      targetVersion: '2.0.0',
+      message: expect.stringContaining('the new daemon never became the owner'),
+    });
+    expect(existsSync(`${layout.installRoot}.mutation.lock`)).toBe(false);
+  });
 
   it('reports a failed restore as failed, never as rolled back', async () => {
     await installInitial('1.0.0');
@@ -322,8 +327,13 @@ describe('runManagedCliUpdate — the one CLI update transaction', () => {
   it('tells a watcher (the running daemon) whenever an attempt records its end', async () => {
     await installInitial('1.0.0');
     let notified: () => void = () => {};
-    const changed = new Promise<void>((resolve) => { notified = resolve; });
-    const stop = watchLastCliUpdateResult({ channel: 'stable', processEnv: env, onChange: () => notified() });
+    let notifyError: (error: unknown) => void = () => {};
+    const changed = new Promise<void>((resolve, reject) => { notified = resolve; notifyError = reject; });
+    const stop = watchLastCliUpdateResult({
+      channel: 'stable', processEnv: env,
+      onChange: () => notified(),
+      onError: (error) => notifyError(error),
+    });
     expect(stop).not.toBeNull();
     try {
       await runManagedCliUpdate({
@@ -338,6 +348,35 @@ describe('runManagedCliUpdate — the one CLI update transaction', () => {
       stop?.();
     }
     expect(watchLastCliUpdateResult({ channel: 'preview', processEnv: env, onChange: () => {} })).toBeNull();
+  });
+
+  it('notifies from a directory event without a filename after the outcome is recorded', async () => {
+    await installInitial('1.0.0');
+    watchBoundary.replaceEvents = true;
+    let notifications = 0;
+    const stop = watchLastCliUpdateResult({
+      channel: 'stable', processEnv: env,
+      onChange: () => { notifications += 1; },
+    });
+    expect(stop).not.toBeNull();
+    try {
+      watchBoundary.emit?.(null);
+      expect(notifications).toBe(0);
+      await expect(runManagedCliUpdate({
+        channel: 'stable', processEnv: env,
+        preparePayload: async () => { throw new Error('offline'); },
+        readVersion: readFixtureVersion,
+        restartServiceDaemon: null,
+      })).rejects.toThrow('offline');
+      expect(readLastCliUpdateResult({ channel: 'stable', processEnv: env })).toMatchObject({ outcome: 'failed' });
+      expect(watchBoundary.emit).not.toBeNull();
+      watchBoundary.emit?.('unrelated.tmp');
+      expect(notifications).toBe(0);
+      watchBoundary.emit?.(null);
+      expect(notifications).toBe(1);
+    } finally {
+      stop?.();
+    }
   });
 
   it('admits an attempt (both locks held) before it downloads, and refuses a concurrent one before any download', async () => {

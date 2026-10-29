@@ -25,7 +25,7 @@ const IDENTITY_HEADERS = {
   email: `repository-${run.runId}@example.com`, issuer: 'happier-ui-e2e-repository', fingerprint: `repository-${run.runId}`,
 } as const;
 async function selectViewMenu(page: Page, id: string) {
-  await page.getByTestId('session-list-ordering-menu-trigger').first().click();
+  await page.getByTestId('session-list-group-menu-trigger').first().click();
   await page.getByTestId(id).click();
 }
 async function openRepositoryAssociationChoices(page: Page, headerTitle: string, checkoutPath: string): Promise<string> {
@@ -217,7 +217,7 @@ test.describe('ui e2e: session list Repository view', () => {
     await selectViewMenu(page, 'session-view-repository');
     await expect.poll(visibleOrder).toEqual(desired);
     // Await the explicit selection's discovery before testing the restore boundary.
-    await page.getByTestId('session-list-ordering-menu-trigger').first().click();
+    await page.getByTestId('session-list-group-menu-trigger').first().click();
     await expect(page.getByTestId('session-repository-refresh')).toBeEnabled();
     await page.keyboard.press('Escape');
     const beforeReload = requests.length;
@@ -227,7 +227,7 @@ test.describe('ui e2e: session list Repository view', () => {
     await expect(headers.filter({ hasText: 'example.com/fork/repo' })).toHaveCount(1);
     await selectViewMenu(page, 'session-repository-refresh');
     await expect.poll(() => requests.length, { timeout: 60_000 }).toBe(beforeReload + 4);
-    await page.getByTestId('session-list-ordering-menu-trigger').first().click();
+    await page.getByTestId('session-list-group-menu-trigger').first().click();
     await expect(page.getByTestId('session-repository-refresh')).toBeEnabled();
     await page.keyboard.press('Escape');
     const beforeAssociation = requests.length;

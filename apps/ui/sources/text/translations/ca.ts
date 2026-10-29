@@ -4299,6 +4299,14 @@ export const ca: TranslationStructure = {
     },
 
     settingsAppearance: {
+      sections: {
+        global: 'General',
+        leftSidebar: 'Barra lateral esquerra',
+        taskView: 'Vista de tasques',
+        sidebarSettings: 'Disseny de la barra lateral',
+        sidebarSettingsDescription: 'Disposició de targetes, identitat de màquina i organització de sessions',
+        sidebarGlobalDefaults: 'La mida del text i la densitat dels elements utilitzen la configuració global.',
+      },
       tabBarAppearance: {
         title: 'Barra de pestanyes',
         footer: 'Personalitza la barra de pestanyes inferior.',
@@ -6204,6 +6212,9 @@ deps: {
         renameWorkspacePromptPlaceholder: 'Introdueix un nom...',
         resetWorkspaceName: 'Restableix el nom',
         viewOptions: 'Opcions de vista',
+        noGrouping: 'Sense agrupació',
+        groupMenu: 'Agrupa',
+        sortMenu: 'Ordena',
         searchSessions: 'Cerca sessions',
         searchSessionsPlaceholder: 'Cerca sessions...',
         filterByTags: 'Filtra per etiquetes',
@@ -6785,6 +6796,16 @@ deps: {
 
     sidebar: {
         sessionsTitle: 'Happier',
+        providerUsage: {
+            native: "Natiu",
+            disabled: "L'ús està desactivat",
+            discoveryUnsupported: "L'ús natiu no està disponible en aquest servidor",
+            discoveryError: "No s'ha pogut actualitzar l'ús natiu",
+            chooseAccount: "Tria un compte",
+            noUsageData: "No hi ha dades d’ús",
+            lastKnownRefreshFailed: "Darrera dada · error en actualitzar",
+          openUsage: "Mostra l’ús de la subscripció",
+        },
     },
 
     toolView: {

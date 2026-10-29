@@ -147,6 +147,18 @@ describe('AgentInputProviderUsageBadge', () => {
         expect(label).not.toContain('used');
     });
 
+    it('qualifies stale chat and sidebar readings in the shared badge and detail', async () => {
+        const stale = { ...viewModel(), isStale: true };
+        for (const prefix of ['agent-input-provider-usage', 'sidebar-provider-usage:codex']) {
+            const screen = await renderScreen(<AgentInputProviderUsageBadge viewModel={stale} testIDPrefix={prefix} />);
+            expect(String(screen.findByTestId(`${prefix}-badge`)?.props.accessibilityLabel)).toContain('outdated');
+            expect(screen.findByTestId(`${prefix}-stale-indicator`)?.props.children).toBe('outdated');
+            act(() => { screen.findByTestId(`${prefix}-badge`)?.props.onPress?.(); });
+            expect(screen.findByTestId(`${prefix}-stale`)).toBeTruthy();
+            await screen.unmount();
+        }
+    });
+
     it('keeps subscription details live while the usage popover remains open', async () => {
         const firstViewModel = {
             ...viewModel(),

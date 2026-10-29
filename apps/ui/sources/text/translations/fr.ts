@@ -4210,6 +4210,14 @@ export const fr: TranslationStructure = {
     },
 
     settingsAppearance: {
+      sections: {
+        global: 'Général',
+        leftSidebar: 'Barre latérale gauche',
+        taskView: 'Vue des tâches',
+        sidebarSettings: 'Disposition de la barre latérale',
+        sidebarSettingsDescription: 'Disposition des cartes, identité de la machine et organisation des sessions',
+        sidebarGlobalDefaults: 'La taille du texte et la densité des éléments utilisent les réglages généraux.',
+      },
       tabBarAppearance: {
         title: 'Barre d’onglets',
         footer: 'Personnalise la barre d’onglets du bas.',
@@ -6190,6 +6198,9 @@ export const fr: TranslationStructure = {
         renameWorkspacePromptPlaceholder: 'Saisis un nom…',
         resetWorkspaceName: 'Réinitialiser le nom',
         viewOptions: 'Options d’affichage',
+        noGrouping: 'Sans regroupement',
+        groupMenu: 'Grouper',
+        sortMenu: 'Trier',
         searchSessions: 'Rechercher des sessions',
         searchSessionsPlaceholder: 'Rechercher des sessions…',
         filterByTags: 'Filtrer par tags',
@@ -6773,6 +6784,16 @@ export const fr: TranslationStructure = {
 
     sidebar: {
         sessionsTitle: 'Happier',
+        providerUsage: {
+            native: "Natif",
+            disabled: "Le suivi d'utilisation est désactivé",
+            discoveryUnsupported: "L'utilisation native est indisponible sur ce relais",
+            discoveryError: "Impossible d'actualiser l'utilisation native",
+            chooseAccount: "Choisir un compte",
+            noUsageData: "Aucune donnée d’utilisation",
+            lastKnownRefreshFailed: "Dernière donnée · actualisation échouée",
+          openUsage: "Afficher l’utilisation des abonnements",
+        },
     },
 
     toolView: {

@@ -62,12 +62,18 @@
 import { test, expect } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { accountSettingsParse } from '@happier-dev/protocol';
 
 import { createRunDirs } from '../../src/testkit/runDir';
+import { createIsolatedCliTestEnv } from '../../src/testkit/process/cliTestEnv';
 import { startServerLight, type StartedServer } from '../../src/testkit/process/serverLight';
 import { startUiWeb, type StartedUiWeb } from '../../src/testkit/process/uiWeb';
 import { type StartedDaemon } from '../../src/testkit/daemon/daemon';
 import { authenticateAndStartDaemon } from '../../src/testkit/uiE2e/authenticateAndStartDaemon';
+import { readCliAccessKey } from '../../src/testkit/cliAccessKey';
+import { waitForDaemonMachineIdFromCliSettings } from '../../src/testkit/uiE2e/daemonMachineId';
+import { readUiE2eScopedAccountSettings } from '../../src/testkit/uiE2e/scopedAccountSettingsStorage';
+import { upsertEncryptedAccountSettingsV2 } from '../../src/testkit/accountSettings';
 import { gotoDomContentLoadedWithRetries } from '../../src/testkit/uiE2e/pageNavigation';
 import { enableEnhancedSessionWizard } from '../../src/testkit/uiE2e/enableEnhancedSessionWizard';
 
@@ -78,12 +84,14 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
 
     const suiteDir = run.testDir('new-session-path-picker-suite');
     const cliHomeDir = resolve(join(suiteDir, 'cli-home'));
+    const scrollCliHomeDir = resolve(join(suiteDir, 'scroll-cli-home'));
     const favoriteDir = resolve(join(suiteDir, 'oh64-favorite-dir'));
 
     let server: StartedServer | null = null;
     let ui: StartedUiWeb | null = null;
     let uiBaseUrl: string | null = null;
     let daemon: StartedDaemon | null = null;
+    let scrollDaemon: StartedDaemon | null = null;
 
     test.beforeAll(async () => {
         test.setTimeout(540_000);
@@ -102,6 +110,7 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
     });
 
     test.afterAll(async () => {
+        try { await scrollDaemon?.stop?.(); } catch { /* best-effort */ }
         try { await daemon?.stop?.(); } catch { /* best-effort */ }
         try { await ui?.stop?.(); } catch { /* best-effort */ }
         try { await server?.stop?.(); } catch { /* best-effort */ }
@@ -123,9 +132,8 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
             initialUiReadyTimeoutMs: 420_000,
             terminalConnectUrlTimeoutMs: 90_000,
             daemonStartupTimeoutMs: 180_000,
-            extraEnv: {
-                ...process.env,
-            },
+            extraEnv: createIsolatedCliTestEnv({ homeDir: cliHomeDir }),
+            inheritProcessEnv: false,
         });
 
         await enableEnhancedSessionWizard({ page, baseUrl: uiBaseUrl });
@@ -158,5 +166,188 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         await expect(page.getByTestId('agent-input-content-popover')
             .getByTestId(`path-selection-list:path-root:option:favorite:${favoriteDir}`))
             .toBeVisible({ timeout: 60_000 });
+    });
+
+    test('scrolls an overflowing selected-machine path list inside the New Session popover', async ({ page }, testInfo) => {
+        if (!server || !ui || !uiBaseUrl) throw new Error('test infra failed to start');
+        test.setTimeout(180_000);
+
+        const dirs = Array.from({ length: 14 }, (_, index) => resolve(join(suiteDir, `scroll-path-${String(index).padStart(2, '0')}`)));
+        const recentDirs = Array.from({ length: 3 }, (_, index) => resolve(join(suiteDir, `recent-path-${index}`)));
+        await Promise.all([...dirs, ...recentDirs].map((path) => mkdir(path, { recursive: true })));
+        await mkdir(scrollCliHomeDir, { recursive: true });
+        scrollDaemon = await authenticateAndStartDaemon({
+            page,
+            testDir: suiteDir,
+            cliHomeDir: scrollCliHomeDir,
+            serverUrl: server.baseUrl,
+            uiBaseUrl,
+            initialUiGotoTimeoutMs: 420_000,
+            initialUiReadyTimeoutMs: 420_000,
+            terminalConnectUrlTimeoutMs: 90_000,
+            daemonStartupTimeoutMs: 180_000,
+            extraEnv: createIsolatedCliTestEnv({ homeDir: scrollCliHomeDir }),
+            inheritProcessEnv: false,
+        });
+        const machineId = await waitForDaemonMachineIdFromCliSettings({ cliHomeDir: scrollCliHomeDir });
+        const accessKey = await readCliAccessKey(scrollCliHomeDir);
+        if (!accessKey) throw new Error('expected isolated daemon access key');
+        // Read only this isolated browser fixture's generated encryption secret;
+        // the account settings endpoint is the real persisted preference boundary.
+        const secretBase64Url = await page.evaluate(() => {
+            const keys = Object.keys(localStorage).filter((key) => key.startsWith('auth_credentials__srv_'));
+            if (keys.length !== 1) throw new Error('expected one isolated fixture account');
+            const credentials: unknown = JSON.parse(localStorage.getItem(keys[0]!) ?? '{}');
+            if (!credentials || typeof credentials !== 'object' || !('secret' in credentials)
+                || typeof credentials.secret !== 'string') throw new Error('missing isolated fixture encryption secret');
+            return credentials.secret;
+        });
+        const fixtureSecret = Uint8Array.from(Buffer.from(secretBase64Url, 'base64url'));
+
+        await page.setViewportSize({ width: 900, height: 480 });
+        await enableEnhancedSessionWizard({ page, baseUrl: uiBaseUrl });
+        await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/new?happier_hmr=0`, 60_000);
+        await page.getByTestId('agent-input-path-chip').click();
+        const popover = page.getByTestId('agent-input-content-popover');
+        const input = popover.getByTestId('path-selection-list:header:input');
+        await input.fill(`${suiteDir}/`);
+        const firstRow = popover.getByTestId(`path-selection-list:path-root:option:in-folder:${dirs[0]}`);
+        await expect(firstRow).toBeVisible({ timeout: 60_000 });
+        await firstRow.getByRole('button', { name: 'Add to favorites' }).click();
+        await expect(popover.getByTestId(`path-selection-list:path-root:option:favorite:${dirs[0]}`)).toHaveCount(1);
+        await input.press('Escape');
+        await expect(popover).toHaveCount(0);
+        await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/new?happier_hmr=0`, 60_000);
+        const pathChip = page.getByTestId('agent-input-path-chip');
+        await pathChip.click();
+        await expect(popover).toHaveCount(1);
+        await expect(popover.getByTestId(`path-selection-list:path-root:option:favorite:${dirs[0]}`)).toHaveCount(1);
+        await popover.getByTestId('path-selection-list:header:input').press('Escape');
+        await expect(popover).toHaveCount(0);
+        const currentSettings = await readUiE2eScopedAccountSettings({ page });
+        const rawPreferences = currentSettings.machinePathPreferencesByTargetV1;
+        if (!rawPreferences || typeof rawPreferences !== 'object' || Array.isArray(rawPreferences)) {
+            throw new Error('missing selected-machine path preference record');
+        }
+        const targetKeys = Object.keys(rawPreferences).filter((key) => {
+            try {
+                const scope: unknown = JSON.parse(key);
+                return Array.isArray(scope) && scope.length === 3 && scope[2] === machineId;
+            } catch { return false; }
+        });
+        if (targetKeys.length !== 1) throw new Error('expected exactly one selected-machine path preference record');
+        await upsertEncryptedAccountSettingsV2({
+            baseUrl: server.baseUrl,
+            token: accessKey.token,
+            secret: fixtureSecret,
+            settings: accountSettingsParse({
+                ...currentSettings,
+                machinePathPreferencesByTargetV1: {
+                    ...rawPreferences,
+                    [targetKeys[0]!]: { favorites: dirs, recentPaths: recentDirs },
+                },
+            }),
+        });
+        await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/new?happier_hmr=0`, 60_000);
+        await pathChip.click();
+        await expect(popover).toHaveCount(1);
+        await expect(popover.getByTestId(`path-selection-list:path-root:option:recent:${recentDirs[0]}`)).toHaveCount(1);
+        const selectedPathBefore = await pathChip.textContent();
+        const scroll = popover.getByTestId('path-selection-list:bodyScroll');
+        const lastRecent = popover.getByTestId(`path-selection-list:path-root:option:recent:${recentDirs.at(-1)}`);
+        await expect(lastRecent).toHaveCount(1);
+        const footer = popover.getByTestId('path-selection-list:footerFrame');
+        await expect(footer).toBeVisible();
+        const readModalScrollOffsets = () => pathChip.evaluate((element) => {
+            const offsets: number[] = [];
+            for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+                if (parent.scrollHeight > parent.clientHeight + 1) offsets.push(parent.scrollTop);
+            }
+            return offsets;
+        });
+        const modalOffsetsBefore = await readModalScrollOffsets();
+        await scroll.hover();
+        await page.mouse.wheel(0, -1600);
+        await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBe(0);
+        const before = await scroll.evaluate((element) => ({
+            top: element.scrollTop,
+            client: element.clientHeight,
+            content: element.scrollHeight,
+            page: window.scrollY,
+            active: document.activeElement?.getAttribute('aria-activedescendant') ?? null,
+        }));
+        await page.screenshot({ path: testInfo.outputPath('oh73-path-scroll-before.png') });
+        expect(before.content - before.client).toBeGreaterThan(100);
+        await page.mouse.wheel(0, 1600);
+        await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(before.top);
+        const after = await scroll.evaluate((element) => ({
+            top: element.scrollTop,
+            client: element.clientHeight,
+            content: element.scrollHeight,
+            page: window.scrollY,
+            active: document.activeElement?.getAttribute('aria-activedescendant') ?? null,
+        }));
+        expect(after.content).toBe(before.content);
+        expect(after.client).toBe(before.client);
+        expect(after.active).toBe(before.active);
+        expect(await page.evaluate(() => window.scrollY)).toBe(before.page);
+        expect(await readModalScrollOffsets()).toEqual(modalOffsetsBefore);
+        expect(await pathChip.textContent()).toBe(selectedPathBefore);
+        const lastRecentRect = await lastRecent.boundingBox();
+        const scrollRect = await scroll.boundingBox();
+        const footerRect = await footer.boundingBox();
+        const shortPickerRect = await popover.getByTestId('path-selection-list').boundingBox();
+        expect(lastRecentRect).not.toBeNull();
+        expect(scrollRect).not.toBeNull();
+        expect(footerRect).not.toBeNull();
+        expect(shortPickerRect).not.toBeNull();
+        expect(shortPickerRect!.y).toBeGreaterThanOrEqual(0);
+        expect(shortPickerRect!.y + shortPickerRect!.height).toBeLessThanOrEqual(
+            await page.evaluate(() => window.innerHeight),
+        );
+        expect(lastRecentRect!.y).toBeGreaterThanOrEqual(scrollRect!.y);
+        expect(lastRecentRect!.y + lastRecentRect!.height).toBeLessThanOrEqual(footerRect!.y);
+        await lastRecent.hover();
+        await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+        const bottomOffset = await scroll.evaluate((element) => element.scrollTop);
+        await page.mouse.wheel(0, 800);
+        await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBe(bottomOffset);
+        expect(await page.evaluate(() => window.scrollY)).toBe(before.page);
+        expect(await readModalScrollOffsets()).toEqual(modalOffsetsBefore);
+        await expect(popover).toHaveCount(1);
+        await page.screenshot({ path: testInfo.outputPath('oh73-path-scroll-after.png') });
+        await page.mouse.wheel(0, -1600);
+        await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBe(0);
+        await page.mouse.wheel(0, 1600);
+        await expect.poll(() => scroll.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+        await lastRecent.click();
+        await expect(popover).toHaveCount(0);
+        await expect(pathChip).toContainText('recent-path-2');
+
+        await page.setViewportSize({ width: 1200, height: 800 });
+        await pathChip.click();
+        await expect(popover).toHaveCount(1);
+        await expect.poll(async () => {
+            const rect = await popover.getByTestId('path-selection-list').boundingBox();
+            return rect?.y ?? Number.NEGATIVE_INFINITY;
+        }).toBeGreaterThanOrEqual(0);
+        const normalPickerRect = await popover.getByTestId('path-selection-list').boundingBox();
+        expect(normalPickerRect).not.toBeNull();
+        expect(normalPickerRect!.y).toBeGreaterThanOrEqual(0);
+        expect(normalPickerRect!.y + normalPickerRect!.height).toBeLessThanOrEqual(
+            await page.evaluate(() => window.innerHeight),
+        );
+        await page.screenshot({ path: testInfo.outputPath('oh73-path-normal-open.png') });
+        const normalInput = popover.getByTestId('path-selection-list:header:input');
+        await normalInput.fill('scroll-path-13');
+        const searchedFavorite = popover.getByTestId(`path-selection-list:path-root:option:favorite:${dirs.at(-1)}`);
+        await expect(searchedFavorite).toBeVisible();
+        await normalInput.press('ArrowDown');
+        await expect.poll(() => normalInput.getAttribute('aria-activedescendant'))
+            .toContain(`favorite:${dirs.at(-1)}`);
+        await normalInput.press('Enter');
+        await expect(popover).toHaveCount(0);
+        await expect(pathChip).toContainText('scroll-path-13');
+        await page.screenshot({ path: testInfo.outputPath('oh73-path-normal-search-commit.png') });
     });
 });

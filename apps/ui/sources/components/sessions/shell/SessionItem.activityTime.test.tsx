@@ -782,7 +782,7 @@ describe('SessionItem activity time', () => {
         expect(screen.getTextContent()).not.toContain('1m');
     });
 
-    it('uses a tighter fixed row height in very compact mode', async () => {
+    it('keeps a tighter minimum row height in very compact mode while allowing content to grow', async () => {
         const { SessionItem } = await importSessionItemForTest();
 
         const screen = await renderScreen(
@@ -801,7 +801,8 @@ describe('SessionItem activity time', () => {
         );
 
         const rowStyle = flattenStyle(screen.findByTestId('session-list-item-sess_compact_height')?.props.style);
-        expect(rowStyle.height).toBe(44);
+        expect(rowStyle.minHeight).toBe(44);
+        expect(rowStyle.height).toBeUndefined();
         expect(rowStyle.paddingHorizontal).toBe(8);
 
         expect(screen.findByTestId('session-row-attention-indicator-sess_compact_height')).toBeNull();
@@ -827,7 +828,7 @@ describe('SessionItem activity time', () => {
         );
 
         const rowStyle = flattenStyle(screen.findByTestId('session-list-item-sess_compact_avatar_web')?.props.style);
-        expect(rowStyle.height).toBe(44);
+        expect(rowStyle.minHeight).toBe(44);
         expect(screen.findAllByType(AvatarMock)[0].props).toMatchObject({
             id: 'avatar',
             size: 18,
@@ -856,7 +857,7 @@ describe('SessionItem activity time', () => {
         );
 
         const rowStyle = flattenStyle(screen.findByTestId('session-list-item-sess_compact_avatar_phone')?.props.style);
-        expect(rowStyle.height).toBe(42);
+        expect(rowStyle.minHeight).toBe(42);
         expect(screen.findAllByType(AvatarMock)[0].props.size).toBe(20);
         expect(findRowContentStyle(screen, 'sess_compact_avatar_phone').marginLeft).toBe(8);
     });
@@ -1079,7 +1080,7 @@ describe('SessionItem activity time', () => {
         const rowStyle = flattenStyle(screen.findByTestId('session-list-item-sess_compact_web')?.props.style);
         const titleStyle = flattenStyle(findSessionTitleText(screen, 'Session')?.props.style);
 
-        expect(rowStyle.height).toBe(44);
+        expect(rowStyle.minHeight).toBe(44);
         expect(titleStyle.fontSize).toBe(12);
         expect(titleStyle.lineHeight).toBe(16);
     });
@@ -1107,7 +1108,7 @@ describe('SessionItem activity time', () => {
         const rowStyle = flattenStyle(screen.findByTestId('session-list-item-sess_compact_phone')?.props.style);
         const titleStyle = flattenStyle(findSessionTitleText(screen, 'Session')?.props.style);
 
-        expect(rowStyle.height).toBe(42);
+        expect(rowStyle.minHeight).toBe(42);
         expect(titleStyle.fontSize).toBe(14);
         expect(titleStyle.lineHeight).toBe(18);
     });

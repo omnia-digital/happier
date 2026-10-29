@@ -139,6 +139,25 @@ usage-record owner and refuses it when disabled. Subscription gating does not
 erase independently supported recovery details. Tests use the exact released
 strict body and sealed-envelope declarations, rather than reconstructed readers.
 
+### Account usage discovery (Omnia development fork)
+
+The unreleased fork adds a read-only collection operation at
+`GET /v3/connect/provider-account-usage`. The canonical usage-record storage owner
+filters by authenticated account and projects only identity and freshness/status
+metadata for plain and sealed records. Existing exact-record payload envelopes,
+writers and encryption remain unchanged; no migration is required.
+
+Inspected immutable `server-v0.2.17` has exact-record operations and connected-source
+resolution, but no collection-root GET. New UI readers treat that operation's 404
+as unavailable discovery, retain explicit unknown/incomplete states, and do not
+infer no native subscription from a partial session catalog or cache. Other
+request errors remain errors. Old clients continue using their existing exact
+record references against the new server. The current hosted relay has not been
+updated as part of this source work; native account discovery requires a server
+with the collection operation before adoption. DB-backed route tests cover
+account separation, exact-read denial, plain/sealed identity-only projection,
+unauthenticated requests and the existing quota feature gate.
+
 ### Browser request headers and CORS
 
 A new request header is both a wire-contract change and, for cross-origin web clients,

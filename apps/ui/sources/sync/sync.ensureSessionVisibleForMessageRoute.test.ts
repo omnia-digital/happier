@@ -81,6 +81,7 @@ import type { AccountSettingsScope } from './domains/settings/scope/accountSetti
 import type { Session } from './domains/state/storageTypes';
 import { encodeBase64 } from '@/encryption/base64';
 import { encodeUTF8 } from '@/encryption/text';
+import { Encryption } from '@/sync/encryption/encryption';
 import { clearTempData, peekTempData, type NewSessionData } from '@/utils/sessions/tempDataStore';
 
 const initialStorageState = storage.getState();
@@ -1648,7 +1649,16 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
             keys: Map<string, Uint8Array | null>,
             scope?: Readonly<{ serverId?: string | null }>,
         ) => Promise<void>>(async () => {});
-        const scopedInitializeSessions = vi.fn(async () => {});
+        const scopedEncryption = await Encryption.create(new Uint8Array(32).fill(19));
+        const sessionDataKey = new Uint8Array(32).fill(29);
+        await scopedEncryption.initializeSessions(new Map([[sessionId, sessionDataKey]]));
+        const scopedSessionEncryption = scopedEncryption.getSessionEncryption(sessionId);
+        if (!scopedSessionEncryption) throw new Error('Expected real scoped session encryption');
+        const encryptedDataKey = encodeBase64(await scopedEncryption.encryptEncryptionKey(sessionDataKey), 'base64');
+        const encryptedMetadata = await scopedSessionEncryption.encryptMetadata({
+            path: '/repo', host: 'owner', machineId: 'owner-machine',
+        });
+        const encryptedAgentState = await scopedSessionEncryption.encryptAgentState({ controlledByUser: true });
 
         (sync as any).credentials = { token: 'active-token', secret: 'active-secret' };
         (sync as any).activeServerSessionIds = new Set<string>();
@@ -1661,14 +1671,7 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
 
         requestMock.mockRejectedValue(new Error('active request should not be used'));
         getCredentialsForServerUrlMock.mockResolvedValue({ token: ownerToken, secret: 'scoped-secret' });
-        createEncryptionFromAuthCredentialsMock.mockResolvedValue({
-            decryptEncryptionKey: async () => new Uint8Array([1, 2, 3]),
-            initializeSessions: scopedInitializeSessions,
-            getSessionEncryption: () => ({
-                decryptMetadata: async () => ({ path: '/repo', host: 'owner' }),
-                decryptAgentState: async () => ({ controlledByUser: true }),
-            }),
-        });
+        createEncryptionFromAuthCredentialsMock.mockResolvedValue(scopedEncryption);
         runtimeFetchMock.mockResolvedValue(
             new Response(
                 JSON.stringify({
@@ -1680,11 +1683,11 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
                         active: true,
                         activeAt: 2,
                         encryptionMode: 'e2ee',
-                        dataEncryptionKey: 'dek',
+                        dataEncryptionKey: encryptedDataKey,
                         metadataVersion: 1,
-                        metadata: 'enc-meta',
+                        metadata: encryptedMetadata,
                         agentStateVersion: 1,
-                        agentState: 'enc-state',
+                        agentState: encryptedAgentState,
                         share: null,
                     },
                 }),
@@ -1699,11 +1702,15 @@ describe('sync.ensureSessionVisibleForMessageRoute', () => {
         }));
 
         expect(requestMock).not.toHaveBeenCalled();
-        expect(scopedInitializeSessions).toHaveBeenCalled();
         expect(initializeSessions).toHaveBeenCalledTimes(1);
-        expect(initializeSessions.mock.calls[0]?.[0].get(sessionId)).toEqual(new Uint8Array([1, 2, 3]));
+        expect(initializeSessions.mock.calls[0]?.[0].get(sessionId)).toEqual(sessionDataKey);
         expect(initializeSessions.mock.calls[0]?.[1]).toEqual(expect.objectContaining({
             serverId: ownerServer.id,
+        }));
+        expect(storage.getState().sessions[sessionId]).toEqual(expect.objectContaining({
+            serverId: ownerServer.id,
+            metadata: expect.objectContaining({ path: '/repo', machineId: 'owner-machine' }),
+            agentState: expect.objectContaining({ controlledByUser: true }),
         }));
     });
 

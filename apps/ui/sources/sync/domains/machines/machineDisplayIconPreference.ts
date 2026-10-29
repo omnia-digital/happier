@@ -8,6 +8,15 @@ const DEFAULT_MACHINE_DISPLAY_ICON: MachineDisplayIcon = 'desktop';
 
 export type MachineDisplayPreferenceScope = Readonly<{ serverId: string; legacyServerIds: readonly string[] }>;
 
+export function findMachineDisplayScope(
+    scopes: Readonly<Record<string, MachineDisplayPreferenceScope>> | undefined,
+    serverId: string | null | undefined,
+): MachineDisplayPreferenceScope | undefined {
+    if (!scopes) return undefined;
+    const id = serverId?.trim() ?? '';
+    return scopes[id] ?? Object.values(scopes).find(scope => scope.serverId === id || scope.legacyServerIds.includes(id));
+}
+
 export function resolveMachineDisplayPreferenceScope(serverId: string): MachineDisplayPreferenceScope {
     const canonicalId = resolveServerProfileScopeIdForIdentifier(serverId);
     return { serverId: canonicalId, legacyServerIds: getServerProfileLegacyServerIds(canonicalId).filter(id => id !== canonicalId) };

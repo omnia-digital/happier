@@ -1,5 +1,6 @@
 import type { TreeContainerDropZone, TreeRow, WindowBounds } from '@/components/ui/treeDragDrop';
 import type { SessionListIndexItem } from '@/sync/domains/session/listing/sessionListIndex';
+import { buildSessionListHomeOrderPositions } from './isSessionListTreeDestinationCompatible';
 import {
     buildSessionWorkspaceOrderItemKey,
     buildSessionWorkspaceOrderScopeKey,
@@ -416,5 +417,6 @@ export function buildSessionListTreeRows(params: BuildSessionListTreeRowsParams)
         dropZones,
         rowMetadataById,
         containerMetadataById,
+        homeOrderPositionsByRowId: buildSessionListHomeOrderPositions(rowMetadataById),
     };
 }

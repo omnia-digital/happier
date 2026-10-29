@@ -1329,6 +1329,37 @@ export function useMachineDisplayById(): Record<string, MachineDisplayRenderable
   return getStorage()(useShallow((state) => state.machineDisplayById ?? EMPTY_MACHINE_DISPLAY_BY_ID));
 }
 
+/** Stable display-only projection of the existing authenticated Home snapshots. */
+export function useSessionMachineDisplayLists(scopes?: Readonly<Record<string, MachineDisplayPreferenceScope>>): Readonly<Record<string, readonly MachineDisplayRenderable[] | null>> {
+  const selector = React.useMemo(() => {
+    const selectedServerIds = scopes ? new Set(Object.values(scopes).flatMap(scope => [scope.serverId, ...scope.legacyServerIds])) : null;
+    let source: StorageState['machineListByServerId'] | undefined;
+    let result: Readonly<Record<string, readonly MachineDisplayRenderable[] | null>> = {};
+    return (state: StorageState) => {
+      if (source === state.machineListByServerId) return result;
+      const next: Record<string, readonly MachineDisplayRenderable[] | null> = {};
+      for (const [serverId, machines] of Object.entries(state.machineListByServerId ?? {})) {
+        if (selectedServerIds && !selectedServerIds.has(serverId)) continue;
+        const previous = result[serverId];
+        const unchanged = previous === machines || (Array.isArray(previous) && Array.isArray(machines)
+          && previous.length === machines.length && machines.every((machine, index) => {
+            const old = previous[index];
+            return old.id === machine.id && old.replacedByMachineId === machine.replacedByMachineId
+              && old.metadata?.displayName === machine.metadata?.displayName
+              && old.metadata?.host === machine.metadata?.host
+              && old.metadata?.homeDir === machine.metadata?.homeDir;
+          }));
+        next[serverId] = unchanged ? previous : machines;
+      }
+      source = state.machineListByServerId;
+      if (Object.keys(next).length !== Object.keys(result).length
+        || Object.keys(next).some(key => next[key] !== result[key])) result = next;
+      return result;
+    };
+  }, [scopes]);
+  return getStorage()(selector);
+}
+
 const EMPTY_MACHINE_LIST_BY_SERVER_ID: Record<string, Machine[] | null> = {};
 
 export function useMachineListByServerId(): Record<string, Machine[] | null> {
@@ -2003,13 +2034,21 @@ export function useLocalSetting<K extends keyof LocalSettings>(name: K): LocalSe
 // Unscoped single-Home rows follow the active Home; cached rows can retain a
 // profile identifier from before identity discovery. Resolve both through the
 // server-profile owner and subscribe to the scalar identity, not its whole map.
-function useMachineDisplayScope(serverId?: string | null): MachineDisplayPreferenceScope {
+export function useMachineDisplayScopes(serverIds: readonly string[]): Readonly<Record<string, MachineDisplayPreferenceScope>> {
+  const serverIdsKey = JSON.stringify([...new Set(serverIds)].sort());
   const getScope = React.useCallback(
-    () => JSON.stringify(resolveMachineDisplayPreferenceScope(serverId?.trim() || getActiveServerId())),
-    [serverId],
+    () => JSON.stringify(Object.fromEntries((JSON.parse(serverIdsKey) as string[]).map(serverId => [
+      serverId, resolveMachineDisplayPreferenceScope(serverId.trim() || getActiveServerId()),
+    ]))),
+    [serverIdsKey],
   );
   const serializedScope = React.useSyncExternalStore(subscribeServerProfiles, getScope, getScope);
-  return React.useMemo(() => JSON.parse(serializedScope) as MachineDisplayPreferenceScope, [serializedScope]);
+  return React.useMemo(() => JSON.parse(serializedScope) as Readonly<Record<string, MachineDisplayPreferenceScope>>, [serializedScope]);
+}
+
+function useMachineDisplayScope(serverId?: string | null): MachineDisplayPreferenceScope {
+  const key = serverId?.trim() || '';
+  return useMachineDisplayScopes([key])[key];
 }
 
 export function useMachineDisplayIcon(serverId?: string | null, machineId?: string | null) {

@@ -125,9 +125,9 @@ export function deriveSessionListAttentionState(input: Readonly<{
 }
 
 export function resolveSessionListSecondaryLineMode(params: Readonly<{
-    groupKind?: 'active' | 'date' | 'project' | 'pinned' | 'attention' | 'working' | 'shared' | 'folder' | null;
+    groupKind?: 'active' | 'date' | 'project' | 'flat' | 'pinned' | 'attention' | 'working' | 'shared' | 'folder' | null;
 }>): SessionListSecondaryLineMode {
-    if (params.groupKind === 'date') {
+    if (params.groupKind === 'date' || params.groupKind === 'flat') {
         return 'path';
     }
     return 'status';

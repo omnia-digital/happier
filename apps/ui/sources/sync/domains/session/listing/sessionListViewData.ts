@@ -47,7 +47,7 @@ export type SessionListViewItem =
         session: SessionListRenderableSession;
         section?: 'active' | 'inactive';
         groupKey?: string;
-        groupKind?: 'active' | 'date' | 'project' | 'pinned' | 'attention' | 'working' | 'shared' | 'folder';
+        groupKind?: 'active' | 'date' | 'project' | 'flat' | 'pinned' | 'attention' | 'working' | 'shared' | 'folder';
         folderId?: string | null;
         folderDepth?: number;
         pinned?: boolean;

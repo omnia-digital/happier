@@ -221,6 +221,45 @@ describe.sequential('claudeRemoteLauncher legacy Runtime Activity subscriber', (
     }
   });
 
+  it('keeps SDK presentation-only model annotations out of Running metadata', async () => {
+    const { session, switchHandlerReady } = createHarness(undefined, { providerSessionId: null });
+    Object.assign(session.client, {
+      getStoredContentEncryptionContext: () => ({ mode: 'plain' }),
+      upsertSessionSystemRecord: async () => {},
+    });
+    const finishQuery = createDeferred<void>();
+    let queryIdle = false;
+    const createQuery: NonNullable<Parameters<typeof actualClaudeRemoteAgentSdk.claudeRemoteAgentSdk>[0]['createQuery']> = () => ({
+      // Only the external SDK query is replaced. The launcher, stream projection,
+      // effective-model owner and Session metadata remain real.
+      async *[Symbol.asyncIterator]() {
+        yield { type: 'system', subtype: 'init', model: 'claude-requested', session_id: 'model-proof-session' };
+        yield { type: 'result', subtype: 'success', is_error: false, result: 'Result-only response' };
+        queryIdle = true;
+        await finishQuery.promise;
+      },
+      close: () => finishQuery.resolve(undefined),
+      setPermissionMode: async () => {}, setModel: async () => {}, setMaxThinkingTokens: async () => {},
+      supportedCommands: async () => [], supportedModels: async () => [],
+    } as unknown as Query);
+    mockClaudeRemoteAgentSdk.mockImplementation((opts: Parameters<typeof actualClaudeRemoteAgentSdk.claudeRemoteAgentSdk>[0]) => (
+      actualClaudeRemoteAgentSdk.claudeRemoteAgentSdk({ ...opts, claudeExecutablePath: '/tmp/claude', createQuery })
+    ));
+    session.queue.push('hello', {
+      permissionMode: 'default', model: 'sonnet', reasoningEffort: 'low',
+      claudeRemoteAgentSdkEnabled: true, claudeUnifiedTerminalEnabled: false,
+    }, { userMessageLocalId: 'model-proof-input' });
+    const launcher = claudeRemoteLauncher(session);
+    const switchHandler = await switchHandlerReady;
+    try {
+      await vi.waitFor(() => expect(queryIdle).toBe(true));
+      expect(session.client.getMetadataSnapshot()?.sessionAppliedModelV1).toBeUndefined();
+    } finally {
+      finishQuery.resolve(undefined);
+      await Promise.all([Promise.resolve(switchHandler({ to: 'local' })), session.cleanup(), launcher]);
+    }
+  });
+
   it('applies SDK permission metadata during startup and while idle without another prompt', async () => {
     const { session, switchHandlerReady } = createHarness();
     const transcriptDir = await mkdtemp(join(tmpdir(), 'claude-live-permission-mode-'));

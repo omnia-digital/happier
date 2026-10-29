@@ -145,6 +145,20 @@ describe('CollapsedSidebarView desktop chrome', () => {
         expect(screen.findByTestId('sidebar-expand-button')?.props.accessibilityLabel).toBe('common.expand');
     });
 
+    it('opens subscription usage from the collapsed rail', async () => {
+        const { CollapsedSidebarView } = await import('./CollapsedSidebarView');
+        const screen = await renderScreen(<CollapsedSidebarView />);
+        const usage = screen.findByTestId('collapsed-sidebar-provider-usage-button');
+        expect(usage?.props.accessibilityRole).toBe('button');
+        expect(usage?.props.accessibilityLabel).toBe('sidebar.providerUsage.openUsage');
+
+        await act(async () => {
+            await pressTestInstanceAsync(usage);
+        });
+
+        expect(collapsedSidebarState.setSidebarCollapsed).toHaveBeenCalledWith(false);
+    });
+
     it('renders both Inbox and Activity in the collapsed rail when Inbox is available', async () => {
         const { CollapsedSidebarView } = await import('./CollapsedSidebarView');
         const screen = await renderScreen(

@@ -32,6 +32,7 @@ import {
     routerSetParamsMock,
     runFocusEffectsAndSettle,
     saveNewSessionDraftMock,
+    scopedMachineListsState,
     searchParamsState,
     settingsState,
     tempSessionDataState,
@@ -567,6 +568,7 @@ describe('useNewSessionScreenModel (draft hydration — core)', () => {
             accountId: 'account-a',
         };
         persistedDraft.targetServerId = 'server-b';
+        scopedMachineListsState.value['server-b'] = [allMachinesState.value[1]!];
         scopedServerFixture.profiles = [{
             id: 'server-b',
             name: 'Server B',

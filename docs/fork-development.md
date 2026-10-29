@@ -4,9 +4,13 @@ This is the fork-specific runbook for `omnia-digital/happier`. Develop against a
 
 ## First adoption: custom macOS UI, existing Happier services
 
+Current QA decision (October 24): Josh chose **Keep native QA deferred**, including hotkeys. The pending idle-window request is superseded. Do not launch or automate native acceptance until he resumes it. Earlier native results below remain historical evidence for their recorded source; newer native behavior and daily-use release readiness remain unverified. Independent source/browser checks may continue.
+
 Josh prefers to keep his current hosted account, relay, machines, CLI/daemons and sessions, and adopt only the forked macOS UI/app. Use that as the first daily-use target. Keep the isolated local relay/account for development tests and the original installed app for rollback. Self-hosting, account migration and source CLI pairing are not prerequisites for this UI-only path.
 
-The installed app reports 0.2.17 and the installed CLI 0.2.16. The hosted relay's `/v1/features` responds, and an actual `OPTIONS /v1/auth/ping` preflight allows the dev origin and authorization/content-type headers. The checked `/v1/version` returns only `ok`, so its exact deployed revision remains unknown. These checks establish reachability and the checked browser seam, not authenticated mixed-version session compatibility.
+At the original OH-6 check, the installed app reported 0.2.17 and the installed CLI 0.2.16. The October 24 OH-59 read-only process check now finds this Mac's cloud/local daemons running 0.2.17, Cassian's cloud daemon 0.2.12 and Josh-PC's cloud daemon 0.2.16. All three released sources lack the fork's host-metrics capability: updating the UI alone cannot enable their readings. A metrics-capable fork CLI must run on each host. Current direct Windows collection succeeds, but installed-host capability delivery and sidebar receipt remain unverified. Activating a fork runtime in a daily service requires a separate explicit decision; see [OH-59 evidence and rollout constraints](plans/happier-fork-dev-setup/phase-9-integration-verification.md#oh-59-machine-monitoring).
+
+The earlier hosted relay checks found that `/v1/features` responds, and an actual `OPTIONS /v1/auth/ping` preflight allows the dev origin and authorization/content-type headers. The checked `/v1/version` returns only `ok`, so its exact deployed revision remains unknown. These checks establish reachability and the checked browser seam, not authenticated mixed-version session compatibility.
 
 Added `https://api.happier.dev` as **Happier Cloud** through the forked app's normal Relay settings and selected existing-account sign-in. The local test profile remains saved separately. No hosted account was created and no recovery key was copied. The hosted profile authenticates successfully (`GET /v1/auth/ping` returns 200), existing sessions and machine groups populate, and selecting this Happier work session opens its transcript and composer. Full scoped native stop/start preserves hosted authentication and reloads existing sessions; the installed app and authenticated daily daemon remain running. The old `/restore` route remained open after authentication; selecting the sidebar session dismissed it. The foreground QR panel renders correctly.
 
@@ -81,7 +85,31 @@ OH-6 now owns the hosted UI-only acceptance gate. OH-14 through OH-19 follow tha
 
 ## Session workflow improvements
 
+OH-4's isolated source CLI pairing recipe now passes in system Chrome: normal
+web terminal approval, CLI login exit 0, source daemon online, then fake Codex
+detection with Missing credentials. The run uses a fresh loopback relay/account
+and a disposable CLI home with explicit service-home isolation. Read-only
+artifact checks confirm one account and one machine and a live source symlink.
+This is a pairing proof, not real vendor execution or persistent native-stack
+acceptance; those gates remain open.
+
+For browser fixtures that can probe provider authentication, use the shared
+`createIsolatedCliTestEnv` environment and opt out of ambient inheritance with
+`authenticateAndStartDaemon({ inheritProcessEnv: false, ... })`. New Session
+automatically refreshes provider login status, so a disposable Happier home alone
+does not isolate provider credentials or provider-home overrides. The shared
+environment keeps fixture HOME and service homes separate while allowing only
+the required OS/toolchain variables, including the OS temporary-directory
+settings. Both terminal-login and daemon children receive that chosen base;
+build subprocesses retain their existing separate environment behavior. The
+integration-bootstrap-auth flag controls test account bootstrap and does not
+disable provider probes. This is opt-in test isolation, not product auth policy.
+
 The feature branch contains development previews. A running window requires a coherent source reload before testing newly pushed changes; source checks do not prove its loaded bundle or native acceptance.
+
+OH-66 now organizes Appearance into Global, Left Sidebar and Task View. Global retains app-wide text size and density; Left Sidebar opens the existing session layout settings; Task View contains conversation code-block wrapping. Independent area-size overrides await a product decision. The isolated Chrome journey passes with reload, sidebar geometry, actual navigation and correctly scaled section headings at130% in a dark1000px view. Final adjacent list/Appearance/Inbox687 and text/forms/editor436 tests pass, with UI typecheck. The shared web Text/TextInput delegates font scaling to the existing CSS owner once; native and direct-DOM scaling paths stay intact. Native acceptance and the unavailable0.3destination remain open. This preview is pushed, not merged or released.
+
+OH-12's October 24 follow-through selectively adopts the three newest parent fixes through `f7484f23d5`: profile environment edits avoid stale feedback and clear vault fallbacks, Claude numeric controls accept existing schema-valid integers, and source CLI prompts stay pending when runtime settings are refused. Running-model metadata now follows observed provider evidence; the failure report labels its cached value as a model setting. Isolated Chrome passes both UI journeys, 77 broader UI tests and 82 focused/207 adjacent CLI tests pass, and root independently passes 113 delivery/runner cases. Immutable CLI 0.2.16 already supports the retained settings and applied-model shapes. The installed daily CLI remains 0.2.16; live Claude/native/platform acceptance, the 0.3 port and full upstream integration remain open.
 
 Use the sidebar view menu to choose Original layout, Group by machine, or the unreleased Group by repository (OH-14). Machine view, search, collapse and exact order roundtrips passed native QA. Repository source now passes root 24 deciding checks and the isolated Chrome flow at `1d7e1d4060`: explicit discovery/Refresh, matching and separate repositories, cross-machine A/B/A2 drag, saved ranks, view/reload, and manual association/reset persistence. New workspaces arriving while Repository view is open and successful app launches use the existing scoped SCM discovery and origin-remote identity owner. Launch discovery also runs when the sidebar is absent; mounting, restoring the view and credential changes do not initiate a scan. Native two-machine/restart acceptance remains open. [App guidance](../apps/docs/content/docs/apps/app.mdx#session-sidebar-views) explains the controls and local association choices. OH-19 shows machine identity in normal and Pinned rows by default; the local Preferences switch hides row identity while the session detail header keeps its independent host information. Native toggle/reload/restart and compact layout checks passed. OH-48 empty Active-header correction also passed native pin/unpin, folder-collapse and reload checks.
 
@@ -90,6 +118,8 @@ OH-17 adds macOS Command+1 through Command+9 for visible sessions and held-Comma
 OH-18 adds A on an eligible hovered session, even when another session is selected. It always requests Archive confirmation and preserves the active-session Stop safeguard. Confirm initially receives focus; Enter accepts, Escape cancels, and Enter on explicitly focused Cancel cancels. Typing, open menus/modals, stale hover and repeated dispatch are guarded. Source tests, real DOM dialog tests, typecheck and independent review pass through `7e3871a598`; native hotkey acceptance is explicitly deferred. The hover Archive icon (OH-16) has a verified fresh active Stop/archive lifecycle; its inactive/keyboard closeout and the earlier unrootcaused failure remain open.
 
 OH-47 adds display-label Rename, local desktop/laptop/cloud/terminal icon choices, Automatic/Blue/Purple/Red icon colors and Reset in machine detail through `270b230f62`. Labels use existing synced metadata; icons/colors stay on this device, keyed by relay and machine. Automatic preserves the existing foreground; chosen colors affect only the machine glyph. Rows, machine groups, headers, settings and concrete machine pickers/context chips share that owner. Inbox replacement-machine and approval relay-scope corrections are independently verified; final color tests cover real local save/load, scope isolation, reset success/failure/pending interaction and built-in-theme contrast. Integrated UI typecheck passes. Native customization/reset/restart persistence is pending; separate label visibility/card placement remains OH-54.
+
+The development list projection now retains an explicitly hydrated session's Home even while another Home is selected. Machine labels, replacement chains and paths come from that authenticated Home; snapshot alias normalization preserves distinct Home ownership. The list subscribes to machine metadata for the Homes of its actual rows. Foreign routes stay in memory and are omitted from the current Home/account's persisted warm cache, whose existing schema and reader are unchanged. Current real-store coverage and the strict isolated Chrome launch flow verify the sidebar and detail header both use the target machine's friendly name. Native acceptance remains deferred.
 
 OH-46 (`1b93cf17b5`) clarifies Folder order in the sidebar and Session Settings. Date sorting always puts folders first; both choices explain that Custom order is required to change it. Switching back to Custom restores the saved choice. Mixed order is arranged by dragging within a project or folder in Original layout or Group by repository; machine view preserves order but does not offer structural dragging. Focused/adjacent tests, independent deciding replay and typecheck pass. Native folder/session ordering and restart acceptance remain pending.
 
@@ -101,7 +131,22 @@ Planning lives in Linear team **Happier (OH)**, in [Happier fork — development
 
 Josh requires every work item on this fork to have an OH task before work starts. Reuse the owning issue for its implementation, investigation, testing and review; create a task first for work outside existing issue scope. Keep its status and actual verification evidence current. Current priority is OH-19 machine identifiers throughout the sidebar and detail header, plus OH-14's machine grouping view, following Josh's pinned-list screenshot.
 
-Current external-write policy allows Linear planning and git pushes to the task's feature/PR branch. GitHub UI/API writes, including PR creation, merges, settings and workflow dispatch, remain user-owned unless separately authorized.
+Current external-write policy allows Linear planning, ordinary feature-branch
+checkpoints, and creating or updating the fork's PR when work is ready. Josh's
+October 25 replacement instructions explicitly authorize that PR handoff; target
+`dev`. Josh's October 26 update replaces `happier-bot` with `andorcassian` for
+this fork's GitHub API/UI actions, including PR creation. Josh's October 28
+clarification authorizes the configured `andorcassian` PAT; verify the login
+before API mutations and keep token values out of logs, command arguments and
+repository files. Cassian's existing Mac mini session remains an available
+handoff path. Do not substitute this Mac's `joshtorres` account.
+Once current `origin/dev` is merged, OH-5 is explicitly excluded or approved,
+required checks are green and the branch is pushed, create the PR through the
+verified `andorcassian` transport or send that session its title and description
+for `chore/happier-fork-dev-setup` → `dev`. Ordinary Git
+checkpoints keep the current machine's configured Git identity and transport.
+Merges to shared branches, releases, repository settings/secrets and workflow
+dispatch remain separate user-owned actions unless explicitly authorized.
 
 - `origin`: `https://github.com/omnia-digital/happier.git`
 - `upstream`: `https://github.com/happier-dev/happier.git`
@@ -254,7 +299,15 @@ The existing `.github/workflows/tests.yml` is the read-only PR validation entry 
 
 The parent Tauri configurations still contain upstream application identifiers, updater public key and `happier-dev/happier` update feeds, while the release workflow publishes under its invoking repository. Choose the fork's identity, key and feed together before distribution. Keeping the hosted API URL is intentional for UI-only adoption; retaining the installed CLI also avoids changing its installer/update ownership now.
 
-Linear reports no OH release pipelines. Its current release documentation requires a pipeline-specific access key, not a personal API key. Create pipelines for independently built/shipped products and channels; stages are for one immutable build advancing through gates. Add reporting to the actual successful build/publication path, never merely a source push or a local debug launch. Pipeline creation, secure key installation and an actual reported build/release event remain pending. GitHub writes are still limited to this task's feature-branch pushes, so repository settings, secrets, merges and workflow dispatch remain user-owned. No CI dispatch, release record, signing identity or pipeline key was created during this audit.
+Linear still reports no OH release pipelines on October 25. Its release
+documentation requires a pipeline-specific access key, not a personal API key.
+Create pipelines for independently shipped products/channels; stages belong to one
+immutable build progressing through gates. Reporting belongs on the successful
+build/publication path, rather than a push or local debug launch. Pipeline creation,
+secure key installation and an actual reported event remain pending. The standing
+PR authorization above does not authorize repository settings/secrets, merge,
+workflow dispatch or release actions. No CI dispatch, release record, signing
+identity or pipeline key was created during this audit.
 
 ## Initial verification record — 2026-10-22
 
@@ -330,6 +383,28 @@ Live replay verified helper PID 64433, CLI 64708 and native app 64731 sharing gr
 The latest upstream fetch completed and `origin/dev...upstream/dev` remains 0/0 at 98dab9837. The required 1Password Git signer still fails, so the lifecycle correction and newest notes remain staged locally until signing recovers; the prior Metro fix and welcome screenshot are pushed at 82c03fd77. No unsigned commit or signing-policy bypass was used.
 
 ## Mac test-environment findings
+
+October25 tmux validation uses a private3.8 executable at the isolated stack's
+`toolchains/tmux-3.8/bin/tmux`; it is not installed or linked globally. Its official
+source archive matches Homebrew's SHA-256
+`e79c699c7e949dccd0a4a125e17b8d1261e311b16979dbc8eb34542f3966d82e`.
+The private build uses existing libevent and explicitly disables utf8proc and
+jemalloc; it verifies the ASCII subprocess/isolation case, not Unicode support
+or a production tmux distribution. Configure/build logs are
+`.project/logs/tests/oh12-tmux-private-{configure,build}.log`.
+
+The targeted CLI integration case is
+`creates hosts in the requested socket root with an inherited tmux context` in
+`src/integrations/tmux/tmux.real.integration.test.ts`. Run it from `apps/cli` with
+the existing `vitest.integration.config.ts`, private toolchain PATH,
+`HAPPIER_CLI_TEST_SKIP_BUILD=1` and `HAPPIER_CLI_TMUX_INTEGRATION=1`. Start with
+an empty inherited environment and disposable HOME, USERPROFILE and XDG_CONFIG_HOME.
+The checked-in integration environment adds its existing loopback/temporary-home
+fixture constants; it does not override those OS-home settings. Both the fixture
+and root rerun pass1/1 with14other cases filtered. Every tmux command and cleanup
+in this case selects one of its two disposable roots. The broader integration
+file retains a default-server inventory probe and is not covered by this isolation
+claim. No installed daemon, native app or real tmux server was changed.
 
 October 24 corrections now pass the complete CLI-common package (103 files, 602 passed and 5 skipped)
 and bootstrap package (25 files, 248 passed), with both package typechecks. Windows managed CLI

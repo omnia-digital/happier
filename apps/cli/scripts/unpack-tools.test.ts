@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
-import { createReadStream, createWriteStream } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { createReadStream, createWriteStream, existsSync } from 'node:fs';
 import { copyFile, mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { delimiter, dirname, join, resolve } from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { createGzip } from 'node:zlib';
 import { createRequire } from 'node:module';
@@ -23,6 +24,7 @@ type UnpackToolsModule = typeof import('./unpack-tools.cjs') & {
     binaryName: string;
     version: string;
     licenseName?: string;
+    extraBinaries?: readonly string[];
     sha256?: string;
   }[];
   areToolsUnpacked: (toolsDir: string, platformDir: string, tools?: readonly string[]) => boolean;
@@ -277,5 +279,71 @@ describe('unpack-tools script', () => {
       success: true,
       alreadyUnpacked: false,
     });
+  });
+});
+
+describe('unpack-tools direct entry', () => {
+  async function runEntry(root: string) {
+    const cliRoot = resolve(dirname(require.resolve('./unpack-tools.cjs')), '..');
+    await mkdir(join(root, 'scripts'), { recursive: true });
+    await copyFile(join(cliRoot, 'scripts', 'unpack-tools.cjs'), join(root, 'scripts', 'unpack-tools.cjs'));
+    const exitLog = join(root, 'process-exit.log');
+    const preload = join(root, 'record-process-exit.cjs');
+    await writeFile(preload, [
+      "const fs = require('node:fs');",
+      'process.exit = function recordedExit(code) {',
+      "  fs.writeFileSync(process.env.HAPPIER_TEST_EXIT_LOG, String(code));",
+      '  process.exitCode = code;',
+      '};',
+    ].join('\n'));
+    const result = spawnSync(process.execPath, ['--require', preload, join(root, 'scripts', 'unpack-tools.cjs')], {
+      cwd: root,
+      encoding: 'utf8',
+      env: {
+        HAPPIER_TEST_EXIT_LOG: exitLog,
+        NODE_PATH: [join(cliRoot, 'node_modules'), join(cliRoot, '..', '..', 'node_modules')].join(delimiter),
+        ...(process.platform === 'win32' && process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),
+      },
+    });
+    return { result, exitLog };
+  }
+
+  it('extracts through the real entry and lets a successful process drain naturally', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'happier-unpack-entry-success-'));
+    const archives = join(root, 'tools', 'archives');
+    const staging = join(root, 'staging');
+    await mkdir(archives, { recursive: true });
+    await mkdir(staging);
+    const unpacker = require('./unpack-tools.cjs') as UnpackToolsModule;
+    const platformDir = unpacker.getPlatformDir();
+    const checksums: Record<string, string> = {};
+    for (const entry of unpacker.getToolArchiveManifest().filter(item => item.platformDir === platformDir)) {
+      const files = [entry.binaryName, ...(entry.extraBinaries ?? [])];
+      for (const file of files) await writeFile(join(staging, file), `${entry.tool} fixture`);
+      if (entry.licenseName) await writeFile(join(archives, entry.licenseName), 'fixture license');
+      const archive = join(archives, entry.archiveName);
+      if (entry.archiveType === 'zip') await createZip(staging, archive, files);
+      else await createTarGz(staging, archive, files);
+      checksums[entry.archiveName] = await sha256(archive);
+    }
+    await writeManifestChecksums(archives, checksums);
+
+    const { result, exitLog } = await runEntry(root);
+    expect(result.error).toBeUndefined();
+    expect(result.stderr).toBe('');
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain('Tools unpacked successfully');
+    expect(existsSync(exitLog)).toBe(false);
+    expect(unpacker.areToolsUnpacked(join(root, 'tools'), platformDir)).toBe(true);
+  });
+
+  it('reports a missing archive as failure without forcing process exit', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'happier-unpack-entry-failure-'));
+    const { result, exitLog } = await runEntry(root);
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('Archive not found');
+    expect(result.stdout).not.toContain('Tools unpacked successfully');
+    expect(existsSync(exitLog)).toBe(false);
   });
 });

@@ -8,7 +8,7 @@
  * `current` slot.
  *
  * State machine rules — see plan §1572–§1693:
- *   - Sync rule (no transition active): keep `displayedChildren` synchronized with the
+ *   - Sync rule (no transition active): keep the outgoing child snapshot synchronized with the
  *     latest `children` so the next transition's outgoing snapshot is fresh. The
  *     rendered `current` slot uses `children` directly while not transitioning so
  *     same-key dynamic updates appear immediately.
@@ -51,7 +51,7 @@ export function SlideTransitionSwitch(props: SlideTransitionSwitchProps): React.
     const resolvedBlur = props.blur ?? false;
     const spring = resolveSlideTransitionSpring(resolvedPreset, { reducedMotion: effectiveReducedMotion });
 
-    const [displayedChildren, setDisplayedChildren] = React.useState<React.ReactNode>(props.children);
+    const displayedChildrenRef = React.useRef<React.ReactNode>(props.children);
     const [displayedKey, setDisplayedKey] = React.useState<string | number>(props.contentKey);
     const [activeDirection, setActiveDirection] = React.useState<SlideTransitionDirection>(props.direction);
     const progress = useSharedValue(0);
@@ -76,7 +76,7 @@ export function SlideTransitionSwitch(props: SlideTransitionSwitchProps): React.
 
     const commitDisplayed = React.useCallback(
         (nextChildren: React.ReactNode, nextKey: string | number) => {
-            setDisplayedChildren(() => nextChildren);
+            displayedChildrenRef.current = nextChildren;
             setDisplayedKey(nextKey);
             inFlightTargetRef.current = null;
         },
@@ -85,23 +85,20 @@ export function SlideTransitionSwitch(props: SlideTransitionSwitchProps): React.
 
     const commitInFlightTarget = React.useCallback(() => {
         // F13.2 — late spring callback after unmount: do nothing. Without this
-        // guard `commitDisplayed` would call `setDisplayedChildren` /
-        // `setDisplayedKey` on an unmounted component and React would log a
-        // state-on-unmounted warning.
+        // guard `commitDisplayed` would call `setDisplayedKey` on an unmounted
+        // component and React would log a state-on-unmounted warning.
         if (!isMountedRef.current) return;
         const target = inFlightTargetRef.current;
         if (target == null) return;
         commitDisplayed(target.children, target.key);
     }, [commitDisplayed]);
 
-    // SYNC RULE: while not transitioning, keep `displayedChildren` ready for the
-    // NEXT transition's outgoing snapshot. The render path uses plain `children`
-    // for the current slot when not transitioning, so same-key dynamic updates
-    // appear without a frame lag.
-    React.useEffect(() => {
+    // Idle content already renders directly from props. Retain its committed snapshot
+    // for the next transition without publishing another render into layout feedback.
+    React.useLayoutEffect(() => {
         if (isTransitioning) return;
         if (inFlightTargetRef.current !== null) return;
-        setDisplayedChildren(() => props.children);
+        displayedChildrenRef.current = props.children;
     }, [props.children, isTransitioning]);
 
     // NO-FLASH INVARIANT: after the spring callback commits the new
@@ -184,7 +181,7 @@ export function SlideTransitionSwitch(props: SlideTransitionSwitchProps): React.
     ]);
 
     const containerStyle: StyleProp<ViewStyle> | undefined = props.style;
-    const currentSlot = isTransitioning ? displayedChildren : props.children;
+    const currentSlot = isTransitioning ? displayedChildrenRef.current : props.children;
     const incomingSlotForward = isTransitioning && activeDirection === 'forward' ? props.children : undefined;
     const incomingSlotBackward = isTransitioning && activeDirection === 'backward' ? props.children : undefined;
 

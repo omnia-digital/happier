@@ -22,6 +22,7 @@ const WEB_INPUT_NO_OUTLINE_STYLE = {
     outlineColor: 'transparent',
     boxShadow: 'none',
 } as unknown as TextStyle;
+const WEB_CSS_TEXT_SCALE = { webCssScaleApplied: true } as const;
 
 export function TextSelectabilityScope(props: Readonly<{ selectable: boolean; children: React.ReactNode }>) {
     return (
@@ -60,7 +61,10 @@ export const Text = React.memo(
         const effectiveSelectable = useNativeTextSelectable(selectable ?? selectableFromScope);
         const { accessibilityLabel, testID, ...restProps } = props;
 
-        const scaledStyle = React.useMemo(() => scaleTextStyle(style as any, uiFontScale), [style, uiFontScale]);
+        const scaledStyle = React.useMemo(
+            () => scaleTextStyle(style as any, uiFontScale, Platform.OS === 'web' ? WEB_CSS_TEXT_SCALE : undefined),
+            [style, uiFontScale],
+        );
         const defaultStyle = useDefaultTypography ? Typography.default() : null;
         const mergedStyle = React.useMemo(() => {
             const out: any[] = [];
@@ -97,7 +101,10 @@ export const TextInput = React.memo(
         const uiFontScale = disableUiFontScaling ? 1 : uiFontScaleSetting;
         const { accessibilityLabel, testID, ...restProps } = props;
 
-        const scaledStyle = React.useMemo(() => scaleTextStyle(style as any, uiFontScale) as TextStyle, [style, uiFontScale]);
+        const scaledStyle = React.useMemo(
+            () => scaleTextStyle(style as any, uiFontScale, Platform.OS === 'web' ? WEB_CSS_TEXT_SCALE : undefined) as TextStyle,
+            [style, uiFontScale],
+        );
         const defaultStyle = useDefaultTypography ? Typography.default() : null;
         const mergedStyle = React.useMemo(() => {
             const out: any[] = [];

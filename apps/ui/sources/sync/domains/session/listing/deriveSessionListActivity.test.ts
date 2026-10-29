@@ -60,6 +60,10 @@ describe('resolveSessionListSecondaryLineMode', () => {
     it('uses path mode for date-grouped rows', () => {
         expect(resolveSessionListSecondaryLineMode({ groupKind: 'date' })).toBe('path');
     });
+
+    it('shows the workspace path when derived group headers are absent', () => {
+        expect(resolveSessionListSecondaryLineMode({ groupKind: 'flat' })).toBe('path');
+    });
 });
 
 describe('deriveSessionListAttentionState', () => {

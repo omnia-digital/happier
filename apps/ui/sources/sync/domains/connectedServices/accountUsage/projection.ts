@@ -9,7 +9,7 @@ import {
 
 import { getAgentCore, isAgentId, resolveAgentIdFromFlavor } from '@/agents/catalog/catalog';
 
-function resolveDefaultServiceIdForProvider(providerId: string | null | undefined): ConnectedServiceQuotaSnapshotV1['serviceId'] | null {
+export function resolveDefaultServiceIdForProvider(providerId: string | null | undefined): ConnectedServiceQuotaSnapshotV1['serviceId'] | null {
   const agentId = isAgentId(providerId) ? providerId : resolveAgentIdFromFlavor(providerId);
   if (!agentId) {
     const parsed = ConnectedServiceIdSchema.safeParse(providerId);

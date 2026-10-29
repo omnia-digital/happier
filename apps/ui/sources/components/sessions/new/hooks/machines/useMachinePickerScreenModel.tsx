@@ -141,10 +141,8 @@ export function useMachinePickerScreenModel() {
     }, [selectedServerId, serverScopedMachineGroups]);
     const selectedMachine = React.useMemo(() => {
         if (!selectedMachineId) return null;
-        const fromSelectedServer = machinesForSelectedServer.find((machine) => machine.id === selectedMachineId);
-        if (fromSelectedServer) return fromSelectedServer;
-        return machines.find((machine) => machine.id === selectedMachineId) || null;
-    }, [machines, machinesForSelectedServer, selectedMachineId]);
+        return machinesForSelectedServer.find((machine) => machine.id === selectedMachineId) ?? null;
+    }, [machinesForSelectedServer, selectedMachineId]);
 
     const handleRefresh = React.useCallback(async () => {
         if (isRefreshing) return;

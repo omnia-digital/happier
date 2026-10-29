@@ -1,8 +1,8 @@
-import { mkdir, mkdtemp, readFile, symlink, writeFile, utimes } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { buildCodexAgentRuntimeDescriptorV1 } from '@happier-dev/protocol';
 import { waitForCondition } from '@/testkit/async/waitFor';
@@ -13,6 +13,15 @@ import {
 } from '@/backends/codex/appServer/testkit/fakeCodexAppServer';
 
 import { listCodexSessionCandidates } from './listCodexSessionCandidates';
+
+// Native startup locks are per OS user; fixture processes must not share live-agent locks.
+const startupHome = vi.hoisted(() => ({ path: '' }));
+vi.mock('node:os', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:os')>();
+  return { ...actual, userInfo: () => ({ ...actual.userInfo(), homedir: startupHome.path || actual.userInfo().homedir }) };
+});
+beforeAll(async () => { startupHome.path = await mkdtemp(join(tmpdir(), 'codex-list-startup-test-')); });
+afterAll(async () => { await rm(startupHome.path, { recursive: true, force: true }); });
 
 function sessionMetaLine(payload: Record<string, unknown>): string {
   return `${JSON.stringify({ type: 'session_meta', payload })}\n`;

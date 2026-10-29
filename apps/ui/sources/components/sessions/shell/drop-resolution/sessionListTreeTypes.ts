@@ -60,6 +60,8 @@ export type SessionListTreeModel = Readonly<{
     dropZones: ReadonlyArray<TreeContainerDropZone>;
     rowMetadataById: ReadonlyMap<string, SessionListTreeRowMetadata>;
     containerMetadataById: ReadonlyMap<string, SessionListTreeContainerMetadata>;
+    /** Ordered sibling positions and contiguous Home bounds, built with the topology. */
+    homeOrderPositionsByRowId: ReadonlyMap<string, Readonly<{ index: number; first: number; last: number }>>;
 }>;
 
 export type SessionListTreeDragSource = TreeDragSource & Readonly<{

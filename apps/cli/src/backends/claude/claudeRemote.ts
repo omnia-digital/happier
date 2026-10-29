@@ -30,11 +30,12 @@ import {
     type ClaudeRemoteProviderPromptTransportFailureHandler,
 } from './remote/providerPromptAcceptance';
 import type { createClaudeProviderRuntimeActivityAdapter } from './providerActivity/createClaudeProviderRuntimeActivityAdapter';
-import { isClaudeLegacyRequiredHookObservationFailure } from './remote/runtimeActivityEvidence';
+import { isClaudeLegacyRequiredHookObservationFailure, isReplaySdkMessage } from './remote/runtimeActivityEvidence';
 import { materializeClaudeMcpConfigArgsForSpawn } from './utils/materializeClaudeMcpConfigArgsForSpawn';
 import { normalizeCurrentHappierSessionId } from '@/agent/runtime/session/currentSessionIdEnv';
 import { hasClaudeQueuedUserTurns } from './remote/resultTurnBoundary';
 import type { ClaudeEffectiveModelObservation } from './sessionModels/effectiveModelUpdate';
+import { readClaudeMainChainAssistantModelId } from './sessionModels/readClaudeMainChainAssistantModelId';
 
 function buildClaudeEffortArgs(params: Readonly<{
     modelId: unknown;
@@ -321,6 +322,7 @@ export async function claudeRemote(opts: {
 
     const messages = new PushableAsyncIterable<SDKUserMessage>();
     let ownsQuery = true;
+    let unpublishedLaunchEffort: string | undefined = effortArgs[1];
     // Start the loop
     const response = query({
         prompt: messages,
@@ -329,6 +331,15 @@ export async function claudeRemote(opts: {
             if (promptSettlements.observeProviderMessage(message)) return;
             if (isClaudeHookLifecycleStreamMessage(message)) return;
             logger.debugLargeJson(`[claudeRemote] Message ${message.type}`, message);
+            const observedModelId = isReplaySdkMessage(message) ? null : readClaudeMainChainAssistantModelId(message);
+            if (observedModelId) {
+                const reasoningEffort = unpublishedLaunchEffort;
+                unpublishedLaunchEffort = undefined;
+                opts.onEffectiveModel?.({
+                    modelId: observedModelId,
+                    ...(reasoningEffort ? { reasoningEffort } : {}),
+                });
+            }
             opts.onMessage(message);
         },
         onProcessExited: async ({ nativeExited, processTreeStopped }) => {
@@ -389,9 +400,6 @@ export async function claudeRemote(opts: {
                 updateThinking(true);
 
                 const systemInit = message as SDKSystemMessage;
-                if (typeof systemInit.model === 'string' && systemInit.model.trim() && effortArgs[1]) {
-                    opts.onEffectiveModel?.({ modelId: systemInit.model.trim(), reasoningEffort: effortArgs[1] });
-                }
                 if (systemInit.session_id) {
                     currentProviderSessionId = systemInit.session_id;
                     // Do not block on filesystem writes here.

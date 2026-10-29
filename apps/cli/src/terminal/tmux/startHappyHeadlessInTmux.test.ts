@@ -16,7 +16,9 @@ const mockExecuteTmuxCommand = vi.fn(
   async (): Promise<TmuxCommandResult> => ({ returncode: 0, stdout: '', stderr: '', command: ['tmux'] }),
 );
 
-vi.mock('@/integrations/tmux', () => {
+vi.mock('@/integrations/tmux', async () => {
+  const { formatTmuxSessionIdentifier } = await import('@/integrations/tmux/identifiers');
+  const { selectPreferredTmuxSessionName } = await import('@/integrations/tmux/sessionSelector');
   class TmuxUtilities {
     static DEFAULT_SESSION_NAME = 'happy';
     constructor() {}
@@ -26,7 +28,8 @@ vi.mock('@/integrations/tmux', () => {
 
   return {
     isTmuxAvailable: vi.fn(async () => true),
-    selectPreferredTmuxSessionName: () => 'picked',
+    formatTmuxSessionIdentifier,
+    selectPreferredTmuxSessionName,
     TmuxUtilities,
   };
 });
@@ -77,7 +80,7 @@ describe.sequential('startHappyHeadlessInTmux', () => {
     await startHappyHeadlessInTmux([]);
 
     expect(output.lines.some((line) => line.includes('Started Happier in tmux'))).toBe(true);
-    expect(output.lines.some((line) => line.includes('tmux select-window -t') && line.includes('picked:happy-123-claude'))).toBe(true);
+    expect(output.lines.some((line) => line.includes('tmux select-window -t') && line.includes('happy:happy-123-claude'))).toBe(true);
     expect(output.lines.some((line) => line.includes('tmux attach -t'))).toBe(false);
   }, 15_000);
 
@@ -87,11 +90,29 @@ describe.sequential('startHappyHeadlessInTmux', () => {
 
     await startHappyHeadlessInTmux([]);
 
-    const attachIdx = output.lines.findIndex((line) => line.includes('tmux attach -t') && line.includes('happy'));
-    const selectIdx = output.lines.findIndex((line) => line.includes('tmux select-window -t') && line.includes('happy:happy-123-claude'));
+    const attachIdx = output.lines.findIndex((line) => line.includes("tmux attach -t '=happy'"));
+    const selectIdx = output.lines.findIndex((line) => line.includes("tmux select-window -t '=happy:happy-123-claude'"));
     expect(attachIdx).toBeGreaterThanOrEqual(0);
     expect(selectIdx).toBeGreaterThanOrEqual(0);
     expect(attachIdx).toBeLessThan(selectIdx);
+  });
+
+  it('prints an exact, shell-quoted manual target for a selected session with spaces', async () => {
+    process.env.TMUX = 'fixture-socket,123,0';
+    mockExecuteTmuxCommand.mockResolvedValue({
+      returncode: 0,
+      stdout: 'my session\t1\t123\n',
+      stderr: '',
+      command: ['list-sessions'],
+    });
+    const { startHappyHeadlessInTmux } = await import('./startHappyHeadlessInTmux');
+
+    await startHappyHeadlessInTmux([]);
+
+    expect(mockSpawnInTmux.mock.calls[0]?.[0]).toEqual(expect.arrayContaining([
+      '--happy-tmux-target', 'my session:happy-123-claude',
+    ]));
+    expect(output.lines).toContain("  Attach: tmux select-window -t '=my session:happy-123-claude'");
   });
 
   it('does not pass TMUX variables through to the tmux window environment', async () => {

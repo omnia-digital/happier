@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, View, type StyleProp, type TextStyle } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 
 import { SelectionListSectionHeader } from '@/components/ui/selectionList';
@@ -17,6 +17,7 @@ export const ListSection = React.memo(function ListSection(props: Readonly<{
     title: string;
     /** Keep the title's case (names such as hostnames are case-meaningful). */
     preserveTitleCase?: boolean;
+    titleStyle?: StyleProp<TextStyle>;
     children: React.ReactNode;
     headerAction?: React.ReactNode;
     spacing?: 'following' | 'separated';
@@ -28,6 +29,7 @@ export const ListSection = React.memo(function ListSection(props: Readonly<{
             testID={`${props.namespace}.section.${props.id}.header`}
             title={props.title}
             preserveCase={props.preserveTitleCase}
+            titleStyle={props.titleStyle}
             rightAccessory={props.headerAction}
             containerStyle={grouped
                 ? styles.groupedHeader

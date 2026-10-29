@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { storage } from '@/sync/domains/state/storageStore';
+import { createMachineFixture } from '@/dev/testkit';
 
 import type { MachineDisplayRenderable } from '@/sync/domains/machines/machineDisplayRenderable';
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
@@ -15,9 +17,16 @@ import { buildSessionListReachabilityModels } from '../sessionListReachabilityMo
 import { projectSessionListMachineView } from './projectSessionListMachineView';
 
 const machines = {
-    macA: { id: 'macA', metadata: { displayName: 'Studio Mac' } },
-    macB: { id: 'macB', metadata: { displayName: 'Studio Mac' } },
-} as unknown as Record<string, MachineDisplayRenderable>;
+    macA: createMachineFixture({ id: 'macA', metadata: { ...createMachineFixture().metadata!, displayName: 'Studio Mac' } }),
+    macB: createMachineFixture({ id: 'macB', metadata: { ...createMachineFixture().metadata!, displayName: 'Studio Mac' } }),
+};
+
+let previousState: ReturnType<typeof storage.getState>;
+beforeEach(() => {
+    previousState = storage.getState();
+    storage.setState({ profileScope: { serverId: 'server1', accountId: 'account1' }, machineListByServerId: { server2: [machines.macB] } });
+});
+afterEach(() => storage.setState(previousState));
 
 function header(kind: NonNullable<Extract<SessionListViewItem, { type: 'header' }>['headerKind']>, groupKey: string, serverId?: string): Extract<SessionListViewItem, { type: 'header' }> {
     return { type: 'header', title: groupKey, headerKind: kind, groupKey, serverId };

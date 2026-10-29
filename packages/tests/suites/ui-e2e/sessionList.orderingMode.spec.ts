@@ -42,7 +42,7 @@ async function pauseForDistinctCreatedAt(): Promise<void> {
 }
 
 async function selectOrderingMode(page: Page, mode: 'custom' | 'created' | 'updated'): Promise<void> {
-  await page.getByTestId('session-list-ordering-menu-trigger').first().click();
+  await page.getByTestId('session-list-sort-menu-trigger').first().click();
   const option = page.getByTestId(`session-list-ordering-mode-${mode}`);
   await expect(option).toHaveCount(1, { timeout: 60_000 });
   await option.click();

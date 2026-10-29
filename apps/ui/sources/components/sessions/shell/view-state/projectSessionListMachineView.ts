@@ -1,6 +1,8 @@
 import type { MachineDisplayRenderable } from '@/sync/domains/machines/machineDisplayRenderable';
+import { findMachineDisplayScope, type MachineDisplayPreferenceScope } from '@/sync/domains/machines/machineDisplayIconPreference';
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
 import { resolveSessionWorkspacePresentation } from '@/sync/domains/session/listing/sessionWorkspacePresentation';
+import { readSessionWorkspacePresentation } from '@/sync/ops/sessionMachineTarget';
 import { t } from '@/text';
 import { buildSessionReachableDisplay } from '../sessionListReachabilityModels';
 
@@ -39,6 +41,8 @@ function projectBand(
     band: string,
     machines: Readonly<Record<string, MachineDisplayRenderable>>,
     workspaceLabelsV1: Readonly<Record<string, string>>,
+    machineListByServerId?: Readonly<Record<string, readonly MachineDisplayRenderable[] | null | undefined>>,
+    machineDisplayScopes?: Readonly<Record<string, MachineDisplayPreferenceScope>>,
 ): SessionListViewItem[] {
     if (items.length === 0) return [];
     const first = items[0];
@@ -83,10 +87,13 @@ function projectBand(
                 lineage = [item];
             }
             const scope = item.workspace?.t === 'workspaceScope' ? item.workspace : item.workspaceScopeHint;
-            const workspace = resolveSessionWorkspacePresentation({
+            const workspace = readSessionWorkspacePresentation({
+                serverId: item.serverId ?? scope?.serverId,
+                activeServerId: machineDisplayScopes?.['']?.serverId,
+                resolvedMachineScope: findMachineDisplayScope(machineDisplayScopes, item.serverId ?? scope?.serverId),
                 metadata: { machineId: scope?.machineId ?? item.machine?.id, path: scope?.rootPath },
                 machines,
-                target: scope?.machineId ? { machineId: scope.machineId, basePath: scope.rootPath } : undefined,
+                machineListByServerId,
                 workspaceLabelsV1,
             });
             const machineId = workspace.machineId;
@@ -101,7 +108,7 @@ function projectBand(
             continue;
         }
         const serverId = item.serverId?.trim() ?? '';
-        const reachable = buildSessionReachableDisplay({ item, machinesById: machines, workspaceLabelsV1 });
+        const reachable = buildSessionReachableDisplay({ item, machinesById: machines, machineListByServerId, machineDisplayScopes, workspaceLabelsV1 });
         lineage.forEach((header) => headersWithRows.add(header));
         addEntry({
             serverId,
@@ -194,6 +201,8 @@ export function projectSessionListMachineView(
     items: ReadonlyArray<SessionListViewItem>,
     machinesById: Readonly<Record<string, MachineDisplayRenderable>>,
     workspaceLabelsV1: Readonly<Record<string, string>> = {},
+    machineListByServerId?: Readonly<Record<string, readonly MachineDisplayRenderable[] | null | undefined>>,
+    machineDisplayScopes?: Readonly<Record<string, MachineDisplayPreferenceScope>>,
 ): SessionListViewItem[] {
     if (items.length === 0) return items as SessionListViewItem[];
     const out: SessionListViewItem[] = [];
@@ -206,7 +215,7 @@ export function projectSessionListMachineView(
         const band = first?.type === 'header' && BAND_KINDS.has(first.headerKind ?? '')
             ? JSON.stringify([first.headerKind, first.serverId ?? '', first.groupKey ?? ''])
             : 'ungrouped';
-        out.push(...projectBand(bandItems, band, machinesById, workspaceLabelsV1));
+        out.push(...projectBand(bandItems, band, machinesById, workspaceLabelsV1, machineListByServerId, machineDisplayScopes));
         bandStart = index;
     }
     return out;

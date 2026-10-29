@@ -191,15 +191,15 @@ export const LOCAL_SETTING_DEFINITIONS = defineSettingDefinitions({
         storageScope: 'local',
     },
     sessionListMachineViewV1: {
-        schema: z.enum(['original', 'machine', 'repository']).catch('original'),
+        schema: z.enum(['original', 'machine', 'repository', 'flat']).catch('original'),
         default: 'original',
-        description: 'Local session list presentation by original groups, hosting machine or repository',
+        description: 'Local session list presentation by original groups, hosting machine, repository or a flat list',
         storageScope: 'local',
     },
     sessionListStatusGroupingV1: {
         schema: z.enum(['none', 'agent', 'ticket']).catch('none'),
         default: 'none',
-        description: 'Status grouping overlay that retains the saved original, machine or repository presentation',
+        description: 'Status grouping overlay that retains the saved original, machine, repository or flat presentation',
         storageScope: 'local',
     },
     themePreference: {
@@ -296,6 +296,12 @@ export const LOCAL_SETTING_DEFINITIONS = defineSettingDefinitions({
         description: 'Collapse the permanent sidebar on tablets',
         storageScope: 'local',
         analytics: { trackCurrentState: true, trackChanges: true, valueKind: 'boolean', privacy: 'safe', identityScope: 'device_user' },
+    },
+    sidebarProviderUsageChoiceByProviderId: {
+        schema: z.record(z.string(), z.string()),
+        default: {},
+        description: 'Account shown in the desktop sidebar subscription usage for each provider',
+        storageScope: 'local',
     },
     sidebarWidthPx: {
         schema: z.number(),

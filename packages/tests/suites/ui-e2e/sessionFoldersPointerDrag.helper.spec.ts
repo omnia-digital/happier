@@ -70,3 +70,54 @@ test('session drag activates toward the viewport interior above an overlaid foot
 
   await expect(page.locator('body')).toHaveAttribute('data-activation-over-footer', 'false');
 });
+
+test('session drag targets current geometry while edge autoscroll moves the list', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.setContent(`
+    <div id="scroll" style="position:fixed;top:170px;bottom:0;width:384px;overflow:auto">
+      <div data-testid="session-folder-drag-row-target" style="height:32px">
+        <button data-testid="session-folder-header-target">Target folder</button>
+      </div>
+      <div style="height:900px"></div>
+      <div data-testid="session-list-item-source" style="height:40px">
+        <div data-testid="session-item-right-area">
+          <button data-testid="session-item-reorder-handle">Drag source</button>
+        </div>
+      </div>
+      <div style="height:100px"></div>
+    </div>
+    <script>
+      const scroll = document.getElementById('scroll');
+      const handle = document.querySelector('[data-testid="session-item-reorder-handle"]');
+      let pointer = null;
+      handle.addEventListener('pointerdown', (event) => {
+        handle.setPointerCapture(event.pointerId);
+        pointer = event.clientY;
+      });
+      document.addEventListener('pointermove', (event) => {
+        if (event.buttons === 1) pointer = event.clientY;
+      });
+      handle.addEventListener('pointerup', (event) => {
+        pointer = null;
+        const target = document.elementFromPoint(event.clientX, event.clientY);
+        document.body.dataset.droppedOnTarget = String(Boolean(target?.closest('[data-testid="session-folder-drag-row-target"]')));
+      });
+      function frame() {
+        if (pointer !== null) {
+          const bounds = scroll.getBoundingClientRect();
+          if (pointer > bounds.bottom - 64) scroll.scrollTop += 16;
+          else if (pointer < bounds.top + 64) scroll.scrollTop -= 16;
+        }
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    </script>
+  `);
+
+  const result = await dragSessionToTarget(page, {
+    sessionId: 'source', targetTestId: 'session-folder-header-target', targetEdge: 'top',
+  });
+
+  expect(result.ok).toBe(true);
+  await expect(page.locator('body')).toHaveAttribute('data-dropped-on-target', 'true');
+});

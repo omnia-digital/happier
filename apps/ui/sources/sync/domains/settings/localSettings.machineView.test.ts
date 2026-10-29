@@ -15,6 +15,13 @@ describe('local session list machine view', () => {
         expect(localSettingsParse(JSON.parse(JSON.stringify(restored))).sessionListMachineViewV1).toBe('original');
     });
 
+    it('keeps the flat view distinct from Original across local reloads', () => {
+        const flat = localSettingsParse({ sessionListMachineViewV1: 'flat' });
+        expect(flat.sessionListMachineViewV1).toBe('flat');
+        expect(localSettingsParse(JSON.parse(JSON.stringify(flat))).sessionListMachineViewV1).toBe('flat');
+        expect(localSettingsParse({ sessionListMachineViewV1: 'unknown-future-view' }).sessionListMachineViewV1).toBe('original');
+    });
+
     it('stores machine text visibility independently of machine glyph visibility', () => {
         const defaults = localSettingsParse(null);
         expect(LOCAL_SETTING_DEFINITIONS.sessionListShowMachineLabel.storageScope).toBe('local');

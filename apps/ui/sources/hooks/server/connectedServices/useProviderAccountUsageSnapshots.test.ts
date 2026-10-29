@@ -20,6 +20,7 @@ const stableCredentials = { token: 't', secret: Buffer.from(new Uint8Array(32).f
 let currentCredentials: Readonly<{ token: string; secret: string }> = stableCredentials;
 
 const useFeatureEnabledSpy = vi.fn((_featureId: string) => true);
+const useFeatureDecisionSpy = vi.fn((_featureId: string): { state: 'enabled' } | null => ({ state: 'enabled' }));
 
 const { fetchAccountEncryptionModeSpy, getProviderAccountUsageSnapshotPlainSpy, getProviderAccountUsageSnapshotSealedSpy } = vi.hoisted(() => ({
   fetchAccountEncryptionModeSpy: vi.fn<
@@ -39,6 +40,9 @@ vi.mock('@/auth/context/AuthContext', () => ({
 
 vi.mock('@/hooks/server/useFeatureEnabled', () => ({
   useFeatureEnabled: (featureId: string) => useFeatureEnabledSpy(featureId),
+}));
+vi.mock('@/hooks/server/useFeatureDecision', () => ({
+  useFeatureDecision: (featureId: string) => useFeatureDecisionSpy(featureId),
 }));
 
 vi.mock('@/sync/api/account/apiAccountEncryptionMode', () => ({
@@ -108,6 +112,7 @@ describe('useProviderAccountUsageSnapshots', () => {
     currentCredentials = stableCredentials;
     vi.clearAllMocks();
     useFeatureEnabledSpy.mockReturnValue(true);
+    useFeatureDecisionSpy.mockReturnValue({ state: 'enabled' });
     fetchAccountEncryptionModeSpy.mockResolvedValue({ mode: 'plain', updatedAt: 0 });
     getProviderAccountUsageSnapshotPlainSpy.mockResolvedValue(null);
     getProviderAccountUsageSnapshotSealedSpy.mockResolvedValue(null);
@@ -138,6 +143,53 @@ describe('useProviderAccountUsageSnapshots', () => {
       credentialScope: resolveAuthCredentialsScopeKey(stableCredentials),
       recordId: snapshot.recordId,
     })).toBe(snapshot);
+    await hook.unmount();
+  });
+
+  it('reports pending feature discovery as loading rather than disabled', async () => {
+    useFeatureDecisionSpy.mockReturnValue(null);
+    const { useProviderAccountUsageDiscovery } = await import('./useProviderAccountUsageSnapshots');
+    const hook = await renderHook(() => useProviderAccountUsageDiscovery());
+    expect(hook.getCurrent().status).toBe('loading');
+    await hook.unmount();
+  });
+
+  it('shares one in-flight exact-record read across mounted header and chat consumers', async () => {
+    const snapshot = makeUsageSnapshotWith({ fetchedAtMs: Date.now() });
+    let release: ((value: ProviderAccountUsageSnapshotV1) => void) | undefined;
+    getProviderAccountUsageSnapshotPlainSpy.mockImplementation(() => new Promise((resolve) => {
+      release = resolve;
+    }));
+    const { useProviderAccountUsageSnapshots } = await import('./useProviderAccountUsageSnapshots');
+    const header = await renderHook(() => useProviderAccountUsageSnapshots([snapshot.recordId]));
+    const chat = await renderHook(() => useProviderAccountUsageSnapshots([snapshot.recordId]));
+    await flushHookEffects({ cycles: 3, turns: 3 });
+    expect(getProviderAccountUsageSnapshotPlainSpy).toHaveBeenCalledTimes(1);
+    await act(async () => { release?.(snapshot); });
+    await flushHookEffects({ cycles: 3, turns: 3 });
+    expect(header.getCurrent()[snapshot.recordId]).toBe(snapshot);
+    expect(chat.getCurrent()[snapshot.recordId]).toBe(snapshot);
+    await header.unmount();
+    await chat.unmount();
+  });
+
+  it('retires an older credential-scope read before it can replace the new account value', async () => {
+    const oldSnapshot = makeUsageSnapshotWith({ fetchedAtMs: Date.now() });
+    const newSnapshot = makeUsageSnapshotWith({ fetchedAtMs: Date.now() + 1_000 });
+    let releaseOld: ((value: ProviderAccountUsageSnapshotV1) => void) | undefined;
+    getProviderAccountUsageSnapshotPlainSpy.mockImplementation((credentials) => credentials.token === stableCredentials.token
+      ? new Promise((resolve) => { releaseOld = resolve; })
+      : Promise.resolve(newSnapshot));
+    const { useProviderAccountUsageSnapshots } = await import('./useProviderAccountUsageSnapshots');
+    const hook = await renderHook(() => useProviderAccountUsageSnapshots([oldSnapshot.recordId]));
+    await flushHookEffects({ cycles: 3, turns: 3 });
+    currentCredentials = { token: 'other-account-token', secret: stableCredentials.secret };
+    await hook.rerender();
+    await flushHookEffects({ cycles: 3, turns: 3 });
+    expect(hook.getCurrent()[oldSnapshot.recordId]).toBe(newSnapshot);
+    await act(async () => { releaseOld?.(oldSnapshot); });
+    await flushHookEffects({ cycles: 3, turns: 3 });
+    expect(hook.getCurrent()[oldSnapshot.recordId]).toBe(newSnapshot);
     await hook.unmount();
   });
 
@@ -199,6 +251,27 @@ describe('useProviderAccountUsageSnapshots', () => {
     }, { signal: expect.any(AbortSignal) });
     expect(hook.getCurrent()[stale.recordId]).toBe(fresh);
     await hook.unmount();
+  });
+
+  it('retains a stale last-known snapshot and exposes refresh failure to every consumer', async () => {
+    const stale = makeUsageSnapshotWith({ fetchedAtMs: Date.now() - 120_000, staleAfterMs: 1 });
+    const credentialScope = resolveAuthCredentialsScopeKey(stableCredentials);
+    const { writeProviderAccountUsageSnapshotToCache } = await import('@/sync/domains/connectedServices/accountUsage/cache');
+    writeProviderAccountUsageSnapshotToCache({ credentialScope, snapshot: stale });
+    getProviderAccountUsageSnapshotPlainSpy.mockRejectedValue(new Error('relay unavailable'));
+
+    const { useProviderAccountUsageSnapshotState } = await import('./useProviderAccountUsageSnapshots');
+    const header = await renderHook(() => useProviderAccountUsageSnapshotState([stale.recordId]));
+    const chat = await renderHook(() => useProviderAccountUsageSnapshotState([stale.recordId]));
+    await flushHookEffects({ cycles: 5, turns: 5 });
+
+    expect(getProviderAccountUsageSnapshotPlainSpy).toHaveBeenCalledTimes(1);
+    for (const consumer of [header, chat]) {
+      expect(consumer.getCurrent().snapshotsByRecordId[stale.recordId]).toBe(stale);
+      expect(consumer.getCurrent().statusByRecordId[stale.recordId]).toEqual({ loading: false, error: true });
+    }
+    await header.unmount();
+    await chat.unmount();
   });
 
   it('rerenders mounted consumers when the shared account usage cache is written externally', async () => {

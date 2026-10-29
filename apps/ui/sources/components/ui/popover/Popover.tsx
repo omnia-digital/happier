@@ -1020,12 +1020,30 @@ export function Popover(props: PopoverWithBackdrop | PopoverWithoutBackdrop) {
             : windowHeight;
     }, [portalTarget?.layout?.height, shouldPortalNative, windowHeight]);
 
+    const paddingStyle = React.useMemo<ViewStyle>(() => {
+        if (computed.placement === 'top' || computed.placement === 'bottom') {
+            return edgeInsets.horizontal > 0 ? { paddingHorizontal: edgeInsets.horizontal } : {};
+        }
+        return edgeInsets.vertical > 0 ? { paddingVertical: edgeInsets.vertical } : {};
+    }, [computed.placement, edgeInsets.horizontal, edgeInsets.vertical]);
+
+    const nativePortalShadowPaddingStyle = React.useMemo<ViewStyle>(() => {
+        return addPaddingOutset([paddingStyle, containerStyle], nativePortalShadowOutset);
+    }, [containerStyle, nativePortalShadowOutset, paddingStyle]);
+    const contentPadding = resolvePaddingEdges([paddingStyle, containerStyle, nativePortalShadowPaddingStyle]);
+
     const placementStyle: ViewStyle = (() => {
         // On web, optional: render as a viewport-fixed overlay so it can escape any overflow:hidden ancestors.
         // This is especially important for headers/sidebars which often clip overflow.
         if (shouldPortal && anchorRectState) {
             const boundaryRect = boundaryRectState ?? getFallbackBoundaryRect({ windowWidth, windowHeight });
             const position = Platform.OS === 'web' && shouldPortalWeb ? portalPositionOnWeb : fixedPositionOnWeb;
+            // Layout measures the outer frame, including transparent edge/shadow padding.
+            // Clamp and align the visible child against the inset boundary, then translate back
+            // to the outer frame. The child height budget already excludes the viewport edges.
+            const contentHeight = contentRectState
+                ? Math.max(0, contentRectState.height - contentPadding.top - contentPadding.bottom)
+                : computed.maxHeight;
             const desiredWidth = (() => {
                 // Preserve historical sizing: for top/bottom, the popover was anchored to the
                 // container width (left:0,right:0) and capped by maxWidth. The closest equivalent
@@ -1063,7 +1081,6 @@ export function Popover(props: PopoverWithBackdrop | PopoverWithoutBackdrop) {
 
             const top = (() => {
                 if (computed.placement === 'left' || computed.placement === 'right') {
-                    const contentHeight = contentRectState?.height ?? computed.maxHeight;
                     const desiredTopRaw = (() => {
                         switch (anchorAlignVerticalOnPortal) {
                             case 'end':
@@ -1076,17 +1093,16 @@ export function Popover(props: PopoverWithBackdrop | PopoverWithoutBackdrop) {
                         }
                     })();
 
-                    return Math.min(
-                        boundaryRect.y + boundaryRect.height - contentHeight,
-                        Math.max(boundaryRect.y, desiredTopRaw),
+                    return Math.max(
+                        boundaryRect.y,
+                        Math.min(boundaryRect.y + boundaryRect.height - contentHeight, desiredTopRaw),
                     );
                 }
 
                 // top/bottom
-                const contentHeight = contentRectState?.height ?? computed.maxHeight;
-                const topForBottom = Math.min(
-                    boundaryRect.y + boundaryRect.height - contentHeight,
-                    Math.max(boundaryRect.y, anchorRectState.y + anchorRectState.height + gap),
+                const topForBottom = Math.max(
+                    boundaryRect.y,
+                    Math.min(boundaryRect.y + boundaryRect.height - contentHeight, anchorRectState.y + anchorRectState.height + gap),
                 );
                 const topForTop = Math.max(
                     boundaryRect.y,
@@ -1125,12 +1141,12 @@ export function Popover(props: PopoverWithBackdrop | PopoverWithoutBackdrop) {
                         boundaryBottomInPortalSpace,
                     );
                     return {
-                        bottom: Math.floor(portalHeight - pinnedBottomEdge - nativePortalShadowOutset),
+                        bottom: Math.floor(portalHeight - pinnedBottomEdge - contentPadding.bottom),
                     } as any;
                 }
 
                 return {
-                    top: Math.floor(top - (position === 'absolute' ? webPortalOffsetY : 0) - nativePortalShadowOutset),
+                    top: Math.floor(top - (position === 'absolute' ? webPortalOffsetY : 0) - contentPadding.top),
                 } as any;
             })();
 
@@ -1247,30 +1263,6 @@ export function Popover(props: PopoverWithBackdrop | PopoverWithoutBackdrop) {
         if (typeof event?.stopPropagation === 'function') event.stopPropagation();
     }, [shouldPortalWeb]);
 
-    // IMPORTANT: hooks must not be conditional. This must run even when `open === false`
-    // to avoid changing hook order between renders.
-    const paddingStyle = React.useMemo<ViewStyle>(() => {
-        const horizontal =
-            typeof edgePadding === 'number'
-                ? edgePadding
-                : (edgePadding.horizontal ?? 0);
-        const vertical =
-            typeof edgePadding === 'number'
-                ? edgePadding
-                : (edgePadding.vertical ?? 0);
-
-        if (computed.placement === 'top' || computed.placement === 'bottom') {
-            return horizontal > 0 ? { paddingHorizontal: horizontal } : {};
-        }
-        if (computed.placement === 'left' || computed.placement === 'right') {
-            return vertical > 0 ? { paddingVertical: vertical } : {};
-        }
-        return {};
-    }, [computed.placement, edgePadding]);
-
-    const nativePortalShadowPaddingStyle = React.useMemo<ViewStyle>(() => {
-        return addPaddingOutset([paddingStyle, containerStyle], nativePortalShadowOutset);
-    }, [containerStyle, nativePortalShadowOutset, paddingStyle]);
     const contentContainerMaxWidth = computed.maxWidth + (nativePortalShadowOutset * 2);
 
     // Must be above BaseModal (100000) and other header overlays.

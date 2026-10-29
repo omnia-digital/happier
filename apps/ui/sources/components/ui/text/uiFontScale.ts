@@ -105,9 +105,13 @@ function wrapUnistylesSecrets(entry: any, uiFontScale: number): any {
 
 export function scaleTextStyle<T extends StyleProp<TextStyle> | undefined | null>(
     style: T,
-    uiFontScale: number
+    uiFontScale: number,
+    options?: Readonly<{ webCssScaleApplied?: boolean }>,
 ): T {
     if (style == null) return style;
+    // React Native Unistyles on web turns Text style arrays (including plain objects) into a
+    // CSS class. The root CSS variable scales that class, so scaling its inputs here doubles it.
+    if (options?.webCssScaleApplied) return style;
     if (typeof uiFontScale !== 'number' || !Number.isFinite(uiFontScale) || uiFontScale === 1) return style;
 
     const scaleOne = (entry: any): any => {

@@ -7,6 +7,7 @@ import type {
     SessionListTreeRowMetadata,
 } from '../drop-resolution/sessionListTreeTypes';
 import { DEFAULT_SESSION_LIST_FOLDER_SORT_MODE } from '../drop-resolution/sessionListTreeTypes';
+import { isSessionListHomeOrderMoveCompatible } from '../drop-resolution/isSessionListTreeDestinationCompatible';
 
 export type SessionListKeyboardMoveDirection = 'up' | 'down';
 
@@ -59,15 +60,20 @@ export function buildSessionListKeyboardMoveResult(
         : siblings[sourceIndex + 1] ?? null;
     if (!target) return buildBlockedResult(params.source);
 
+    const instruction = {
+        kind: params.direction === 'up' ? 'reorder-before' as const : 'reorder-after' as const,
+        targetId: target.rowId,
+        containerId: target.containerId,
+        parentId: target.parentRowId,
+        depth: target.folderDepth,
+    };
+    if (!isSessionListHomeOrderMoveCompatible(params.tree, params.source.metadata, instruction)) {
+        return { instruction: { kind: 'blocked', reason: 'workspace-scope-mismatch' }, visual: { kind: 'none' } };
+    }
+
     if (params.direction === 'up') {
         return {
-            instruction: {
-                kind: 'reorder-before',
-                targetId: target.rowId,
-                containerId: target.containerId,
-                parentId: target.parentRowId,
-                depth: target.folderDepth,
-            },
+            instruction,
             visual: {
                 kind: 'line',
                 targetId: target.rowId,
@@ -78,13 +84,7 @@ export function buildSessionListKeyboardMoveResult(
     }
 
     return {
-        instruction: {
-            kind: 'reorder-after',
-            targetId: target.rowId,
-            containerId: target.containerId,
-            parentId: target.parentRowId,
-            depth: target.folderDepth,
-        },
+        instruction,
         visual: {
             kind: 'line',
             targetId: target.rowId,

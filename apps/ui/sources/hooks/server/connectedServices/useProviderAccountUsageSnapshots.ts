@@ -3,17 +3,22 @@ import * as React from 'react';
 import { useAuth } from '@/auth/context/AuthContext';
 import { resolveAuthCredentialsScopeKey } from '@/auth/storage/resolveAuthCredentialsScopeKey';
 import { useFeatureEnabled } from '@/hooks/server/useFeatureEnabled';
-import { getProviderAccountUsageSnapshotSealed } from '@/sync/api/account/apiProviderAccountUsageV2';
-import { getProviderAccountUsageSnapshotPlain } from '@/sync/api/account/apiProviderAccountUsageV3';
+import { useFeatureDecision } from '@/hooks/server/useFeatureDecision';
 import {
-  readProviderAccountUsageSnapshotCacheVersion,
   readProviderAccountUsageSnapshotFromCache,
   subscribeProviderAccountUsageSnapshotCache,
-  writeProviderAccountUsageSnapshotToCache,
 } from '@/sync/domains/connectedServices/accountUsage/cache';
-import { openProviderAccountUsageSnapshot } from '@/sync/domains/connectedServices/accountUsage/openProviderAccountUsageSnapshot';
-import { fireAndForget } from '@/utils/system/fireAndForget';
-
+import {
+  accountUsageSnapshotKey,
+  getAccountUsageDiscovery,
+  getAccountUsageSnapshotStatus,
+  retainAccountUsageDiscovery,
+  retainAccountUsageSnapshotPolling,
+  subscribeAccountUsageDiscovery,
+  subscribeAccountUsageSnapshotStatus,
+  type AccountUsageDiscovery,
+  type AccountUsageSnapshotStatus,
+} from '@/sync/domains/connectedServices/accountUsage/pollingStore';
 import {
   ProviderAccountUsageRecordIdSchema,
   type ProviderAccountUsageRecordId,
@@ -21,246 +26,82 @@ import {
 } from '@happier-dev/protocol';
 import { useCredentialScopedAccountModeResolver } from './useCredentialScopedAccountModeResolver';
 
-const ACCOUNT_USAGE_SNAPSHOTS_POLL_MS = 30_000;
-const ACCOUNT_USAGE_SNAPSHOTS_MISS_RETRY_MS = 30_000;
-const ACCOUNT_USAGE_SNAPSHOTS_ERROR_BACKOFF_MIN_MS = 30_000;
-const ACCOUNT_USAGE_SNAPSHOTS_ERROR_BACKOFF_MAX_MS = 5 * 60_000;
-
-type SnapshotCacheEntry = Readonly<{
-  snapshot: ProviderAccountUsageSnapshotV1 | null;
-  nextFetchAtMs: number;
-  consecutiveErrors: number;
-}>;
-type SnapshotCacheState = Readonly<{
-  credentialScope: string;
-  entries: Record<string, SnapshotCacheEntry>;
-}>;
-
-function computeErrorBackoffMs(consecutiveErrors: number): number {
-  const exp = ACCOUNT_USAGE_SNAPSHOTS_ERROR_BACKOFF_MIN_MS * Math.pow(2, Math.max(0, consecutiveErrors - 1));
-  return Math.max(
-    ACCOUNT_USAGE_SNAPSHOTS_ERROR_BACKOFF_MIN_MS,
-    Math.min(ACCOUNT_USAGE_SNAPSHOTS_ERROR_BACKOFF_MAX_MS, Math.trunc(exp)),
-  );
-}
-
-function computeSnapshotFreshUntilMs(snapshot: ProviderAccountUsageSnapshotV1): number {
-  return snapshot.fetchedAtMs + Math.max(
-    ACCOUNT_USAGE_SNAPSHOTS_POLL_MS,
-    Math.trunc(snapshot.staleAfterMs),
-  );
-}
-
-function computeFetchedSnapshotNextFetchAtMs(nowMs: number, snapshot: ProviderAccountUsageSnapshotV1): number {
-  return nowMs + Math.max(
-    ACCOUNT_USAGE_SNAPSHOTS_POLL_MS,
-    Math.trunc(snapshot.staleAfterMs),
-  );
-}
+const DISABLED_DISCOVERY = { status: 'disabled', records: null } as const;
+const PENDING_DISCOVERY = { status: 'loading', records: null } as const;
 
 function normalizeRecordIds(recordIds: ReadonlyArray<string>): ProviderAccountUsageRecordId[] {
-  const seen = new Set<string>();
-  const normalized: ProviderAccountUsageRecordId[] = [];
-  for (const rawRecordId of recordIds) {
-    const parsed = ProviderAccountUsageRecordIdSchema.safeParse(rawRecordId);
-    if (!parsed.success || seen.has(parsed.data)) continue;
-    seen.add(parsed.data);
-    normalized.push(parsed.data);
+  const ids = new Set<ProviderAccountUsageRecordId>();
+  for (const raw of recordIds) {
+    const parsed = ProviderAccountUsageRecordIdSchema.safeParse(raw);
+    if (parsed.success) ids.add(parsed.data);
   }
-  return normalized.sort((left, right) => left.localeCompare(right));
+  return [...ids].sort();
 }
 
-function buildRecordIdsSignature(recordIds: ReadonlyArray<string>): string {
-  return normalizeRecordIds(recordIds).join('\u0001');
+export function useProviderAccountUsageSnapshotState(recordIds: ReadonlyArray<string>): Readonly<{
+  snapshotsByRecordId: Record<string, ProviderAccountUsageSnapshotV1 | null>;
+  statusByRecordId: Record<string, AccountUsageSnapshotStatus>;
+}> {
+  const credentials = useAuth().credentials;
+  const enabled = useFeatureEnabled('connectedServices.quotas');
+  const scope = enabled && credentials ? resolveAuthCredentialsScopeKey(credentials) : '';
+  const resolveAccountMode = useCredentialScopedAccountModeResolver({ credentials, credentialScope: scope });
+  const signature = normalizeRecordIds(recordIds).join('\u0001');
+  const ids = React.useMemo(() => normalizeRecordIds(recordIds), [signature]);
+  const context = React.useMemo(() => credentials && scope
+    ? { credentials, credentialScope: scope, resolveAccountMode }
+    : null, [credentials, scope, resolveAccountMode]);
+  const [version, bump] = React.useReducer((value: number) => value + 1, 0);
+
+  React.useEffect(() => {
+    if (!context) return;
+    const unsubs = [subscribeProviderAccountUsageSnapshotCache({ credentialScope: scope }, bump)];
+    for (const id of ids) {
+      unsubs.push(subscribeAccountUsageSnapshotStatus(accountUsageSnapshotKey(scope, id), bump));
+    }
+    const releases = ids.map((id) => retainAccountUsageSnapshotPolling(context, id));
+    return () => {
+      for (const release of releases) release();
+      for (const unsub of unsubs) unsub();
+    };
+  }, [context, ids, scope]);
+
+  return React.useMemo(() => {
+    const snapshotsByRecordId: Record<string, ProviderAccountUsageSnapshotV1 | null> = {};
+    const statusByRecordId: Record<string, AccountUsageSnapshotStatus> = {};
+    if (!context) return { snapshotsByRecordId, statusByRecordId };
+    void version;
+    for (const id of ids) {
+      snapshotsByRecordId[id] = readProviderAccountUsageSnapshotFromCache({ credentialScope: scope, recordId: id });
+      statusByRecordId[id] = getAccountUsageSnapshotStatus(accountUsageSnapshotKey(scope, id));
+    }
+    return { snapshotsByRecordId, statusByRecordId };
+  }, [context, ids, scope, version]);
 }
 
 export function useProviderAccountUsageSnapshots(
   recordIds: ReadonlyArray<string>,
 ): Record<string, ProviderAccountUsageSnapshotV1 | null> {
-  const auth = useAuth();
-  const credentials = auth.credentials;
-  const quotasEnabled = useFeatureEnabled('connectedServices.quotas');
-  const [wakeSeq, setWakeSeq] = React.useState(0);
-  const credentialScope = quotasEnabled && credentials ? resolveAuthCredentialsScopeKey(credentials) : '';
+  return useProviderAccountUsageSnapshotState(recordIds).snapshotsByRecordId;
+}
 
-  const [cacheState, setCacheState] = React.useState<SnapshotCacheState>({
-    credentialScope: '',
-    entries: {},
-  });
-  const cacheByRecordId = cacheState.credentialScope === credentialScope ? cacheState.entries : {};
-  const cacheStateRef = React.useRef(cacheState);
-  React.useEffect(() => {
-    cacheStateRef.current = cacheState;
-  }, [cacheState]);
-
-  React.useEffect(() => {
-    const resetState = { credentialScope, entries: {} };
-    cacheStateRef.current = resetState;
-    setCacheState(resetState);
-  }, [credentialScope]);
-  const resolveAccountMode = useCredentialScopedAccountModeResolver({ credentials, credentialScope });
-
-  const recordIdsSignature = React.useMemo(() => buildRecordIdsSignature(recordIds), [recordIds]);
-  const normalizedRecordIds = React.useMemo(() => normalizeRecordIds(recordIds), [recordIdsSignature]);
-  const activeCredentialScopeRef = React.useRef(credentialScope);
-  activeCredentialScopeRef.current = credentialScope;
-  const activeControllersRef = React.useRef(new Set<AbortController>());
-  const inFlightKeysRef = React.useRef(new Set<string>());
-  const subscribeAccountUsageCache = React.useCallback((onChange: () => void) => (
-    subscribeProviderAccountUsageSnapshotCache({ credentialScope }, onChange)
-  ), [credentialScope]);
-  const getAccountUsageCacheVersion = React.useCallback(() => (
-    readProviderAccountUsageSnapshotCacheVersion({ credentialScope })
-  ), [credentialScope]);
-  const accountUsageCacheVersion = React.useSyncExternalStore(
-    subscribeAccountUsageCache,
-    getAccountUsageCacheVersion,
-    getAccountUsageCacheVersion,
-  );
-
-  React.useEffect(() => () => {
-    activeCredentialScopeRef.current = '';
-    for (const controller of activeControllersRef.current) {
-      controller.abort();
-    }
-    activeControllersRef.current.clear();
-  }, []);
-
-  React.useEffect(() => {
-    if (!quotasEnabled) return;
-    if (!credentials) return;
-
-    const now = Date.now();
-    let nextWakeAtMs = Number.POSITIVE_INFINITY;
-    let hasMissingCache = false;
-
-    for (const recordId of normalizedRecordIds) {
-      const sharedSnapshot = readProviderAccountUsageSnapshotFromCache({ credentialScope, recordId });
-      if (sharedSnapshot && now < computeSnapshotFreshUntilMs(sharedSnapshot)) {
-        nextWakeAtMs = Math.min(nextWakeAtMs, computeSnapshotFreshUntilMs(sharedSnapshot));
-        continue;
-      }
-      const cached = cacheByRecordId[recordId];
-      if (!cached) {
-        hasMissingCache = true;
-        continue;
-      }
-      nextWakeAtMs = Math.min(nextWakeAtMs, cached.nextFetchAtMs);
-    }
-
-    if (hasMissingCache) return;
-    if (!Number.isFinite(nextWakeAtMs)) return;
-
-    const delayMs = Math.max(0, nextWakeAtMs - now);
-    const handle = setTimeout(() => setWakeSeq((value) => value + 1), delayMs);
-    return () => clearTimeout(handle);
-  }, [accountUsageCacheVersion, cacheByRecordId, credentialScope, credentials, normalizedRecordIds, quotasEnabled, wakeSeq]);
-
-  React.useEffect(() => {
-    if (!quotasEnabled) return;
-    if (!credentials) return;
-
-    const now = Date.now();
-    const toFetch = normalizedRecordIds.filter((recordId) => {
-      const sharedSnapshot = readProviderAccountUsageSnapshotFromCache({ credentialScope, recordId });
-      if (sharedSnapshot && now < computeSnapshotFreshUntilMs(sharedSnapshot)) return false;
-      const cacheSnapshot = cacheStateRef.current;
-      const cached = cacheSnapshot.credentialScope === credentialScope
-        ? cacheSnapshot.entries[recordId]
-        : undefined;
-      const inFlightKey = `${credentialScope}\u0000${recordId}`;
-      return !inFlightKeysRef.current.has(inFlightKey) && (!cached || now >= cached.nextFetchAtMs);
-    });
-    if (toFetch.length === 0) return;
-
-    for (const recordId of toFetch) {
-      inFlightKeysRef.current.add(`${credentialScope}\u0000${recordId}`);
-    }
-
-    const controller = new AbortController();
-    const requestCredentialScope = credentialScope;
-    activeControllersRef.current.add(controller);
-    fireAndForget((async () => {
-      try {
-        const mode = await resolveAccountMode();
-        if (controller.signal.aborted || activeCredentialScopeRef.current !== requestCredentialScope) return;
-        await Promise.all(toFetch.map(async (recordId) => {
-          try {
-            let opened: ProviderAccountUsageSnapshotV1 | null = null;
-            if (mode === 'plain') {
-              opened = await getProviderAccountUsageSnapshotPlain(credentials, { recordId }, { signal: controller.signal });
-            }
-            if (controller.signal.aborted || activeCredentialScopeRef.current !== requestCredentialScope) return;
-            if (!opened) {
-              const sealed = await getProviderAccountUsageSnapshotSealed(credentials, { recordId }, { signal: controller.signal });
-              opened = sealed ? openProviderAccountUsageSnapshot(credentials, sealed.sealed) : null;
-            }
-            if (controller.signal.aborted || activeCredentialScopeRef.current !== requestCredentialScope) return;
-            if (opened && opened.recordId !== recordId) {
-              opened = null;
-            }
-            if (opened) {
-              writeProviderAccountUsageSnapshotToCache({ credentialScope: requestCredentialScope, snapshot: opened });
-            }
-            setCacheState((prev) => {
-              const entries = prev.credentialScope === requestCredentialScope ? prev.entries : {};
-              return {
-                credentialScope: requestCredentialScope,
-                entries: {
-                  ...entries,
-                  [recordId]: {
-                    snapshot: opened,
-                    nextFetchAtMs: opened
-                      ? computeFetchedSnapshotNextFetchAtMs(now, opened)
-                      : now + ACCOUNT_USAGE_SNAPSHOTS_MISS_RETRY_MS,
-                    consecutiveErrors: 0,
-                  },
-                },
-              };
-            });
-          } catch {
-            if (controller.signal.aborted || activeCredentialScopeRef.current !== requestCredentialScope) return;
-            setCacheState((prev) => {
-              const entries = prev.credentialScope === requestCredentialScope ? prev.entries : {};
-              const existing = entries[recordId];
-              const consecutiveErrors = (existing?.consecutiveErrors ?? 0) + 1;
-              return {
-                credentialScope: requestCredentialScope,
-                entries: {
-                  ...entries,
-                  [recordId]: {
-                    snapshot: existing?.snapshot ?? null,
-                    nextFetchAtMs: now + computeErrorBackoffMs(consecutiveErrors),
-                    consecutiveErrors,
-                  },
-                },
-              };
-            });
-          } finally {
-            inFlightKeysRef.current.delete(`${requestCredentialScope}\u0000${recordId}`);
-          }
-        }));
-      } finally {
-        activeControllersRef.current.delete(controller);
-      }
-    })(), { tag: 'useProviderAccountUsageSnapshots.refresh' });
-
-    return () => {
-      if (activeCredentialScopeRef.current !== requestCredentialScope) {
-        controller.abort();
-      }
-    };
-  }, [accountUsageCacheVersion, credentialScope, quotasEnabled, credentials, normalizedRecordIds, wakeSeq, resolveAccountMode]);
-
-  const snapshotsByRecordId: Record<string, ProviderAccountUsageSnapshotV1 | null> = {};
-  if (!quotasEnabled || !credentialScope) return snapshotsByRecordId;
-
-  for (const recordId of normalizedRecordIds) {
-    snapshotsByRecordId[recordId] =
-      readProviderAccountUsageSnapshotFromCache({ credentialScope, recordId })
-      ?? cacheByRecordId[recordId]?.snapshot
-      ?? null;
-  }
-
-  return snapshotsByRecordId;
+export function useProviderAccountUsageDiscovery(): AccountUsageDiscovery | Readonly<{ status: 'disabled'; records: null }> {
+  const credentials = useAuth().credentials;
+  const decision = useFeatureDecision('connectedServices.quotas');
+  const enabled = decision?.state === 'enabled';
+  const scope = enabled && credentials ? resolveAuthCredentialsScopeKey(credentials) : '';
+  const resolveAccountMode = useCredentialScopedAccountModeResolver({ credentials, credentialScope: scope });
+  const context = React.useMemo(() => credentials && scope
+    ? { credentials, credentialScope: scope, resolveAccountMode }
+    : null, [credentials, scope, resolveAccountMode]);
+  const subscribe = React.useCallback((listener: () => void) => (
+    scope ? subscribeAccountUsageDiscovery(scope, listener) : () => {}
+  ), [scope]);
+  const getSnapshot = React.useCallback(() => (
+    scope ? getAccountUsageDiscovery(scope)
+      : decision && decision.state !== 'enabled' ? DISABLED_DISCOVERY : PENDING_DISCOVERY
+  ), [decision, scope]);
+  const discovery = React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  React.useEffect(() => context ? retainAccountUsageDiscovery(context) : undefined, [context]);
+  return discovery;
 }

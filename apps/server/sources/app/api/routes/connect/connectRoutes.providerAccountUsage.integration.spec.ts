@@ -35,6 +35,76 @@ describe("connectRoutes (provider account usage canonical routes)", () => {
         await db.account.deleteMany().catch(() => {});
     });
 
+    it("discovers unlinked account-owned usage records without exposing another account", async () => {
+        harness.resetEnv({
+            HAPPIER_FEATURE_CONNECTED_SERVICES_QUOTAS__ENABLED: "true",
+            HAPPIER_FEATURE_ENCRYPTION__STORAGE_POLICY: "optional",
+            HAPPIER_FEATURE_ENCRYPTION__DEFAULT_ACCOUNT_MODE: "plain",
+        });
+        const owner = await db.account.create({ data: { publicKey: null, encryptionMode: "plain" }, select: { id: true } });
+        const other = await db.account.create({ data: { publicKey: null, encryptionMode: "plain" }, select: { id: true } });
+        const claude = createUsageSnapshot({
+            fetchedAt: 1000,
+            recordKey: createProviderAccountUsageRecordKey({ providerId: "claude", accountSubjectId: "claude-native" }),
+        });
+        const codex = createUsageSnapshot({
+            fetchedAt: 2000,
+            recordKey: createProviderAccountUsageRecordKey({ providerId: "codex", accountSubjectId: "codex-native" }),
+        });
+        const hidden = createUsageSnapshot({
+            fetchedAt: 3000,
+            recordKey: createProviderAccountUsageRecordKey({ accountSubjectId: "other-owner" }),
+        });
+        for (const snapshot of [claude, codex]) {
+            await writeProviderAccountUsageRecord({
+                accountId: owner.id,
+                recordId: snapshot.recordId,
+                recordKey: snapshot.recordKey,
+                payloadMode: "plain_json_v1",
+                status: "ok",
+                snapshot,
+                fetchedAt: snapshot.fetchedAtMs,
+                staleAfterMs: snapshot.staleAfterMs,
+            });
+        }
+        await writeProviderAccountUsageRecord({
+            accountId: other.id,
+            recordId: hidden.recordId,
+            recordKey: hidden.recordKey,
+            payloadMode: "plain_json_v1",
+            status: "ok",
+            snapshot: hidden,
+            fetchedAt: hidden.fetchedAtMs,
+            staleAfterMs: hidden.staleAfterMs,
+        });
+        const app = createProviderAccountUsageTestApp();
+        connectRoutes(app as Parameters<typeof connectRoutes>[0]);
+        await app.ready();
+
+        const list = await app.inject({
+            method: "GET", url: "/v3/connect/provider-account-usage",
+            headers: { "x-test-user-id": owner.id },
+        });
+        expect(list.statusCode).toBe(200);
+        expect(list.json()).toEqual({ records: expect.arrayContaining([
+            expect.objectContaining({ recordId: claude.recordId, recordKey: claude.recordKey, fetchedAt: 1000 }),
+            expect.objectContaining({ recordId: codex.recordId, recordKey: codex.recordKey, fetchedAt: 2000 }),
+        ]) });
+        expect(list.json().records).toHaveLength(2);
+        expect(JSON.stringify(list.json())).not.toContain("snapshot");
+
+        const outsider = await app.inject({
+            method: "GET", url: "/v3/connect/provider-account-usage",
+            headers: { "x-test-user-id": other.id },
+        });
+        expect(outsider.json().records.map((record: { recordId: string }) => record.recordId)).toEqual([hidden.recordId]);
+        const blockedExactRead = await app.inject({
+            method: "GET", url: `/v3/connect/provider-account-usage/${hidden.recordId}`,
+            headers: { "x-test-user-id": owner.id },
+        });
+        expect(blockedExactRead.statusCode).toBe(404);
+    });
+
     it("stores and returns a plaintext provider-account usage envelope for plaintext accounts", async () => {
         harness.resetEnv({
             HAPPIER_FEATURE_CONNECTED_SERVICES_QUOTAS__ENABLED: "true",
@@ -379,6 +449,23 @@ describe("connectRoutes (provider account usage canonical routes)", () => {
         });
         expect(write.statusCode).toBe(200);
 
+        const discovery = await app.inject({
+            method: "GET", url: "/v3/connect/provider-account-usage",
+            headers: { "x-test-user-id": user.id },
+        });
+        expect(discovery.statusCode).toBe(200);
+        expect(discovery.json()).toEqual({ records: [{
+            recordId: snapshot.recordId,
+            recordKey,
+            payloadMode: "sealed_account_scoped_v1",
+            status: "ok",
+            fetchedAt: snapshot.fetchedAtMs + 1,
+            staleAfterMs: snapshot.staleAfterMs,
+        }] });
+        expect(JSON.stringify(discovery.json())).not.toContain("ciphertext");
+        const unauthenticated = await app.inject({ method: "GET", url: "/v3/connect/provider-account-usage" });
+        expect(unauthenticated.statusCode).toBe(401);
+
         const read = await app.inject({
             method: "GET",
             url: `/v2/connect/provider-account-usage/${snapshot.recordId}`,
@@ -434,6 +521,20 @@ describe("connectRoutes (provider account usage canonical routes)", () => {
             },
             select: { id: true },
         })).toBeNull();
+    });
+
+    it("keeps account discovery behind the canonical quotas feature gate", async () => {
+        harness.resetEnv({ HAPPIER_FEATURE_CONNECTED_SERVICES_QUOTAS__ENABLED: "false" });
+        const user = await db.account.create({ data: { publicKey: null, encryptionMode: "plain" }, select: { id: true } });
+        const app = createProviderAccountUsageTestApp();
+        connectRoutes(app as Parameters<typeof connectRoutes>[0]);
+        await app.ready();
+        const response = await app.inject({
+            method: "GET", url: "/v3/connect/provider-account-usage",
+            headers: { "x-test-user-id": user.id },
+        });
+        expect(response.statusCode).toBe(404);
+        expect(response.json()).toEqual({ error: "not_found" });
     });
 
     it("rejects canonical usage diagnostics with token-like headers", async () => {

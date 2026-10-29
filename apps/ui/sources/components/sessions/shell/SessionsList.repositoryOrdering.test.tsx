@@ -101,6 +101,40 @@ function visibleIds(screen: Awaited<ReturnType<typeof renderScreen>>) {
 }
 
 describe('Repository session order through the mounted shell and canonical organization writer', () => {
+    it('persists a flat cross-project reorder through the owning Home and restores it after a view roundtrip', async () => {
+        const { SessionsList } = await import('./SessionsList');
+        const { storage } = await import('@/sync/domains/state/storage');
+        await act(async () => { storage.getState().applyLocalSettings({ sessionListMachineViewV1: 'flat' }); });
+        const physical = Object.fromEntries(Object.entries(storage.getState().sessions).map(([id, session]) => [id, session.metadata]));
+        const screen = await renderScreen(<SessionsList />);
+        expect(visibleIds(screen)).toEqual(['b', 'a2', 'a']);
+        const row = screen.findByTestId('session-list-item-b');
+        expect(row?.props.accessibilityActions).toContainEqual(expect.objectContaining({ name: 'moveDown' }));
+        await act(async () => { row?.props.onAccessibilityAction({ nativeEvent: { actionName: 'moveDown' } }); });
+        await vi.waitFor(() => expect(visibleIds(screen)).toEqual(['a2', 'b', 'a']));
+        expect(boundary.reorder).toHaveBeenCalledWith(expect.objectContaining({ serverUrl: 'https://repository-order.example.test',
+            request: expect.objectContaining({ scopeKind: 'group', scopeKey: expect.stringMatching(/^flat-v1:/),
+                entries: [
+                    { itemKind: 'session', itemKey: 'a2', sortKey: '00000001' },
+                    { itemKind: 'session', itemKey: 'b', sortKey: '00000002' },
+                    { itemKind: 'session', itemKey: 'a', sortKey: '00000003' },
+                ],
+            }),
+        }));
+        await act(async () => { storage.getState().applyLocalSettings({ sessionListMachineViewV1: 'original' }); });
+        await act(async () => { storage.getState().applyLocalSettings({ sessionListMachineViewV1: 'flat' }); });
+        expect(visibleIds(screen)).toEqual(['a2', 'b', 'a']);
+        expect(Object.fromEntries(Object.entries(storage.getState().sessions).map(([id, session]) => [id, session.metadata]))).toEqual(physical);
+        await screen.unmount();
+        const { fetchAndApplySessionOrganizationSnapshot } = await import('@/sync/ops/sessionOrganization/fetchSessionOrganizationSnapshot');
+        storage.getState().clearSessionOrganizationForServer(boundary.serverId);
+        await fetchAndApplySessionOrganizationSnapshot({ credentials, serverId: boundary.serverId, serverUrl: 'https://repository-order.example.test' });
+        const restored = await renderScreen(<SessionsList />);
+        expect(visibleIds(restored)).toEqual(['a2', 'b', 'a']);
+        expect(Object.fromEntries(Object.entries(storage.getState().sessions).map(([id, session]) => [id, session.metadata]))).toEqual(physical);
+        await restored.unmount();
+    });
+
     it('updates the mounted header while repository discovery starts and settles without changing its rows', async () => {
         const { SessionsList } = await import('./SessionsList');
         const { SessionListViewMenuButton } = await import('./sessionListViewMenu');

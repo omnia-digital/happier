@@ -117,6 +117,21 @@ describe('uiFontScale', () => {
         expect(style.lineHeight).toBe(24);
     });
 
+    it('leaves text metrics at their base size when the web Unistyles CSS override owns scaling', () => {
+        const plainStyle = { fontSize: 14, lineHeight: 18 };
+        const styles = [
+            { color: 'red' },
+            { fontSize: 14, lineHeight: 18, letterSpacing: -0.08 },
+        ];
+
+        expect(scaleTextStyle(plainStyle, 1.3, { webCssScaleApplied: true })).toBe(plainStyle);
+        expect(scaleTextStyle(styles, 1.3, { webCssScaleApplied: true })).toBe(styles);
+        expect(scaleTextStyle(styles, 1.3)).toEqual([
+            styles[0],
+            { fontSize: 18.2, lineHeight: 23.4, letterSpacing: -0.1 },
+        ]);
+    });
+
     it('does not crash on nullish styles', () => {
         expect(scaleTextStyle(null, 1.1)).toBe(null);
         expect(scaleTextStyle(undefined, 1.1)).toBe(undefined);

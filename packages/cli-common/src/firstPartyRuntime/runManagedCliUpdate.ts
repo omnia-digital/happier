@@ -172,7 +172,13 @@ export function watchLastCliUpdateResult(params: Readonly<{
   const layout = resolveFirstPartyInstallLayout({ componentId: COMPONENT_ID, channel: params.channel, processEnv: params.processEnv });
   if (!existsSync(layout.installRoot)) return null;
   const watcher = watch(layout.installRoot, { persistent: false }, (_event, fileName) => {
-    if (String(fileName ?? '') === LAST_UPDATE_FILE_NAME) params.onChange();
+    // Node may omit the filename even for a directory event on supported platforms. The
+    // publisher compares the record's facts, so an unrelated unnamed event is harmless.
+    if (fileName == null) {
+      if (existsSync(resolveLastUpdatePath(layout))) params.onChange();
+    } else if (String(fileName) === LAST_UPDATE_FILE_NAME) {
+      params.onChange();
+    }
   });
   watcher.on('error', (error) => params.onError?.(error));
   return () => watcher.close();

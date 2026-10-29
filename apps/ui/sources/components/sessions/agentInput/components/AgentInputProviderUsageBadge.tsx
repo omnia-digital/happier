@@ -20,6 +20,7 @@ type WebHoverablePressableState = Readonly<{
 
 type AgentInputProviderUsageBadgeProps = Readonly<{
     viewModel: ConnectedServiceQuotaGaugeViewModel;
+    testIDPrefix?: string;
     marginLeft?: number;
     showLabels?: boolean;
     onRecoveryCreditPress?: () => void;
@@ -123,6 +124,7 @@ function areProviderUsageBadgePropsEqual(
     right: AgentInputProviderUsageBadgeProps,
 ): boolean {
     return left.showLabels === right.showLabels
+        && left.testIDPrefix === right.testIDPrefix
         && left.marginLeft === right.marginLeft
         && left.onRecoveryCreditPress === right.onRecoveryCreditPress
         && left.recoveryCreditActionPending === right.recoveryCreditActionPending
@@ -145,7 +147,8 @@ export const AgentInputProviderUsageBadge = React.memo(function AgentInputProvid
     props: AgentInputProviderUsageBadgeProps,
 ) {
     const styles = stylesheet;
-    const anchorRef = React.useRef<any>(null);
+    const testIDPrefix = props.testIDPrefix ?? 'agent-input-provider-usage';
+    const anchorRef = React.useRef<View | null>(null);
     const [isPinnedOpen, setIsPinnedOpen] = React.useState(false);
     const [isHovered, setIsHovered] = React.useState(false);
     const open = isPinnedOpen || isHovered;
@@ -158,20 +161,24 @@ export const AgentInputProviderUsageBadge = React.memo(function AgentInputProvid
     const ringAccessibilityValues = rings.length === 1
         ? [props.viewModel.badgeLabel]
         : rings.map((ring) => `${ring.label} ${ring.valueLabel}`);
-    const accessibilityLabel = t('agentInput.providerUsage.accessibilityLabel', {
+    const usageAccessibilityLabel = t('agentInput.providerUsage.accessibilityLabel', {
         value: ringAccessibilityValues.join(', '),
     });
     const title = props.viewModel.providerDisplayName
         ? t('agentInput.providerUsage.titleForProvider', { provider: props.viewModel.providerDisplayName })
         : t('agentInput.providerUsage.title');
+    const staleLabel = props.viewModel.isStale ? t('agentInput.providerUsage.duration.outdated') : null;
+    const accessibilityLabel = [title, props.viewModel.activeAccountDisplayLabel, usageAccessibilityLabel, staleLabel]
+        .filter((part): part is string => Boolean(part))
+        .join(', ');
     const recoveryCreditSummary = props.viewModel.recoveryCreditSummary;
 
     return (
         <>
-            <View testID="agent-input-provider-quota-badge" style={styles.badgeContainer}>
+            <View testID={props.testIDPrefix ? `${testIDPrefix}-container` : 'agent-input-provider-quota-badge'} style={styles.badgeContainer}>
             <Pressable
                 ref={anchorRef}
-                testID="agent-input-provider-usage-badge"
+                testID={`${testIDPrefix}-badge`}
                 hitSlop={10}
                 accessibilityRole="button"
                 accessibilityLabel={accessibilityLabel}
@@ -195,7 +202,7 @@ export const AgentInputProviderUsageBadge = React.memo(function AgentInputProvid
                         <View key={ring.meterId} style={styles.windowRing}>
                             {props.showLabels === true || rings.length > 1 ? (
                                 <Text
-                                    testID={`agent-input-provider-usage-meter-label${testIdSuffix}`}
+                                    testID={`${testIDPrefix}-meter-label${testIdSuffix}`}
                                     style={styles.windowLabel}
                                     numberOfLines={1}
                                 >
@@ -205,15 +212,21 @@ export const AgentInputProviderUsageBadge = React.memo(function AgentInputProvid
                             <TokenUsageRing
                                 used={ring.usedPct}
                                 limit={100}
-                                label={rings.length === 1 ? accessibilityLabel : ringAccessibilityValues[index]}
+                                label={rings.length === 1 ? accessibilityLabel
+                                    : [ringAccessibilityValues[index], staleLabel].filter(Boolean).join(', ')}
                                 value={ring.ringValueLabel}
                                 tone={mapQuotaToneToTokenTone(ring.tone)}
-                                ringTestID={`agent-input-provider-usage-ring${testIdSuffix}`}
-                                valueTestID={`agent-input-provider-usage-value${testIdSuffix}`}
+                                ringTestID={`${testIDPrefix}-ring${testIdSuffix}`}
+                                valueTestID={`${testIDPrefix}-value${testIdSuffix}`}
                             />
                         </View>
                     );
                 })}
+                {staleLabel ? (
+                    <Text testID={`${testIDPrefix}-stale-indicator`} style={styles.staleIndicator} numberOfLines={1}>
+                        {staleLabel}
+                    </Text>
+                ) : null}
             </Pressable>
             </View>
 
@@ -225,7 +238,7 @@ export const AgentInputProviderUsageBadge = React.memo(function AgentInputProvid
                     setIsHovered(false);
                 }}
                 maxWidthCap={360}
-                testID="agent-input-provider-usage-popover"
+                testID={`${testIDPrefix}-popover`}
                 content={(
                     <View style={styles.popoverContent}>
                         <Text style={styles.popoverTitle}>
@@ -236,8 +249,11 @@ export const AgentInputProviderUsageBadge = React.memo(function AgentInputProvid
                                 {t('agentInput.providerUsage.activeAccount', { account: props.viewModel.activeAccountDisplayLabel })}
                             </Text>
                         ) : null}
+                        {staleLabel ? (
+                            <Text testID={`${testIDPrefix}-stale`} style={styles.popoverAccount}>{staleLabel}</Text>
+                        ) : null}
                         {props.viewModel.subscription ? (
-                            <View testID="agent-input-provider-usage-subscription" style={styles.subscription}>
+                            <View testID={`${testIDPrefix}-subscription`} style={styles.subscription}>
                                 <View style={styles.subscriptionHeader}>
                                     <Text style={styles.subscriptionLabel}>{t('connectedServices.subscription.title')}</Text>
                                     <View style={styles.subscriptionStatus}>
@@ -250,7 +266,7 @@ export const AgentInputProviderUsageBadge = React.memo(function AgentInputProvid
                                                     : styles.subscriptionStatusDotUnknown,
                                         ]} />
                                         <Text
-                                            testID="agent-input-provider-usage-subscription:renewal"
+                                            testID={`${testIDPrefix}-subscription:renewal`}
                                             style={styles.subscriptionRenewal}
                                         >
                                             {props.viewModel.subscription.renewalLabel}
@@ -258,7 +274,7 @@ export const AgentInputProviderUsageBadge = React.memo(function AgentInputProvid
                                     </View>
                                 </View>
                                 <Text
-                                    testID="agent-input-provider-usage-subscription:summary"
+                                    testID={`${testIDPrefix}-subscription:summary`}
                                     style={styles.subscriptionSummary}
                                 >
                                     {props.viewModel.subscription.summary}
@@ -275,7 +291,7 @@ export const AgentInputProviderUsageBadge = React.memo(function AgentInputProvid
                         {props.viewModel.allMeterRows.map((row, index) => (
                             <View
                                 key={row.meterId}
-                                testID={`agent-input-provider-usage-meter:${row.meterId}`}
+                                testID={`${testIDPrefix}-meter:${row.meterId}`}
                                 style={[
                                     styles.meterRow,
                                     index === 0
@@ -292,7 +308,7 @@ export const AgentInputProviderUsageBadge = React.memo(function AgentInputProvid
                                     </Text>
                                 </View>
                                 {row.remainingPct !== null ? <MeterBar
-                                    testID={`agent-input-provider-usage-meter-bar:${row.meterId}`}
+                                    testID={`${testIDPrefix}-meter-bar:${row.meterId}`}
                                     tone={mapGaugeToneToMeterTone(row.tone)}
                                     // Remaining-first fill: the adjacent label says "% left" and the
                                     // tone derives from remaining — the fill must match that language
@@ -309,7 +325,7 @@ export const AgentInputProviderUsageBadge = React.memo(function AgentInputProvid
                         ))}
                         {recoveryCreditSummary ? (
                             <View
-                                testID="agent-input-provider-usage-recovery-credit"
+                                testID={`${testIDPrefix}-recovery-credit`}
                                 style={styles.recoveryCredit}
                             >
                                 <View style={styles.recoveryCreditInfo}>
@@ -324,7 +340,7 @@ export const AgentInputProviderUsageBadge = React.memo(function AgentInputProvid
                                 </View>
                                 {props.onRecoveryCreditPress ? (
                                     <Pressable
-                                        testID="agent-input-provider-usage-recovery-credit-action"
+                                        testID={`${testIDPrefix}-recovery-credit-action`}
                                         accessibilityRole="button"
                                         disabled={props.recoveryCreditActionPending === true}
                                         onPress={props.onRecoveryCreditPress}
@@ -378,6 +394,10 @@ const stylesheet = StyleSheet.create((theme) => ({
     windowLabel: {
         minWidth: 0,
         flexShrink: 1,
+        ...Typography.pillLabel(),
+        color: theme.colors.text.secondary,
+    },
+    staleIndicator: {
         ...Typography.pillLabel(),
         color: theme.colors.text.secondary,
     },

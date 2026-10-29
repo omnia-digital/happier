@@ -110,6 +110,7 @@ export function SelectableMenuResults(props: {
         Omit<ItemProps, 'title' | 'subtitle' | 'icon' | 'rightElement' | 'selected' | 'disabled' | 'showChevron' | 'showDivider' | 'onPress'>
     >;
     registerItemLayout?: (key: string) => ScrollItemLayoutHandler;
+    scrollKeyPrefix?: string;
 }) {
     const styles = stylesheet;
     const mouseDownActivatedItemIdRef = React.useRef<string | null>(null);
@@ -250,7 +251,10 @@ export function SelectableMenuResults(props: {
                         />
                     );
 
-                    const scrollFrameLayout = props.registerItemLayout?.(String(itemIndex));
+                    const scrollKey = props.scrollKeyPrefix === undefined
+                        ? String(itemIndex)
+                        : `${props.scrollKeyPrefix}\u0000${String(item.id)}`;
+                    const scrollFrameLayout = props.registerItemLayout?.(scrollKey);
                     return (
                         <View
                             ref={rowAnchorRef}
@@ -278,14 +282,14 @@ export function SelectableMenuResults(props: {
                 });
 
                 return (
-                    <View key={category.id}>
+                    <React.Fragment key={category.id}>
                         {showCategoryTitles && category.title.trim().length > 0 ? (
                             <Eyebrow style={styles.categoryTitle}>
                                 {category.title}
                             </Eyebrow>
                         ) : null}
                         {categoryItems}
-                    </View>
+                    </React.Fragment>
                 );
             })}
         </View>

@@ -668,13 +668,13 @@ describe('SessionsList session folders shell', () => {
     it('renders the view menu with a folder view toggle on primary section headers', async () => {
         const screen = await renderSessionsList();
 
-        const menu = screen.findByTestId('session-list-ordering-menu-trigger');
+        const menu = screen.findByTestId('session-list-group-menu-trigger');
         expect(menu).toBeTruthy();
         const dropdown = screen.findAllByType('DropdownMenu' as React.ElementType)
             .find((node) => node.props?.items?.some((item: any) => item.testID === 'session-folder-view-toggle'));
 
         expect(dropdown).toBeTruthy();
-        expect(dropdown?.props.selectedId).toBe('folder-view-tree');
+        expect(dropdown?.props.selectedId).toBe('session-view-original');
 
         dropdown?.props.onSelect('folder-view-off');
         expect(setSessionFolderViewModeV1).toHaveBeenCalledWith('off');

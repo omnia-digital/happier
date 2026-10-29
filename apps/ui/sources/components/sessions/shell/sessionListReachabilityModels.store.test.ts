@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createSessionFixture } from '@/dev/testkit/fixtures/sessionFixtures';
 import { createMachineFixture } from '@/dev/testkit/fixtures/machineFixtures';
@@ -6,6 +6,10 @@ import { buildMachineDisplayRenderableFromMachine } from '@/sync/domains/machine
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
 import { storage } from '@/sync/domains/state/storageStore';
 import type { Machine } from '@/sync/domains/state/storageTypes';
+import { getActiveServerId, setActiveServerId, upsertServerProfile } from '@/sync/domains/server/serverProfiles';
+import { applySessionListPresentation, resolveSessionListSourceData } from '@/sync/domains/session/listing/sessionListPresentation';
+import { prepareWarmCacheStorage, readPersistedSessionListWarmCacheEntries } from '@/sync/domains/state/warmCachePersistence';
+import { WARM_CACHE_PROGRESS_SAVE_DEBOUNCE_MS } from '@/sync/store/domains/warmCacheSaveScheduler';
 
 import { buildSessionListReachabilityModels, createSessionListReachabilityModelsCache } from './sessionListReachabilityModels';
 
@@ -13,11 +17,85 @@ const initialState = storage.getState();
 afterEach(() => storage.setState(initialState, true));
 
 describe('session reachability display invalidation', () => {
+    it('preserves a hydrated foreign session Home in the active list projection', () => {
+        const previousActiveServerId = getActiveServerId();
+        const homeA = upsertServerProfile({ serverUrl: 'https://list-hydration-a.example.test' });
+        const homeB = upsertServerProfile({ serverUrl: 'https://list-hydration-b.example.test' });
+        const machine = createMachineFixture();
+        const machineA = { ...machine, id: 'shared-machine', replacedByMachineId: 'a-successor' };
+        const successorA = { ...machine, id: 'a-successor', metadata: { ...machine.metadata!, displayName: 'A machine', homeDir: '/a' } };
+        const machineB = { ...machine, id: 'shared-machine', replacedByMachineId: 'b-successor' };
+        const successorB = { ...machine, id: 'b-successor', metadata: { ...machine.metadata!, displayName: 'B machine', homeDir: '/b' } };
+        const session = createSessionFixture({ serverId: homeB.id, metadata: { ...createSessionFixture().metadata!, machineId: machineB.id, path: '/b/repo', homeDir: '/b' } });
+        try {
+            setActiveServerId(homeA.id, { scope: 'device' });
+            storage.setState({ profileScope: { serverId: homeA.id, accountId: 'account-a' }, sessions: {}, sessionListRenderables: {}, sessionListViewData: null });
+            storage.getState().applyMachines([machineA, successorA], true, { sourceServerId: homeA.id });
+            storage.getState().applyMachines([machineB, successorB], true, { sourceServerId: homeB.id });
+            storage.getState().applySessions([{ ...session, serverId: homeA.id, metadata: { ...session.metadata!, path: '/a/wrong', homeDir: '/a' } }]);
+            storage.getState().applySessions([session]);
+            const sibling = createSessionFixture({ id: 'a-sibling', serverId: homeA.id, metadata: { ...session.metadata!, machineId: successorA.id, path: '/a/sibling', homeDir: '/a' } });
+            storage.getState().applySessions([sibling]);
+            const row = storage.getState().sessionListViewData?.find(item => item.type === 'session' && item.session.id === session.id);
+            expect(storage.getState().sessions[session.id]?.serverId).toBe(homeB.id);
+            expect(row?.serverId).toBe(homeB.id);
+            expect(row?.type === 'session' ? row.workspace : null).toMatchObject({ serverId: homeB.id, machineId: 'b-successor', rootPath: '/b/repo' });
+            const models = buildSessionListReachabilityModels({ items: storage.getState().sessionListViewData ?? [], machinesById: storage.getState().machineDisplayById, workspaceLabelsV1: {} });
+            expect(models.reachableSessionDisplayByKey.get(`${homeB.id}:${session.id}`)).toMatchObject({ machineId: 'b-successor', machineLabel: 'B machine', workspaceSubtitle: 'repo' });
+            expect(models.reachableSessionDisplayByKey.get(`${homeA.id}:${sibling.id}`)).toMatchObject({ machineId: 'a-successor', machineLabel: 'A machine', workspaceSubtitle: 'sibling' });
+            expect(storage.getState().sessionListViewData?.find(item => item.type === 'session' && item.session.id === sibling.id)).toMatchObject({ serverId: homeA.id, workspace: { serverId: homeA.id, machineId: successorA.id, rootPath: '/a/sibling' } });
+            expect(storage.getState().sessionListViewDataByServerId[homeA.id]?.find(item => item.type === 'session' && item.session.id === session.id)?.serverId).toBe(homeB.id);
+            const selected = resolveSessionListSourceData({ enabled: true, activeServerId: homeA.id, activeData: storage.getState().sessionListViewData, byServerId: storage.getState().sessionListViewDataByServerId, selectedServerIds: [homeA.id] });
+            expect(selected?.find(item => item.type === 'session' && item.session.id === session.id)).toBe(row);
+            const presented = applySessionListPresentation(selected ?? [], { enabled: true, presentation: 'grouped', selectedServerIds: [homeA.id] });
+            expect(presented.filter(item => item.type === 'session').map(item => item.session.id)).toEqual([sibling.id]);
+            const initialList = storage.getState().sessionListViewData;
+            storage.getState().applySessions([session]);
+            expect(storage.getState().sessionListViewData).toBe(initialList);
+            // Home identity alone is structural, including a same-id route moving back to A.
+            storage.getState().applySessions([{ ...session, serverId: homeA.id }]);
+            expect(storage.getState().sessionListViewData?.find(item => item.type === 'session' && item.session.id === session.id)?.serverId).toBe(homeA.id);
+            storage.getState().applySessions([{ ...session, serverId: undefined }]);
+            expect(storage.getState().sessionListViewData?.find(item => item.type === 'session' && item.session.id === session.id)?.serverId).toBe(homeA.id);
+        } finally {
+            setActiveServerId(previousActiveServerId, { scope: 'device' });
+        }
+    });
+
+    it('keeps a hydrated foreign route out of the active Home warm cache when only its Home changes', async () => {
+        await prepareWarmCacheStorage();
+        const previousActiveServerId = getActiveServerId();
+        const homeA = upsertServerProfile({ serverUrl: 'https://warm-owner-a.example.test' });
+        const homeB = upsertServerProfile({ serverUrl: 'https://warm-foreign-b.example.test' });
+        const accountId = 'warm-owner-account';
+        const session = createSessionFixture({ serverId: homeA.id });
+        vi.useFakeTimers();
+        try {
+            setActiveServerId(homeA.id, { scope: 'device' });
+            storage.setState({ profile: { ...initialState.profile, id: accountId }, profileScope: { serverId: homeA.id, accountId }, sessions: {}, sessionListRenderables: {}, sessionListViewData: null });
+            storage.getState().applySessions([session]);
+            expect(readPersistedSessionListWarmCacheEntries(homeA.id, accountId)?.[session.id]?.sessionId).toBe(session.id);
+            storage.getState().applySessions([{ ...session, serverId: homeB.id }]);
+            await vi.advanceTimersByTimeAsync(WARM_CACHE_PROGRESS_SAVE_DEBOUNCE_MS);
+            expect(readPersistedSessionListWarmCacheEntries(homeA.id, accountId)?.[session.id]).toBeUndefined();
+            expect(storage.getState().sessions[session.id]?.serverId).toBe(homeB.id);
+            storage.getState().applySessions([{ ...session, serverId: undefined }]);
+            await vi.advanceTimersByTimeAsync(WARM_CACHE_PROGRESS_SAVE_DEBOUNCE_MS);
+            expect(readPersistedSessionListWarmCacheEntries(homeA.id, accountId)?.[session.id]?.sessionId).toBe(session.id);
+        } finally {
+            vi.useRealTimers();
+            setActiveServerId(previousActiveServerId, { scope: 'device' });
+        }
+    });
     it('retains the display projection on machine heartbeats but updates names, replacements and paths', () => {
         const session = createSessionFixture();
         const machine = createMachineFixture();
         machine.metadata = { ...machine.metadata!, displayName: 'Laptop' };
-        storage.setState({ sessions: { [session.id]: session }, machines: { [machine.id]: machine } });
+        storage.setState({
+            profileScope: { serverId: 'server-a', accountId: 'account-a' },
+            sessions: { [session.id]: session },
+            machines: { [machine.id]: machine },
+        });
         const cache = createSessionListReachabilityModelsCache();
         const items: SessionListViewItem[] = [{ type: 'session', serverId: 'server-a', session }];
         const workspaceLabelsV1 = {};

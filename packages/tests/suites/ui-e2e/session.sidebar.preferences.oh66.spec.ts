@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 
 import { createRunDirs } from '../../src/testkit/runDir';
 import { repoRootDir } from '../../src/testkit/paths';
@@ -121,6 +121,22 @@ async function waitForStoredLocalSetting(page: Page, key: string, expected: unkn
   }, { key })).toBe(expected);
 }
 
+async function readAppearanceSectionTypography(page: Page) {
+  return Promise.all([
+    { id: 'global', name: 'Global' },
+    { id: 'left-sidebar', name: 'Left Sidebar' },
+    { id: 'task-view', name: 'Task View' },
+  ].map(async ({ id, name }) => ({
+    id,
+    ...await page.getByTestId(`settings-appearance.section.${id}`)
+      .getByRole('heading', { name, exact: true })
+      .evaluate((heading) => {
+        const style = getComputedStyle(heading);
+        return { fontSize: style.fontSize, fontWeight: style.fontWeight, color: style.color };
+      }),
+  })));
+}
+
 test.describe('ui e2e: OH66 sidebar text size and item density preferences', () => {
   test.describe.configure({ mode: 'serial' });
   const suiteDir = run.testDir('sidebar-preferences-suite');
@@ -229,6 +245,29 @@ test.describe('ui e2e: OH66 sidebar text size and item density preferences', () 
 
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/settings/appearance?happier_hmr=0`, 180_000);
     await waitForInitialAppUi({ page, timeoutMs: 120_000 });
+    const globalAppearance = page.getByTestId('settings-appearance.section.global');
+    const sidebarAppearance = page.getByTestId('settings-appearance.section.left-sidebar');
+    const taskAppearance = page.getByTestId('settings-appearance.section.task-view');
+    await expect(globalAppearance).toBeVisible();
+    await expect(globalAppearance.getByRole('heading', { name: 'Global', exact: true })).toBeVisible();
+    await expect(globalAppearance.getByText('Text Size', { exact: true })).toHaveCount(1);
+    await expect(globalAppearance.getByText('Item Density', { exact: true })).toHaveCount(1);
+    await expect(globalAppearance.getByTestId('settings-appearance-wrapChatCodeBlocks-switch')).toHaveCount(0);
+    await expect(taskAppearance.getByRole('heading', { name: 'Task View', exact: true })).toBeVisible();
+    await expect(taskAppearance.getByTestId('settings-appearance-showChatCodeBlockWrapControls-switch')).toHaveCount(1);
+    await expect(taskAppearance.getByTestId('settings-appearance-wrapChatCodeBlocks-switch')).toHaveCount(1);
+    await page.screenshot({ path: `${suiteDir}/appearance-global-section.png` });
+    const sidebarSettings = sidebarAppearance.getByTestId('settings-appearance-sidebar-settings');
+    await sidebarSettings.scrollIntoViewIfNeeded();
+    await expect(sidebarAppearance.getByRole('heading', { name: 'Left Sidebar', exact: true })).toBeVisible();
+    await page.screenshot({ path: `${suiteDir}/appearance-sidebar-task-sections.png` });
+    const sectionTypography = await readAppearanceSectionTypography(page);
+    await writeFile(`${suiteDir}/appearance-section-typography.json`, JSON.stringify(sectionTypography, null, 2));
+    await sidebarSettings.click();
+    await expect(page).toHaveURL(/\/settings\/session(?:[?#].*)?$/);
+    await expect(page.getByTestId('settings-session-machineIdentity-toggle')).toHaveCount(1);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/settings\/appearance(?:[?#].*)?$/);
     await selectMenuOption(page, 'settings-theme-selector-trigger', 'light');
     await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
     await expect(row).toHaveCount(1, { timeout: 120_000 });
@@ -369,5 +408,17 @@ test.describe('ui e2e: OH66 sidebar text size and item density preferences', () 
     expect(currentIndicatorBounds!.x + currentIndicatorBounds!.width).toBeLessThanOrEqual(selectedRowBounds!.x + selectedRowBounds!.width);
     expect(currentIndicatorBounds!.y).toBeGreaterThanOrEqual(selectedRowBounds!.y);
     expect(currentIndicatorBounds!.y + currentIndicatorBounds!.height).toBeLessThanOrEqual(selectedRowBounds!.y + selectedRowBounds!.height);
+
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/settings/appearance?happier_hmr=0`, 180_000);
+    await waitForInitialAppUi({ page, timeoutMs: 120_000 });
+    await expect(page.getByTestId('settings-appearance.section.global').getByRole('heading', { name: 'Global', exact: true })).toBeVisible();
+    await expect.poll(async () => (await readAppearanceSectionTypography(page))
+      .map((entry) => Number.parseFloat(entry.fontSize).toFixed(1)))
+      .toEqual(sectionTypography.map((entry) => (Number.parseFloat(entry.fontSize) * 1.3).toFixed(1)));
+    const largeSectionTypography = await readAppearanceSectionTypography(page);
+    await writeFile(`${suiteDir}/appearance-section-typography-large-dark.json`, JSON.stringify(largeSectionTypography, null, 2));
+    await page.screenshot({ path: `${suiteDir}/appearance-global-large-dark.png` });
+    await page.getByTestId('settings-appearance-sidebar-settings').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${suiteDir}/appearance-sidebar-task-large-dark.png` });
   });
 });

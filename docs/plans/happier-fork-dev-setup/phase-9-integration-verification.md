@@ -1,8 +1,154 @@
 # OH-56, OH-58 and OH-59: Integration verification
 
-Continue source work without interacting with the running daily native app. Native hotkeys remain explicitly deferred. Other native and provider/remote-host acceptance stays open; isolated browser evidence does not close it.
+Josh explicitly chose **Keep native QA deferred** on October 24. This supersedes the pending macOS idle-window request and includes native hotkeys. Do not launch or automate native acceptance until he resumes it. Continue independent source/browser work without interacting with the daily native app. Remaining native checks are deferred and unverified; provider/remote-host acceptance stays open, and isolated browser evidence does not close those gates.
 
 ## OH-58 ticket linking
+
+### Next integration PR: remaining fork changes
+
+Proposed title: `feat(desktop): refine session organization, machine visibility and usage`.
+
+Josh assigned this session the next `chore/happier-fork-dev-setup` → `dev` PR
+and explicitly requested finishing and merging it. Merge `d883ec3a5d` includes
+dev `1847cd98b8` (PR #14); predecessor merges include PRs #7–#13. The next PR
+describes the remaining delta:
+
+- Separate sidebar Group and Sort menus, flat view, stable drag/scroll behavior,
+  scoped repository ordering and foreign-Home machine presentation.
+- Compact machine metrics with click/keyboard disclosure and scalable typography;
+  provider usage in desktop chrome through the existing authenticated usage owner.
+- Correct foreign-Home path selection and session hydration through real scoped
+  routing, plus isolated fixture process environments.
+- Parent-derived profile/numeric field refinements, Claude model/control state,
+  tmux session ownership and natural tool-unpacker exit.
+
+Deferred OH-5 release-trust code and dependent tests are excluded from the net
+change, including their base intents. Historical commits remain reachable because
+the integration is a merge. The 61-path audit has 58 exact matches to dev and only
+three differing history/deferral documents. Unsigned nightly workflow and Tauri
+candidate/publisher owners match dev. No release workflow was dispatched.
+
+At the PR #11 integration boundary, 118 session-list lifecycle/pinning/web tests,
+315 favorites/SessionView tests, all 11 root typecheck entries, docs content,
+47 docs guards and docs types passed. The PR #14 merge adds 16 passing Stack
+mobile-owner tests. At predecessor merge `74f444006e`, the full UI package passed
+32 unit shards, 3,762 files, 25,905 tests and 3 skips, plus prompt 1/1 and host
+contracts 54/54. This is retained evidence for those sources, not a current
+whole-root verdict.
+
+Final review found PU-1: opening the provider account chooser could display
+another account's gauge. Chrome reproduced the unchosen gauge before the fix;
+all three browser flows pass after restricting display to the selected native
+record while retaining option-label prefetch. Adjacent 32 tests, UI types and
+E2E fixture types pass; independent delta review resolves the finding. Logs are
+`oh10-finish-provider-usage-{red,green,owners}.log` and
+`oh10-finish-{ui,fixture}-typecheck.log` under `.project/logs/tests`.
+
+Current full CLI qualification completed all 64 shards but failed on ten cases:
+eight stale exact-tmux target expectations, one Codex fixture candidate and one
+relay timeout. Isolation had one handoff readiness failure; import-cycle tail did
+not run. Focused recovery passes 24/24 across attach, isolated Codex startup and
+unchanged relay tests, plus 22/22 attach eligibility tests. Handoff fixture
+readiness now observes actual OS link contention instead of a transient directory
+notification, preserving real recovery/lease/lock behavior; focused 1/1 and the
+canonical isolated group 19/19 pass. CLI types and the import-cycle tail pass.
+No new full CLI or whole-root PASS is claimed; current-head hosted CI must still
+qualify the PR before merge.
+
+Final current-source browser gates pass: provider usage 3/3 in 71s,
+status organization 1/1 in 71s, and strict foreign-Home launch 1/1 in 113s.
+The last flow first reproduced a real UUID sidebar label despite a correct detail
+header. Commits `924ab598c1` and `3a0843b85c` retain the session's existing Home
+through list projection, preserve distinct Home ownership during alias binding,
+subscribe to actual row Homes, and omit foreign rows from the active Home/account
+warm cache. Its existing format and reader remain unchanged. Three real-store RED
+boundaries precede GREEN; 200 owner/adjacent tests and UI TS7 pass. Root reviews
+mixed-Home, same-id, rename/removal, selection and persistence neighbors and the
+final Chrome screenshot. Both optional 0.3 destination paths remain absent, so
+that port is blocked rather than represented as completed.
+
+Full server qualification passes 1,552/1,552 across 269 files with private Bun
+1.4.2. An initial four-case Sharp failure used local Bun 1.2.17; the unchanged
+focused cases and full pinned rerun pass. Stack passes 2,072 tests with six skips.
+The shared runner's twelve other selected entries pass; its website entry first
+failed because the old temporary source fixtures were absent, then passes all
+184 Vitest and three Node tests with fresh inputs from the same immutable source
+commits. CLI-common's remaining 102 files pass 588 tests with five skips; its
+updater owner is deliberately qualified separately on actual Windows below,
+without retrying the inconclusive Mac watcher diagnostic. These are explicit
+package/platform slices, not a claim that the unchanged whole-root command ran.
+
+The updater owner file passes 13/13 without skips on an isolated exact-source
+Windows worktree after consolidating its simulated-platform rollback duplicate
+into the real native-host transaction. All nine rollback assertions remain.
+Actual Windows watcher and filename-less events pass. The unresolved Mac event
+notification diagnosis remains visible; no watcher workaround, timeout increase
+or skip was added. Linux-native CI remains separate.
+
+GitHub API/UI actions use `andorcassian` through Cassian's existing authenticated
+Mac mini session, replacing the former bot requirement. Send the ready exact head,
+PR title and description once required qualification is reconciled and the branch
+is pushed. Josh authorizes opening and merging this PR into dev after current-head
+CI and review pass. Do not use this Mac's personal GitHub API credential. This
+authority excludes workflow dispatch, signing, release, promotion and daily app,
+daemon, service or account changes. Native QA remains explicitly deferred;
+installed-host metrics support, real-provider acceptance and the missing 0.3
+destination retain their existing task dispositions.
+
+The ready title/body handoff was sent at `febc7b8aca`. Plain remote `gh` returned
+HTTP 401, but Josh's October 28 instruction identified a separate configured PAT
+that validates as `andorcassian` with repository push access. This resolves the
+authentication blocker without changing an account or credential store. Token
+values remain out of logs, command arguments and repository files. Current dev
+is still `1847cd98b8`, already integrated; no PR exists for this feature branch.
+PR #15 is separate OH-76 work. Use the current pushed head and prepared body to
+open this PR; hosted current-head CI/review remain required before merge.
+
+### PR #16: hosted source-CI correction batch (October 28)
+
+[PR #16](https://github.com/omnia-digital/happier/pull/16) is open as
+`andorcassian`, targeting dev. The separate configured PAT resolves the earlier
+plain-CLI authentication failure. CI run `40816105779`, attempt 1, at head
+`32bc350db0` completed with 24 successful jobs, 18 routed skips and three failed
+jobs. The aggregate failure reflects two causal failures; both CLI parts, UI
+unit/integration and the remaining independent lanes passed. Complete canonical
+failure collection is `/tmp/happier-ci-run-40816105779-attempt-1/summary.json`.
+
+The resume-ID browser smoke failed twice after machine selection. Its screenshot
+shows React error 185, and an unchanged local replay reproduces it. The exact
+loaded bundle identifies the idle snapshot state update in
+`SlideTransitionSwitch`. Idle content already renders from props; the next
+outgoing snapshot now stays in a committed ref without publishing another React
+render. The existing profiler/content-continuity case first records two commits
+instead of one, then passes with the correction. Transition keys, incoming draft
+state, interruption, completion, reduced-motion, no-flash and unmount guards
+remain covered. All 22 motion tests pass; the original full Chrome flow passes
+unchanged in 98s. Independent source/lifecycle review finds no blocking issue.
+
+Broader coverage exposes a related measured-popover no-op publication: a repeated
+sub-pixel layout report still scheduled React work. Its existing zero-commit
+assertion failed before correction. The canonical height owner now rejects
+duplicates against its last accepted segment snapshot before scheduling state;
+normalization, epsilon, cap, shrink timing and disabled-state behavior remain
+unchanged. The focused measurement/motion set passes 125 tests. The native-only
+height gate is disabled in the passing web recipe, so that browser evidence
+remains applicable. Native acceptance is still explicitly deferred.
+
+The core retention failure is fixture setup: a separate `sqlite3` writer reported
+`SQLITE_BUSY` while the server's retention worker was active. Both retention
+fixtures now consume the server's existing exported SQLite busy-timeout budget
+instead of the CLI's no-wait default. The real two-spec pair and E2E-package types
+pass; floor, cursor, 410 and pruning assertions are retained. A local baseline
+also passes, so the hosted contention failure is the deciding RED. No production
+retention policy or new timeout/retry was added.
+
+The final broader UI lane passes all 586 tests across 105 files; UI TS7 also
+passes after the height correction. Current-head hosted CI remains required
+before merge; this correction batch does not reuse the failed run as a green gate.
+Optional 0.3 destination checkouts remain absent; these corrections have blocked
+port dispositions, not an invented destination implementation. Parent dev was
+refreshed to `07a887dd42`; its transition owner has no newer change after
+`a4a61d862c`. No unrelated parent batch was adopted.
 
 ### Link-ticket dialog readability correction (2026-10-24)
 
@@ -10,7 +156,7 @@ The link/change action now opts into the canonical modal card surface and header
 
 The original browser regression failed because the dialog had no opaque surface. Final Chrome replay passes in light/dark at 1360×900 and 390×844, including opaque coverage, label contrast of at least 4.5:1, long-directory input/cancel, and the existing link/read/save/change/remove/reload workflow. All four dialog screenshots were captured; desktop light and compact dark were visually inspected. Browser diagnostics contain no console, page or HTTP response errors; navigation cancelled three in-flight requests. Focused header/card/modal tests pass 19/19, and UI plus E2E-package typechecks pass. Independent review found no blocking issue. Logs: `/tmp/happier-ticket-browser-red.log`, `/tmp/happier-ticket-browser-final.log`, `/tmp/happier-ticket-modal-focused-vitest.log`, `/tmp/happier-ticket-modal-ui-typecheck.log`, and `/tmp/happier-ticket-e2e-types-final.log`. Screenshots are in `packages/tests/.project/logs/e2e/ui-playwright/session.ticketLinking-sess-b6c85-oves-and-persists-on-reload/ticket-dialog-*.png`.
 
-This is unmerged source work on `fix/link-ticket-modal-background`, targeting `dev`; the installed native app has not been updated or tested. PR creation awaits an exception to the standing rule prohibiting GitHub writes other than branch pushes. Notion publication is blocked: title/content search and the configured Omnia Software Documentation data source did not identify a canonical Happier page. This paragraph is the ready-to-publish update; next steps are to identify that page, open the PR when authorized, and validate the native app after integration.
+This correction is now merged into dev through PR #12 and included in merge `74f444006e`; the installed native app has not been updated or tested. The older PR-authorization blocker is superseded by Josh's standing authority. Notion publication remains blocked because the earlier title/content search and configured Omnia Software Documentation data source did not identify a canonical Happier page. Native validation remains deferred until Josh resumes it.
 
 - 🟢 Protocol/CLI fixed-read reader remains opt-in and machine-only. Root independently passes reader/adapter 9 and encrypted machine/session authorization 4 (the latter overlaps OH-59).
 - 🟢 Root independently passes status/transport/opener 14 in `/tmp/happier-oh58-ui-root-final.log`.
@@ -20,6 +166,34 @@ This is unmerged source work on `fix/link-ticket-modal-background`, targeting `d
 - 🟢 Root independently passes final label/access 4 (`/tmp/happier-oh58-label-root-final.log`). Whole locale integrity, relevant package typechecks and Tauri configuration pass. Source-reviewed App/MCP guidance passes content/types and is pushed in `fa3d670abd`. Final assessment VERIFY Sol/high; preserve one failed Sol / zero failed Astra rendered-review cycles. Actual vendor authentication/status changes and installed native-app receipt remain open; no daily service change.
 
 ## OH-59 machine monitoring
+
+### Current refinement: one line per machine
+
+Josh explicitly requests each machine's specifications on one line, expandable on click. Source `1f729bdb83` refines the existing row disclosure in `MachineMonitoringSection`: collapsed machine identity and compact metric summary, with full readings, metric definitions, unavailable/stale/offline explanations, storage volume and GPU identities when expanded. All five metrics, chosen machine identity, scoped polling and section-collapse behavior are preserved. Narrow and large-text summaries stay on one line; truncated information remains reachable through expansion and accessibility. Click/keyboard activation toggles each machine independently through canonical `PressableSurface` focus and press behavior. `SidebarView` remains the only consuming surface; no competing collector, transport, setting or expansion owner was added.
+
+Owner regression RED1fail/2pass precedes implementation; adjacent12tests/4files and final component/hook5tests/2files pass. Root independently passes5/2 (`.project/logs/tests/oh59-compact-root-owner-review.log`) and observes8render commits for2fixture machines with zero global/session-store notifications; this is host-test React measurement, not browser/native timing or a speedup claim. UI and fixture typechecks pass at the final typography correction (`/tmp/oh59-compact-scaled-ui-types.log`, `/tmp/oh59-compact-scaled-fixture-types.log`).
+
+Initial Chrome r1 passed34.6s but visual review found machine text remained14px at200% while surrounding chrome scaled. Strengthening the assertion gives meaningful browser RED14px instead of28. `1654b465d9` uses existing `Typography.rowTitle`/`rowMeta` tokens and preserves monospaced metrics. Strict corrected systemChrome1/1 passes35.3s (`/tmp/oh59-compact-chrome-scaled-r2.log`): actual summary text12px at100% and24px at200%, light/dark, narrow geometry/nooverflow, full name/readings/volume, pointer and Enter/Space toggles, and retained keyboard focus. Root independently inspects compact light, compact dark200%, expanded top dark200% and fully visible wrapped volume/load screenshots under `.project/logs/e2e/2026-10-24T21-45-51-378Z-ui-e2e-oh59-machine-monitoring-27fd66d8/machine-monitoring/`. Retain2failedSol/1failedAstra; the weaker earlier green is not final scaling proof. Published App guidance is updated; docs content/types/47guardrails pass.
+
+This closes only the source/browser refinement. Native QA remains deferred and the request does not approve the earlier daily cloud-service trial. Source intents are (1) compact per-machine disclosure with full readings/presence, and (2) canonical typography with actual200% scaling and nooverflow. Both forward-port dispositions remain blocked: optional `../v0.3.x` and `../0.3` are absent and no verified destination checkout was supplied. No destination, daily service, installed app or host configuration changed.
+
+### Installed-host gap: October 24 follow-up
+
+Josh reports all online machines show dashes and “This machine CLI does not support host metrics.” Read-only daemon-state and live-process checks now establish this Mac's cloud/local daemons run0.2.17, Cassian's cloud daemon0.2.12, and Josh-PC's cloud daemon0.2.16. Installed entry points resolve to those versions. Immutable CLI tags0.2.12 (`a357c65536`),0.2.16 (`b8d1c449c4`) and0.2.17 (`a2c45c8680`) contain neither `tool.machineMetrics` nor `collectHostMetrics`. Their missing producer explains the displayed unsupported state; an ordinary update to the verified0.2.17 release would not add it.
+
+Current `loadMachineMetrics` invokes through the canonical scoped capability RPC directly. Unknown capability/method responses become unsupported; transport or parsing failures become errors. `machineMetricsStore` retries unsupported entries on visible cadence/resume/target refresh, so no permanent negative-cache or advertisement bug was found. Current machine context registers the existing collector; session-only context intentionally does not. No second telemetry source or transport is needed.
+
+The actual current Mac cloud receiver independently confirms this path: the normal CLI credential reader plus `callExactMachineRpc` sends only `capabilities.invoke`/`tool.machineMetrics`/`snapshot` to the daemon state's existing machine ID and receives `{ok:false,error:{code:'unsupported-capability'}}`. The request uses the canonical30-second invoke budget; no credential/key values are printed, copied or changed. This proves the actual installed-host rejection, not only an inference from version tags.
+
+Two direct read-only samples from Josh-PC's existing source checkout (`746e43429e`, collector last changed at `c333678cd2`, matching the local owner) pass protocol schema validation: CPU6.46→7.54%, memory35.94→35.91%, storage88.17% used on `C:\`, two GPU identities at measured0%, and Windows load average unavailable/unsupported-platform. Collection took6379ms then1010ms. The successful probe used Node's TSX import with the program on stdin; an earlier TSX eval invocation exited0 without observations and supplies no collection evidence. These results verify the actual Windows collector, not encrypted remote capability delivery, existing machine attribution in the sidebar, or installed-host enablement.
+
+This Mac's cloud daemon is managed by `com.happier.cli.daemon.default`; its LaunchAgent uses `AbandonProcessGroup=true` and `KeepAlive={SuccessfulExit:false}`. The separate localhost service must be preserved. A bare source-daemon takeover is not a safe rollout: the installed-service guard rejects competing manual startup, and the unchanged0.2.17 version alone does not distinguish the fork source. Prepare the existing service owner's cloud-only source-runtime selection and installed-runtime rollback before requesting activation. No daily daemon/service, credentials, host configuration or native app was changed. Native QA remains explicitly deferred. OH-59 stays In Progress; installed-host RPC/UI, Linux and remaining platform gates stay open. Retain2failedSol/0failedAstra.
+
+The ordinary current checkout `yarn cli:build` passes in27.67s (`.project/logs/tests/oh59-current-cli-dev-build.log`), with existing empty-chunk, deprecation and circular-chunk warnings retained. No archive/installer/release artifact was produced. Canonical `service install --yes --dry-run --json` passes for both source selection and installed-runtime rollback. The source preview rewrites only the existing default-following plist, points it to the existing managed JavaScript launcher plus this checkout's `apps/cli/bin/happier.mjs`, and reloads its existing launchd label. Home, stable channel, at-login policy, desktop bundle ownership and process-group policy are preserved. The current persisted default is cloud; the legacy `com.happier.cli.daemon` plist and loaded job are absent. Its harmless legacy cleanup commands remain explicit in the preview; no localhost or other service is selected for removal. Rollback selects `/Users/Josh/.happier/bin/happier` through the same owner; re-preview immediately before applying because the currently observed installed pointer can change. Private previews: `oh59-mac-source-service-plan.json` and `oh59-mac-installed-service-rollback-plan.json` in `.project/logs/tests/`.
+
+Activation is not authorized yet. A proposed bounded trial would replace/restart only this Mac's cloud service, read metrics through the normal authenticated machine RPC, then restore the installed runtime. It would briefly interrupt daemon control and new launches; existing runners are intended to survive but uninterrupted sessions are not guaranteed. All current fork daemon changes would become live, and rollback cannot undo persisted or outward effects. The localhost service, other hosts and native app stay outside this trial. Focused current service-reload/ownership/stop-session/metrics-authorization coverage passes19tests across4files (`oh59-source-service-admission-focused.log`). An initial shard-runner invocation ignored the requested file filters and was intentionally interrupted with exit130; its partial broader log is not a suite result. Documentation guardrails pass47/47.
+
+### Earlier source and browser evidence
 
 - 🟢 Root independently passes transport/store/render 8 in `/tmp/happier-oh59-ui-root-independent.log`, plus prior encrypted machine/session authorization 4. Render measurement: two fixture rows, eight commits, 12.81ms cumulative React duration, zero session/global store notifications. This is host-test measurement, not native/browser timing.
 - 🟢 First Chrome functional assertions pass 1/1 in 413s: real 180-second cadence, changing actual local Mac readings, explicit older CLI, offline/reconnect and selected-session independence.
@@ -95,6 +269,33 @@ OH-52 phase18 discovery `7ad9ff8d46` is accepted as a source-backed research bou
 OH-70 known-state source/cache is validated through `6a02d6bafd` plus independent selector correction `0be29e28a9`. Shared row action-width ownership fixes real goal and machine hover-target movement without a second hover handler. Author row80 and goal Chrome1 pass. Root independently runs `sessionList.orderingMode.spec.ts` against current source in system Chrome:6/6, exit0,47.7s (`/tmp/happier-oh70-root-integrated-sidebar.log`); exact output is `packages/tests/.project/logs/e2e/oh70-root-sidebar-r1-20261024`. Pin/date, Custom order, agent-before-machine, Same Setup, selection/theme/density and menu hotkeys/reminders remain usable. Root also passes selector16 after independent Sol corrected stale completed/cancelled edit-primary masking the canonical active goal. Reviewer reports104 work-state/row checks plus focused cache/tag checks and UI types green. Both compact light and dark large-text captures were inspected; titles are ellipsized, with complete names in row accessibility labels. Red error/forced-stop policy, native QA and0.3 remain open.
 
 OH-69 source through `0f666c760f` uses the existing authenticated by-local-id route when an ACK lacks stored creation time; API transport/schema and Sync state ownership stay separate. Lookup failure retains accepted pending content without a guessed committed timestamp, and delayed lookup cannot wake a session after account replacement. Independent Astra checks pass owner/API58, scoped auth13 and malformed/recovery3. No further production defect confirmed. The old-ACK browser test remains WIP/failing through `29203696e0`:r1 normal send queued, r2 shortcut settings targeted the wrong storage owner, r3 reached pending/resume instead of socket commit. None proves ACK transport. Stop retries per router BLOCKED; next action is a source-proven reachable UI fixture. Earlier Chrome-r8 proves visibility/history, not socket ACK compatibility. No actual hosted, native or0.3 completion is implied.
+
+October24 read-only diagnosis now identifies why the current fixture cannot select
+its claimed transport. The test creates CLI-version0.2.16 metadata on a fresh
+session from a server that supplies numeric pendingVersion. `submitMode.ts` maps
+that to supported Pending (minimum CLI0.1.0). Although forceImmediate produces an
+agent_queue decision, the final `submitSessionUserMessage.ts` owner explicitly
+enqueues that mode whenever Pending is supported. Its existing test, “persists
+force-immediate input as send_now instead of bypassing Pending,” specifies the
+same outcome. Thus the fixture comment that immediate-send on an inactive
+session takes socket commit is false for these inputs; changing shortcut timing
+cannot establish the expected message ACK or by-local-id lookup.
+
+The exact immutable server-v0.2.17 source at
+`a2c45c86804b24e60ac0b76146a3ef36dfcaa15b` also includes pendingVersion in
+registerSessionCreateOrLoadRoute, registerSessionListingRoutes and v2SessionListRows.
+Stripping that field merely to force direct submission would not emulate this
+producer's contract. Both submit-port adapters still delegate to the same final
+domain owner; no competing routing decision or production correction is needed
+to explain this fixture failure.
+
+No new test or browser run was performed, and no prior failure was relabeled
+green. Routing classification retains BLOCKED/Astra-high and the cumulative
+2Luna/2Sol/3Astra failed browser attempts. A valid next step needs evidence of a
+supported UI/reader state that actually calls the socket-commit owner, or an
+approved amendment to the compatibility proof. The existing WIP fixture remains
+unchanged and failing. Current-server timestamp/history evidence does not prove
+that missing direction; native/hosted acceptance and0.3 remain open.
 
 OH-52 follow-through `c28df42b40` passes route/actions/PR68, UI/E2E types and composed Chrome-r9, with no empty archived Activity heading and both merged identities/reason retained. Read-only ancestry checkpoint `2a119f4899` passes25 disposable cases and CLI types; no executor exists and every cleanup resource remains skipped. Current macOS libproc permission gaps remain an explicit blocker. Canonical app/transcript guidance now labels the new goal/timestamp behavior development-only and keeps acceptance limits next to it.
 
@@ -313,6 +514,322 @@ The newest-parent audit also found cached native permission responses entering t
 Other newest-parent work is not silently treated as adopted. Claude unified native prompts/one ingress/provider response-location settings (`6afa6f093c`, `2c5fb7c687`) are still missing and need a separate CLI/UI compatibility vertical while retaining daily CLI0.2.16. Android background execution, task-manager and native Expo patches remain deferred to a version-aware device gate. The manifest requests Notifications~0.32.11 but the lock/install resolves0.32.16; manifest range alone does not establish patch compatibility. Parent Windows realpath and daemon scope-proof fixture adjustments (`4f15a97be1`, `c517cc5728`) are validation follow-ups, not missing runtime owners. No full merge is warranted by this selective batch.
 
 The separate v0.3 line advances `67f58e65e5`→`7dd34021f8` by one generated profile/share-viewer bundle commit (two changed files). Neither optional destination `../v0.3.x` nor `../0.3` is available; the destination question is already pending. Every adopted intent—systemd PATH drift, fresh-binary repair/inventory attribution, typed RPC/voice errors, header Pin/information including organization actor safety, and notification occurrence/account authority—has its destination disposition [blocked] on that location. No destination code, alias or branch was created. Native macOS acceptance, Linux/Windows service behavior and release gates remain open. OH-12 remains ongoing.
+
+## Additional October24 parent input corrections
+
+Fresh fetch advances parent `dev` from `2bf968563b` to `1b4cd388a0` by three commits;
+the separate `v0.3` pointer advances `7dd34021f8`→`30144c3f23`. Current source already
+contains the runtime settings, prompt settlement and effective-model owners needed
+by the newest CLI patch, independently of pending unified prompt-location work.
+No full merge or daily runtime/version replacement occurs.
+
+`8b3203f59b` selectively adopts upstream `7b8bf2781b`: environment cards publish
+input events directly, synchronize incoming draft values without echo writes, and
+sanitize vault plaintext/fallbacks from the incoming value. Exact card/test bytes
+match upstream. Meaningful RED is3fail/7pass (rapid edits missing, stale vault
+fallback and external prop echo); GREEN47/5files and UI types pass. Real list and
+preview-hook logic remain in the tests, with only daemon RPC replaced.
+
+`fbac3197ac` adopts upstream `54f8e14b17`: the existing timeout/thinking fields use
+step1 rather than30/100, matching the canonical positive-integer schemas. Owner
+tests RED2→GREEN10/2files. Root resolves both immutable `cli-v0.2.16` and
+`ui-desktop-v0.2.17` to `b8d1c449c46ab4dfa8637db36b66f643d149e66d` and reads its
+same positive-integer/nullable schemas and defaults. This repairs existing UI
+validation without changing format, keys or indefinite-wait behavior. Current
+profile/provider broader checks pass22files/77tests; browser fixture types pass.
+
+The browser fixture's first two iterations fail before reaching product acceptance:
+an early optional readiness check misses the disabled Profile switch, and checkbox
+input assumptions miss the dedicated web `Switch.web.tsx` role-based control. The
+second Profile click actually enables Profiles, removing its own switch, so
+`.check()` cannot subsequently observe it. `2f51ff75f5` corrects these fixture
+contracts without forcing input or weakening persistence/vault/default assertions.
+The next actual Chrome run passes2/2 in86s. `929bf22a6a` scrolls the actual numeric
+fields into view for its screenshot; the exact final replay also passes2/2 in73s
+(`oh12-upstream-ui-inputs-r4-chrome.log`). Root inspects both final images: the
+reopened profile retains OH12_OTHER with vault enabled and no fallback editor;
+provider settings retain900/1024 with indefinite waiting enabled. Disabling vault
+in the reopened draft reveals an empty fallback, proving the old value was removed.
+No production regression is inferred from the fixture failures.
+
+`29083c2253` adopts upstream `1b4cd388a0` through the existing nine CLI files. A
+refused queued-prompt settings update rejects before provider effect and returns
+custody to the existing pending delivery owner. Metadata wakes apply permission
+controls alone, without retrying the rejected model/thinking controls. Remote and
+unified prompt acknowledgments stop guessing the running model; the existing
+effective-model observer owns `sessionAppliedModelV1`, including effort-only
+updates only after actual model evidence. Optional compatibility carriers still
+forward explicit applied IDs but no longer infer them from requested selection.
+The same immutable0.2.16 baseline already declares and reads this applied-model
+record; its shape and version remain unchanged.
+
+The fork lacks upstream's `logger.warnFile`; its existing file-only `infoFile`
+with a warning prefix and the redacted completion event satisfy default file and
+user observability without terminal output. Root verifies session default info
+and daemon default debug in `logFileLevel.ts`. The first imported test run's
+missing logger method is harness failure, not valid RED. The adapted deciding
+test then fails because metadata wakes retry the refused model3times. GREEN82/4
+and adjacent207/7 plus CLI types pass. Root independently passes113/4 runner and
+real SessionClient delivery/outcome tests (`oh12-root-settings-refusal-delivery.log`).
+Separate CLI review catches the failure event calling its requested/setter-acknowledged
+snapshot `Current model`, without observed runtime evidence. `f7484f23d5` changes
+only that label to `Model setting`; two existing refusal cases pass,60are filtered
+(`/tmp/happier-oh12-claude-model-setting-label.log`). Independent delta review confirms
+the finding resolved without a new model cache, state or callback. Retain1failedSol
+review cycle for this CLI batch; UI browser retains2parentfixture iterations,
+with no source implementation failure. Canonical docs guards pass47/47. Real provider/native and0.3 destination
+acceptance remain open; no credentials, daemon, service, installed app or hosted
+preference was changed.
+
+Every new intent has its0.3disposition [blocked] on the requested destination:
+profile event/sanitization authority, numeric schema-consistent inputs, and refused
+prompt/observed-model authority. Fresh discovery confirms both optional aliases
+absent; the additional registered worktrees are the immutable0.2.16 reader and an
+OH59fixture checkout whose UI remains0.2.18, not a verified0.3destination. No port,
+alias or worktree was created for this batch. Existing published profile/provider
+documentation already describes the retained semantics, so no new published
+feature claim is added; the canonical internal Claude matrix records the new
+development-source refusal and authority behavior explicitly.
+
+## Source CLI terminal pairing follow-through
+
+OH-4's existing provider-auth browser case can exercise normal CLI terminal login
+against a fresh isolated relay/account, then launch the live-source daemon and
+read the explicit fake Codex's logged-out status. It uses current source symlinks,
+not a packaged release. This is a source-pairing gate; actual vendor execution,
+native restart and the persistent development stack remain separate obligations.
+
+Pre-run source inspection finds fixture isolation incomplete: login inherits
+Codex home/API-key variables, and normal post-authentication reconciliation
+discovers installed services using the OS user home ahead of HOME. `6e6e32dcac`
+sets fixture HOME/USERPROFILE and the existing explicit service user/Happier-home
+overrides for both children, and removes Codex home/API auth overrides. It keeps
+the source entrypoint and existing fake executable explicit; auth bootstrap and
+real-provider/service flags stay disabled. Normal fresh-account authorization is
+performed through the actual isolated UI rather than imported credentials.
+
+Root independently traces service runtime precedence and macOS inventory:
+`discoverInstalledDaemonServiceEntries` reads only the fixture user's absent
+Library/LaunchAgents directory and returns empty before any OS manager command.
+`reconcileDefaultFollowingBackgroundServicesAfterAuthentication` returns on empty
+default-following modes, so no daily-service restart can be selected. Existing
+inventory/discovery tests pass46/2files; fixture typecheck passes. The actual
+browser run remains pending; private authentication logs/URL fragments are not
+printed, uploaded or committed.
+
+The actual system-Chrome source-pairing run now passes1/1 (37s test body,
+109s total; `.project/logs/tests/oh4-auth-terminal-chrome.log`). The unchanged
+user-flow assertions approve terminal login, await CLI exit0, observe the source
+daemon online and create/select-session entry, then detect the explicit fake
+Codex and its Missing credentials state without terminal auth controls.
+The configured integration bootstrap remains disabled.
+
+Root independently opens only the isolated SQLite database read-only and counts
+one Account and one Machine. It verifies the CLI launch's src symlink resolves
+to current repository source, settings select loopback, no Codex credential file
+exists in the fixture home, and no retained daemon state files remain. It does
+not print CLI auth stdout or query credential columns. This does not establish
+all-host process absence or native/real-provider execution. Package fixture
+typecheck and Playwright inventory pass; service inventory/discovery46/2 passes.
+
+The bounded recipe is accepted, not the whole OH-4 issue. Persistent dev-stack
+and real vendor/native/restart acceptance, release-owned Stack archive cases,
+Windows/Linux and the unavailable0.3destination remain separate. No production
+behavior, default CLI/profile, hosted account, daily service or native window
+was changed by this fixture correction or its run.
+
+Independent OH-10 revalidation finds the required `yarn ghops` read-only command
+blocked by its unavailable bot credential. The connected commit-workflow tool
+filters to PR events, so it cannot prove push CI status. A smaller successful
+Linear query returns no OH release pipelines; the first broad pipeline query
+exceeded server complexity and supplies no result. No workflow dispatch, personal
+credential fallback, GitHub admin change or fictitious release was attempted.
+
+### October 25: tool-unpacker natural exit
+
+After the59-commit parent audit at `98c8b26691`, exactly its natural-exit intent
+is adapted through the existing `apps/cli/scripts/unpack-tools.cjs` direct entry
+and pushed as `0053d17620`. Successful unpacking drains the event loop; failure
+keeps the existing error and sets `process.exitCode = 1`. No extraction or runtime
+service policy changes. Verified human upstream author Leeroy Brun is credited;
+the upstream AI trailer is not carried forward.
+
+Tests execute the real child entry against tiny archive fixtures and record any
+forced exit: both cases meaningfully fail RED, then the owner slice passes9
+tests with2filtered archive checks. CLI typecheck passes. Root independently
+passes the two entry cases and the checked-in archive checksum check (3passed,
+8filtered; `.project/logs/tests/oh12-unpack-root-review.log`). Real shipped-archive
+extraction smoke remains unrun; the actual Node24 shutdown deadlock reported by
+upstream was not reproduced. Windows/Linux direct entry was not executed.
+Neither optional sibling0.3 destination exists, so local forward-port verification
+is blocked on its location; upstream describes this fix as already ported from
+0.3, which is not evidence of a verified local destination. The other58 parent
+commits remain unadopted, and no app, daemon, service or release changed.
+
+### October 25 follow-up: three parent commits
+
+Fresh parent dev is `b1d1df22aa`, three commits after the prior `98c8b26691` audit;
+the complete `1b4cd388a0..b1d1df22aa` range has62commits. Parent v0.3 is now
+`0c818f7892`. This fetch and read-only audit do not certify the range as compatible.
+
+`eb8ac55f86` repairs a missing-router TypeError introduced by unadopted notification
+change `d839a34667`. Current BasePermissionHandler still has the direct RPC fallback
+used by the real offline stub; adopting only the repair is the wrong dependency
+boundary. Revisit that notification/router batch with actual occurrence/local-owner
+security checks. `df23b7f7eb` changes test expectations for attempt counters,
+resumed status and exact-session tmux targets; current fork producers retain the
+prior contracts. Those fixtures stay with their respective unadopted runtime batches.
+Root independently inspects these live source differences; no suite is claimed for
+this read-only audit and no CLI permission/recovery/terminal source is changed.
+
+The compatible profiles-documentation intent `b1d1df22aa` is adapted as
+`47adcb75fd` in the existing published profiles page. It describes add-variable,
+saved-secret binding, a separate profile save and future-start scope. Root source
+review verifies the important correction: Use secret vault initially enables Required,
+but the independent card toggle, ProfileEditForm serializer and protocol boolean
+schema permit false afterward. The upstream unconditional requirement is not copied.
+Docs content/types and47tests pass, preserving their existing analytics/module warnings.
+Verified human upstream author is credited; no native/iOS validation, profile/runtime
+change, publication/deployment or0.3destination is implied. Together with the unpacker,
+two intents are adopted from the62-commit range; the other60 have no adoption here.
+
+### October 25 follow-up: complete native approval commands
+
+The next fetch advances parent dev to `29c8454957`, a63-commit range after
+`1b4cd388a0`. Its complete-command display change belongs to the correlated native
+Claude prompt implementation introduced by `338c9dde09`, with read-scope parsing
+from `639cd6990e`. Current fork source lacks both `nativePermissionScreen.ts` and
+the broker's corresponding `resolveVisibleDialog` path. The86-file predecessor
+is a different adoption boundary from this6-file display correction. Keep the
+intent with that native-prompt batch rather than adding another approval owner
+or importing its tests without its producer. This is source/dependency inspection,
+not a tested compatibility verdict or a reproduced fork display defect. Two prior
+intents remain adapted from the63-commit range;61 have no adoption in these batches.
+No provider process, daily CLI/service, native app or release changed.
+
+### October 25 follow-up: isolated tmux host creation
+
+Upstream `d71f3f6c04` and its two-server test refinements (`2f59baded9`,
+`cdfa89fb6a`, `7c58d5979c`, `3eb5bf908e`) are adapted through test checkpoint
+`3d57699769` and source `514fa4f422`. Previously the adapter created the host with
+its ambient tmux client environment but recorded the requested socket root in the
+handle. Creation now selects that root through the existing `TmuxUtilities` owner;
+the same owner ensures the root exists, replacing the daemon-only mkdir.
+Existing handle fields, wire/persistence shapes and shell-argument handling remain.
+
+The real two-server RED starts the child but finds no session in the requested
+root. The same test is GREEN1/1 after the fix;55adjacent owner tests and CLI TS7
+typecheck pass. Root inspects current source and independently reruns the real test
+GREEN1/1 with14other cases filtered (`.project/logs/tests/oh12-tmux-isolated-host-root-review.log`).
+Author RED/GREEN and owner/type logs use the `oh12-tmux-` prefix in the same directory.
+The first root invocation stopped before Vitest because it incorrectly assumed the
+checked-in integration environment file was absent. A key-only audit confirms its
+existing constants use a temporary Happier home, loopback relay and disabled remote
+debug logging, without overriding the disposable OS HOME/XDG values; the rerun then
+passes. No environment file is changed and no credential value is printed.
+
+The private test binary and restricted fixture recipe are documented in
+[Mac test-environment findings](../../fork-development.md#mac-test-environment-findings).
+This validates ASCII macOS subprocess placement/liveness/disposal, not daily-service,
+native-app, Linux/Windows or Unicode acceptance. The broader real integration file
+is not run because it includes a default-server inventory probe. The separate exact
+owning-session target intent `8c7e2f91a3` remains unadopted; missing verified0.3
+destination still blocks this batch's forward-port disposition. No full upstream
+merge or release claim follows from this source correction.
+
+### October 25 follow-up: exact tmux owning-session targets
+
+Upstream `8c7e2f91a3` is adapted through RED checkpoint `2d89c87f43`, source
+`79293c4df1`, bare-ID bypass removal `8aae8243da` and valid-attach proof
+`d873477e23`. The canonical identifier formatter now owns exact-session execution
+for the adapter's liveness/control/disposal, shared killWindow, terminal attach plan
+and shell-quoted manual hints. Daemon unbound disposal supplies its session.
+The stale bare-ID kill shortcut is removed after a real regression demonstrates
+it can destroy the fixture's other-owner window. The initial persisted target
+writer remains unprefixed; both prior `session:window` and `session:@id` reader
+shapes remain supported. These are command-boundary corrections, not a new handle
+format, identity generation, coordination mechanism or protocol migration.
+
+Real REDs prove a recycled window ID admitted under the wrong session, a missing
+window admitted through another live pane, stale attach preflight falsely succeeding
+and bare-ID destruction. Final targeted real checks pass4/4;115owner and60adjacent
+tests plus final CLI TS7 typecheck pass. The valid attach neighbor also succeeds.
+Root reviews the final source/caller sweep and independently reruns5/5 real cases
+including batch1 socket-root creation (`.project/logs/tests/oh12-tmux-owner-root-review.log`),
+with13unselected cases. The stale preflight's expected rejection diagnostic is
+present in the passing log; no interactive native client is opened. Earlier unit
+fixture failures after command/probe changes remain distinct from the meaningful
+OS-level REDs. Manual space-containing hint RED/GREEN is in the existing owner test.
+
+Both live killWindow callers are migrated. The remaining single-window attach
+utility operates on its newly created temporary session and is not a persisted
+host-window ownership bypass. No second formatter or active bare-ID destruction
+path remains in this corridor. Native app/daily runtime, Linux/Windows, Unicode
+and the broader real suite remain unverified for the reasons recorded above.
+The0.3destination is still absent. No merge, deployment or release was performed.
+
+### October 25 follow-up: Claude model and prompt-control proof
+
+The existing fork owners support the corrections in upstream `3482a9101e`,
+`1f7e0edfb5` and `8a8ddce845`; they do not depend on the excluded native-prompt
+feature `338c9dde09`. Model proof is adapted as `d14229af7d`; effort and pending
+control proof follows as `04e0b225d8`. Both checkpoints are pushed. The raw remote,
+Agent SDK and unified transcript producers use the canonical main-chain assistant
+model reader and effective-model callback. Competing launcher-level system-message
+publication is removed. Init, replay, sidechain, synthetic and historical rows are
+excluded from that model evidence. Existing statusline/control observations remain.
+
+The same controller invalidates effort when its model witness changes, retains
+effort for a same-model update, and reads verified effort/Ultracode outcomes through
+one helper. Delivered-but-unverified controls invalidate prior witnesses. The
+before-prompt bridge includes pending intent when computing restoration, so a
+request to return to the committed setting cannot incorrectly skip control.
+No new wire field, persistence format, timer, proof store or runtime owner is added.
+
+Meaningful REDs cover four model-publication failures, three stale-effort failures
+with the same-model neighbor passing, and three pending-restoration/Ultracode
+failures. Author validation passes model owners 135, launcher integration 16,
+model-adjacent 8, controls 79 and controls-adjacent 141, plus CLI TS7 at both
+boundaries. Root reviews the live callback/control corridor and independently
+runs five deciding owner files: 214/214 pass, exit 0,
+`.project/logs/tests/oh12-claude-proof-root-review.log`. The author's initial root-cwd
+invocation failed alias setup before behavior ran; the correct CLI-cwd run passes.
+This does not establish real Claude, native app, or Windows/Linux acceptance.
+The local 0.3 destination remains absent. Daily CLI/services and provider settings
+are unchanged; no full upstream merge or release follows from these source fixes.
+
+### OH-72 sidebar provider usage
+
+Source through `11e451172e` adds the authenticated account-owned usage collection
+operation, shared credential-scoped native polling and Claude/Codex header. It
+reuses connected-profile defaults, exact plain/sealed readers, the catalog service
+resolver, gauge calculation and chat badge/formatter. Header display choice is
+device-local and does not alter authentication or execution bindings. Native
+accounts/scopes remain distinct; friendly labels load through the same exact-record
+owner when the chooser opens. Empty records mean No usage data, not native sign-out.
+Shared closed badges and details qualify stale values; failed refresh retains last
+good values and keeps provider errors isolated. Collapsed rail exposes both providers.
+
+Final isolated Chrome r11 passes3/3, exit0, Playwright28.9s/Yarn29.79s on current
+source after the row fix. It covers native no-chat and friendly choices, headerA29/
+chatB66 then same-account agreement, reload, 250px/collapsed/light/dark, browser
+clock expiry with exact-read503 and retained66/Codex0, old-relay404/disabled, and
+connected default73→native20→connected73. Artifacts:
+`.project/logs/e2e/2026-10-25T18-36-45-970Z-ui-e2e-529f76fa/sidebar-provider-usage/`;
+Playwright output is `packages/tests/.project/logs/e2e/oh72-sidebar-provider-usage-r11-full`.
+The r11 terminal result is tool output, not a saved stdout log; do not invent a log.
+OwnerUI48/server13/protocol14 and UI/server/protocol/E2E types pass. Root independently
+passes server13, owner16 and shared badge9; API OS-storage fixture removes unsupported
+native credential access while keeping the real HTTP/parsing path.
+
+Earlier composed failures were fixture actionability, credential/provider-organization
+identity or source-scope mismatches; the server/client correctly refused those vectors.
+ENOSPC interrupted r4 before acceptance; capacity recovered externally with no deletion.
+A proven stale empty Git lock was preserved by reversible rename; later lock collisions
+were concurrent checkpoints. Native QA is deferred; real provider acceptance, hosted
+relay operation availability and0.3port remain open. No provider configuration, app,
+daily daemon, hosted relay or deployment changed. The published App guide and API/
+compatibility pages describe this development boundary rather than a stable release.
 
 ## Cross-provider model favorites — 2026-10-24
 

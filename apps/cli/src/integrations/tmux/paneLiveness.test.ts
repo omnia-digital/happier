@@ -5,6 +5,10 @@ import { evaluateTmuxPaneLiveness, type TmuxPaneLivenessExecutor } from './paneL
 describe('evaluateTmuxPaneLiveness', () => {
   it('returns live pane metadata from tmux display-message output', async () => {
     const executor: TmuxPaneLivenessExecutor = async (args) => {
+      if (args[0] === 'has-session') {
+        expect(args).toEqual(['has-session', '-t', 'happy:claude.1']);
+        return { returncode: 0, stdout: '', stderr: '', command: [...args] };
+      }
       expect(args).toEqual([
         'display-message',
         '-p',
@@ -27,8 +31,9 @@ describe('evaluateTmuxPaneLiveness', () => {
   it.each([
     '0\t12345\tclaude\n',
     '0_12345_claude\n',
-  ])('accepts legacy tmux liveness output without probing the target again: %s', async (stdout) => {
+  ])('accepts legacy tmux liveness output after resolving the target: %s', async (stdout) => {
     const executor: TmuxPaneLivenessExecutor = async (args) => {
+      if (args[0] === 'has-session') return { returncode: 0, stdout: '', stderr: '', command: [...args] };
       expect(args[0]).toBe('display-message');
       return { returncode: 0, stdout, stderr: '', command: [...args] };
     };
@@ -92,7 +97,7 @@ describe('evaluateTmuxPaneLiveness', () => {
     });
   });
 
-  it('checks the exact target when display-message succeeds with no pane fields', async () => {
+  it('rejects an absent exact target before expanding pane fields', async () => {
     const executor: TmuxPaneLivenessExecutor = async (args) => {
       if (args[0] === 'display-message') {
         return {
@@ -122,7 +127,7 @@ describe('evaluateTmuxPaneLiveness', () => {
     });
   });
 
-  it('keeps malformed successful output inconclusive when the exact-target follow-up is not authoritative', async () => {
+  it('keeps an unauthorized exact-target probe inconclusive', async () => {
     const executor: TmuxPaneLivenessExecutor = async (args) => args[0] === 'display-message'
       ? { returncode: 0, stdout: '\t\t\n', stderr: '', command: [...args] }
       : { returncode: 1, stdout: '', stderr: 'permission denied', command: [...args] };

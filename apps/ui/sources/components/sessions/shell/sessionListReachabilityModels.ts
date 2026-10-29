@@ -1,7 +1,9 @@
-import type { MachineDisplayRenderable } from '@/sync/domains/machines/machineDisplayRenderable';
+import { resolveMachineDisplayScope, type MachineDisplayRenderable } from '@/sync/domains/machines/machineDisplayRenderable';
 import { resolveSessionWorkspacePresentation } from '@/sync/domains/session/listing/sessionWorkspacePresentation';
-import type { SessionListViewItem } from '@/sync/domains/state/storage';
-import { readDisplayMachineTargetForSession } from '@/sync/ops/sessionMachineTarget';
+import { storage, type SessionListViewItem } from '@/sync/domains/state/storage';
+import { findMachineDisplayScope, type MachineDisplayPreferenceScope } from '@/sync/domains/machines/machineDisplayIconPreference';
+import type { MachineCollection } from '@/sync/domains/machines/identity/machineCollection';
+import { readSessionWorkspacePresentation } from '@/sync/ops/sessionMachineTarget';
 import { sessionTagKey } from './sessionTagUtils';
 
 type SessionReachableDisplay = Readonly<{
@@ -84,13 +86,12 @@ function resolveMachineKey(display: SessionReachableDisplay): string {
     return display.machineId ?? display.machineLabel ?? '';
 }
 
-function buildReachabilityMachineDisplaySignature(machines: Readonly<Record<string, MachineDisplayRenderable>>): string {
+function buildReachabilityMachineDisplaySignature(machines: MachineCollection<MachineDisplayRenderable>): string {
     // Display target resolution follows replacement links; workspace presentation reads
     // names and home directories. Presence/heartbeat timestamps affect neither. Keep
     // this cache key local to display derivation, not the machine's live status projection.
-    return JSON.stringify(Object.keys(machines).sort().map((key) => {
-        const machine = machines[key];
-        return [key, machine.id, machine.replacedByMachineId ?? null,
+    return JSON.stringify(Object.values(machines).sort((a, b) => a.id.localeCompare(b.id)).map((machine) => {
+        return [machine.id, machine.replacedByMachineId ?? null,
             machine.metadata?.displayName ?? null, machine.metadata?.host ?? null,
             machine.metadata?.homeDir ?? null];
     }));
@@ -99,20 +100,22 @@ function buildReachabilityMachineDisplaySignature(machines: Readonly<Record<stri
 export function buildSessionReachableDisplay(input: Readonly<{
     item: Extract<SessionListViewItem, { type: 'session' }>;
     machinesById: Readonly<Record<string, MachineDisplayRenderable>>;
+    machineListByServerId?: Readonly<Record<string, readonly MachineDisplayRenderable[] | null | undefined>>;
+    machineDisplayScopes?: Readonly<Record<string, MachineDisplayPreferenceScope>>;
     workspaceLabelsV1: Readonly<Record<string, string>>;
 }>): Readonly<{
     display: SessionReachableDisplay;
     machineKey: string;
     workspace: ReturnType<typeof resolveSessionWorkspacePresentation>;
 }> {
-    const target = readDisplayMachineTargetForSession({
+    const workspace = readSessionWorkspacePresentation({
         sessionId: input.item.session.id,
-        metadata: input.item.session?.metadata ?? null,
-    });
-    const workspace = resolveSessionWorkspacePresentation({
+        serverId: input.item.serverId,
+        activeServerId: input.machineDisplayScopes?.['']?.serverId,
+        resolvedMachineScope: findMachineDisplayScope(input.machineDisplayScopes, input.item.serverId),
         metadata: input.item.session?.metadata ?? null,
         machines: input.machinesById,
-        target,
+        machineListByServerId: input.machineListByServerId,
         workspaceLabelsV1: input.workspaceLabelsV1,
     });
     const display = {
@@ -124,7 +127,7 @@ export function buildSessionReachableDisplay(input: Readonly<{
 
     return {
         display,
-        machineKey: resolveMachineKey(display),
+        machineKey: input.item.serverId ? `${input.item.serverId}\u0000${resolveMachineKey(display)}` : resolveMachineKey(display),
         workspace,
     };
 }
@@ -167,6 +170,8 @@ function areReachabilityModelKeysAndDisplaysEqual(input: Readonly<{
 export function buildSessionListReachabilityModels(input: Readonly<{
     items: ReadonlyArray<SessionListViewItem> | null | undefined;
     machinesById: Readonly<Record<string, MachineDisplayRenderable>>;
+    machineListByServerId?: Readonly<Record<string, readonly MachineDisplayRenderable[] | null | undefined>>;
+    machineDisplayScopes?: Readonly<Record<string, MachineDisplayPreferenceScope>>;
     workspaceLabelsV1: Readonly<Record<string, string>>;
     cache?: SessionListReachabilityModelsCache;
 }>): SessionListReachabilityModels {
@@ -180,7 +185,21 @@ export function buildSessionListReachabilityModels(input: Readonly<{
         return EMPTY_REACHABILITY_MODELS;
     }
 
-    const machineDisplaySignature = buildReachabilityMachineDisplaySignature(input.machinesById);
+    const state = storage.getState();
+    const machineListByServerId = input.machineListByServerId ?? state.machineListByServerId;
+    const signaturesByServer = new Map<string, string>();
+    for (const item of items) {
+        if (item.type !== 'session') continue;
+        const serverId = item.serverId ?? '';
+        if (signaturesByServer.has(serverId)) continue;
+        const scope = resolveMachineDisplayScope({
+            serverId, activeServerId: input.machineDisplayScopes?.['']?.serverId ?? state.profileScope?.serverId,
+            resolvedScope: findMachineDisplayScope(input.machineDisplayScopes, serverId),
+            machines: input.machinesById, machineListByServerId,
+        });
+        signaturesByServer.set(serverId, JSON.stringify([scope.isActive, buildReachabilityMachineDisplaySignature(scope.machines)]));
+    }
+    const machineDisplaySignature = JSON.stringify([...signaturesByServer]);
     const retained = retainedReachabilityModelsByItems.get(items);
     if (
         input.cache
@@ -206,7 +225,7 @@ export function buildSessionListReachabilityModels(input: Readonly<{
         const canReuse = canReuseReachabilityEntry({
             cached,
             item,
-            machineDisplaySignature,
+            machineDisplaySignature: signaturesByServer.get(item.serverId ?? '') ?? '',
             workspaceLabelsV1: input.workspaceLabelsV1,
         });
         const entry: SessionListReachabilityCacheEntry = canReuse && cached
@@ -215,12 +234,14 @@ export function buildSessionListReachabilityModels(input: Readonly<{
                 const result = buildSessionReachableDisplay({
                     item,
                     machinesById: input.machinesById,
+                    machineListByServerId,
+                    machineDisplayScopes: input.machineDisplayScopes,
                     workspaceLabelsV1: input.workspaceLabelsV1,
                 });
                 return {
                     display: result.display,
                     machineKey: result.machineKey,
-                    machineDisplaySignature,
+                    machineDisplaySignature: signaturesByServer.get(item.serverId ?? '') ?? '',
                     session: item.session,
                     workspaceLabelsV1: input.workspaceLabelsV1,
                 } satisfies SessionListReachabilityCacheEntry;

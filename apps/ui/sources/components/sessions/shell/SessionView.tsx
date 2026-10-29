@@ -104,7 +104,7 @@ import { buildNewSessionSourceContextNavigation } from '@/components/sessions/ne
 import { resolveNewSessionDraftRouteIdentity } from '@/components/sessions/new/navigation/newSessionDraftRouteIdentity';
 import { buildNewSessionLaunchRouteParams } from '@/components/sessions/new/navigation/newSessionRouteParams';
 import { sessionAbort, resumeSession } from '@/sync/ops';
-import { storage, useActiveServerAccountScope, useEndpointConnectivity, useIsDataReady, useLaunchSelectionMachines, useLocalSetting, useMachine, useOpenApprovalArtifactsForSession, useProfile, useRealtimeStatus, useSessionAutomationsEnabledCount, useSessionConnectedServiceAccountSwitchEvents, useSessionMessages, useSessionOrganizationProjection, useSessionPendingMessages, useSessionTranscriptIds, useSessionUsage, useSessionVisibleReadSeq, useSetting, useSettingMutable, useSettings, useSocketStatus, useSyncError, useWorkspaceReviewCommentsDrafts } from '@/sync/domains/state/storage';
+import { storage, useActiveServerAccountScope, useEndpointConnectivity, useIsDataReady, useLocalSetting, useMachine, useOpenApprovalArtifactsForSession, useProfile, useRealtimeStatus, useSessionAutomationsEnabledCount, useSessionConnectedServiceAccountSwitchEvents, useSessionMessages, useSessionOrganizationProjection, useSessionPendingMessages, useSessionTranscriptIds, useSessionUsage, useSessionVisibleReadSeq, useSetting, useSettingMutable, useSettings, useSocketStatus, useSyncError, useWorkspaceReviewCommentsDrafts } from '@/sync/domains/state/storage';
 import { canContinueSessionWithFreshSpawn, canResumeSessionWithOptions } from '@/agents/runtime/resumeCapabilities';
 import { DEFAULT_AGENT_ID, getAgentCore, resolveAgentIdFromFlavor, buildResumeSessionExtrasFromUiState } from '@/agents/catalog/catalog';
 import {
@@ -176,7 +176,6 @@ import type { ModelMode, PermissionMode } from '@/sync/domains/permissions/permi
 import { getPermissionModeOverrideForSpawn } from '@/sync/domains/permissions/permissionModeOverride';
 import { getPermissionModeLabelForAgentType, getPermissionModeTitleForAgentType } from '@/sync/domains/permissions/permissionModeOptions';
 import { getModelOverrideForSpawn } from '@/sync/domains/models/modelOverride';
-import { readDisplayMachineTargetForSession } from '@/sync/ops/sessionMachineTarget';
 import { useSessionMachineControlTarget, useSessionMachineTarget } from '@/components/sessions/model/useSessionMachineTarget';
 import { useSessionRecipientState } from '@/components/sessions/agentInput/routing/useSessionRecipientState';
 import {
@@ -227,7 +226,7 @@ import {
 import { submitSessionUserMessage } from '@/sync/domains/session/input/submitSessionUserMessage';
 import { createSyncBackedSubmitPort } from '@/sync/domains/session/input/syncBackedSubmitPort';
 import { isSessionLocallyAttached } from '@/sync/domains/session/control/sessionLocalControl';
-import { resolveSessionWorkspacePresentation } from '@/sync/domains/session/listing/sessionWorkspacePresentation';
+import { useSessionWorkspacePresentation } from '@/components/sessions/model/useSessionWorkspacePresentation';
 import { isModelSelectableForSession, type SessionModelOptionsContext } from '@/sync/domains/models/modelOptions';
 import { favoriteModelSelectionMatchesBackend, toggleFavoriteModelSelection, type FavoriteModelSelectionV1 } from '@/sync/domains/models/favoriteModelSelections';
 import { getInactiveSessionUiState } from '@/components/sessions/model/inactiveSessionUi';
@@ -236,9 +235,9 @@ import { useCLIDetection } from '@/hooks/auth/useCLIDetection';
 import {
     computeConnectedServiceQuotaGaugeViewModel,
     selectConnectedServiceSessionProviderUsageGaugeSource,
-    type ConnectedServiceQuotaGaugeLabelFormatter,
     type ConnectedServiceQuotaGaugeWindowMode,
 } from '@/sync/domains/connectedServices/connectedServiceQuotaGauge';
+import { connectedServiceQuotaGaugeFormatter } from '@/sync/domains/connectedServices/connectedServiceQuotaGaugeFormatter';
 import { resolveConnectedServiceQuotaRecoveryCreditReceiptNoticeKey } from '@/sync/domains/connectedServices/connectedServiceQuotaRecoveryCreditReceiptPresentation';
 import { useConnectedServiceQuotaSnapshots } from '@/hooks/server/connectedServices/useConnectedServiceQuotaSnapshots';
 import { useConnectedServiceAuthGroupsQuery } from '@/hooks/server/connectedServices/useConnectedServiceAuthGroupsQuery';
@@ -591,23 +590,6 @@ function resolveConnectedServiceProviderDisplayName(serviceId: string): string |
     if (!parsed.success) return null;
     return resolveConnectedServiceDisplayName(parsed.data, t);
 }
-
-const connectedServiceQuotaGaugeFormatter: ConnectedServiceQuotaGaugeLabelFormatter = {
-    unavailable: () => t('common.unavailable'),
-    remaining: ({ percent }) => t('agentInput.providerUsage.remaining', { percent }),
-    remainingWithReset: ({ percent, reset }) => t('agentInput.providerUsage.remainingWithReset', { percent, reset }),
-    used: ({ used, limit }) => t('agentInput.providerUsage.usedCount', { used, limit }),
-    durationNow: () => t('agentInput.providerUsage.duration.now'),
-    durationOutdated: () => t('agentInput.providerUsage.duration.outdated'),
-    durationDaysHours: ({ days, hours }) => t('agentInput.providerUsage.duration.daysHours', { days, hours }),
-    durationHoursMinutes: ({ hours, minutes }) => t('agentInput.providerUsage.duration.hoursMinutes', { hours, minutes }),
-    durationHours: ({ hours }) => t('agentInput.providerUsage.duration.hours', { hours }),
-    durationMinutes: ({ minutes }) => t('agentInput.providerUsage.duration.minutes', { minutes }),
-    subscriptionEnds: ({ date }) => t('connectedServices.subscription.ends', { date }),
-    subscriptionEndsInDays: ({ days }) => t('connectedServices.subscription.endsInDays', { days }),
-    subscriptionRenews: ({ date }) => t('connectedServices.subscription.renews', { date }),
-    subscriptionRenewsInDays: ({ days }) => t('connectedServices.subscription.renewsInDays', { days }),
-};
 
 function isOwnedSessionRootPathname(pathname: string | null | undefined, sessionId: string): boolean {
     const normalizedPathname = typeof pathname === 'string' ? pathname.trim() : '';
@@ -1656,14 +1638,6 @@ export const SessionView = React.memo((props: SessionViewProps) => {
                 lastErrorMessage: null,
             };
     const syncError = useSyncError();
-    const allMachines = useLaunchSelectionMachines();
-    const machinesById = React.useMemo(() => {
-        const next: Record<string, (typeof allMachines)[number]> = {};
-        for (const machine of allMachines) {
-            next[machine.id] = machine;
-        }
-        return next;
-    }, [allMachines]);
     const sessionOrganizationProjection = useSessionOrganizationProjection(currentSessionRouteServerId);
     const organizationListViewState = React.useMemo(() => buildSessionOrganizationListViewState({
         serverId: currentSessionRouteServerId,
@@ -1671,19 +1645,13 @@ export const SessionView = React.memo((props: SessionViewProps) => {
     }), [currentSessionRouteServerId, sessionOrganizationProjection]);
     const workspaceLabelsV1 = organizationListViewState.workspaceLabelsV1;
     const workspacePathDisplayModeV1 = useSetting('workspacePathDisplayModeV1');
-    const sessionWorkspacePresentation = React.useMemo(() => {
-        if (!stableSessionForHeader) return null;
-        return resolveSessionWorkspacePresentation({
-            metadata: stableSessionForHeader.metadata ?? null,
-            machines: machinesById,
-            target: readDisplayMachineTargetForSession({
-                sessionId: stableSessionForHeader.id,
-                metadata: stableSessionForHeader.metadata ?? null,
-            }),
-            workspaceLabelsV1,
-            workspacePathDisplayModeV1,
-        });
-    }, [machinesById, stableSessionForHeader, workspaceLabelsV1, workspacePathDisplayModeV1]);
+    const sessionWorkspacePresentation = useSessionWorkspacePresentation({
+        serverId: currentSessionRouteServerId,
+        sessionId: stableSessionForHeader?.id,
+        metadata: stableSessionForHeader?.metadata ?? null,
+        workspaceLabelsV1,
+        workspacePathDisplayModeV1,
+    });
     const sessionEncryptionMode: 'e2ee' | 'plain' = (session?.encryptionMode ?? 'e2ee');
     const isEncryptedSessionLocked = Boolean(session && sessionEncryptionMode === 'e2ee' && !hasAuthCredentials);
     const showTopHeader = !(isLandscape && deviceType === 'phone' && Platform.OS !== 'web');

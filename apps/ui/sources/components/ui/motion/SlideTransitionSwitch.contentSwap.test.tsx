@@ -102,19 +102,32 @@ describe('SlideTransitionSwitch (discrete adapter)', () => {
         expect(screen.findByTestId('step-a')).not.toBeNull();
     });
 
-    it('keeps outgoing children mounted while a forward transition is in flight', async () => {
+    it('keeps the latest same-key children mounted as the outgoing layer during a forward transition', async () => {
         springControls.fireCallbackImmediately = false;
         const { SlideTransitionSwitch } = await import('./SlideTransitionSwitch');
-        const screen = await renderScreen(
-            <SlideTransitionSwitch contentKey="a" direction="forward" testID="switch">
-                <Text testID="step-a">A</Text>
-            </SlideTransitionSwitch>,
+        const commits: string[] = [];
+        const onRender: React.ProfilerOnRenderCallback = (_id, phase) => { commits.push(phase); };
+        const content = (key: string, children: React.ReactNode) => (
+            <React.Profiler id="same-key-content" onRender={onRender}>
+                <SlideTransitionSwitch contentKey={key} direction="forward" testID="switch">
+                    {children}
+                </SlideTransitionSwitch>
+            </React.Profiler>
         );
+        const screen = await renderScreen(
+            content('a', <Text testID="step-a-original">A</Text>),
+        );
+        commits.length = 0;
+        await screen.update(
+            content('a', <Text testID="step-a">Updated A</Text>),
+        );
+        expect(screen.findByTestId('step-a-original')).toBeNull();
+        expect(screen.findByTestId('step-a')).not.toBeNull();
+        // Retaining the next outgoing snapshot must not publish a second render.
+        expect(commits).toEqual(['update']);
 
         await screen.update(
-            <SlideTransitionSwitch contentKey="b" direction="forward" testID="switch">
-                <Text testID="step-b">B</Text>
-            </SlideTransitionSwitch>,
+            content('b', <Text testID="step-b">B</Text>),
         );
 
         // During the in-flight transition: outgoing (A) is current, incoming (B) is next.

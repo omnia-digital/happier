@@ -182,6 +182,22 @@ describe('useConnectedServiceQuotaSnapshots', () => {
     await hook.unmount();
   });
 
+  it('exposes a connected quota read failure for the selected profile', async () => {
+    getConnectedServiceQuotaSnapshotPlainSpy.mockRejectedValueOnce(new Error('relay unavailable'));
+
+    const { useConnectedServiceQuotaSnapshots } = await import('./useConnectedServiceQuotaSnapshots');
+    const hook = await renderHook(
+      (props: ProfileRef) => useConnectedServiceQuotaSnapshots([props]),
+      { initialProps: { serviceId: 'anthropic', profileId: 'work' } },
+    );
+
+    await flushHookEffects({ cycles: 5, turns: 5 });
+    expect(hook.getCurrent().snapshotsByKey['anthropic/work']).toBeNull();
+    expect(hook.getCurrent().loadingByKey['anthropic/work']).toBe(false);
+    expect(hook.getCurrent().errorByKey['anthropic/work']).toBeTruthy();
+    await hook.unmount();
+  });
+
   it('does not expose cached quota snapshots during credential changes before reset effects run', async () => {
     getConnectedServiceQuotaSnapshotPlainSpy.mockResolvedValue(makeQuotaSnapshot({ serviceId: 'anthropic', meterId: 'old-token' }));
 

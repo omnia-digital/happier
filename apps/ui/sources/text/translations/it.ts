@@ -4847,6 +4847,14 @@ export const it: TranslationStructure = {
   },
 
   settingsAppearance: {
+    sections: {
+      global: 'Generale',
+      leftSidebar: 'Barra laterale sinistra',
+      taskView: 'Vista attività',
+      sidebarSettings: 'Layout della barra laterale',
+      sidebarSettingsDescription: 'Layout delle schede, identità della macchina e organizzazione delle sessioni',
+      sidebarGlobalDefaults: 'Le dimensioni del testo e la densità degli elementi usano le impostazioni globali.',
+    },
     tabBarAppearance: {
       title: 'Barra schede',
       footer: 'Personalizza la barra delle schede in basso.',
@@ -6909,6 +6917,9 @@ export const it: TranslationStructure = {
     renameWorkspacePromptPlaceholder: 'Inserisci un nome...',
     resetWorkspaceName: 'Reimposta nome',
     viewOptions: 'Opzioni vista',
+    noGrouping: 'Nessun raggruppamento',
+    groupMenu: 'Raggruppa',
+    sortMenu: 'Ordina',
     searchSessions: 'Cerca sessioni',
     searchSessionsPlaceholder: 'Cerca sessioni...',
     filterByTags: 'Filtra per tag',
@@ -7529,6 +7540,16 @@ export const it: TranslationStructure = {
 
   sidebar: {
     sessionsTitle: "Happier",
+      providerUsage: {
+          native: "Nativo",
+          disabled: "L'utilizzo è disattivato",
+          discoveryUnsupported: "L'utilizzo nativo non è disponibile su questo relay",
+          discoveryError: "Impossibile aggiornare l'utilizzo nativo",
+          chooseAccount: "Scegli account",
+          noUsageData: "Nessun dato di utilizzo",
+          lastKnownRefreshFailed: "Ultimo dato · aggiornamento non riuscito",
+          openUsage: "Mostra utilizzo abbonamento",
+      },
   },
 
   toolView: {

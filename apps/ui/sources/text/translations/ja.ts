@@ -4794,6 +4794,14 @@ localTailscale: {
   },
 
   settingsAppearance: {
+    sections: {
+      global: '全般',
+      leftSidebar: '左サイドバー',
+      taskView: 'タスクビュー',
+      sidebarSettings: 'サイドバーのレイアウト',
+      sidebarSettingsDescription: 'カードレイアウト、マシンの識別情報、セッションの整理',
+      sidebarGlobalDefaults: 'テキストサイズと項目の密度にはグローバル設定が使われます。',
+    },
     tabBarAppearance: {
       title: 'タブバー',
       footer: '下部のタブバーをカスタマイズします。',
@@ -6830,6 +6838,9 @@ localTailscale: {
     renameWorkspacePromptPlaceholder: '名前を入力...',
     resetWorkspaceName: '名前をリセット',
     viewOptions: '表示オプション',
+    noGrouping: 'グループ化しない',
+    groupMenu: 'グループ化',
+    sortMenu: '並べ替え',
     searchSessions: 'セッションを検索',
     searchSessionsPlaceholder: 'セッションを検索...',
     filterByTags: 'タグで絞り込み',
@@ -7458,6 +7469,16 @@ localTailscale: {
 
   sidebar: {
     sessionsTitle: "Happier",
+      providerUsage: {
+          native: "ネイティブ",
+          disabled: "使用量の表示はオフです",
+          discoveryUnsupported: "このリレーではネイティブの使用量を確認できません",
+          discoveryError: "ネイティブの使用量を更新できませんでした",
+          chooseAccount: "アカウントを選択",
+          noUsageData: "利用状況データがありません",
+          lastKnownRefreshFailed: "前回のデータ · 更新失敗",
+          openUsage: "サブスクリプションの使用状況を表示",
+      },
   },
 
   toolView: {

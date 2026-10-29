@@ -4451,6 +4451,14 @@ export const ru: TranslationStructure = {
   },
 
   settingsAppearance: {
+    sections: {
+      global: 'Общие',
+      leftSidebar: 'Левая боковая панель',
+      taskView: 'Вид задач',
+      sidebarSettings: 'Макет боковой панели',
+      sidebarSettingsDescription: 'Макет карточек, идентификация компьютера и организация сессий',
+      sidebarGlobalDefaults: 'Размер текста и плотность элементов используют общие настройки.',
+    },
     tabBarAppearance: {
       title: 'Панель вкладок',
       footer: 'Настройте нижнюю панель вкладок.',
@@ -5482,6 +5490,9 @@ export const ru: TranslationStructure = {
     renameWorkspacePromptPlaceholder: 'Введите название...',
     resetWorkspaceName: 'Сбросить название',
     viewOptions: 'Параметры вида',
+    noGrouping: 'Без группировки',
+    groupMenu: 'Группировать',
+    sortMenu: 'Сортировать',
     searchSessions: 'Поиск сеансов',
     searchSessionsPlaceholder: 'Поиск сеансов...',
     filterByTags: 'Фильтр по тегам',
@@ -7188,6 +7199,16 @@ export const ru: TranslationStructure = {
 
   sidebar: {
     sessionsTitle: "Happier",
+      providerUsage: {
+          native: "Нативный",
+          disabled: "Показ использования отключён",
+          discoveryUnsupported: "Нативное использование недоступно на этом сервере",
+          discoveryError: "Не удалось обновить нативное использование",
+          chooseAccount: "Выбрать аккаунт",
+          noUsageData: "Нет данных об использовании",
+          lastKnownRefreshFailed: "Последние данные · обновление не удалось",
+          openUsage: "Показать использование подписки",
+      },
   },
 
   toolView: {

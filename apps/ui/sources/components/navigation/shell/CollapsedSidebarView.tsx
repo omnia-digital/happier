@@ -20,6 +20,8 @@ import { fireAndForget } from '@/utils/system/fireAndForget';
 import { ActionOperationActivityButton } from '@/components/inbox/actionOperations/ActionOperationActivityButton';
 import { InboxPopoverButton } from '@/components/inbox/InboxPopoverButton';
 import { UpdatesEntry } from '@/components/updates/UpdatesPopoverButton';
+import { Icon } from '@/components/ui/icons/Icon';
+import { PressableSurface } from '@/components/ui/interaction/PressableSurface';
 import type { InboxSummary } from '@/hooks/inbox/useInboxSummary';
 
 export type CollapsedSidebarViewProps = Readonly<{
@@ -131,6 +133,19 @@ export const CollapsedSidebarView = React.memo((props: CollapsedSidebarViewProps
                     buttonSize={32}
                     iconSize={DESKTOP_SIDEBAR_CHROME_ICON_GLYPH_SIZE_PX}
                 />
+                {Platform.OS === 'web' ? (
+                    <PressableSurface
+                        testID="collapsed-sidebar-provider-usage-button"
+                        onPress={handleExpand}
+                        style={styles.button}
+                        accessibilityRole="button"
+                        accessibilityLabel={t('sidebar.providerUsage.openUsage')}
+                        focusRingRadius={8}
+                        webTooltip={t('sidebar.providerUsage.openUsage')}
+                    >
+                        <Icon name="speedometer" size={DESKTOP_SIDEBAR_CHROME_ICON_GLYPH_SIZE_PX} color={theme.colors.chrome.header.foreground} />
+                    </PressableSurface>
+                ) : null}
                 {Platform.OS === 'web' ? (
                     <Pressable
                         testID="sidebar-expand-button"

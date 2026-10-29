@@ -4534,6 +4534,14 @@ export const pl: TranslationStructure = {
   },
 
   settingsAppearance: {
+    sections: {
+      global: 'Ogólne',
+      leftSidebar: 'Lewy pasek boczny',
+      taskView: 'Widok zadań',
+      sidebarSettings: 'Układ paska bocznego',
+      sidebarSettingsDescription: 'Układ kart, tożsamość maszyny i organizacja sesji',
+      sidebarGlobalDefaults: 'Rozmiar tekstu i gęstość elementów korzystają z ustawień ogólnych.',
+    },
     tabBarAppearance: {
       title: 'Pasek kart',
       footer: 'Dostosuj dolny pasek kart.',
@@ -6582,6 +6590,9 @@ export const pl: TranslationStructure = {
     renameWorkspacePromptPlaceholder: 'Wprowadź nazwę...',
     resetWorkspaceName: 'Resetuj nazwę',
     viewOptions: 'Opcje widoku',
+    noGrouping: 'Bez grupowania',
+    groupMenu: 'Grupuj',
+    sortMenu: 'Sortuj',
     searchSessions: 'Szukaj sesji',
     searchSessionsPlaceholder: 'Szukaj sesji...',
     filterByTags: 'Filtruj według tagów',
@@ -7205,6 +7216,16 @@ export const pl: TranslationStructure = {
 
   sidebar: {
     sessionsTitle: "Happier",
+      providerUsage: {
+          native: "Natywne",
+          disabled: "Wyświetlanie użycia jest wyłączone",
+          discoveryUnsupported: "Natywne użycie jest niedostępne na tym serwerze",
+          discoveryError: "Nie udało się odświeżyć natywnego użycia",
+          chooseAccount: "Wybierz konto",
+          noUsageData: "Brak danych o użyciu",
+          lastKnownRefreshFailed: "Ostatnie dane · odświeżanie nie powiodło się",
+          openUsage: "Pokaż wykorzystanie subskrypcji",
+      },
   },
 
   toolView: {

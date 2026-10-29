@@ -4499,6 +4499,14 @@ export const es: TranslationStructure = {
   },
 
   settingsAppearance: {
+    sections: {
+      global: 'General',
+      leftSidebar: 'Barra lateral izquierda',
+      taskView: 'Vista de tareas',
+      sidebarSettings: 'Diseño de la barra lateral',
+      sidebarSettingsDescription: 'Diseño de tarjetas, identidad de la máquina y organización de sesiones',
+      sidebarGlobalDefaults: 'El tamaño del texto y la densidad de los elementos usan la configuración global.',
+    },
     tabBarAppearance: {
       title: 'Barra de pestañas',
       footer: 'Personaliza la barra de pestañas inferior.',
@@ -6564,6 +6572,9 @@ export const es: TranslationStructure = {
     renameWorkspacePromptPlaceholder: 'Introduce un nombre...',
     resetWorkspaceName: 'Restablecer nombre',
     viewOptions: 'Opciones de vista',
+    noGrouping: 'Sin agrupación',
+    groupMenu: 'Agrupar',
+    sortMenu: 'Ordenar',
     searchSessions: 'Buscar sesiones',
     searchSessionsPlaceholder: 'Buscar sesiones...',
     filterByTags: 'Filtrar por etiquetas',
@@ -7186,6 +7197,16 @@ export const es: TranslationStructure = {
 
   sidebar: {
     sessionsTitle: "Happier",
+      providerUsage: {
+          native: "Nativo",
+          disabled: "El uso está desactivado",
+          discoveryUnsupported: "El uso nativo no está disponible en este servidor",
+          discoveryError: "No se pudo actualizar el uso nativo",
+          chooseAccount: "Elegir cuenta",
+          noUsageData: "No hay datos de uso",
+          lastKnownRefreshFailed: "Último dato · error al actualizar",
+          openUsage: "Mostrar uso de suscripción",
+      },
   },
 
   toolView: {

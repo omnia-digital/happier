@@ -251,6 +251,16 @@ or applied model.
 Runtime catalog timestamps describe model-list observations. Current-model-only updates preserve
 that timestamp, so applied-model telemetry cannot make an old list override a newer probe.
 
+In development source, Claude's remote and Agent SDK message paths confirm the
+observed model from live main-chain assistant rows before message normalization.
+System initialization, replay, sidechain and synthetic error rows do not confirm
+the running model. Unified transcripts use the same model reader and exclude
+historical or other-runner rows. These transports publish through the existing
+effective-model callback; the launcher does not independently infer a model from
+system messages. Existing statusline and verified-control observations retain
+their own producer paths. This does not change catalog membership or persisted
+metadata shapes and has not been accepted against a real Claude process here.
+
 A provider that publishes `sessionModelsV1` from its runtime and is left on `'static-only'` has an
 active producer with its consumer gated off — the published list is silently discarded. Flipping
 that flag is a user-visible change: the app switches to the dynamic row builder, which carries less

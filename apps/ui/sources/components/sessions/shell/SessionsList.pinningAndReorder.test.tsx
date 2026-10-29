@@ -10,6 +10,7 @@ import {
     standardCleanup,
 } from '@/dev/testkit';
 import type { SessionOrganizationProjection } from '@/sync/domains/session/organization/types';
+import { storage } from '@/sync/domains/state/storageStore';
 import { HappyError } from '@/utils/errors/errors';
 import { installSessionShellCommonModuleMocks } from './sessionShellTestHelpers';
 
@@ -58,6 +59,7 @@ const tokenStorageMocks = vi.hoisted(() => ({
 let sessionOrganizationProjection: SessionOrganizationProjection | null = null;
 
 const groupKey = 'server:server_a:day:2026-02-17';
+const initialStorageState = storage.getState();
 
 const sessionA = {
     id: 'sess_a',
@@ -139,17 +141,6 @@ installSessionShellCommonModuleMocks({
                     connectedServiceCredentialRevisionsV1: [],
                 }),
                 useAllMachines: () => mockMachinesState.current,
-                useMachineDisplayById: () => Object.fromEntries(mockMachinesState.current.map((machine) => [
-                    machine.id,
-                    {
-                        updatedAt: 0,
-                        active: true,
-                        activeAt: 0,
-                        revokedAt: null,
-                        metadataVersion: 1,
-                        ...machine,
-                    },
-                ])),
                 useSettingMutable: (key: string) => {
                     if (key === 'hideInactiveSessions') return [hideInactiveSessions, vi.fn()];
                     if (key === 'pinnedSessionKeysV1') return [pinnedSessionKeysV1, setPinnedSessionKeysV1];
@@ -246,6 +237,7 @@ vi.mock('@/sync/domains/server/serverProfiles', async (importOriginal) => {
     const actual = await importOriginal<typeof import('@/sync/domains/server/serverProfiles')>();
     return {
         ...actual,
+        getActiveServerId: () => 'server_a',
         getServerProfileById: (serverId: string) => {
             if (serverId !== 'server_a') return null;
             return {
@@ -415,7 +407,7 @@ function createEmptySessionOrganizationProjection(): SessionOrganizationProjecti
 }
 
 describe('SessionsList pinning + per-group ordering', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
         pinnedSessionKeysV1 = [];
         sessionListGroupOrderV1 = {};
         sessionTagsV1 = {};
@@ -433,8 +425,12 @@ describe('SessionsList pinning + per-group ordering', () => {
         hideInactiveSessions = false;
         sessionListAttentionPromotionMode = null;
         sessionListAttentionStandingDefault = false;
-        const { storage } = await import('@/sync/domains/state/storage');
-        storage.setState({ sessions: {}, machines: {} });
+        storage.setState({
+            profileScope: { serverId: 'server_a', accountId: 'account_a' },
+            sessions: {},
+            machines: {},
+            machineDisplayById: {},
+        });
         mockMachinesState.current = [];
         sessionOrganizationProjection = createEmptySessionOrganizationProjection();
         resetVisibleSessionListViewData();
@@ -442,6 +438,7 @@ describe('SessionsList pinning + per-group ordering', () => {
 
     afterEach(() => {
         standardCleanup();
+        storage.setState(initialStorageState, true);
     });
 
     it('carries the stored attention standing into every row model it builds', async () => {
@@ -797,11 +794,14 @@ describe('SessionsList pinning + per-group ordering', () => {
             metadata: { machineId: 'machine-stale-2', host: 'Old workstation 2', path: '/home/u/stale-b', homeDir: '/home/u' },
         } as any;
 
-        const { storage } = await import('@/sync/domains/state/storage');
         storage.setState({
+            machineDisplayById: Object.fromEntries(mockMachinesState.current.map((machine) => [
+                machine.id,
+                { id: machine.id, updatedAt: 0, active: true, activeAt: 0, metadataVersion: 1, metadata: machine.metadata },
+            ])),
             sessions: {
-                [sess1.id]: { ...sess1, metadata: { ...sess1.metadata, machineId: 'machine-live-1', path: '/home/u/live-a' } },
-                [sess2.id]: { ...sess2, metadata: { ...sess2.metadata, machineId: 'machine-live-2', path: '/home/u/live-b' } },
+                sess_live_1: { ...sess1, metadata: { ...sess1.metadata, machineId: 'machine-live-1', path: '/home/u/live-a' } },
+                sess_live_2: { ...sess2, metadata: { ...sess2.metadata, machineId: 'machine-live-2', path: '/home/u/live-b' } },
             },
         });
 
@@ -880,11 +880,14 @@ describe('SessionsList pinning + per-group ordering', () => {
             metadata: { machineId: 'machine-stale-2', host: 'Old workstation 2', path: '/home/u/stale-b', homeDir: '/home/u' },
         } as any;
 
-        const { storage } = await import('@/sync/domains/state/storage');
         storage.setState({
+            machineDisplayById: Object.fromEntries(mockMachinesState.current.map((machine) => [
+                machine.id,
+                { id: machine.id, updatedAt: 0, active: true, activeAt: 0, metadataVersion: 1, metadata: machine.metadata },
+            ])),
             sessions: {
-                [sess1.id]: { ...sess1, metadata: { ...sess1.metadata, machineId: 'machine-live-1', path: '/home/u/live-a' } },
-                [sess2.id]: { ...sess2, metadata: { ...sess2.metadata, machineId: 'machine-live-2', path: '/home/u/live-b' } },
+                sess_live_1: { ...sess1, metadata: { ...sess1.metadata, machineId: 'machine-live-1', path: '/home/u/live-a' } },
+                sess_live_2: { ...sess2, metadata: { ...sess2.metadata, machineId: 'machine-live-2', path: '/home/u/live-b' } },
             },
         });
 

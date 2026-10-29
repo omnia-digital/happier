@@ -5,9 +5,9 @@ import { createSessionFixture } from '@/dev/testkit/fixtures/sessionFixtures';
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
 import { useSessionRepositoryView } from '../view-state/useSessionRepositoryView';
 import { persistSessionListFolders } from './persistSessionListFolders';
-import { storage, readSessionOrganizationFolders } from '@/sync/domains/state/storage';
+import { storage, readSessionOrganizationFolders, useSessionOrganizationProjections } from '@/sync/domains/state/storage';
 import { buildSessionOrganizationProjection } from '@/sync/domains/session/organization/projection';
-import { buildSessionOrganizationListViewState } from '@/sync/domains/session/organization/viewState';
+import { buildSessionOrganizationListViewState, buildSessionOrganizationListViewStateForServers } from '@/sync/domains/session/organization/viewState';
 import { persistSessionListGroupOrder } from './persistSessionListGroupOrder';
 
 const boundary = vi.hoisted(() => ({ credentials: vi.fn(), reorder: vi.fn(), upsertFolder: vi.fn() }));
@@ -57,6 +57,84 @@ function orders(serverId: string) {
 }
 
 describe('session list group order persistence', () => {
+    it('restores a reverse Home block after a valid within-Home flat reorder', async () => {
+        const items: SessionListViewItem[] = [
+            { type: 'header', headerKind: 'active', title: 'Active' },
+            { type: 'header', headerKind: 'project', title: 'Foreign', groupKey: 'project-b', serverId: 'home-b' },
+            ...['b1', 'b2'].map(id => ({ type: 'session' as const, serverId: 'home-b', groupKey: 'project-b', groupKind: 'project' as const,
+                session: createSessionFixture({ id, serverId: 'home-b' }),
+            })),
+            { type: 'header', headerKind: 'project', title: 'Local', groupKey: 'project-a', serverId: 'home-a' },
+            { type: 'session', serverId: 'home-a', groupKey: 'project-a', groupKind: 'project', session: createSessionFixture({ id: 'a', serverId: 'home-a' }) },
+        ];
+        const useView = () => {
+            const projections = useSessionOrganizationProjections(['home-b', 'home-a']);
+            const groupOrder = buildSessionOrganizationListViewStateForServers(projections).sessionListGroupOrderV1;
+            return useSessionRepositoryView({ items, mode: 'flat', setMode: () => {}, onFailure: () => {}, groupOrder, orderingMode: 'custom' });
+        };
+        const hook = await renderHook(useView);
+        const flatKey = hook.getCurrent().items?.find(item => item.type === 'session')?.groupKey;
+        await vi.waitFor(() => expect(hook.getCurrent().orderScopes[flatKey!]?.map(value => value.serverId).sort()).toEqual(['home-a', 'home-b']));
+        await act(async () => { await persistSessionListGroupOrder({
+            currentOrder: hook.getCurrent().groupOrder,
+            nextOrder: { ...hook.getCurrent().groupOrder, [flatKey!]: ['home-b:b2', 'home-b:b1', 'home-a:a'] },
+            defaultServerId: 'home-a', groupScopes: hook.getCurrent().orderScopes,
+        }); });
+        expect(orders('home-b')[flatKey!]).toEqual(['home-b:b2', 'home-b:b1']);
+        expect(orders('home-a')[flatKey!]).toEqual(['home-a:a']);
+        expect(hook.getCurrent().items?.filter(item => item.type === 'session').map(item => `${item.serverId}:${item.session.id}`))
+            .toEqual(['home-b:b2', 'home-b:b1', 'home-a:a']);
+    });
+
+    it('partitions flat cross-project order through the actual row Home and account scopes', async () => {
+        const items: SessionListViewItem[] = [
+            { type: 'header', headerKind: 'active', title: 'Active' },
+            { type: 'header', headerKind: 'project', title: 'Local', groupKey: 'project-a', serverId: 'home-a' },
+            { type: 'session', serverId: 'home-a', groupKey: 'project-a', groupKind: 'project', session: createSessionFixture({ id: 'a', serverId: 'home-a' }) },
+            { type: 'header', headerKind: 'project', title: 'Foreign', groupKey: 'project-b', serverId: 'home-b' },
+            ...['b1', 'b2'].map(id => ({ type: 'session' as const, serverId: 'home-b', groupKey: 'project-b', groupKind: 'project' as const,
+                session: createSessionFixture({ id, serverId: 'home-b' }),
+            })),
+        ];
+        const hook = await renderHook(() => useSessionRepositoryView({ items, mode: 'flat', setMode: () => {}, onFailure: () => {}, orderingMode: 'custom' }));
+        const flatKey = hook.getCurrent().items?.find(item => item.type === 'session' && item.session.id === 'a')?.groupKey;
+        expect(flatKey).toMatch(/^flat-v1:/);
+        await vi.waitFor(() => expect(hook.getCurrent().orderScopes[flatKey!]).toEqual([
+            { serverId: 'home-a', accountId: 'account-a' }, { serverId: 'home-b', accountId: 'account-b' },
+        ]));
+        await act(async () => { await persistSessionListGroupOrder({
+            currentOrder: hook.getCurrent().groupOrder,
+            nextOrder: { ...hook.getCurrent().groupOrder, [flatKey!]: ['home-a:a', 'home-b:b2', 'home-b:b1'] },
+            defaultServerId: 'home-a', groupScopes: hook.getCurrent().orderScopes,
+        }); });
+        expect(boundary.reorder).toHaveBeenCalledTimes(2);
+        expect(orders('home-a')[flatKey!]).toEqual(['home-a:a']);
+        expect(orders('home-b')[flatKey!]).toEqual(['home-b:b2', 'home-b:b1']);
+        expect(hook.getCurrent().items?.filter(item => item.type === 'session').map(item => `${item.serverId}:${item.session.id}`))
+            .toEqual(['home-a:a', 'home-b:b2', 'home-b:b1']);
+    });
+
+    it('does not write a flat foreign Home order before its account scope is known', async () => {
+        boundary.credentials.mockImplementation(async (url: string) => url.includes('b.example')
+            ? await new Promise<ReturnType<typeof credentials>>(() => {})
+            : credentials('account-a'));
+        const items: SessionListViewItem[] = [
+            { type: 'header', headerKind: 'active', title: 'Active' },
+            { type: 'header', headerKind: 'project', title: 'Foreign', groupKey: 'project-b', serverId: 'home-b' },
+            { type: 'session', serverId: 'home-b', groupKey: 'project-b', groupKind: 'project', session: createSessionFixture({ id: 'b', serverId: 'home-b' }) },
+        ];
+        const hook = await renderHook(() => useSessionRepositoryView({ items, mode: 'flat', setMode: () => {}, onFailure: () => {}, orderingMode: 'custom' }));
+        const flatKey = hook.getCurrent().items?.find(item => item.type === 'session')?.groupKey;
+        expect(flatKey).toMatch(/^flat-v1:/);
+        expect(hook.getCurrent().orderScopes[flatKey!]).toBeNull();
+        await expect(persistSessionListGroupOrder({
+            currentOrder: hook.getCurrent().groupOrder,
+            nextOrder: { ...hook.getCurrent().groupOrder, [flatKey!]: ['home-b:b'] },
+            defaultServerId: 'home-a', groupScopes: hook.getCurrent().orderScopes,
+        })).rejects.toThrow('Session organization account scope is unavailable');
+        expect(boundary.reorder).not.toHaveBeenCalled();
+    });
+
     it.each(['original', 'repository'] as const)('persists the first mixed-Home pinned order through the real %s view owner', async mode => {
         const items: SessionListViewItem[] = [
             { type: 'header', headerKind: 'pinned', title: 'Pinned', groupKey: 'pinned-v1' },

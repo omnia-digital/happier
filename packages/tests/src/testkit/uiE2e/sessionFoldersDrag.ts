@@ -133,8 +133,8 @@ export async function ensureSessionFolderTreeView(params: Readonly<{
 
   if (await readServerSessionFolderViewMode(params) === 'tree') return;
 
-  await expect(params.page.getByTestId('session-list-ordering-menu-trigger').first()).toHaveCount(1, { timeout: 120_000 });
-  await params.page.getByTestId('session-list-ordering-menu-trigger').first().click();
+  await expect(params.page.getByTestId('session-list-group-menu-trigger').first()).toHaveCount(1, { timeout: 120_000 });
+  await params.page.getByTestId('session-list-group-menu-trigger').first().click();
   const toggle = params.page.getByTestId('session-folder-view-toggle');
   await expect(toggle).toHaveCount(1, { timeout: 60_000 });
   await toggle.click();
@@ -166,7 +166,7 @@ function readOrderIndex(
 }
 
 async function selectSessionListViewMenuItem(page: Page, testId: string): Promise<void> {
-  await page.getByTestId('session-list-ordering-menu-trigger').first().click();
+  await page.getByTestId('session-list-sort-menu-trigger').first().click();
   const item = page.getByTestId(testId);
   await expect(item).toHaveCount(1, { timeout: 60_000 });
   await item.click();

@@ -143,6 +143,8 @@ export type DropdownMenuProps = Readonly<{
     gap?: number;
     maxHeightCap?: number;
     maxWidthCap?: number;
+    /** Optional clearance around this menu; defaults retain the existing placement-specific behavior. */
+    edgePadding?: React.ComponentProps<typeof Popover>['edgePadding'];
     /** Match the popover width to the trigger width in web portal mode (default true). */
     matchTriggerWidth?: boolean;
     popoverBoundaryRef?: React.RefObject<any> | null;
@@ -233,6 +235,7 @@ export function DropdownMenu(props: DropdownMenuProps) {
         ? props.resultsPaddingBottom
         : (props.search ? contentPadding : 0);
     const edgePadding = React.useMemo(() => {
+        if (props.edgePadding !== undefined) return props.edgePadding;
         // Popover `edgePadding` is implemented as container padding (transparent background).
         // For left/right menus this creates visible empty space above/below the overlay, which looks
         // like a "mystery bottom padding" on context menus. Disable edge padding for side placements.
@@ -243,7 +246,7 @@ export function DropdownMenu(props: DropdownMenuProps) {
         // creates an inset that makes the popover look misaligned. Keep vertical breathing room.
         if (props.connectToTrigger || matchTriggerWidth) return { vertical: 8, horizontal: 0 } as const;
         return { vertical: 8, horizontal: 8 } as const;
-    }, [matchTriggerWidth, props.connectToTrigger, props.placement]);
+    }, [matchTriggerWidth, props.connectToTrigger, props.edgePadding, props.placement]);
 
     const selectableItems = React.useMemo((): SelectableMenuItem[] => {
         return props.items.map((item) => {
@@ -379,6 +382,7 @@ export function DropdownMenu(props: DropdownMenuProps) {
     const {
         searchQuery,
         selectedIndex,
+        selectedItemId,
         filteredCategories,
         inputRef,
         handleSearchChange,
@@ -412,7 +416,7 @@ export function DropdownMenu(props: DropdownMenuProps) {
     });
 
     const resultScroll = useScrollRectIntoViewRegistry({
-        activeKey: selectedIndex >= 0 ? String(selectedIndex) : null,
+        activeKey: selectedItemId ? `${searchQuery}\u0000${String(selectedItemId)}` : null,
         padding: 8,
         animated: true,
     });
@@ -633,6 +637,7 @@ export function DropdownMenu(props: DropdownMenuProps) {
                                     rowKind={props.rowKind}
                                     itemProps={props.itemRowProps}
                                     registerItemLayout={resultScroll.registerItemLayout}
+                                    scrollKeyPrefix={searchQuery}
                                 />
                             </View>
                         </FloatingOverlay>

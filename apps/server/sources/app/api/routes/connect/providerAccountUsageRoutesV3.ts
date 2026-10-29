@@ -11,6 +11,7 @@ import {
     ConnectedServiceProfileIdSchema,
     ConnectedServiceUsageSourceV1Schema,
     ProviderAccountUsageRecordIdSchema,
+    ProviderAccountUsageRecordListV1Schema,
     ProviderAccountUsageSnapshotV1Schema,
     ProviderAccountSubscriptionV1Schema,
     ConnectedServiceQuotaRecoveryCreditDetailsByIdV1Schema,
@@ -30,6 +31,7 @@ import {
     ConnectedServiceUsageSourceOwnershipError,
     deleteProviderAccountUsageRecord,
     listConnectedServiceUsageSourcesForProviderAccountUsageRecord,
+    listProviderAccountUsageRecords,
     readExactConnectedServiceUsageSource,
     readProviderAccountUsageRecord,
     requestProviderAccountUsageRefresh,
@@ -92,6 +94,15 @@ async function readPlainAccount(accountId: string) {
 }
 
 export function registerProviderAccountUsageRoutesV3(app: Fastify): void {
+    app.get("/v3/connect/provider-account-usage", {
+        config: { rateLimit: resolveApiHotEndpointRateLimit(process.env, "connectedServices.quotas.read") },
+        preHandler: app.authenticate,
+        schema: { response: { 200: ProviderAccountUsageRecordListV1Schema } },
+    }, async (request, reply) => {
+        const records = await listProviderAccountUsageRecords({ accountId: request.userId });
+        return reply.send({ records });
+    });
+
     app.get("/v3/connect/provider-account-usage/sources/resolve", {
         config: { rateLimit: resolveApiHotEndpointRateLimit(process.env, "connectedServices.quotas.read") },
         preHandler: app.authenticate,

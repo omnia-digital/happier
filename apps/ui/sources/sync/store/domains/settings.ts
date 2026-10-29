@@ -61,6 +61,7 @@ type SettingsDomainDependencies = Readonly<{
     sessionListRenderables: Record<string, SessionListRenderableSession>;
     machines: Record<string, Machine>;
     machineDisplayById: Record<string, MachineDisplayRenderable>;
+    machineListByServerId?: Readonly<Record<string, readonly MachineDisplayRenderable[] | null | undefined>>;
     getProjectForSession?: (sessionId: string) => { key?: { machineId?: string | null; path?: string | null } | null } | null;
     sessionListViewData: SessionListViewItem[] | null;
     sessionListViewDataByServerId: Record<string, SessionListViewItem[] | null>;
@@ -98,6 +99,7 @@ function buildSettingsProjectionState<S extends SettingsDomain & SettingsDomainD
             sessionRecords: state.sessions,
             machines: state.machineDisplayById,
             machineRecords: state.machines,
+            machineListByServerId: state.machineListByServerId,
             groupInactiveSessionsByProject: nextSettings.groupInactiveSessionsByProject,
             activeGroupingV1: nextSettings.sessionListActiveGroupingV1,
             inactiveGroupingV1: nextSettings.sessionListInactiveGroupingV1,

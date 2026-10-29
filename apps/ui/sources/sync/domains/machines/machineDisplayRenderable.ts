@@ -1,4 +1,6 @@
 import type { Machine, MachineMetadata } from '@/sync/domains/state/storageTypes';
+import type { MachineCollection } from './identity/machineCollection';
+import type { MachineDisplayPreferenceScope } from './machineDisplayIconPreference';
 
 export interface MachineDisplayMetadata {
     displayName?: string | null;
@@ -28,6 +30,27 @@ export function buildMachineDisplayMetadata(metadata: MachineMetadata | null | u
         host: typeof metadata.host === 'string' ? metadata.host : null,
         homeDir: typeof metadata.homeDir === 'string' ? metadata.homeDir : null,
     };
+}
+
+const EMPTY_MACHINE_DISPLAYS: Readonly<Record<string, MachineDisplayRenderable>> = {};
+
+/** Historical display retains retired machines and replacement chains, unlike launch selection. */
+export function resolveMachineDisplayScope(input: Readonly<{
+    serverId?: string | null;
+    activeServerId?: string | null;
+    resolvedScope?: MachineDisplayPreferenceScope;
+    machines: Readonly<Record<string, MachineDisplayRenderable>>;
+    machineListByServerId?: Readonly<Record<string, readonly MachineDisplayRenderable[] | null | undefined>>;
+}>): Readonly<{ isActive: boolean; machines: MachineCollection<MachineDisplayRenderable> }> {
+    const serverId = input.serverId?.trim();
+    const scopeIds = input.resolvedScope
+        ? [input.resolvedScope.serverId, ...input.resolvedScope.legacyServerIds]
+        : serverId ? [serverId] : [];
+    const isActive = !serverId || Boolean(input.activeServerId && scopeIds.includes(input.activeServerId));
+    if (isActive) return { isActive, machines: input.machines };
+    const lists = input.machineListByServerId ?? {};
+    const key = scopeIds.find(id => Object.hasOwn(lists, id));
+    return { isActive: false, machines: key ? lists[key] ?? EMPTY_MACHINE_DISPLAYS : EMPTY_MACHINE_DISPLAYS };
 }
 
 export function buildMachineDisplayRenderableFromMachine(machine: Machine): MachineDisplayRenderable {

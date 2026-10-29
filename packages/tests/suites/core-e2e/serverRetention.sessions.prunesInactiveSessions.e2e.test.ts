@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
+import { DEFAULT_PRISMA_SQLITE_BUSY_TIMEOUT_MS } from '@happier-dev/cli-common/firstPartyRuntime';
 
 import { createRunDirs } from '../../src/testkit/runDir';
 import { fetchJson } from '../../src/testkit/http';
@@ -20,6 +21,8 @@ function markSessionAsInactiveInSqlite(params: { server: StartedServer; sessionI
   execFileSync(
     'sqlite3',
     [
+      '-cmd',
+      `PRAGMA busy_timeout=${DEFAULT_PRISMA_SQLITE_BUSY_TIMEOUT_MS};`,
       dbPath,
       [
         'UPDATE "Session"',

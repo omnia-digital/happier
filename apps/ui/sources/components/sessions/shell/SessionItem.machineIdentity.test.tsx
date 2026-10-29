@@ -180,11 +180,11 @@ describe('SessionItem machine identity', () => {
             const screen = await renderMachineRow(false, false, { density: 'compact' });
             const style = screen.findByTestId(`session-list-item-${SESSION_ID}`)?.props.style;
             const flattened = Array.isArray(style) ? style.flat(Infinity) : [style];
-            const height = flattened.reduce((lastHeight: number | undefined, entry: any) => (
-                typeof entry?.height === 'number' ? entry.height : lastHeight
+            const minHeight = flattened.reduce((lastHeight: number | undefined, entry: any) => (
+                typeof entry?.minHeight === 'number' ? entry.minHeight : lastHeight
             ), undefined);
             await screen.unmount();
-            return height;
+            return minHeight;
         };
 
         const comfortableHeight = await rowHeight('comfortable', 1);
@@ -196,11 +196,11 @@ describe('SessionItem machine identity', () => {
             const screen = await renderMachineRow(false, false, { density: 'minimal' });
             const style = screen.findByTestId(`session-list-item-${SESSION_ID}`)?.props.style;
             const flattened = Array.isArray(style) ? style.flat(Infinity) : [style];
-            const height = flattened.reduce((lastHeight: number | undefined, entry: any) => (
-                typeof entry?.height === 'number' ? entry.height : lastHeight
+            const minHeight = flattened.reduce((lastHeight: number | undefined, entry: any) => (
+                typeof entry?.minHeight === 'number' ? entry.minHeight : lastHeight
             ), undefined);
             await screen.unmount();
-            return height;
+            return minHeight;
         };
         const narrowCozyHeight = await narrowRowHeight('cozy');
         const narrowCompactHeight = await narrowRowHeight('compact');

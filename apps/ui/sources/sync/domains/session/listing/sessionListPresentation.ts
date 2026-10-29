@@ -21,6 +21,11 @@ export function resolveSessionListCacheServerId(
 const scopedSessionListItems = new WeakMap<SessionListViewItem, Map<string, SessionListViewItem>>();
 
 export function bindSessionListItemToServerScope(item: SessionListViewItem, serverId: string): SessionListViewItem {
+    // A snapshot can contain an explicitly hydrated route from another Home.
+    // Rebinding repairs aliases; it must not transfer that row's ownership.
+    if (item.serverId && item.serverId !== serverId && !areServerProfileIdentifiersEquivalent(item.serverId, serverId)) {
+        return item;
+    }
     if ((!item.serverId || item.serverId === serverId)
         && (item.type !== 'header' || !item.workspaceScopeHint || item.workspaceScopeHint.serverId === serverId)) {
         return item;

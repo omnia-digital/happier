@@ -7,20 +7,43 @@ vi.mock('react-native', async () => (await import('@/dev/testkit/mocks/reactNati
 vi.mock('react-native-unistyles', async () => (await import('@/dev/testkit/mocks/unistyles')).createUnistylesMock());
 afterEach(standardCleanup);
 
-describe('independent status choices in existing view controls', () => {
-    it('exposes all four choices and routes each without mutating the other selection', async () => {
+describe('independent grouping and sorting controls', () => {
+    it('keeps grouping and sorting choices in separate menus and preserves each other selection', async () => {
         const grouping = vi.fn(); const sorting = vi.fn(); const machine = vi.fn(); const baseSort = vi.fn();
         const screen = await renderScreen(<SessionListViewMenuButton machineViewMode="repository" onMachineViewModeChange={machine} folderViewMode="tree" onFolderViewModeChange={() => {}} orderingMode="custom" onOrderingModeChange={baseSort} folderSortMode="mixed" onFolderSortModeChange={() => {}} hideInactiveSessions={false} onHideInactiveSessionsChange={() => {}} statusGrouping="ticket" statusSorting="agent" onStatusGroupingChange={grouping} onStatusSortingChange={sorting} />);
-        const menu = screen.root.findByType(DropdownMenu);
-        const items = menu.props.items;
-        expect(items.filter((item: { id: string }) => item.id.startsWith('status-group:') || item.id.startsWith('status-sort:')).map((item: { id: string }) => item.id)).toEqual(['status-group:none', 'status-group:agent', 'status-group:ticket', 'status-sort:agent', 'status-sort:ticket']);
-        expect(items.find((item: { id: string }) => item.id === 'status-group:ticket').subtitle).toContain('folders');
-        expect(items.some((item: { id: string }) => item.id === 'session-repository-refresh')).toBe(false);
-        menu.props.onSelect('status-group:agent'); expect(grouping).toHaveBeenLastCalledWith('agent'); expect(sorting).not.toHaveBeenCalled();
-        menu.props.onSelect('status-group:ticket'); expect(grouping).toHaveBeenLastCalledWith('ticket');
-        menu.props.onSelect('status-sort:agent'); expect(sorting).toHaveBeenLastCalledWith('agent');
-        menu.props.onSelect('status-sort:ticket'); expect(sorting).toHaveBeenLastCalledWith('ticket');
-        menu.props.onSelect('updated'); expect(sorting).toHaveBeenLastCalledWith('none'); expect(baseSort).toHaveBeenLastCalledWith('updated');
-        menu.props.onSelect('session-view-machine'); expect(grouping).toHaveBeenLastCalledWith('none'); expect(machine).toHaveBeenLastCalledWith('machine');
+        const menus = screen.root.findAllByType(DropdownMenu);
+        expect(menus).toHaveLength(2);
+        const groupMenu = menus.find(menu => menu.props.items.some((item: { id: string }) => item.id === 'status-group:ticket'))!;
+        const sortMenu = menus.find(menu => menu.props.items.some((item: { id: string }) => item.id === 'status-sort:agent'))!;
+        const groupTrigger = groupMenu.props.trigger({ toggle: () => {} });
+        const sortTrigger = sortMenu.props.trigger({ toggle: () => {} });
+        expect(groupTrigger.props.accessibilityLabel).toBe('Group');
+        expect(groupTrigger.props.webTooltip).toBe('Group');
+        expect(sortTrigger.props.accessibilityLabel).toBe('Sort');
+        expect(sortTrigger.props.webTooltip).toBe('Sort');
+        const groupItems = groupMenu.props.items;
+        const sortItems = sortMenu.props.items;
+        expect(groupItems.filter((item: { id: string }) => item.id.startsWith('status-group:')).map((item: { id: string }) => item.id)).toEqual(['status-group:none', 'status-group:agent', 'status-group:ticket']);
+        expect(sortItems.filter((item: { id: string }) => item.id.startsWith('status-sort:')).map((item: { id: string }) => item.id)).toEqual(['status-sort:agent', 'status-sort:ticket']);
+        expect(groupItems.some((item: { id: string }) => item.id.startsWith('status-sort:'))).toBe(false);
+        expect(sortItems.some((item: { id: string }) => item.id.startsWith('status-group:'))).toBe(false);
+        expect(groupItems.some((item: { id: string }) => item.id === 'session-view-original')).toBe(true);
+        expect(groupItems.some((item: { id: string }) => item.id === 'session-view-flat')).toBe(true);
+        expect(groupItems.some((item: { id: string }) => item.id === 'session-view-machine')).toBe(true);
+        expect(groupItems.some((item: { id: string }) => item.id === 'session-view-repository')).toBe(true);
+        expect(groupItems.some((item: { id: string }) => item.id === 'session-repository-refresh')).toBe(false);
+        expect(groupItems.some((item: { testID?: string }) => item.testID === 'session-folder-view-toggle')).toBe(true);
+        expect(groupItems.some((item: { category?: string }) => item.category === 'Filters')).toBe(true);
+        expect(sortItems.some((item: { id: string }) => ['custom', 'created', 'updated'].includes(item.id))).toBe(true);
+        expect(sortItems.some((item: { testID?: string }) => item.testID === 'session-folder-sort-mode-mixed')).toBe(true);
+        expect(groupItems.find((item: { id: string }) => item.id === 'status-group:ticket').subtitle).toContain('folders');
+        groupMenu.props.onSelect('status-group:agent'); expect(grouping).toHaveBeenLastCalledWith('agent'); expect(sorting).not.toHaveBeenCalled();
+        groupMenu.props.onSelect('status-group:ticket'); expect(grouping).toHaveBeenLastCalledWith('ticket');
+        sortMenu.props.onSelect('status-sort:agent'); expect(sorting).toHaveBeenLastCalledWith('agent'); expect(grouping).toHaveBeenLastCalledWith('ticket');
+        sortMenu.props.onSelect('status-sort:ticket'); expect(sorting).toHaveBeenLastCalledWith('ticket');
+        sortMenu.props.onSelect('updated'); expect(sorting).toHaveBeenLastCalledWith('none'); expect(baseSort).toHaveBeenLastCalledWith('updated');
+        groupMenu.props.onSelect('session-view-machine'); expect(grouping).toHaveBeenLastCalledWith('none'); expect(machine).toHaveBeenLastCalledWith('machine');
+        groupMenu.props.onSelect('session-view-flat'); expect(grouping).toHaveBeenLastCalledWith('none'); expect(machine).toHaveBeenLastCalledWith('flat');
+        expect(sortMenu.props.selectedId).toBe('status-sort:agent');
     });
 });

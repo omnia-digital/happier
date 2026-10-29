@@ -105,6 +105,8 @@ export function createStorageModuleStub<TOverrides extends object>(overrides: TO
     const allMachines = [] as ReturnType<StorageModule['useAllMachines']>;
     const launchSelectionMachines = [] as ReturnType<StorageModule['useLaunchSelectionMachines']>;
     const machineDisplayById = {} as ReturnType<StorageModule['useMachineDisplayById']>;
+    const machineDisplayLists = {} as ReturnType<StorageModule['useSessionMachineDisplayLists']>;
+    const machineDisplayScopes = {} as ReturnType<StorageModule['useMachineDisplayScopes']>;
     const allSessions = [] as ReturnType<StorageModule['useAllSessions']>;
     const allSessionListRenderables = [] as ReturnType<StorageModule['useAllSessionListRenderables']>;
     const allAttentionSessions = [] as ReturnType<StorageModule['useAllSessionsForAttention']>;
@@ -206,6 +208,8 @@ export function createStorageModuleStub<TOverrides extends object>(overrides: TO
         useFirstVisibleMachineId: () => null,
         useLaunchSelectionMachines: () => launchSelectionMachines,
         useMachineDisplayById: () => machineDisplayById,
+        useSessionMachineDisplayLists: () => machineDisplayLists,
+        useMachineDisplayScopes: () => machineDisplayScopes,
         useMachineCliDetectionTarget: () => ({
             daemonStateVersion: 0,
             isOnline: false,

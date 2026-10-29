@@ -93,6 +93,7 @@ export function useScrollRectIntoViewRegistry(params: Readonly<{
     const scrollRef = React.useRef<ScrollView | null>(null);
     const itemLayoutsRef = React.useRef(new Map<string, ScrollRect>());
     const activeKeyRef = React.useRef<string | null>(params.activeKey);
+    const pendingVisibilityKeyRef = React.useRef<string | null>(params.activeKey);
     const metricsRef = React.useRef<ScrollMetrics>({
         offsetY: 0,
         viewportHeight: 0,
@@ -105,21 +106,25 @@ export function useScrollRectIntoViewRegistry(params: Readonly<{
     }, []);
 
     const ensureActiveItemVisible = React.useCallback(() => {
-        const activeKey = activeKeyRef.current;
+        const activeKey = pendingVisibilityKeyRef.current;
         if (!activeKey) return;
         const rect = itemLayoutsRef.current.get(activeKey);
         if (!rect) return;
+        if (metricsRef.current.viewportHeight <= 0) return;
+        if (metricsRef.current.contentHeight <= 0 || !scrollRef.current?.scrollTo) return;
         const nextOffset = resolveScrollOffsetForVisibleRect({
             rect,
             metrics: metricsRef.current,
             padding: params.padding,
             alignment: params.alignment,
         });
-        if (nextOffset === null) return;
-        scrollRef.current?.scrollTo?.({
-            y: nextOffset,
-            animated: params.animated ?? true,
-        });
+        pendingVisibilityKeyRef.current = null;
+        if (nextOffset !== null) {
+            scrollRef.current?.scrollTo?.({
+                y: nextOffset,
+                animated: params.animated ?? true,
+            });
+        }
     }, [params.alignment, params.animated, params.padding]);
 
     const registerItemLayout = React.useCallback((key: string): ScrollItemLayoutHandler => {
@@ -151,6 +156,7 @@ export function useScrollRectIntoViewRegistry(params: Readonly<{
     }, [bumpRevision, ensureActiveItemVisible]);
 
     const onScroll = React.useCallback((event: NativeScrollEvent) => {
+        const previousOffsetY = metricsRef.current.offsetY;
         const offsetY = event.nativeEvent?.contentOffset?.y;
         const viewportHeight = event.nativeEvent?.layoutMeasurement?.height;
         const contentHeight = event.nativeEvent?.contentSize?.height;
@@ -159,10 +165,18 @@ export function useScrollRectIntoViewRegistry(params: Readonly<{
             viewportHeight: typeof viewportHeight === 'number' ? viewportHeight : metricsRef.current.viewportHeight,
             contentHeight: typeof contentHeight === 'number' ? contentHeight : metricsRef.current.contentHeight,
         };
-    }, []);
+        if (typeof offsetY === 'number' && offsetY !== previousOffsetY) {
+            pendingVisibilityKeyRef.current = null;
+        } else {
+            ensureActiveItemVisible();
+        }
+    }, [ensureActiveItemVisible]);
 
     React.useEffect(() => {
-        activeKeyRef.current = params.activeKey;
+        if (activeKeyRef.current !== params.activeKey) {
+            activeKeyRef.current = params.activeKey;
+            pendingVisibilityKeyRef.current = params.activeKey;
+        }
         ensureActiveItemVisible();
     }, [ensureActiveItemVisible, params.activeKey, revision]);
 

@@ -4160,6 +4160,14 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
     },
 
     settingsAppearance: {
+      sections: {
+        global: '一般',
+        leftSidebar: '左側邊欄',
+        taskView: '任務檢視',
+        sidebarSettings: '側邊欄配置',
+        sidebarSettingsDescription: '卡片配置、機器識別資訊與工作階段整理',
+        sidebarGlobalDefaults: '文字大小和項目密度使用全域設定。',
+      },
       tabBarAppearance: {
         title: '標籤列',
         footer: '自訂底部標籤列。',
@@ -5582,6 +5590,9 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
         renameWorkspacePromptPlaceholder: '輸入名稱...',
         resetWorkspaceName: '重設名稱',
         viewOptions: '檢視選項',
+    noGrouping: '不分組',
+    groupMenu: '分組',
+    sortMenu: '排序',
         searchSessions: '搜尋工作階段',
         searchSessionsPlaceholder: '搜尋工作階段...',
         filterByTags: '依標籤篩選',
@@ -6031,6 +6042,16 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
 
     sidebar: {
         sessionsTitle: 'Happier',
+        providerUsage: {
+            native: "原生",
+            disabled: "用量顯示已關閉",
+            discoveryUnsupported: "此中繼不支援查看原生用量",
+            discoveryError: "無法重新整理原生用量",
+            chooseAccount: "選擇帳戶",
+            noUsageData: "沒有用量資料",
+            lastKnownRefreshFailed: "上次資料 · 重新整理失敗",
+          openUsage: "顯示訂閱用量",
+        },
     },
 
     toolView: {

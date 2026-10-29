@@ -4,6 +4,9 @@ import { setStatusBarStyle } from 'expo-status-bar';
 import { Item } from '@/components/ui/lists/Item';
 import { ItemGroup } from '@/components/ui/lists/ItemGroup';
 import { ItemList } from '@/components/ui/lists/ItemList';
+import { ListSection } from '@/components/ui/lists/ListSection';
+import { Typography } from '@/constants/Typography';
+import { useLayoutMaxWidth } from '@/components/ui/layout/layout';
 import { useSettingMutable, useLocalSettingMutable } from '@/sync/domains/state/storage';
 import { useRouter } from 'expo-router';
 import * as Localization from 'expo-localization';
@@ -91,6 +94,7 @@ function AvatarStylePreviewIcon(props: Readonly<{ styleId: AvatarStyleId }>) {
 export default React.memo(function AppearanceSettingsScreen() {
     const { theme } = useUnistyles();
     const router = useRouter();
+    const contentMaxWidth = useLayoutMaxWidth();
     const deviceType = useDeviceType();
     const reduceMotion = useReducedMotionPreference();
     const panelsSupported = Platform.OS === 'web' || deviceType === 'tablet';
@@ -337,8 +341,8 @@ export default React.memo(function AppearanceSettingsScreen() {
         }
         return t('settingsLanguage.automatic');
     };
-    return (
-        <ItemList style={{ paddingTop: 0 }}>
+    const globalSettings = (
+        <>
 
             {/* Theme Settings */}
             <ItemGroup title={t('settingsAppearance.theme')} footer={t('settingsAppearance.themeDescription')}>
@@ -434,35 +438,6 @@ export default React.memo(function AppearanceSettingsScreen() {
                         if (!isUiItemDensity(itemId)) return;
                         setUiItemDensity(itemId);
                     }}
-                />
-            </ItemGroup>
-
-            <ItemGroup title={t('settingsAppearance.chatCodeBlocks.title')}>
-                <Item
-                    title={t('settingsAppearance.chatCodeBlocks.showWrapControls')}
-                    subtitle={t('settingsAppearance.chatCodeBlocks.showWrapControlsDescription')}
-                    rightElement={
-                        <Switch
-                            testID="settings-appearance-showChatCodeBlockWrapControls-switch"
-                            accessibilityLabel={t('settingsAppearance.chatCodeBlocks.showWrapControls')}
-                            value={showChatCodeBlockWrapControls}
-                            onValueChange={setShowChatCodeBlockWrapControls}
-                        />
-                    }
-                    showChevron={false}
-                />
-                <Item
-                    title={t('settingsAppearance.chatCodeBlocks.wrapByDefault')}
-                    subtitle={t('settingsAppearance.chatCodeBlocks.wrapByDefaultDescription')}
-                    rightElement={
-                        <Switch
-                            testID="settings-appearance-wrapChatCodeBlocks-switch"
-                            accessibilityLabel={t('settingsAppearance.chatCodeBlocks.wrapByDefault')}
-                            value={wrapChatCodeBlocks}
-                            onValueChange={setWrapChatCodeBlocks}
-                        />
-                    }
-                    showChevron={false}
                 />
             </ItemGroup>
 
@@ -809,6 +784,79 @@ export default React.memo(function AppearanceSettingsScreen() {
                     showChevron={false}
                 />
             </ItemGroup>
+        </>
+    );
+
+    const sectionTitleStyle = { ...Typography.rowTitle(), color: theme.colors.text.primary };
+
+    return (
+        <ItemList style={{ paddingTop: 0 }}>
+            <View style={{ width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' }}>
+                <ListSection
+                    namespace="settings-appearance"
+                    id="global"
+                    title={t('settingsAppearance.sections.global')}
+                    preserveTitleCase
+                    titleStyle={sectionTitleStyle}
+                >
+                    {globalSettings}
+                </ListSection>
+                <ListSection
+                    namespace="settings-appearance"
+                    id="left-sidebar"
+                    title={t('settingsAppearance.sections.leftSidebar')}
+                    preserveTitleCase
+                    titleStyle={sectionTitleStyle}
+                    spacing="separated"
+                >
+                    <ItemGroup footer={t('settingsAppearance.sections.sidebarGlobalDefaults')}>
+                        <Item
+                            testID="settings-appearance-sidebar-settings"
+                            title={t('settingsAppearance.sections.sidebarSettings')}
+                            subtitle={t('settingsAppearance.sections.sidebarSettingsDescription')}
+                            icon={<Icon name="list" size={29} color={theme.colors.accent.blue} />}
+                            onPress={() => router.push('/settings/session')}
+                        />
+                    </ItemGroup>
+                </ListSection>
+                <ListSection
+                    namespace="settings-appearance"
+                    id="task-view"
+                    title={t('settingsAppearance.sections.taskView')}
+                    preserveTitleCase
+                    titleStyle={sectionTitleStyle}
+                    spacing="separated"
+                >
+                    <ItemGroup title={t('settingsAppearance.chatCodeBlocks.title')}>
+                        <Item
+                            title={t('settingsAppearance.chatCodeBlocks.showWrapControls')}
+                            subtitle={t('settingsAppearance.chatCodeBlocks.showWrapControlsDescription')}
+                            rightElement={
+                                <Switch
+                                    testID="settings-appearance-showChatCodeBlockWrapControls-switch"
+                                    accessibilityLabel={t('settingsAppearance.chatCodeBlocks.showWrapControls')}
+                                    value={showChatCodeBlockWrapControls}
+                                    onValueChange={setShowChatCodeBlockWrapControls}
+                                />
+                            }
+                            showChevron={false}
+                        />
+                        <Item
+                            title={t('settingsAppearance.chatCodeBlocks.wrapByDefault')}
+                            subtitle={t('settingsAppearance.chatCodeBlocks.wrapByDefaultDescription')}
+                            rightElement={
+                                <Switch
+                                    testID="settings-appearance-wrapChatCodeBlocks-switch"
+                                    accessibilityLabel={t('settingsAppearance.chatCodeBlocks.wrapByDefault')}
+                                    value={wrapChatCodeBlocks}
+                                    onValueChange={setWrapChatCodeBlocks}
+                                />
+                            }
+                            showChevron={false}
+                        />
+                    </ItemGroup>
+                </ListSection>
+            </View>
         </ItemList>
     );
 });

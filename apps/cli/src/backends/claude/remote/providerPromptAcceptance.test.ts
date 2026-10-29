@@ -18,15 +18,13 @@ describe('readClaudeRemoteProviderPromptAcceptance', () => {
     });
   });
 
-  it('captures the new-turn model but does not attribute an in-flight steer to it', () => {
+  it('does not infer a running model from requested prompt settings', () => {
     expect(readClaudeRemoteProviderPromptAcceptance({
       message: 'new turn',
       mode: { model: 'claude-opus-4-6' } as never,
       userMessageLocalIds: ['new-turn-local'],
       pendingProviderAction: 'send',
-    })).toMatchObject({
-      appliedModelId: 'claude-opus-4-6',
-    });
+    })).not.toHaveProperty('appliedModelId');
     expect(readClaudeRemoteProviderPromptAcceptance({
       message: 'steer',
       mode: { model: 'claude-opus-4-6' } as never,

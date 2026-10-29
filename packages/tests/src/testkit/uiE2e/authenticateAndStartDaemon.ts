@@ -24,8 +24,11 @@ export async function authenticateAndStartDaemon(params: Readonly<{
   terminalConnectUrlTimeoutMs?: number;
   daemonStartupTimeoutMs?: number;
   extraEnv?: NodeJS.ProcessEnv;
+  /** Opt out of runner env inheritance for fixtures that probe CLI/provider auth. */
+  inheritProcessEnv?: boolean;
 }>): Promise<StartedDaemon> {
   const cliServerUrl = params.cliServerUrl ?? params.serverUrl;
+  const inheritedEnv = params.inheritProcessEnv === false ? {} : process.env;
   await gotoCommittedWithRetries(params.page, params.uiBaseUrl, params.initialUiGotoTimeoutMs);
   await waitForInitialAppUi({
     page: params.page,
@@ -67,7 +70,7 @@ export async function authenticateAndStartDaemon(params: Readonly<{
     webappUrl: params.uiBaseUrl,
     connectUrlTimeoutMs: params.terminalConnectUrlTimeoutMs,
     env: {
-      ...process.env,
+      ...inheritedEnv,
       ...(params.extraEnv ?? {}),
       CI: '1',
       HAPPIER_DISABLE_CAFFEINATE: '1',
@@ -90,7 +93,7 @@ export async function authenticateAndStartDaemon(params: Readonly<{
     happyHomeDir: params.cliHomeDir,
     startupTimeoutMs: params.daemonStartupTimeoutMs,
     env: {
-      ...process.env,
+      ...inheritedEnv,
       ...(params.extraEnv ?? {}),
       CI: '1',
       HAPPIER_HOME_DIR: params.cliHomeDir,

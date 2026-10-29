@@ -1,12 +1,13 @@
-import { getServerProfileById } from '../domains/server/serverProfiles';
+import { getServerProfileById, resolveServerProfileScopeIdForIdentifier } from '../domains/server/serverProfiles';
 import { getActiveServerSnapshot } from '../domains/server/serverRuntime';
 import { buildSessionListViewData, type SessionListViewItem } from '../domains/session/listing/sessionListViewData';
 import type { WorkspacePathDisplayModeV1 } from '../domains/session/listing/sessionWorkspacePresentation';
-import type { MachineDisplayRenderable } from '../domains/machines/machineDisplayRenderable';
+import { resolveMachineDisplayScope, type MachineDisplayRenderable } from '../domains/machines/machineDisplayRenderable';
+import { resolveMachineDisplayPreferenceScope } from '../domains/machines/machineDisplayIconPreference';
 import { resolveSessionDisplayTarget } from '../domains/machines/identity/resolveSessionMachineTargets';
 import { resolveSessionMachineId } from '../domains/session/directSessions/resolveSessionMachineId';
 import type { SessionListRenderableSession } from '../domains/session/listing/sessionListRenderable';
-import type { Machine, Session } from '../domains/state/storageTypes';
+import type { Session } from '../domains/state/storageTypes';
 
 type ProjectLookupResult = {
     key?: {
@@ -19,7 +20,8 @@ type ReachableSessionProjectionParams = Readonly<{
     sessions: Record<string, SessionListRenderableSession>;
     sessionRecords?: Record<string, Session>;
     machines: Record<string, MachineDisplayRenderable>;
-    machineRecords?: Record<string, Machine>;
+    machineRecords?: Record<string, MachineDisplayRenderable>;
+    serverId?: string | null;
     getProjectForSession?: (sessionId: string) => ProjectLookupResult;
 }>;
 
@@ -43,12 +45,17 @@ export function applyReachableTargetsToSessionListRenderables(
         return params.sessions;
     }
 
+    const scope = resolveMachineDisplayPreferenceScope(params.serverId ?? getActiveServerSnapshot().serverId);
+    const scopeIds = new Set([scope.serverId, ...scope.legacyServerIds]);
     let nextSessions: Record<string, SessionListRenderableSession> | null = null;
     for (const sessionId in params.sessions) {
         if (!Object.prototype.hasOwnProperty.call(params.sessions, sessionId)) continue;
         const session = params.sessions[sessionId];
         const sessionRecord = sessionRecords[sessionId];
         if (!sessionRecord) continue;
+        // The shared full-session map also contains explicitly hydrated foreign routes.
+        // Active machines and project history have no authority over those records.
+        if (sessionRecord.serverId && !scopeIds.has(sessionRecord.serverId)) continue;
 
         const metadata = sessionRecord.metadata ?? null;
         const project = params.getProjectForSession?.(sessionId) ?? null;
@@ -95,7 +102,8 @@ export function buildSessionListViewDataWithServerScope(params: {
     sessions: Record<string, SessionListRenderableSession>;
     sessionRecords?: Record<string, Session>;
     machines: Record<string, MachineDisplayRenderable>;
-    machineRecords?: Record<string, Machine>;
+    machineRecords?: Record<string, MachineDisplayRenderable>;
+    machineListByServerId?: Readonly<Record<string, readonly MachineDisplayRenderable[] | null | undefined>>;
     serverId?: string | null;
     groupInactiveSessionsByProject: boolean;
     activeGroupingV1?: 'project' | 'date';
@@ -105,29 +113,70 @@ export function buildSessionListViewDataWithServerScope(params: {
     getProjectForSession?: (sessionId: string) => ProjectLookupResult;
 }): SessionListViewItem[] {
     const snapshot = getActiveServerSnapshot();
-    const serverId = normalizeNonEmptyString(params.serverId) ?? snapshot.serverId;
-    const profile = getServerProfileById(serverId);
-    const reachableSessions = applyReachableTargetsToSessionListRenderables({
-        sessions: params.sessions,
-        sessionRecords: params.sessionRecords,
-        machines: params.machines,
-        machineRecords: params.machineRecords,
-        getProjectForSession: params.getProjectForSession,
-    });
-
-    return buildSessionListViewData(
-        reachableSessions,
-        params.machines,
-        {
+    const serverId = resolveServerProfileScopeIdForIdentifier(normalizeNonEmptyString(params.serverId) ?? snapshot.serverId);
+    const resolvedIds = new Map<string, string>([[serverId, serverId]]);
+    const sessionScopeId = (session: SessionListRenderableSession): string => {
+        const rawId = normalizeNonEmptyString(session.serverId ?? params.sessionRecords?.[session.id]?.serverId) ?? serverId;
+        let scopeId = resolvedIds.get(rawId);
+        if (scopeId === undefined) {
+            scopeId = resolveServerProfileScopeIdForIdentifier(rawId);
+            resolvedIds.set(rawId, scopeId);
+        }
+        return scopeId;
+    };
+    const buildScope = (scopeId: string, sessions: Record<string, SessionListRenderableSession>): SessionListViewItem[] => {
+        const scope = resolveMachineDisplayScope({
+            serverId: scopeId, activeServerId: serverId,
+            resolvedScope: resolveMachineDisplayPreferenceScope(scopeId),
+            machines: params.machines, machineListByServerId: params.machineListByServerId,
+        });
+        const machines = Array.isArray(scope.machines)
+            ? Object.fromEntries(scope.machines.map(machine => [machine.id, machine]))
+            : scope.machines as Readonly<Record<string, MachineDisplayRenderable>>;
+        const reachableSessions = applyReachableTargetsToSessionListRenderables({
+            sessions,
+            sessionRecords: params.sessionRecords,
+            machines,
+            machineRecords: scope.isActive ? params.machineRecords : machines,
+            serverId: scopeId,
+            getProjectForSession: scope.isActive ? params.getProjectForSession : undefined,
+        });
+        return buildSessionListViewData(reachableSessions, machines, {
             groupInactiveSessionsByProject: params.groupInactiveSessionsByProject,
             activeGroupingV1: params.activeGroupingV1,
             inactiveGroupingV1: params.inactiveGroupingV1,
             sectionModeV1: params.sectionModeV1,
             workspacePathDisplayModeV1: params.workspacePathDisplayModeV1,
             serverScope: {
-                serverId,
-                serverName: profile?.name,
+                serverId: scopeId,
+                serverName: getServerProfileById(scopeId)?.name,
             },
+        });
+    };
+    let onlyScopeId: string | undefined;
+    let mixedHomes = false;
+    for (const id in params.sessions) {
+        if (!Object.hasOwn(params.sessions, id)) continue;
+        const scopeId = sessionScopeId(params.sessions[id]);
+        if (onlyScopeId === undefined) onlyScopeId = scopeId;
+        else if (onlyScopeId !== scopeId) {
+            mixedHomes = true;
+            break;
         }
-    );
+    }
+    // The ordinary single-Home path reuses the source record without copying every row.
+    if (!mixedHomes) return buildScope(onlyScopeId ?? serverId, params.sessions);
+    const partitions = new Map<string, Record<string, SessionListRenderableSession>>();
+    for (const id in params.sessions) {
+        if (!Object.hasOwn(params.sessions, id)) continue;
+        const session = params.sessions[id];
+        const scopeId = sessionScopeId(session);
+        let partition = partitions.get(scopeId);
+        if (!partition) {
+            partition = {};
+            partitions.set(scopeId, partition);
+        }
+        partition[id] = session;
+    }
+    return [...partitions].flatMap(([scopeId, sessions]) => buildScope(scopeId, sessions));
 }

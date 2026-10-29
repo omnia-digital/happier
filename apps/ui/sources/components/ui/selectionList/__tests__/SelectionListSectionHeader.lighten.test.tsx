@@ -24,6 +24,15 @@ vi.mock('react-native', async () => {
  * The R6 contract (testID, count rendering) MUST still hold.
  */
 describe('SelectionListSectionHeader — R13 lightening', () => {
+    it('exposes its section title as an accessible heading', async () => {
+        const { SelectionListSectionHeader } = await import('../SelectionListSectionHeader');
+        const screen = await renderScreen(
+            <SelectionListSectionHeader title="Global" preserveCase />,
+        );
+        const headings = screen.findAllByProps({ accessibilityRole: 'header' });
+        expect(headings.map((heading) => heading.props.children)).toContain('Global');
+    });
+
     it('renders uppercase title text without letter-spacing', async () => {
         const { SelectionListSectionHeader } = await import('../SelectionListSectionHeader');
         const screen = await renderScreen(

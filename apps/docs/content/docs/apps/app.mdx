@@ -44,6 +44,18 @@ adjusts the saved placement to the connected displays when restoring it.
 
 For detailed Relay profile, switching, and multi-daemon guidance, see [Features → Multi-server](/accounts/multi-server).
 
+### New Session path choices (fork preview)
+
+In the unreleased Omnia development fork, favorites, recent paths and directory
+browsing follow the selected relay, account and machine. Selecting a machine on
+another saved relay keeps its paths separate from the relay you were viewing;
+the same path text on two machines does not make it a shared favorite. The new
+session uses the selected relay, machine and path.
+
+Older favorites without a known machine remain preserved under **Review unassigned
+favorites**. Assign only paths that belong on the selected machine. This preview
+has isolated browser coverage; native acceptance remains pending.
+
 ## Session sidebar views
 
 <Callout type="info">
@@ -52,8 +64,11 @@ For detailed Relay profile, switching, and multi-daemon guidance, see [Features 
   browser checks pass; native two-machine and restart acceptance is still pending.
 </Callout>
 
-Open the session list's **View options** menu and choose **Original layout**,
-**Group by machine**, or **Group by repository**. Machine grouping helps you find
+Open the session list's **Group** menu and choose **No grouping**, **Original
+layout**, **Group by machine**, or **Group by repository**. No grouping removes
+derived project and date headings while keeping folders and the list's separate
+Pinned, Active and Inactive sections. Original layout retains project and date
+headings. Machine grouping helps you find
 what is running on each computer. Repository grouping brings matching checkouts
 together across machines while retaining each session's real machine and path.
 
@@ -73,16 +88,23 @@ select an existing group or **New repository group**. Choose **Use automatic
 repository** to remove that checkout's manual choice. The view and associations
 are saved on this device.
 
-Choose **Custom order** to drag sessions into your preferred sequence, including
+Choose **Custom order** in the **Sort** menu to drag sessions into your preferred sequence, including
 between checkouts in one repository group. The order is saved through the relay's
 organization settings; switching views preserves their separate orders. Reordering
-does not move a session to another machine, folder or checkout. Repository header
+does not move a session to another machine, folder or checkout. Orders are saved
+separately for each Home; moves that would interleave different Homes are unavailable.
+Repository header
 actions ask you to choose the real checkout when more than one is available.
 
-In this development fork, **Settings → Appearance** controls the sidebar's
-**Text Size** and **Item Density** as well as the rest of the app. Text size
-changes the lettering; item density changes spacing. Larger text reserves enough
-row height in compact layouts, and both choices are saved on this device.
+In this development fork, **Settings → Appearance** has **Global**, **Left Sidebar**
+and **Task View** sections. **Global** contains **Text Size** and **Item Density**,
+which apply throughout the app, including the sidebar. Text size changes the
+lettering; item density changes spacing. Larger text reserves enough row height
+in compact layouts, and both choices are saved on this device.
+
+Under **Left Sidebar**, open **Sidebar layout** for the existing session-list
+layout, machine identity and organization controls. **Task View** contains the
+conversation code-block wrapping controls.
 
 Session rows also show a status icon and a subtle tint for their current activity,
 including working, idle, finished, needs input and error. Hover or focus the row
@@ -99,10 +121,13 @@ goal remains visible until cleared or replaced by a new active goal; an interrup
 goal alone does not establish an error. Goal status is separate from the session's
 connection and turn status.
 
-The **View options** menu also offers **Sort by Agent Status** and **Sort by
-Ticket Status**, independently of **Group by Agent Status** and **Group by Ticket
-Status**. For example, group by ticket status while placing working sessions first
-inside each group. Ticket groups keep custom workflow names and use reported
+The **Sort** menu offers **Sort by Agent Status** and **Sort by Ticket Status**,
+independently of **Group by Agent Status** and **Group by Ticket Status** in the
+**Group** menu. Changing either choice retains the other. Agent Status puts Waiting
+for input, Latest turn finished, Error, Message queued, Working and Idle in that
+order, followed by the remaining supported states. For example, group by ticket
+status while sorting sessions by Agent Status inside each group. Ticket groups
+keep custom workflow names and use reported
 workflow order when available; distinct workspaces and workflows stay separate.
 
 Pinned stays separate, and folders contain their own status groups. Status
@@ -136,6 +161,29 @@ Stale and unavailable states are explicit when the reader or connection cannot
 verify current status. Native app receipt and real provider acceptance remain
 pending; isolated browser coverage is not a packaged-release announcement.
 
+## Subscription usage in the sidebar
+
+The unreleased Omnia development fork shows Claude and Codex subscription usage
+below the sidebar header actions, even when no chat is selected. It follows the
+existing Connected Services quota feature. Open a ring for its usage window,
+remaining allowance, reset information and account details. These are account
+allowances, separate from a session's token or context usage. Chat and sidebar
+reuse the same meters and display preferences.
+
+The account chooser starts with the configured connected-profile default. You
+can choose another connected profile or a known native account without changing
+agent authentication or execution settings. Multiple native records require a
+choice; account and organization scopes stay distinct. The display choice is
+saved on this device. When the sidebar is collapsed, its usage button opens both
+providers together.
+
+Loading, unavailable, outdated and failed-refresh states remain explicit; missing
+readings are not zero. A failed refresh retains the last good reading. **No usage
+data** means no recorded usage is available, rather than proving native sign-out.
+Native account discovery requires a compatible fork relay; older relays show it
+unavailable. This source work does not update the hosted relay. Isolated browser
+checks pass; native acceptance and rollout remain pending.
+
 ## Machine monitoring
 
 The unreleased Omnia development fork adds a collapsible **Machines** section to
@@ -144,8 +192,11 @@ of the selected session, using their chosen names, icons and colors. Each machin
 needs a connected fork CLI that provides host metrics; updating the app alone does
 not add telemetry to older CLIs.
 
-Expand a machine to see metric definitions, sample time, GPU device identities and
-the measured storage volume. CPU is overall utilization across logical cores;
+Each machine has one compact summary line. Select it to expand the full readings,
+metric definitions, sample time, GPU device identities and measured storage volume;
+select it again to collapse. Keyboard users can focus the row and press Enter or
+Space. Long summaries stay on one line, with the full name and readings available
+in the expanded details. CPU is overall utilization across logical cores;
 memory and storage show capacity used. Storage measures space occupied, not disk
 I/O activity. Load average shows the 1-, 5- and 15-minute values where supported;
 Windows reports it unavailable. GPU utilization appears per device when a supported

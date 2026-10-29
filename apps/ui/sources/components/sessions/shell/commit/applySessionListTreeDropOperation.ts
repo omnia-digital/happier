@@ -1,4 +1,4 @@
-import { isSessionListTreeDestinationCompatible } from '../drop-resolution/isSessionListTreeDestinationCompatible';
+import { isSessionListHomeOrderMoveCompatible, isSessionListTreeDestinationCompatible } from '../drop-resolution/isSessionListTreeDestinationCompatible';
 import type { TreeInstruction } from '@/components/ui/treeDragDrop';
 import type { SessionFoldersV1 } from '@/sync/domains/session/folders';
 import {
@@ -332,6 +332,9 @@ export async function applySessionListTreeDropOperation(params: Readonly<{
     }
 
     if (params.source.metadata.kind !== 'workspace-root' && !isSessionListTreeDestinationCompatible(params.source.metadata, destination.container)) {
+        return { ok: false, operationKind: 'invalid', reason: 'workspace-scope-mismatch' };
+    }
+    if (!isSessionListHomeOrderMoveCompatible(params.tree, params.source.metadata, result.instruction)) {
         return { ok: false, operationKind: 'invalid', reason: 'workspace-scope-mismatch' };
     }
 

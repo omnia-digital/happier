@@ -61,6 +61,7 @@ import {
     buildSessionListCacheEntryFromRenderable,
 } from '../../domains/state/warmCacheAdapters';
 import { projectManager } from '../../runtime/orchestration/projectManager';
+import { areServerProfileIdentifiersEquivalent } from '../../domains/server/serverProfiles';
 import { syncPerformanceTelemetry } from '../../runtime/syncPerformanceTelemetry';
 import { isModelMode, type PermissionMode } from '@/sync/domains/permissions/permissionTypes';
 import { isModelSelectableForSession, type SessionModelOptionsContext } from '@/sync/domains/models/modelOptions';
@@ -330,7 +331,25 @@ function saveWarmSessionCacheForState(state: SessionsDomain & SessionsDomainDepe
     const accountId = resolveWarmCacheAccountScope(state.profile?.id);
     if (!activeServerId || !accountId) return;
     const previousEntries = readPersistedSessionListWarmCacheEntries(activeServerId, accountId);
-    const nextEntries = buildPersistedSessionListCacheEntriesFromRenderables(state.sessionListRenderables ?? {}, previousEntries);
+    const renderables = state.sessionListRenderables ?? {};
+    let scopedRenderables = renderables;
+    const matchingHomes = new Map<string, boolean>([[activeServerId, true]]);
+    for (const id in renderables) {
+        if (!Object.hasOwn(renderables, id)) continue;
+        const home = renderables[id].serverId?.trim();
+        if (!home) continue;
+        let matches = matchingHomes.get(home);
+        if (matches === undefined) {
+            matches = areServerProfileIdentifiersEquivalent(home, activeServerId);
+            matchingHomes.set(home, matches);
+        }
+        if (matches) continue;
+        // This persisted snapshot belongs to the active Home/account. A foreign route
+        // stays in memory, but cannot become an unscoped row when this cache hydrates.
+        if (scopedRenderables === renderables) scopedRenderables = { ...renderables };
+        delete scopedRenderables[id];
+    }
+    const nextEntries = buildPersistedSessionListCacheEntriesFromRenderables(scopedRenderables, previousEntries);
     if (previousEntries && nextEntries === previousEntries) return;
     saveSessionListWarmCacheEntries(
         activeServerId,
@@ -989,7 +1008,10 @@ export function createSessionsDomain<S extends SessionsDomain & SessionsDomainDe
                             mergedRenderable,
                             previousWarmCacheEntry,
                         );
-                        if (nextWarmCacheEntry !== previousWarmCacheEntry) {
+                        // Home identity controls membership in the active cache even though
+                        // the per-Home persisted entry intentionally carries no server id.
+                        if (nextWarmCacheEntry !== previousWarmCacheEntry
+                            || (previousRenderable?.serverId ?? null) !== (mergedRenderable.serverId ?? null)) {
                             if (assessment.warmCacheChange === 'deferred') {
                                 didDeferredWarmCacheRelevantRenderableChange = true;
                             } else {

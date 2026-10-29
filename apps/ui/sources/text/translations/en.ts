@@ -4230,6 +4230,14 @@ export const en = {
     },
 
     settingsAppearance: {
+      sections: {
+        global: 'Global',
+        leftSidebar: 'Left Sidebar',
+        taskView: 'Task View',
+        sidebarSettings: 'Sidebar layout',
+        sidebarSettingsDescription: 'Card layout, machine identity, and session organization',
+        sidebarGlobalDefaults: 'Text size and item density use the Global settings.',
+      },
       tabBarAppearance: {
         title: 'Tab bar',
         footer: 'Customize the bottom tab bar.',
@@ -6229,6 +6237,9 @@ export const en = {
         renameWorkspacePromptPlaceholder: 'Enter a name...',
         resetWorkspaceName: 'Reset name',
         viewOptions: 'View options',
+        noGrouping: 'No grouping',
+        groupMenu: 'Group',
+        sortMenu: 'Sort',
         searchSessions: 'Search sessions',
         searchSessionsPlaceholder: 'Search sessions...',
         filterByTags: 'Filter by tags',
@@ -6818,6 +6829,16 @@ export const en = {
 
     sidebar: {
         sessionsTitle: 'Happier',
+        providerUsage: {
+            native: "Native",
+            disabled: "Usage is off",
+            discoveryUnsupported: "Native usage is unavailable on this relay",
+            discoveryError: "Native usage could not refresh",
+            chooseAccount: "Choose account",
+            noUsageData: "No usage data",
+            lastKnownRefreshFailed: "Last known · refresh failed",
+            openUsage: "Show subscription usage",
+        },
     },
 
     toolView: {

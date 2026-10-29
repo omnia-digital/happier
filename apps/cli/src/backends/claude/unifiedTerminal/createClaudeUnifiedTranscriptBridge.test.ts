@@ -1066,6 +1066,13 @@ describe('createClaudeUnifiedTranscriptBridge', () => {
       compactMetadata: { trigger: 'auto' },
     })}\n`);
 
+    await appendJsonl(transcriptPath, {
+      type: 'assistant', uuid: 'historical_model', sessionId,
+      timestamp: new Date(Date.now() - 60_000).toISOString(),
+      message: { role: 'assistant', model: 'claude-old', content: [{ type: 'text', text: 'old' }] },
+    } as RawJSONLines);
+
+    const onEffectiveModel = vi.fn();
     const onTranscriptMessage = vi.fn();
     const bridge = createClaudeUnifiedTranscriptBridge({
       sessionId,
@@ -1073,6 +1080,7 @@ describe('createClaudeUnifiedTranscriptBridge', () => {
       workingDirectory: workspaceDir,
       claudeConfigDir,
       onTranscriptMessage,
+      onEffectiveModel,
       loadCommittedClaudeJsonlMessageBaseline: async () => ({
         keys: new Set<string>(),
         complete: true,
@@ -1086,6 +1094,7 @@ describe('createClaudeUnifiedTranscriptBridge', () => {
       await bridge.start({ abortSignal: new AbortController().signal });
       await waitMs(100);
       expect(onTranscriptMessage).not.toHaveBeenCalled();
+      expect(onEffectiveModel).not.toHaveBeenCalled();
 
       await appendJsonl(transcriptPath, {
         type: 'system',
@@ -1100,6 +1109,13 @@ describe('createClaudeUnifiedTranscriptBridge', () => {
       expect(onTranscriptMessage).toHaveBeenCalledWith(expect.objectContaining({
         uuid: 'live_compact_boundary',
       }));
+      await appendJsonl(transcriptPath, {
+        type: 'assistant', uuid: 'live_model', sessionId,
+        timestamp: new Date().toISOString(),
+        message: { role: 'assistant', model: 'claude-live', content: [{ type: 'text', text: 'live' }] },
+      } as RawJSONLines);
+      await waitUntil(() => onEffectiveModel.mock.calls.length === 1);
+      expect(onEffectiveModel).toHaveBeenCalledWith({ modelId: 'claude-live' });
     } finally {
       await bridge.dispose();
     }

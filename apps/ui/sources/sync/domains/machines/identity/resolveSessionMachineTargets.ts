@@ -2,7 +2,7 @@ import type { Machine } from '@/sync/domains/state/storageTypes';
 
 import { findMachineInCollection, type MachineCollection } from './machineCollection';
 import { normalizeMachineIdentityString, type MachineTargetResolution } from './machineIdentityTypes';
-import { resolveCanonicalMachineId } from './resolveCanonicalMachineId';
+import { resolveCanonicalMachineId, type MachineReplacementRecord } from './resolveCanonicalMachineId';
 
 function chooseBasePath(input: Readonly<{
     sessionActive?: boolean | null;
@@ -48,7 +48,7 @@ export function resolveSessionDisplayTarget(input: Readonly<{
     sessionPath?: string | null;
     projectMachineId?: string | null;
     projectPath?: string | null;
-    machines: MachineCollection<Machine>;
+    machines: MachineCollection<MachineReplacementRecord>;
 }>): MachineTargetResolution | null {
     const originMachineId = resolveStableOriginMachineId(input);
     if (!originMachineId || originMachineId.startsWith('host:')) return null;

@@ -124,10 +124,38 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await gotoDomContentLoadedWithRetries(page, baseUrl, 120_000);
             await page.getByTestId('machine-monitoring-toggle').click();
             const choose = async (id: string) => {
-                await page.getByTestId('session-list-ordering-menu-trigger').first().click();
+                const trigger = id.includes('status-sort-') || id.includes('ordering-')
+                    ? 'session-list-sort-menu-trigger'
+                    : 'session-list-group-menu-trigger';
+                await page.getByTestId(trigger).first().click();
                 await page.getByTestId(id).click();
             };
             const row = (id: string) => page.getByTestId('session-list-item-' + id);
+            const expectTicketRowContentInsideCard = async (id: string, title: string) => {
+                const item = row(id);
+                const ticket = item.getByTestId('session-ticket-row-status:' + id);
+                await expect(item).toBeVisible();
+                await expect(ticket).toBeVisible();
+                const [cardBox, titleBox, machineBox, ticketBox, cardBorder] = await Promise.all([
+                    item.boundingBox(),
+                    item.getByText(title, { exact: true }).boundingBox(),
+                    item.getByTestId('session-list-machine-identity-' + id).boundingBox(),
+                    ticket.boundingBox(),
+                    item.evaluate((element) => {
+                        const style = getComputedStyle(element);
+                        return { top: Number.parseFloat(style.borderTopWidth), bottom: Number.parseFloat(style.borderBottomWidth) };
+                    }),
+                ]);
+                if (!cardBox || !titleBox || !machineBox || !ticketBox) throw new Error('Ticket row geometry unavailable');
+                const geometry = JSON.stringify({ cardBox, titleBox, machineBox, ticketBox, cardBorder });
+                // Only group-edge rows have a top/bottom border; measure their actual content bounds.
+                for (const box of [titleBox, machineBox, ticketBox]) {
+                    expect(box.y, geometry).toBeGreaterThanOrEqual(cardBox.y + cardBorder.top);
+                    expect(box.y + box.height, geometry).toBeLessThanOrEqual(cardBox.y + cardBox.height - cardBorder.bottom);
+                }
+                expect(titleBox.y + titleBox.height, geometry).toBeLessThanOrEqual(machineBox.y);
+                expect(machineBox.y + machineBox.height, geometry).toBeLessThanOrEqual(ticketBox.y);
+            };
             // Virtualized DOM pools retain hidden/recycled nodes and need not follow visual order.
             const visibleIds = () => page.locator('[data-testid^="session-list-item-"]').evaluateAll(nodes => nodes.map(node => ({
                 id: node.getAttribute('data-testid')!.slice('session-list-item-'.length), rect: node.getBoundingClientRect(),
@@ -141,7 +169,8 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
                 await expect.poll(async () => (await position(firstId)) < (await position(secondId))).toBe(true);
                 await page.getByTestId('session-list-search-clear').first().click();
             };
-            await expect(page.getByTestId('session-list-ordering-menu-trigger').first()).toBeVisible({ timeout: 120_000 });
+            await expect(page.getByTestId('session-list-group-menu-trigger').first()).toBeVisible({ timeout: 120_000 });
+            await expect(page.getByTestId('session-list-sort-menu-trigger').first()).toBeVisible();
             await expect(row(noTicket)).toBeVisible();
             await expect(page.getByText('Pinned', { exact: true })).toBeVisible();
             // The saved project collapse keeps this ticket row out of view before list demand.
@@ -171,6 +200,8 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await expect(row(idle)).toBeVisible();
             await page.getByTestId('session-list-search-clear').first().click();
             await expect(row(testing)).toBeVisible();
+            await expectTicketRowContentInsideCard(idle, 'OH60 QA idle status compare');
+            await expectTicketRowContentInsideCard(working, 'OH60 QA working');
             await page.screenshot({ path: testInfo.outputPath('oh60-ticket-groups-agent-sort.png') });
             await choose('session-list-status-group-agent');
             await expect(statusHeaders.filter({ hasText: 'working...' }).first()).toBeVisible();
@@ -210,7 +241,12 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             expect((await readUiE2eScopedAccountSettings({ page })).sessionListStatusSortV1).toBe('agent');
             await page.setViewportSize({ width: 390, height: 900 });
             await gotoDomContentLoadedWithRetries(page, baseUrl, 120_000);
+            await expect(page.getByTestId('machine-monitoring-toggle')).toHaveCount(0);
             await expect(statusHeaders.filter({ hasText: 'Ready for Prod' }).first()).toBeVisible({ timeout: 60_000 });
+            await expect(row(unavailable).getByText('Status unavailable', { exact: true })).toBeVisible({ timeout: 60_000 });
+            await expectTicketRowContentInsideCard(idle, 'OH60 QA idle status compare');
+            await expectTicketRowContentInsideCard(unavailable, 'OH60 Unavailable');
+            await page.mouse.move(385, 2);
             await page.screenshot({ path: testInfo.outputPath('oh60-compact-status-organization.png') });
             await page.setViewportSize({ width: 1360, height: 900 });
             await gotoDomContentLoadedWithRetries(page, `${baseUrl}/session/${idle}`, 120_000);

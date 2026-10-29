@@ -4389,6 +4389,14 @@ export const zhHans: TranslationStructure = {
   },
 
   settingsAppearance: {
+    sections: {
+      global: '通用',
+      leftSidebar: '左侧边栏',
+      taskView: '任务视图',
+      sidebarSettings: '侧边栏布局',
+      sidebarSettingsDescription: '卡片布局、机器身份和会话整理',
+      sidebarGlobalDefaults: '文本大小和条目密度使用全局设置。',
+    },
     tabBarAppearance: {
       title: '标签栏',
       footer: '自定义底部标签栏。',
@@ -6362,6 +6370,9 @@ export const zhHans: TranslationStructure = {
     renameWorkspacePromptPlaceholder: '输入名称...',
     resetWorkspaceName: '重置名称',
     viewOptions: '视图选项',
+    noGrouping: '不分组',
+    groupMenu: '分组',
+    sortMenu: '排序',
     searchSessions: '搜索会话',
     searchSessionsPlaceholder: '搜索会话...',
     filterByTags: '按标签筛选',
@@ -6977,6 +6988,16 @@ export const zhHans: TranslationStructure = {
 
   sidebar: {
     sessionsTitle: "Happier",
+      providerUsage: {
+          native: "原生",
+          disabled: "用量显示已关闭",
+          discoveryUnsupported: "此中继不支持查看原生用量",
+          discoveryError: "无法刷新原生用量",
+          chooseAccount: "选择账户",
+          noUsageData: "暂无用量数据",
+          lastKnownRefreshFailed: "上次数据 · 刷新失败",
+          openUsage: "显示订阅用量",
+      },
   },
 
   toolView: {

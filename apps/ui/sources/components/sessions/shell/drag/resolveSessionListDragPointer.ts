@@ -101,6 +101,7 @@ function buildContentTreeModel(
         dropZones: dropZones.map(asTreeDropZone),
         rowMetadataById: snapshot.topology.rowMetadataById,
         containerMetadataById: snapshot.topology.containerMetadataById,
+        homeOrderPositionsByRowId: snapshot.topology.homeOrderPositionsByRowId,
     };
 }
 

@@ -1,4 +1,5 @@
 import { spawn, type SpawnOptions } from 'child_process';
+import { mkdir } from 'node:fs/promises';
 
 import { logger } from '@/ui/logger';
 import type { TerminalHostLaunchFailure } from '@/integrations/terminalHost/_types';
@@ -566,6 +567,9 @@ export class TmuxUtilities {
     let spawnScriptPath: string | null = null;
     let launchDisposition: TerminalHostLaunchFailure['launchDisposition'] = 'not_started';
     try {
+      const socketRoot = this.tmuxCommandEnv?.TMUX_TMPDIR;
+      if (socketRoot) await mkdir(socketRoot, { recursive: true });
+
       // Check if tmux is available
       const tmuxCheck = await this.executeTmuxCommand(['list-sessions']);
       if (!tmuxCheck) {
@@ -840,17 +844,13 @@ export class TmuxUtilities {
    */
   async killWindow(sessionIdentifier: string): Promise<boolean> {
     try {
-      const immutableWindowId = sessionIdentifier.trim();
-      if (/^@\d+$/.test(immutableWindowId)) {
-        const result = await this.executeTmuxCommand(['kill-window', '-t', immutableWindowId]);
-        return result !== null && result.returncode === 0;
-      }
       const parsed = parseTmuxSessionIdentifier(sessionIdentifier);
       if (!parsed.window) {
         throw new TmuxSessionIdentifierError(`Window identifier required: ${sessionIdentifier}`);
       }
 
-      const result = await this.executeTmuxCommand(['kill-window'], parsed.session, parsed.window);
+      const target = formatTmuxSessionIdentifier(parsed, { exactSession: true });
+      const result = await this.executeTmuxCommand(['kill-window', '-t', target]);
       return result !== null && result.returncode === 0;
     } catch (error) {
       if (error instanceof TmuxSessionIdentifierError) {

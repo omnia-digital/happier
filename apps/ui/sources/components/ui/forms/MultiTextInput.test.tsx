@@ -73,16 +73,32 @@ describe('MultiTextInput', () => {
 
     it('uses the caller textStyle font size as the scaled native input base', async () => {
         localSettingState.uiFontScale = 1.25;
-
-        const { MultiTextInput } = await import('./MultiTextInput');
-        const tree = (await renderScreen(<MultiTextInput
-                    testID="composer-input"
-                    value=""
-                    textStyle={{ fontSize: 16 }}
-                    onChangeText={() => {}}
-                />)).tree;
-        const input = tree.findByType('TextInput' as any);
-        expect(flattenStyle(input.props.style).fontSize).toBe(20);
+        const { Platform } = await import('react-native');
+        const previousOS = Platform.OS;
+        const previousSelect = Platform.select;
+        Object.defineProperties(Platform, {
+            OS: { configurable: true, value: 'ios' },
+            select: {
+                configurable: true,
+                value: <T,>(options: { ios?: T; native?: T; default?: T }) => options.ios ?? options.native ?? options.default,
+            },
+        });
+        try {
+            const { MultiTextInput } = await import('./MultiTextInput');
+            const tree = (await renderScreen(<MultiTextInput
+                        testID="composer-input"
+                        value=""
+                        textStyle={{ fontSize: 16 }}
+                        onChangeText={() => {}}
+                    />)).tree;
+            const input = tree.findByType('TextInput' as any);
+            expect(flattenStyle(input.props.style).fontSize).toBe(20);
+        } finally {
+            Object.defineProperties(Platform, {
+                OS: { configurable: true, value: previousOS },
+                select: { configurable: true, value: previousSelect },
+            });
+        }
     });
 
     it('derives the native return key type from submit behavior', async () => {
