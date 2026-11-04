@@ -43,6 +43,17 @@ async function openRepositoryAssociationChoices(page: Page, headerTitle: string,
   await checkout.click();
   return checkoutId;
 }
+async function expectTruncatedInsideParent(page: Page, testId: string) {
+  // A viewport change re-lays out the screen, so the box is read until it settles.
+  await expect.poll(() => page.getByTestId(testId).evaluate(anchor => {
+    const text = anchor.firstElementChild;
+    if (!text || !anchor.parentElement) throw new Error('Missing identity text');
+    return {
+      insideParent: anchor.getBoundingClientRect().right <= anchor.parentElement.getBoundingClientRect().right + 1,
+      truncated: text.scrollWidth > text.clientWidth,
+    };
+  })).toEqual({ insideParent: true, truncated: true });
+}
 test.describe('ui e2e: session list Repository view', () => {
   test.describe.configure({ mode: 'serial' });
 
@@ -268,7 +279,7 @@ test.describe('ui e2e: session list Repository view', () => {
       await selectViewMenu(page, 'session-view-repository');
       const headers = page.locator('[data-testid^="session-list-project-header:"]');
       await expect(headers.filter({ hasText: 'example.com/team/repo' })).toHaveCount(1);
-      await page.getByTestId('session-list-ordering-menu-trigger').first().click();
+      await page.getByTestId('session-list-group-menu-trigger').first().click();
       await expect(page.getByTestId('session-repository-refresh')).toBeEnabled();
       await page.keyboard.press('Escape');
       const headerCount = await headers.count();
@@ -287,7 +298,56 @@ test.describe('ui e2e: session list Repository view', () => {
       await expect(headers).toHaveCount(headerCount);
       await expect(headers.filter({ hasText: 'example.com/team/repo' })).toHaveCount(1);
       await expect(headers.filter({ hasText: worktreePath })).toHaveCount(0);
+      // The row names the repository, not the generated worktree directory, in any grouping.
+      const rowIdentity = page.getByTestId(`session-list-identity-label-${sessionId}`);
+      await expect(rowIdentity).toHaveText('repo');
+      await selectViewMenu(page, 'session-view-machine');
+      await expect(rowIdentity).toHaveText('repo');
+      await rowIdentity.hover();
+      await expect(page.getByTestId(`session-list-identity-label-${sessionId}-tooltip`)).toContainText('repo');
+      await page.getByTestId(`session-list-item-${sessionId}`).click();
+      await expect(page.getByTestId('session-header-workspace-identity')).toHaveText('repo');
       await page.screenshot({ path: join(suiteDir, 'new-worktree-origin-repository.png') });
+      await page.setViewportSize({ width: 820, height: 1100 });
+      await page.screenshot({ path: join(suiteDir, 'new-worktree-origin-repository-narrow.png') });
+    } catch (error) {
+      throw appendBrowserDiagnostics(error, diagnostics());
+    }
+  });
+
+  test('truncates a long workspace name on rows and the header at narrow widths', async ({ page }) => {
+    test.setTimeout(120_000);
+    if (!server || !uiBaseUrl || !token) throw new Error('missing fixtures');
+    const diagnostics = collectBrowserDiagnostics({ page });
+    try {
+      await page.setViewportSize({ width: 820, height: 1100 });
+      await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+      await waitForInitialAppUi({ page, timeoutMs: 120_000 });
+      const name = 'a-workspace-directory-name-far-too-long-for-a-sidebar-row-or-a-session-header-column-to-show-in-full-at-any-width';
+      const title = 'Long workspace';
+      const sessionId = await createPlainSession({
+        baseUrl: server.baseUrl, token, title, machineId: MACHINE_IDS[0],
+        rootPath: `/projects/${name}`, tagPrefix: 'repository-view-long-name',
+      });
+      const row = page.getByTestId(`session-list-item-${sessionId}`);
+      await expect(row).toBeVisible();
+
+      await selectViewMenu(page, 'session-view-machine');
+      const rowIdentityId = `session-list-identity-label-${sessionId}`;
+      await expect(page.getByTestId(rowIdentityId)).toHaveText(name);
+      await expectTruncatedInsideParent(page, rowIdentityId);
+      // The label stays secondary: the title keeps room beside it.
+      const titleBox = await row.getByText(title).boundingBox();
+      expect(titleBox?.width ?? 0).toBeGreaterThan(40);
+      await page.getByTestId(rowIdentityId).hover();
+      await expect(page.getByTestId(`${rowIdentityId}-tooltip`)).toContainText(name);
+
+      await row.getByText(title).click();
+      await expect(page.getByTestId('session-header-workspace-identity')).toHaveText(name);
+      await expectTruncatedInsideParent(page, 'session-header-workspace-identity');
+      await page.setViewportSize({ width: 390, height: 844 });
+      await expectTruncatedInsideParent(page, 'session-header-workspace-identity');
+      await page.screenshot({ path: join(suiteDir, 'long-workspace-name-header-narrow.png') });
     } catch (error) {
       throw appendBrowserDiagnostics(error, diagnostics());
     }

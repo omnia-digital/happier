@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/text/webStartEllipsisTextStyles';
 import { Typography } from '@/constants/Typography';
 import { formatPendingCountBadge } from '@/components/sessions/pendingBadge';
+import { SessionIdentityHoverAnchor } from '@/components/sessions/SessionIdentityHoverAnchor';
 import { SessionMachineIdentity } from '@/components/sessions/SessionMachineIdentity';
 import { SessionTicketRowStatus } from '@/components/sessions/tickets/SessionTicketHeader';
 import { readSessionTicketAssociation } from '@happier-dev/protocol';
@@ -199,6 +200,7 @@ type SessionItemRenderProps = Omit<SessionItemBaseProps, 'activityTimeMode' | 's
     sessionStatus: SessionStatus;
     sessionNameResolved: string;
     sessionSubtitle: string;
+    identityLabel: string | null;
     machineLabel: string | null;
     machineId: string | null;
     showMachineIdentity: boolean;
@@ -473,6 +475,14 @@ const stylesheet = StyleSheet.create((theme) => ({
         alignItems: 'center',
         marginBottom: 1,
         gap: 6,
+    },
+    // The machine name gives way first: its glyph still identifies it, this name would be lost.
+    titleRowIdentity: {
+        maxWidth: '70%',
+        flexShrink: 0,
+    },
+    titleRowIdentityText: {
+        maxWidth: 96,
     },
     rightIdentity: {
         flexDirection: 'row',
@@ -785,6 +795,7 @@ const SessionItemContent = React.memo(
         sessionStatus,
         sessionNameResolved,
         sessionSubtitle,
+        identityLabel,
         machineLabel,
         machineId,
         showMachineIdentity,
@@ -1399,6 +1410,10 @@ const SessionItemContent = React.memo(
             || shouldShowStatusSecondaryLine
             || shouldShowPathSecondaryLine
         );
+        const showsDraftPreview = Boolean(draft && !compact && draft.preview);
+        // The path line already carries the identity, so the title row only speaks for rows without one.
+        const showTitleRowIdentity = Boolean(identityLabel)
+            && !(showStandardSecondaryLine && shouldShowPathSecondaryLine && !showsDraftPreview);
         const shouldEmphasizeTitle = rowPresentation.titleTone === 'emphasized';
         const shouldMuteTitle = rowPresentation.titleTone === 'quiet';
         // The leading lifecycle badge now owns live-work animation. Keep attention marks for
@@ -1525,7 +1540,7 @@ const SessionItemContent = React.memo(
             <Pressable
                 testID={`session-list-item-${resolvedSession.id}`}
                 accessibilityActions={accessibilityActions}
-                accessibilityLabel={[sessionNameResolved, machineLabel, resolveSessionRowStatusLabel(visualStatus)].filter(Boolean).join(', ')}
+                accessibilityLabel={[sessionNameResolved, identityLabel, machineLabel, resolveSessionRowStatusLabel(visualStatus)].filter(Boolean).join(', ')}
                 accessibilityState={{ selected: Boolean(selected || rowSelection.isSelected) }}
                 onAccessibilityAction={accessibilityActions.length > 0 ? handleAccessibilityAction : undefined}
                 onLayout={sourceTagChips.length > 0 ? handleRowLayout : undefined}
@@ -1669,8 +1684,29 @@ const SessionItemContent = React.memo(
                                 minimal={isMinimal}
                             />
                         ) : null}
-                        {(shouldRenderTrailingAgentLogo && !shouldRenderSelectionCheckbox) || (showMachineIdentity && machineLabel) ? (
+                        {showTitleRowIdentity || (shouldRenderTrailingAgentLogo && !shouldRenderSelectionCheckbox) || (showMachineIdentity && machineLabel) ? (
                             <View testID={`session-list-right-identity-${resolvedSession.id}`} style={styles.rightIdentity}>
+                                {showTitleRowIdentity && identityLabel ? (
+                                    <SessionIdentityHoverAnchor
+                                        label={identityLabel}
+                                        testID={`session-list-identity-label-${resolvedSession.id}`}
+                                        focusable={true}
+                                        style={styles.titleRowIdentity}
+                                    >
+                                        <Text
+                                            style={[
+                                                styles.sessionSubtitle,
+                                                compact ? styles.sessionSubtitleCompact : null,
+                                                isMinimal ? styles.sessionSubtitleMinimal : null,
+                                                styles.titleRowIdentityText,
+                                            ]}
+                                            numberOfLines={1}
+                                            ellipsizeMode="tail"
+                                        >
+                                            {identityLabel}
+                                        </Text>
+                                    </SessionIdentityHoverAnchor>
+                                ) : null}
                                 {shouldRenderTrailingAgentLogo && !shouldRenderSelectionCheckbox ? (
                                     <SessionListIdentity
                                         session={resolvedSession}
@@ -1746,7 +1782,7 @@ const SessionItemContent = React.memo(
                         ) : null}
                     </View>
 
-                    {draft && !compact && draft.preview ? (
+                    {draft && showsDraftPreview ? (
                         <Text
                             testID={`session-list-draft-preview:${resolvedSession.id}`}
                             style={styles.draftPreviewText}
@@ -1807,21 +1843,27 @@ const SessionItemContent = React.memo(
                                 ) : null}
                             </View>
                         ) : (
-                            <Text
-                                style={[
-                                    styles.sessionSubtitle,
-                                    compact ? styles.sessionSubtitleCompact : null,
-                                    shouldUseWebPathSubtitleStartEllipsis ? styles.sessionPathSubtitleWeb : null,
-                                ]}
-                                numberOfLines={1}
-                                ellipsizeMode={shouldUseWebPathSubtitleStartEllipsis ? undefined : effectiveSubtitleEllipsizeMode}
+                            <SessionIdentityHoverAnchor
+                                label={sessionSubtitle}
+                                testID={`session-list-path-subtitle-${resolvedSession.id}`}
+                                focusable={true}
                             >
-                                {shouldUseWebPathSubtitleStartEllipsis ? (
-                                    <Text style={styles.sessionPathSubtitleTextWeb}>
-                                        {sessionSubtitle}
-                                    </Text>
-                                ) : sessionSubtitle}
-                            </Text>
+                                <Text
+                                    style={[
+                                        styles.sessionSubtitle,
+                                        compact ? styles.sessionSubtitleCompact : null,
+                                        shouldUseWebPathSubtitleStartEllipsis ? styles.sessionPathSubtitleWeb : null,
+                                    ]}
+                                    numberOfLines={1}
+                                    ellipsizeMode={shouldUseWebPathSubtitleStartEllipsis ? undefined : effectiveSubtitleEllipsizeMode}
+                                >
+                                    {shouldUseWebPathSubtitleStartEllipsis ? (
+                                        <Text style={styles.sessionPathSubtitleTextWeb}>
+                                            {sessionSubtitle}
+                                        </Text>
+                                    ) : sessionSubtitle}
+                                </Text>
+                            </SessionIdentityHoverAnchor>
                         )
                     ) : null}
 
@@ -2198,6 +2240,7 @@ function SessionItemFromRowModel(props: SessionItemProps & { rowModel: SessionLi
             sessionStatus={rowModel.status}
             sessionNameResolved={rowModel.title}
             sessionSubtitle={itemProps.subtitleOverride ?? rowModel.subtitle}
+            identityLabel={rowModel.identityLabel}
             machineLabel={rowModel.machineLabel}
             machineId={rowModel.machineId}
             showMachineIdentity={rowModel.showMachineIdentity}

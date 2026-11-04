@@ -163,6 +163,7 @@ function createMetadataPendingRowModel(id: string): SessionListRowModel {
         sessionId: id,
         serverId: 'server_a',
         serverName: 'Server A',
+        identityLabel: null,
         machineLabel: null,
         machineId: null,
         showMachineIdentity: true,

@@ -15,6 +15,7 @@ import { t } from '@/text';
 import { resolveOptionalSessionScreenTestId, useSessionScreenTestIdsEnabled } from '../shell/sessionScreenTestIds';
 import { resolveChatHeaderContentInsets } from './chatHeaderLayout';
 import { Icon } from '@/components/ui/icons/Icon';
+import { SessionIdentityHoverAnchor } from '@/components/sessions/SessionIdentityHoverAnchor';
 import { SessionMachineIdentity } from '@/components/sessions/SessionMachineIdentity';
 import { resolveSessionHeaderActionTargetPx } from '@/components/sessions/actions/sessionHeaderIconMetrics';
 
@@ -234,25 +235,32 @@ export const ChatHeaderView = React.memo(function ChatHeaderView({
                         ) : null}
                     </View>
                     {subtitle && (
-                        <Text
-                            numberOfLines={1}
-                            ellipsizeMode={shouldUseWebSubtitleStartEllipsis ? undefined : subtitleEllipsizeMode}
-                            style={[
-                                styles.subtitle,
-                                shouldUseWebSubtitleStartEllipsis ? styles.subtitleHeadWeb : null,
-                                {
-                                    color: theme.colors.chrome.header.foreground,
-                                    opacity: 0.7,
-                                    ...Typography.default()
-                                }
-                            ]}
+                        <SessionIdentityHoverAnchor
+                            label={subtitle}
+                            testID="session-header-workspace-identity"
+                            focusable={true}
+                            style={styles.subtitleAnchor}
                         >
-                            {shouldUseWebSubtitleStartEllipsis ? (
-                                <Text style={styles.subtitleHeadTextWeb}>
-                                    {subtitle}
-                                </Text>
-                            ) : subtitle}
-                        </Text>
+                            <Text
+                                numberOfLines={1}
+                                ellipsizeMode={shouldUseWebSubtitleStartEllipsis ? undefined : subtitleEllipsizeMode}
+                                style={[
+                                    styles.subtitle,
+                                    shouldUseWebSubtitleStartEllipsis ? styles.subtitleHeadWeb : null,
+                                    {
+                                        color: theme.colors.chrome.header.foreground,
+                                        opacity: 0.7,
+                                        ...Typography.default()
+                                    }
+                                ]}
+                            >
+                                {shouldUseWebSubtitleStartEllipsis ? (
+                                    <Text style={styles.subtitleHeadTextWeb}>
+                                        {subtitle}
+                                    </Text>
+                                ) : subtitle}
+                            </Text>
+                        </SessionIdentityHoverAnchor>
                     )}
                 </View>
 
@@ -348,6 +356,10 @@ const styles = StyleSheet.create(() => ({
         }),
         fontWeight: '600',
         flexShrink: 1,
+    },
+    // The title column aligns to the start, so without a cap this sizes to its unwrapped text.
+    subtitleAnchor: {
+        maxWidth: '100%',
     },
     subtitle: {
         fontSize: 12,

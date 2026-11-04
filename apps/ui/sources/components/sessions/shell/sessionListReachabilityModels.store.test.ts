@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createSessionFixture } from '@/dev/testkit/fixtures/sessionFixtures';
 import { createMachineFixture } from '@/dev/testkit/fixtures/machineFixtures';
 import { buildMachineDisplayRenderableFromMachine } from '@/sync/domains/machines/machineDisplayRenderable';
+import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
+import { repositoryWorkspaceKey, type SessionRepositoryAssociations } from '@/sync/domains/session/listing/sessionRepositoryIdentity';
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
 import { storage } from '@/sync/domains/state/storageStore';
 import type { Machine } from '@/sync/domains/state/storageTypes';
@@ -128,5 +130,65 @@ describe('session reachability display invalidation', () => {
         storage.setState({ sessions: { [moved.id]: moved } });
         expect(build([predecessor, replacement], [{ ...items[0], type: 'session', session: moved }])
             .reachableSessionDisplayByKey.get('server-a:session-1')?.workspaceSubtitle).toBe('moved');
+    });
+
+    it('names rows after stored repositories, refreshes when one is learned, and keeps them to the active account', () => {
+        const repositoryPath = '/Users/tester/.worktrees/generated-17';
+        const scope = { serverId: 'server-a', accountId: 'account-a' };
+        const machine = { ...createMachineFixture(), id: 'machine-1' };
+        const session = createSessionFixture({
+            id: 'session-1',
+            metadata: { ...createSessionFixture().metadata!, machineId: machine.id, path: repositoryPath, homeDir: '/Users/tester' },
+        });
+        storage.setState({ profileScope: scope, sessions: { [session.id]: session }, machines: { [machine.id]: machine } });
+        const cache = createSessionListReachabilityModelsCache();
+        const workspaceLabelsV1 = {};
+        const machinesById = { [machine.id]: buildMachineDisplayRenderableFromMachine(machine) };
+        const items: SessionListViewItem[] = [{ type: 'session', serverId: scope.serverId, session }];
+        const build = (associations: SessionRepositoryAssociations, rows = items) => buildSessionListReachabilityModels({
+            cache, items: rows, workspaceLabelsV1, machinesById, sessionRepositoryAssociationsV1: associations,
+        });
+
+        expect(build({}).reachableSessionDisplayByKey.get('server-a:session-1')?.workspaceSubtitle).toBe('generated-17');
+
+        const learned: SessionRepositoryAssociations = {
+            [repositoryWorkspaceKey({ ...scope, machineId: machine.id, path: repositoryPath })]: {
+                identity: 'github.com/acme/repo', label: 'github.com/acme/repo', rootPath: repositoryPath, worktreePaths: [],
+            },
+        };
+        const named = build(learned);
+        expect(named.reachableSessionDisplayByKey.get('server-a:session-1')?.workspaceSubtitle).toBe('repo');
+        expect(build(learned)).toBe(named);
+
+        const foreign = build(learned, [{ type: 'session', serverId: 'server-b', session }]);
+        expect(foreign.reachableSessionDisplayByKey.get('server-b:session-1')?.workspaceSubtitle).toBe('generated-17');
+    });
+
+    it('names a foreign Home row from that Home\'s account once the account is resolved', () => {
+        const repositoryPath = '/Users/tester/.worktrees/generated-17';
+        const foreignScope = { serverId: 'server-b', accountId: 'account-b' };
+        const machine = { ...createMachineFixture(), id: 'machine-1' };
+        const session = createSessionFixture({
+            id: 'session-1',
+            metadata: { ...createSessionFixture().metadata!, machineId: machine.id, path: repositoryPath, homeDir: '/Users/tester' },
+        });
+        storage.setState({ profileScope: { serverId: 'server-a', accountId: 'account-a' }, sessions: {}, machines: {} });
+        const cache = createSessionListReachabilityModelsCache();
+        const workspaceLabelsV1 = {};
+        const items: SessionListViewItem[] = [{ type: 'session', serverId: foreignScope.serverId, session }];
+        const sessionRepositoryAssociationsV1: SessionRepositoryAssociations = {
+            [repositoryWorkspaceKey({ ...foreignScope, machineId: machine.id, path: repositoryPath })]: {
+                identity: 'github.com/acme/repo', label: 'github.com/acme/repo', rootPath: repositoryPath, worktreePaths: [],
+            },
+        };
+        const build = (repositoryScopes: Readonly<Record<string, ServerAccountScope | undefined>>) => buildSessionListReachabilityModels({
+            cache, items, workspaceLabelsV1, machinesById: {},
+            machineListByServerId: { [foreignScope.serverId]: [buildMachineDisplayRenderableFromMachine(machine)] },
+            sessionRepositoryAssociationsV1, repositoryScopes,
+        }).reachableSessionDisplayByKey.get('server-b:session-1')?.workspaceSubtitle;
+
+        expect(build({})).toBe('generated-17');
+        expect(build({ [foreignScope.serverId]: foreignScope })).toBe('repo');
+        expect(build({ [foreignScope.serverId]: { ...foreignScope, accountId: 'another-account' } })).toBe('generated-17');
     });
 });

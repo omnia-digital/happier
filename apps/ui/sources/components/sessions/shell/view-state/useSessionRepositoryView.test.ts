@@ -57,6 +57,19 @@ beforeEach(() => {
 afterEach(() => { standardCleanup(); storage.setState(previous, true); vi.restoreAllMocks(); });
 
 describe('Repository view intent lifecycle', () => {
+    it('knows a foreign Home account in every grouping, so row names do not depend on the view', async () => {
+        const home = upsertServerProfile({ serverUrl: 'https://repository-any-mode-home.test', name: 'Any mode Home' });
+        vi.spyOn(TokenStorage, 'getCredentialsForServerUrl').mockResolvedValue({
+            token: `e30.${btoa(JSON.stringify({ sub: 'any-mode-account' }))}.signature`,
+        });
+        const source: SessionListViewItem[] = [{ type: 'session', serverId: home.id, session: { id: 'any-mode', createdAt: 1, updatedAt: 1, metadata: {} } as any }];
+
+        const hook = await renderHook(() => useSessionRepositoryView({ items: source, mode: 'machine', setMode: () => {}, onFailure }));
+
+        await vi.waitFor(() => expect(hook.getCurrent().scopes[home.id]).toEqual({ serverId: home.id, accountId: 'any-mode-account' }));
+        expect(machineScmStatusSnapshot).not.toHaveBeenCalled();
+    });
+
     it('rejects an unpersistable cross-Home flat order while admitting a same-Home move in the mixed band', async () => {
         const first = items[0];
         if (first.type !== 'session') throw new Error('Expected session');

@@ -1,12 +1,11 @@
 import * as React from 'react';
-import { Platform, View } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Typography } from '@/constants/Typography';
 import { Icon } from '@/components/ui/icons/Icon';
 import { useMachineDisplayColor, useMachineDisplayIcon } from '@/sync/domains/state/storage';
 import { Text } from '@/components/ui/text/Text';
 import { resolveMachineDisplayColor } from './machineDisplayColor';
-import { DeferredAnchoredTooltip } from '@/components/ui/overlays/DeferredAnchoredTooltip';
+import { SessionIdentityHoverAnchor } from './SessionIdentityHoverAnchor';
 
 /** A compact name from the canonical machine presentation, with its full value available on hover. */
 export const MachineDisplayGlyph = React.memo(function MachineDisplayGlyph({
@@ -39,24 +38,14 @@ export const SessionMachineIdentity = React.memo(function SessionMachineIdentity
     showLabel?: boolean;
 }>) {
     const { theme } = useUnistyles();
-    const [hovered, setHovered] = React.useState(false);
-    const [focused, setFocused] = React.useState(false);
-    const anchorRef = React.useRef<View | null>(null);
     const isRow = variant === 'row';
     const color = variant === 'header' ? theme.colors.chrome.header.foreground : theme.colors.text.secondary;
 
     return (
-        <View
-            ref={anchorRef}
+        <SessionIdentityHoverAnchor
+            label={label}
             testID={testID}
-            accessible={true}
-            accessibilityRole="text"
-            accessibilityLabel={label}
-            tabIndex={Platform.OS === 'web' && !showLabel ? 0 : undefined}
-            onPointerEnter={Platform.OS === 'web' ? () => setHovered(true) : undefined}
-            onPointerLeave={Platform.OS === 'web' ? () => setHovered(false) : undefined}
-            onFocus={Platform.OS === 'web' && !showLabel ? () => setFocused(true) : undefined}
-            onBlur={Platform.OS === 'web' && !showLabel ? () => setFocused(false) : undefined}
+            focusable={!showLabel}
             style={styles[`${variant}Identity`]}
         >
             <MachineDisplayGlyph serverId={serverId} machineId={machineId} size={isRow ? 11 : 12} color={color} />
@@ -67,16 +56,7 @@ export const SessionMachineIdentity = React.memo(function SessionMachineIdentity
             >
                 {label}
             </Text> : null}
-            {Platform.OS === 'web' && (hovered || focused) ? (
-                <DeferredAnchoredTooltip
-                    activationKey={focused ? 'focused' : 'hovered'}
-                    anchorRef={anchorRef}
-                    label={label}
-                    placement="top"
-                    testID={`${testID}-tooltip`}
-                />
-            ) : null}
-        </View>
+        </SessionIdentityHoverAnchor>
     );
 });
 
