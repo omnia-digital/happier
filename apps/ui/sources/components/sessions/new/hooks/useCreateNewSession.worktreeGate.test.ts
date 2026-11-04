@@ -1312,6 +1312,203 @@ describe('useCreateNewSession (worktree gating)', () => {
         expect(vi.mocked(Modal.alert)).toHaveBeenCalledWith('common.error', 'newSession.failedToStart');
     });
 
+    describe('launching at a folder the machine does not have', () => {
+        async function renderPlainLaunch(overrides: Readonly<{
+            selectedPath?: string;
+            checkoutCreationDraft?: { kind: 'git_worktree'; displayName: string; baseRef: string };
+        }> = {}) {
+            const { useCreateNewSession } = await import('./useCreateNewSession');
+            const typecheck = useCreateNewSession;
+            const params = {
+                draftId: '8e0a5dd1-b1df-43dd-b51e-b7787b30362e',
+                launchIntentSignature: 'test-launch-intent',
+                router: { push: vi.fn(), replace: vi.fn() },
+                selectedMachineId: 'machine-1',
+                selectedPath: overrides.selectedPath ?? '/saved/gone',
+                selectedMachine: { id: 'machine-1', metadata: {} },
+                ...(overrides.checkoutCreationDraft ? { checkoutCreationDraft: overrides.checkoutCreationDraft } : {}),
+                setIsCreating: vi.fn(),
+                setIsResumeSupportChecking: vi.fn(),
+                getVerifiedMachinePathTarget: async () => ({
+                    serverId: 'api.happier.dev', accountId: 'account-a', machineId: 'machine-1',
+                }),
+                settings: { ...testSettingsDefaults, experiments: true, featureToggles: {} },
+                useProfiles: false,
+                selectedProfileId: null,
+                profileMap: new Map(),
+                recentMachinePaths: [],
+                agentType: 'codex' as const,
+                permissionMode: 'default' as const,
+                modelMode: 'auto' as const,
+                promptStore: createNewSessionPromptStore('hi'),
+                resumeSessionId: '',
+                agentNewSessionOptions: null,
+                machineEnvPresence: {
+                    isPreviewEnvSupported: true,
+                    isLoading: false,
+                    meta: {},
+                } as unknown as Parameters<typeof typecheck>[0]['machineEnvPresence'],
+                secrets: [],
+                secretBindingsByProfileId: {},
+                selectedSecretIdByProfileIdByEnvVarName: {},
+                sessionOnlySecretValueByProfileIdByEnvVarName: {},
+                selectedMachineCapabilities: null,
+                targetServerId: null,
+                allowedTargetServerIds: [],
+            } satisfies Parameters<typeof typecheck>[0];
+            const hook = await renderHook(() => useCreateNewSession(params));
+            return { hook, params };
+        }
+
+        const spawnOptionsAt = (index: number) => machineSpawnNewSessionMock.mock.calls[index]?.[0] as
+            { approvedNewDirectoryCreation?: boolean; directory?: string; spawnNonce?: string } | undefined;
+
+        it('lets the daemon report the missing folder instead of pre-approving its creation', async () => {
+            const { hook } = await renderPlainLaunch();
+            await act(async () => { await hook.handleCreateSession(); });
+
+            expect(spawnOptionsAt(0)?.approvedNewDirectoryCreation).toBe(false);
+        });
+
+        it('creates nothing when the user declines, and leaves the launch restartable', async () => {
+            const { Modal } = await import('@/modal');
+            vi.mocked(Modal.confirm).mockResolvedValueOnce(false);
+            machineSpawnNewSessionMock.mockImplementationOnce(async () => ({
+                type: 'requestToApproveDirectoryCreation',
+                directory: '/saved/gone',
+            } as any));
+
+            const { hook, params } = await renderPlainLaunch();
+            await act(async () => { await hook.handleCreateSession(); });
+
+            expect(vi.mocked(Modal.confirm)).toHaveBeenCalledWith(
+                'newSession.directoryDoesNotExist',
+                expect.objectContaining({ params: { directory: '/saved/gone' } }),
+                expect.objectContaining({ confirmText: 'common.create' }),
+            );
+            expect(machineSpawnNewSessionMock).toHaveBeenCalledTimes(1);
+            expect(vi.mocked(Modal.alert)).not.toHaveBeenCalled();
+            expect(params.setIsCreating).toHaveBeenLastCalledWith(false);
+        });
+
+        it('does not record a declined folder as a recent path', async () => {
+            const { Modal } = await import('@/modal');
+            vi.mocked(Modal.confirm).mockResolvedValueOnce(false);
+            machineSpawnNewSessionMock.mockImplementationOnce(async () => ({
+                type: 'requestToApproveDirectoryCreation',
+                directory: '/saved/gone',
+            } as any));
+
+            const { hook } = await renderPlainLaunch();
+            await act(async () => { await hook.handleCreateSession(); });
+
+            expect(applySettingsMock).toHaveBeenCalled();
+            expect(applySettingsMock).not.toHaveBeenCalledWith(expect.objectContaining({
+                machinePathPreferencesByTargetV1: expect.anything(),
+            }));
+        });
+
+        it('records the path as recent once the session exists', async () => {
+            const { hook } = await renderPlainLaunch({ selectedPath: '/saved/kept' });
+            await act(async () => { await hook.handleCreateSession(); });
+
+            const recorded = applySettingsMock.mock.calls
+                .map(([delta]) => (delta as { machinePathPreferencesByTargetV1?: unknown }).machinePathPreferencesByTargetV1)
+                .filter(Boolean);
+            expect(JSON.stringify(recorded)).toContain('/saved/kept');
+        });
+
+        it('records the path of a session that outlives the launch scope', async () => {
+            const { hook, params } = await renderPlainLaunch({ selectedPath: '/saved/kept' });
+            machineSpawnNewSessionMock.mockImplementationOnce(async () => {
+                params.selectedPath = '/moved/on';
+                return { type: 'success', sessionId: 'session-kept' } as any;
+            });
+            await act(async () => { await hook.handleCreateSession(); });
+
+            const recorded = applySettingsMock.mock.calls
+                .map(([delta]) => (delta as { machinePathPreferencesByTargetV1?: unknown }).machinePathPreferencesByTargetV1)
+                .filter(Boolean);
+            expect(JSON.stringify(recorded)).toContain('/saved/kept');
+        });
+
+        it('clears the failed operation a released daemon records for the approval question', async () => {
+            const { Modal } = await import('@/modal');
+            const { actionOperationStore } = await import('@/sync/domains/actionOperations/actionOperationStore');
+            const { createInboxActionOperationEntriesSelector } = await import('@/sync/domains/actionOperations/actionOperationSelectors');
+            vi.mocked(Modal.confirm).mockResolvedValueOnce(false);
+            machineSpawnNewSessionMock.mockImplementationOnce(async (input) => {
+                actionOperationStore.merge({
+                    operationId: 'spawn-awaiting-approval',
+                    actionId: 'session.spawn_new',
+                    title: 'Start session',
+                    scope: { accountId: 'account-a', machineId: 'machine-1' },
+                    requestId: (input as { spawnNonce: string }).spawnNonce,
+                    state: 'failed',
+                    cancellation: 'unsupported',
+                    createdAt: 1,
+                    updatedAt: 2,
+                    settledAt: 2,
+                    revision: 2,
+                    error: { errorCode: 'spawn_custody_unresolved', error: 'Spawn custody did not resolve to a session' },
+                } as unknown as Parameters<typeof actionOperationStore.merge>[0]);
+                return { type: 'requestToApproveDirectoryCreation', directory: '/saved/gone' } as any;
+            });
+
+            const { hook } = await renderPlainLaunch();
+            await act(async () => { await hook.handleCreateSession(); });
+
+            expect(createInboxActionOperationEntriesSelector('account-a')(actionOperationStore.getState())).toEqual([]);
+        });
+
+        it('keeps pre-approving the directory a worktree launch materializes itself', async () => {
+            const { hook } = await renderPlainLaunch({
+                checkoutCreationDraft: { kind: 'git_worktree', displayName: 'feature/auth', baseRef: 'main' },
+            });
+            await act(async () => { await hook.handleCreateSession(); });
+
+            expect(spawnOptionsAt(0)?.approvedNewDirectoryCreation).toBe(true);
+        });
+
+        it('relaunches with the approval once the user confirms creating the folder', async () => {
+            const { Modal } = await import('@/modal');
+            vi.mocked(Modal.confirm).mockResolvedValueOnce(true);
+            machineSpawnNewSessionMock.mockImplementationOnce(async () => ({
+                type: 'requestToApproveDirectoryCreation',
+                directory: '/saved/gone',
+            } as any));
+
+            const { hook } = await renderPlainLaunch();
+            await act(async () => { await hook.handleCreateSession(); });
+            await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+            expect(machineSpawnNewSessionMock).toHaveBeenCalledTimes(2);
+            expect(spawnOptionsAt(0)?.approvedNewDirectoryCreation).toBe(false);
+            expect(spawnOptionsAt(1)?.approvedNewDirectoryCreation).toBe(true);
+            expect(spawnOptionsAt(1)?.directory).toBe('/saved/gone');
+            expect(spawnOptionsAt(1)?.spawnNonce).not.toBe(spawnOptionsAt(0)?.spawnNonce);
+        });
+
+        it('does not spend the approval on a different path chosen while the question was open', async () => {
+            const { Modal } = await import('@/modal');
+            machineSpawnNewSessionMock.mockImplementationOnce(async () => ({
+                type: 'requestToApproveDirectoryCreation',
+                directory: '/saved/gone',
+            } as any));
+
+            const { hook, params } = await renderPlainLaunch();
+            vi.mocked(Modal.confirm).mockImplementationOnce(async () => {
+                (params as { selectedPath: string }).selectedPath = '/saved/other';
+                return true;
+            });
+            await act(async () => { await hook.handleCreateSession(); });
+            await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+
+            expect(machineSpawnNewSessionMock).toHaveBeenCalledTimes(1);
+            expect(params.setIsCreating).toHaveBeenLastCalledWith(false);
+        });
+    });
+
     it('surfaces worktree cleanup failures even when no workspace artifacts were created', async () => {
         const { useCreateNewSession } = await import('./useCreateNewSession');
         const { Modal } = await import('@/modal');

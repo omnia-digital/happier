@@ -41,6 +41,8 @@ export function useNewSessionMachinePathState(params: Readonly<{
     setDraftSelectedPath: (path: string) => void;
     getRequestedPath: () => string;
     getBestPathForMachine: (machineId: string | null) => string;
+    getAutoSelectedPathFallbacks: () => ReadonlyArray<string> | null;
+    replaceAutoSelectedPath: (expectedPath: string, nextPath: string) => void;
 }> {
     const recentMachinePaths = React.useMemo((): RecentMachinePathsList => {
         return Array.isArray(params.recentMachinePaths) ? (params.recentMachinePaths as any[]).slice() as any : [];
@@ -150,6 +152,26 @@ export function useNewSessionMachinePathState(params: Readonly<{
         return selectedPathDraftRef.current;
     }, []);
 
+    /**
+     * What to try next if the current path turns out to be gone, best first, or null
+     * when nobody should second-guess it: only this machine's automatic default
+     * qualifies, not a path the user, the route or a restored draft asked for.
+     */
+    const getAutoSelectedPathFallbacks = React.useCallback((): ReadonlyArray<string> | null => {
+        const machineId = selectedMachineIdRef.current;
+        const path = selectedPathDraftRef.current;
+        if (!machineId || !path || hasUserEditedPathRef.current) return null;
+        if (normalizePathParam(params.pathParam)) return null;
+        if (getPersistedPathForMachine(machineId) === path) return null;
+        if (path !== getBestPathForMachine(machineId)) return null;
+        const homeDir = params.machines.find((machine) => machine.id === machineId)?.metadata?.homeDir ?? '';
+        return [...resolveRecentPathsForMachine(machineId), homeDir].filter((candidate) => candidate && candidate !== path);
+    }, [getBestPathForMachine, getPersistedPathForMachine, params.machines, params.pathParam, resolveRecentPathsForMachine]);
+    const replaceAutoSelectedPath = React.useCallback((expectedPath: string, nextPath: string) => {
+        if (hasUserEditedPathRef.current || selectedPathDraftRef.current !== expectedPath) return;
+        applyCommittedSelectedPath(nextPath);
+    }, [applyCommittedSelectedPath]);
+
     const hasMachine = React.useCallback((machineId: string | null): boolean => {
         if (!machineId) return false;
         return params.machines.some((machine) => machine.id === machineId);
@@ -168,7 +190,11 @@ export function useNewSessionMachinePathState(params: Readonly<{
         if (nextScopeKey === previousCacheScopeKeyRef.current) return;
         previousCacheScopeKeyRef.current = nextScopeKey;
         hasChangedCacheScopeRef.current = true;
-        if (!selectedMachineId || normalizePathParam(params.pathParam) || hasUserEditedPathRef.current) return;
+        if (!selectedMachineId || normalizePathParam(params.pathParam)) return;
+        // A cleared field is the user's choice on any target. An edited path named a
+        // folder on the previous target, and a reused machine ID does not make it valid here.
+        if (hasUserEditedPathRef.current && selectedPathDraftRef.current.trim().length === 0) return;
+        hasUserEditedPathRef.current = false;
         applyCommittedSelectedPath(getBestPathForMachine(selectedMachineId));
     }, [applyCommittedSelectedPath, getBestPathForMachine, params.cacheScopeKey, params.pathParam, selectedMachineId]);
 
@@ -345,5 +371,7 @@ export function useNewSessionMachinePathState(params: Readonly<{
         setDraftSelectedPath,
         getRequestedPath,
         getBestPathForMachine,
+        getAutoSelectedPathFallbacks,
+        replaceAutoSelectedPath,
     };
 }

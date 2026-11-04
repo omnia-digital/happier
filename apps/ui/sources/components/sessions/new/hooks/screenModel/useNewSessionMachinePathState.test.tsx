@@ -120,6 +120,38 @@ describe('useNewSessionMachinePathState', () => {
         await hook.unmount();
     });
 
+    it('does not carry a user-edited path into a new target Home that reuses the machine ID', async () => {
+        const hook = await renderMachinePathState({
+            machines: toMachines({ id: 'machine-shared', metadata: { homeDir: '/a' } }),
+            recentMachinePaths: [],
+            pathRecentMachinePaths: [],
+            machineIdParam: null,
+            pathParam: null,
+            cacheScopeKey: 'server-a:account-a',
+        });
+
+        await act(async () => {
+            hook.getCurrent().setSelectedPath('/a/typed-on-home-a');
+        });
+        expect(hook.getCurrent().getRequestedPath()).toBe('/a/typed-on-home-a');
+
+        await hook.rerender({
+            machines: toMachines({ id: 'machine-shared', metadata: { homeDir: '/b' } }),
+            recentMachinePaths: [],
+            pathRecentMachinePaths: [{ machineId: 'machine-shared', path: '/b/repo' }],
+            machineIdParam: null,
+            pathParam: null,
+            cacheScopeKey: 'server-b:account-b',
+        });
+
+        expect(getSelection(hook.getCurrent())).toEqual({
+            selectedMachineId: 'machine-shared',
+            selectedPath: '/b/repo',
+        });
+        expect(hook.getCurrent().getRequestedPath()).toBe('/b/repo');
+        await hook.unmount();
+    });
+
     it('seeds the selected path from previous sessions when no stored recent path exists', async () => {
         const initialProps = {
             machines: toMachines({ id: 'machine-1', metadata: { homeDir: '/Users/test' } }),

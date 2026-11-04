@@ -312,7 +312,7 @@ function buildWizardProps(): NewSessionWizardTestProps {
             favoriteMachineItems: [],
             useMachinePickerSearch: false,
             onRefreshMachines: () => {},
-            setSelectedMachineId: () => {},
+            selectMachine: () => {},
             getBestPathForMachine: () => '/Users/alice/repo',
             setSelectedPath: () => {},
             favoriteMachines: [],

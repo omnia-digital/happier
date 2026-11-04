@@ -137,6 +137,12 @@ export type CreatedSessionFollowUpContext = Readonly<{
 }>;
 
 export type HandleCreateSessionOptions = Readonly<{
+    /**
+     * The user confirmed creating the missing folder this launch names. Only the
+     * confirmation in this hook sets it: nothing else may treat a path the machine
+     * reports as missing, such as a saved path that went stale, as approved.
+     */
+    approvedNewDirectoryCreation?: boolean;
     initialMessage?: 'send' | 'skip';
     inputTextOverride?: string;
     /**
@@ -209,6 +215,26 @@ function findPresentedSpawnOperation(params: Readonly<{
         && readTrackedSpawnCreatedSessionId(operation) === params.sessionId
     ));
     return candidates.length === 1 ? candidates[0]! : null;
+}
+
+/**
+ * Released daemons (0.2.17 and earlier) settle the directory-approval question as a failed
+ * operation. The dialog already presented it, so it must not also reach Inbox. Remove once no
+ * supported daemon predates the non-failure projection in the tracked spawn handler.
+ */
+function findApprovalQuestionSpawnOperation(params: Readonly<{
+    accountId?: string | null;
+    machineId: string;
+    requestId: string;
+}>): ActionOperationSnapshotV1 | null {
+    return Array.from(actionOperationStore.getState().operationsById.values()).find((operation) => (
+        operation.actionId === 'session.spawn_new'
+        && operation.state === 'failed'
+        && operation.error?.errorCode === 'spawn_custody_unresolved'
+        && operation.scope.machineId === params.machineId
+        && (!params.accountId || operation.scope.accountId === params.accountId)
+        && operation.requestId === params.requestId
+    )) ?? null;
 }
 
 function isDetachedTrackedSpawnTransportError(error: unknown): boolean {
@@ -362,6 +388,7 @@ export function useCreateNewSession(params: Readonly<{
         let confirmedCreatedSessionId: string | null = null;
         let operationReentryRegistration: NewSessionOperationReentryRegistration | null = null;
         let launchDraftCurrentness: SessionDraftCurrentness | null = null;
+        let relaunchWithApprovedDirectory = false;
         const isRepoNativeWorktreeLaunch = current.checkoutCreationDraft?.kind === 'git_worktree';
 
         if (!current.selectedMachineId) {
@@ -494,14 +521,6 @@ export function useCreateNewSession(params: Readonly<{
                 lastUsedAgent: current.agentType,
                 lastUsedBackendTarget: current.backendTarget,
             };
-            if (recentTarget?.serverId === resolvedTargetServerId
-                && recentTarget.machineId === current.selectedMachineId) {
-                settingsUpdate.machinePathPreferencesByTargetV1 = recordRecentPathForTarget(
-                    storage.getState().settings.machinePathPreferencesByTargetV1,
-                    recentTarget,
-                    effectiveSelectedPath,
-                );
-            }
             if (profilesActive) {
                 settingsUpdate.lastUsedProfile = current.selectedProfileId;
             }
@@ -902,7 +921,9 @@ export function useCreateNewSession(params: Readonly<{
                         },
                         machineId: current.selectedMachineId,
                         serverId: resolvedTargetServerId,
-                        approvedNewDirectoryCreation: true,
+                        // A worktree directory was just materialized by this launch.
+                        approvedNewDirectoryCreation: isRepoNativeWorktreeLaunch
+                            || opts?.approvedNewDirectoryCreation === true,
                         agentModeUpdatedAt: normalizedAcpModeId ? spawnPermissionModeUpdatedAt : null,
                         sourceContext: current.sourceContext ?? null,
                     }),
@@ -1020,6 +1041,17 @@ export function useCreateNewSession(params: Readonly<{
                         createdSessionId: result.sessionId,
                     });
                     launchAttemptRef.current = launchAttempt;
+                }
+                // Recorded only now: a launch the daemon stopped must not become this target's default path.
+                if (recentTarget?.serverId === resolvedTargetServerId
+                    && recentTarget.machineId === current.selectedMachineId) {
+                    applySettings({
+                        machinePathPreferencesByTargetV1: recordRecentPathForTarget(
+                            storage.getState().settings.machinePathPreferencesByTargetV1,
+                            recentTarget,
+                            effectiveSelectedPath,
+                        ),
+                    });
                 }
                 if (!isLaunchScopeStillActive()) {
                     operationReentryRegistration?.markSetupNeedsAttention(result.sessionId);
@@ -1397,6 +1429,21 @@ export function useCreateNewSession(params: Readonly<{
                 if (presentedOperation) {
                     acknowledgeActionOperationPresented(presentedOperation);
                 }
+            } else if (result.type === 'requestToApproveDirectoryCreation' && !isRepoNativeWorktreeLaunch) {
+                launchAttemptRef.current = null;
+                const approved = await Modal.confirm(
+                    t('newSession.directoryDoesNotExist'),
+                    t('newSession.createDirectoryConfirm', { directory: result.directory }),
+                    { cancelText: t('common.cancel'), confirmText: t('common.create') },
+                );
+                const approvalQuestionOperation = findApprovalQuestionSpawnOperation({
+                    accountId: recentTarget?.accountId ?? current.draftScope?.accountId,
+                    machineId: current.selectedMachineId,
+                    requestId: launchAttempt.spawnNonce,
+                });
+                if (approvalQuestionOperation) acknowledgeActionOperationPresented(approvalQuestionOperation);
+                relaunchWithApprovedDirectory = approved && mountedRef.current && isLaunchScopeStillActive();
+                if (!relaunchWithApprovedDirectory) current.setIsCreating(false);
             } else if (result.type === 'requestToApproveDirectoryCreation') {
                 launchAttemptRef.current = null;
                 const rollbackErrorMessage = await rollbackSpawnArtifacts();
@@ -1608,6 +1655,9 @@ export function useCreateNewSession(params: Readonly<{
         } finally {
             createInFlightRef.current = false;
             operationReentryRegistration?.release();
+            if (relaunchWithApprovedDirectory) {
+                void handleCreateSession({ ...opts, approvedNewDirectoryCreation: true });
+            }
         }
     }, [applySettings, mountedRef]);
 

@@ -75,6 +75,7 @@ import {
 import { useNewSessionServerTargetState } from '@/components/sessions/new/hooks/serverTarget/useNewSessionServerTargetState';
 import { useNewSessionActiveServerSource } from '@/components/sessions/new/hooks/serverTarget/useNewSessionActiveServerSource';
 import { useNewSessionBackendTargetState } from '@/components/sessions/new/hooks/screenModel/useNewSessionBackendTargetState';
+import { useAutoSelectedPathRevalidation } from '@/components/sessions/new/hooks/screenModel/useAutoSelectedPathRevalidation';
 import { useNewSessionMachinePathState } from '@/components/sessions/new/hooks/screenModel/useNewSessionMachinePathState';
 import { useNewSessionPreflightModelsState } from '@/components/sessions/new/hooks/screenModel/useNewSessionPreflightModelsState';
 import { useNewSessionPreflightConfigOptionsState } from '@/components/sessions/new/hooks/screenModel/useNewSessionPreflightConfigOptionsState';
@@ -719,13 +720,14 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         ? sessionRecentPathEntries : null;
     const {
         selectedMachineId,
-        setSelectedMachineId,
         selectMachine,
         selectedPath,
         setSelectedPath,
         setDraftSelectedPath,
         getRequestedPath,
         getBestPathForMachine,
+        getAutoSelectedPathFallbacks,
+        replaceAutoSelectedPath,
     } = useNewSessionMachinePathState({
         machines,
         recentMachinePaths,
@@ -788,6 +790,16 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         machineId: selectedMachineId,
         machines,
         machineHomeDir: selectedMachineHomeDir,
+    });
+    useAutoSelectedPathRevalidation({
+        machineId: selectedMachineId,
+        machineHomeDir: selectedMachineHomeDir,
+        selectedPath,
+        serverId: targetServerId ?? null,
+        targetScopeKey: pathPreferences.targetKey,
+        browserIdentity: pathPreferences.browserIdentity,
+        getAutoSelectedPathFallbacks,
+        replaceAutoSelectedPath,
     });
     const favoriteDirectories = pathPreferences.favorites;
     const setFavoriteDirectories = React.useCallback((next: string[]) => {
@@ -2113,7 +2125,7 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         favoriteMachineItems,
         useMachinePickerSearch,
         refreshMachineData,
-        setSelectedMachineId,
+        selectMachine,
         getBestPathForMachine,
         setSelectedPath,
         setDraftSelectedPath,

@@ -151,7 +151,7 @@ export interface NewSessionWizardMachineProps {
     favoriteMachineItems: ReadonlyArray<Machine>;
     useMachinePickerSearch: boolean;
     onRefreshMachines?: () => void;
-    setSelectedMachineId: (id: string) => void;
+    selectMachine: (id: string, initialPath: string) => void;
     getBestPathForMachine: (id: string) => string;
     setSelectedPath: (path: string) => void;
     setDraftSelectedPath?: (path: string) => void;
@@ -394,7 +394,7 @@ export const NewSessionWizard = React.memo(function NewSessionWizard(props: NewS
         recentMachines,
         favoriteMachineItems,
         useMachinePickerSearch,
-        setSelectedMachineId,
+        selectMachine,
         getBestPathForMachine,
         setSelectedPath,
         setDraftSelectedPath,
@@ -482,10 +482,8 @@ export const NewSessionWizard = React.memo(function NewSessionWizard(props: NewS
     const shouldRenderModelSection = modelOptions.length > 0 || hasModelOptionsProbeAffordance;
     const pairAgentAndModelSections = useSelectionColumns && shouldRenderModelSection;
     const handleSelectMachine = React.useCallback((machine: Machine) => {
-        setSelectedMachineId(machine.id);
-        const bestPath = getBestPathForMachine(machine.id);
-        setSelectedPath(bestPath);
-    }, [getBestPathForMachine, setSelectedMachineId, setSelectedPath]);
+        selectMachine(machine.id, getBestPathForMachine(machine.id));
+    }, [getBestPathForMachine, selectMachine]);
     const handleToggleFavoriteMachine = React.useCallback((machine: Machine) => {
         const isInFavorites = favoriteMachines.includes(machine.id);
         if (isInFavorites) {

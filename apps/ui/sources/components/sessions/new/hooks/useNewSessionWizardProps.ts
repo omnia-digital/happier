@@ -150,7 +150,7 @@ export function useNewSessionWizardProps(params: Readonly<{
     favoriteMachineItems: ReadonlyArray<Machine>;
     useMachinePickerSearch: boolean;
     refreshMachineData: () => void;
-    setSelectedMachineId: (id: string) => void;
+    selectMachine: (id: string, initialPath: string) => void;
     getBestPathForMachine: (id: string | null) => string;
     setSelectedPath: (path: string) => void;
     setDraftSelectedPath?: (path: string) => void;
@@ -448,7 +448,7 @@ export function useNewSessionWizardProps(params: Readonly<{
             favoriteMachineItems: params.favoriteMachineItems,
             useMachinePickerSearch: params.useMachinePickerSearch,
             onRefreshMachines: params.refreshMachineData,
-            setSelectedMachineId: params.setSelectedMachineId as any,
+            selectMachine: params.selectMachine,
             getBestPathForMachine: params.getBestPathForMachine as any,
             setSelectedPath: params.setSelectedPath,
             setDraftSelectedPath: params.setDraftSelectedPath,
@@ -483,7 +483,7 @@ export function useNewSessionWizardProps(params: Readonly<{
         params.setFavoriteDirectories,
         params.setFavoriteMachines,
         params.setDraftSelectedPath,
-        params.setSelectedMachineId,
+        params.selectMachine,
         params.setSelectedPath,
         params.useMachinePickerSearch,
         params.usePathPickerSearch,

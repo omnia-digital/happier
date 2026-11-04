@@ -47,6 +47,31 @@ export type MachineFileBrowserIdentity = Readonly<{
     viewerScope: ServerAccountScope;
 }>;
 
+/**
+ * `unknown` covers every answer that says nothing about the directory: an offline
+ * machine, a daemon without this RPC, a path outside its browse roots, or a target
+ * that changed while the request was in flight.
+ */
+export type MachineDirectoryAvailability = 'available' | 'missing' | 'unknown';
+
+/**
+ * RUX-1 Issue 6: detect "path does not exist" errors from the file-browser
+ * RPC. Looks for the canonical Node/POSIX error codes that indicate the
+ * directory does not exist OR is not a directory. Anything else is treated
+ * as a transient/RPC failure and surfaced via the generic error path.
+ *
+ * Case-insensitive.
+ */
+export function isPathNotFoundErrorMessage(message: string): boolean {
+    const normalized = message.toLowerCase();
+    if (normalized.length === 0) return false;
+    if (normalized.includes('enoent')) return true;
+    if (normalized.includes('enotdir')) return true;
+    if (normalized.includes('no such file or directory')) return true;
+    if (normalized.includes('not a directory')) return true;
+    return false;
+}
+
 type CacheScope = Readonly<{
     serverId?: string | null;
     targetScopeKey?: string | null;
@@ -309,6 +334,32 @@ export async function listMachineFileBrowserDirectoryEntries(input: {
         truncated: response.truncated === true,
     });
     return { ok: true, entries, truncated: response.truncated === true };
+}
+
+/**
+ * Asks the machine whether a directory exists now. Never answers from the browse
+ * cache, which would still list a folder deleted since it was read, and never
+ * writes to it, because a one-entry response is not that directory's listing.
+ */
+export async function probeMachineDirectory(input: {
+    machineId: string;
+    directoryPath: string;
+    serverId?: string | null;
+    targetScopeKey?: string | null;
+    browserIdentity?: MachineFileBrowserIdentity | null;
+}): Promise<MachineDirectoryAvailability> {
+    if (!isBrowserIdentityCurrent(input.machineId, input)) return 'unknown';
+    const response = await machineFilesystemListDirectory(input.machineId, {
+        path: input.directoryPath,
+        includeFiles: false,
+        maxEntries: 1,
+    }, {
+        serverId: input.serverId,
+        accountId: input.browserIdentity?.target.accountId,
+    });
+    if (!isBrowserIdentityCurrent(input.machineId, input)) return 'unknown';
+    if (response.ok) return 'available';
+    return isPathNotFoundErrorMessage(response.error) ? 'missing' : 'unknown';
 }
 
 export async function warmMachineFileBrowserDirectoryCache(input: {

@@ -4851,6 +4851,7 @@ export const en = {
             emptyInThisFolder: 'No matches in this folder',
             favoriteAdd: 'Add to favorites',
             favoriteRemove: 'Remove from favorites',
+            savedPathMissing: 'Not found on this machine',
             reviewUnassignedFavorites: 'Review unassigned favorites',
             unassignedFavoritesHint: 'These older favorites have no known machine. Assign only paths that belong on this machine.',
             assignToSelectedMachine: 'Assign to selected machine',

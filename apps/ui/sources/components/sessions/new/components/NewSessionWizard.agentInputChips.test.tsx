@@ -233,7 +233,7 @@ function buildProps() {
             favoriteMachineItems: [],
             useMachinePickerSearch: false,
             onRefreshMachines: () => {},
-            setSelectedMachineId: () => {},
+            selectMachine: () => {},
             getBestPathForMachine: () => '',
             setSelectedPath: () => {},
             favoriteMachines: [],

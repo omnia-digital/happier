@@ -19,18 +19,29 @@ installNewSessionComponentsCommonModuleMocks({
 // Hoisted mocks so the production module sees them at import time.
 const openMachinePathBrowserModalMock = vi.hoisted(() => vi.fn());
 const listMachineFileBrowserDirectoryEntriesMock = vi.hoisted(() => vi.fn());
+const machineFilesystemListDirectoryMock = vi.hoisted(() => vi.fn());
 
 vi.mock('@/components/ui/pathBrowser/openMachinePathBrowserModal', () => ({
     openMachinePathBrowserModal: (input: unknown) => openMachinePathBrowserModalMock(input),
 }));
 
-vi.mock('@/sync/domains/input/machineFileBrowser', () => ({
+vi.mock('@/sync/domains/input/machineFileBrowser', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@/sync/domains/input/machineFileBrowser')>(),
     listMachineFileBrowserDirectoryEntries: (input: unknown) => listMachineFileBrowserDirectoryEntriesMock(input),
+}));
+
+// The machine RPC is the real boundary under saved-path availability, so the
+// owner's classification of its answers runs for real in these tests.
+vi.mock('@/sync/ops/machineFileBrowser', () => ({
+    machineFilesystemListDirectory: (...args: unknown[]) => machineFilesystemListDirectoryMock(...args),
+    machineFilesystemListRoots: vi.fn(),
 }));
 
 beforeEach(() => {
     openMachinePathBrowserModalMock.mockReset();
     listMachineFileBrowserDirectoryEntriesMock.mockReset();
+    machineFilesystemListDirectoryMock.mockReset();
+    machineFilesystemListDirectoryMock.mockResolvedValue({ ok: true, path: '/', entries: [], truncated: false });
 });
 
 // The canonical `@/components/ui/text/Text` primitive depends on
@@ -542,6 +553,237 @@ describe('PathSelectionList', () => {
         await screen.pressByTestIdAsync('path-selection-list:path-root:option:favorite:/Users/leeroy/fav');
         expect(onCommit).toHaveBeenCalledWith('/Users/leeroy/fav');
         act(() => screen.tree.unmount());
+    });
+
+    describe('saved paths missing from the selected machine', () => {
+        const MISSING_LABEL = 'newSession.pathPicker.savedPathMissing';
+        const favoriteRow = 'path-selection-list:path-root:option:favorite:/Users/leeroy/gone';
+        const enoent = { ok: false, error: "ENOENT: no such file or directory, scandir '/Users/leeroy/gone'" };
+
+        function answerMissingFor(...missing: string[]) {
+            machineFilesystemListDirectoryMock.mockImplementation(async (_machineId: string, request: { path: string }) => (
+                missing.includes(request.path)
+                    ? enoent
+                    : { ok: true, path: request.path, entries: [], truncated: false }
+            ));
+        }
+
+        it('labels a favorite and a recent the machine no longer has, and leaves the others alone', async () => {
+            answerMissingFor('/Users/leeroy/gone', '/Users/leeroy/gone-recent');
+            const { PathSelectionList } = await import('./PathSelectionList');
+            const screen = await renderScreen(
+                <PathSelectionList
+                    initialValue=""
+                    initialSuggestionMode="history"
+                    favorites={[{ path: '~/gone' }, { path: '~/kept' }]}
+                    recents={[{ path: '~/gone-recent', lastUsedAt: 1 }]}
+                    machineHomeDir="/Users/leeroy"
+                    machineId="m-1"
+                    serverId={null}
+                    machinePlatform="unix"
+                    onCommit={() => {}}
+                    onRequestClose={() => {}}
+                />,
+            );
+            await flushPathSelectionDynamicResolver();
+
+            const rowText = (optionId: string, text: string) => findTextNodeByContent(
+                screen.findByTestId(`path-selection-list:path-root:option:${optionId}`)!,
+                text,
+            );
+            expect(rowText('favorite:/Users/leeroy/gone', MISSING_LABEL)).toBeDefined();
+            expect(rowText('recent:/Users/leeroy/gone-recent', MISSING_LABEL)).toBeDefined();
+            expect(rowText('favorite:/Users/leeroy/kept', MISSING_LABEL)).toBeUndefined();
+            expect(rowText('favorite:/Users/leeroy/kept', '/Users/leeroy/kept')).toBeDefined();
+            act(() => screen.tree.unmount());
+        });
+
+        it('keeps a reviewed path out of the launch draft when the popover input will not outlive it', async () => {
+            answerMissingFor('/Users/leeroy/gone');
+            const onCommit = vi.fn();
+            const onChangeDraftSelectedPath = vi.fn();
+            const { NewSessionPathSelectionContent } = await import('./NewSessionPathSelectionContent');
+            const screen = await renderScreen(
+                <NewSessionPathSelectionContent
+                    machineHomeDir="/Users/leeroy"
+                    selectedPath="/Users/leeroy/good"
+                    initialSuggestionMode="history"
+                    onCommit={onCommit}
+                    onChangeDraftSelectedPath={onChangeDraftSelectedPath}
+                    recentPaths={[]}
+                    favoriteDirectories={['~/gone']}
+                    onToggleFavoriteDirectory={() => {}}
+                    machineId="m-1"
+                    serverId={null}
+                    machinePlatform="unix"
+                />,
+            );
+            await flushPathSelectionDynamicResolver();
+
+            await screen.pressByTestIdAsync(favoriteRow);
+
+            const input = screen.findByTestId('path-selection-list:header:input');
+            expect(readProps<ValueLikeProps>(input!).value).toBe('/Users/leeroy/gone');
+            expect(onCommit).not.toHaveBeenCalled();
+            expect(onChangeDraftSelectedPath).not.toHaveBeenCalled();
+            act(() => screen.tree.unmount());
+        });
+
+        it('does not commit a missing favorite on press, but moves it into the input for review', async () => {
+            answerMissingFor('/Users/leeroy/gone');
+            const onCommit = vi.fn();
+            const onChangeDraftPath = vi.fn();
+            const { PathSelectionList } = await import('./PathSelectionList');
+            const screen = await renderScreen(
+                <PathSelectionList
+                    initialValue=""
+                    initialSuggestionMode="history"
+                    favorites={[{ path: '~/gone' }]}
+                    recents={[]}
+                    machineHomeDir="/Users/leeroy"
+                    machineId="m-1"
+                    serverId={null}
+                    machinePlatform="unix"
+                    onCommit={onCommit}
+                    onChangeDraftPath={onChangeDraftPath}
+                    onRequestClose={() => {}}
+                />,
+            );
+            await flushPathSelectionDynamicResolver();
+
+            await screen.pressByTestIdAsync(favoriteRow);
+
+            expect(onCommit).not.toHaveBeenCalled();
+            expect(onChangeDraftPath).toHaveBeenCalledWith('/Users/leeroy/gone');
+            const input = screen.findByTestId('path-selection-list:header:input');
+            expect(readProps<ValueLikeProps>(input!).value).toBe('/Users/leeroy/gone');
+            act(() => screen.tree.unmount());
+        });
+
+        it('keeps a missing favorite removable', async () => {
+            answerMissingFor('/Users/leeroy/gone');
+            const onToggleFavorite = vi.fn();
+            const { PathSelectionList } = await import('./PathSelectionList');
+            const screen = await renderScreen(
+                <PathSelectionList
+                    initialValue=""
+                    initialSuggestionMode="history"
+                    favorites={[{ path: '~/gone' }]}
+                    recents={[]}
+                    machineHomeDir="/Users/leeroy"
+                    machineId="m-1"
+                    serverId={null}
+                    machinePlatform="unix"
+                    isFavorite={() => true}
+                    onToggleFavorite={onToggleFavorite}
+                    onCommit={() => {}}
+                    onRequestClose={() => {}}
+                />,
+            );
+            await flushPathSelectionDynamicResolver();
+
+            await screen.pressByTestIdAsync(`${favoriteRow}:favorite-toggle`);
+
+            expect(onToggleFavorite).toHaveBeenCalledWith('/Users/leeroy/gone');
+            act(() => screen.tree.unmount());
+        });
+
+        it('keeps saved rows usable when the machine cannot answer', async () => {
+            machineFilesystemListDirectoryMock.mockResolvedValue({ ok: false, error: 'Machine RPC failed' });
+            const onCommit = vi.fn();
+            const { PathSelectionList } = await import('./PathSelectionList');
+            const screen = await renderScreen(
+                <PathSelectionList
+                    initialValue=""
+                    initialSuggestionMode="history"
+                    favorites={[{ path: '~/gone' }]}
+                    recents={[]}
+                    machineHomeDir="/Users/leeroy"
+                    machineId="m-1"
+                    serverId={null}
+                    machinePlatform="unix"
+                    onCommit={onCommit}
+                    onRequestClose={() => {}}
+                />,
+            );
+            await flushPathSelectionDynamicResolver();
+
+            expect(findTextNodeByContent(screen.tree.root, MISSING_LABEL)).toBeUndefined();
+            await screen.pressByTestIdAsync(favoriteRow);
+            expect(onCommit).toHaveBeenCalledWith('/Users/leeroy/gone');
+            act(() => screen.tree.unmount());
+        });
+
+        it('checks the newly selected machine and ignores a late answer from the previous one', async () => {
+            let resolveFirstMachine: (value: unknown) => void = () => {};
+            machineFilesystemListDirectoryMock.mockImplementation((machineId: string, request: { path: string }) => (
+                machineId === 'm-1'
+                    ? new Promise((resolve) => { resolveFirstMachine = resolve; })
+                    : Promise.resolve({ ok: true, path: request.path, entries: [], truncated: false })
+            ));
+            const { PathSelectionList } = await import('./PathSelectionList');
+            const renderFor = (machineId: string) => (
+                <PathSelectionList
+                    initialValue=""
+                    initialSuggestionMode="history"
+                    favorites={[{ path: '~/gone' }]}
+                    recents={[]}
+                    machineHomeDir="/Users/leeroy"
+                    machineId={machineId}
+                    serverId={null}
+                    machinePlatform="unix"
+                    onCommit={() => {}}
+                    onRequestClose={() => {}}
+                />
+            );
+            const screen = await renderScreen(renderFor('m-1'));
+            await flushPathSelectionDynamicResolver();
+
+            await act(async () => { screen.tree.update(renderFor('m-2')); });
+            await flushPathSelectionDynamicResolver();
+            await act(async () => { resolveFirstMachine(enoent); });
+            await flushPathSelectionDynamicResolver();
+
+            expect(machineFilesystemListDirectoryMock).toHaveBeenCalledWith(
+                'm-2',
+                expect.objectContaining({ path: '/Users/leeroy/gone' }),
+                expect.anything(),
+            );
+            expect(findTextNodeByContent(screen.tree.root, MISSING_LABEL)).toBeUndefined();
+            act(() => screen.tree.unmount());
+        });
+
+        it('does not show one machine\'s missing state for the same path text on another machine', async () => {
+            machineFilesystemListDirectoryMock.mockImplementation(async (machineId: string, request: { path: string }) => (
+                machineId === 'm-1'
+                    ? enoent
+                    : { ok: true, path: request.path, entries: [], truncated: false }
+            ));
+            const { PathSelectionList } = await import('./PathSelectionList');
+            const renderFor = (machineId: string) => (
+                <PathSelectionList
+                    initialValue=""
+                    initialSuggestionMode="history"
+                    favorites={[{ path: '~/gone' }]}
+                    recents={[]}
+                    machineHomeDir="/Users/leeroy"
+                    machineId={machineId}
+                    serverId={null}
+                    machinePlatform="unix"
+                    onCommit={() => {}}
+                    onRequestClose={() => {}}
+                />
+            );
+            const screen = await renderScreen(renderFor('m-1'));
+            await flushPathSelectionDynamicResolver();
+            expect(findTextNodeByContent(screen.tree.root, MISSING_LABEL)).toBeDefined();
+
+            await act(async () => { screen.tree.update(renderFor('m-2')); });
+            await flushPathSelectionDynamicResolver();
+
+            expect(findTextNodeByContent(screen.tree.root, MISSING_LABEL)).toBeUndefined();
+            act(() => screen.tree.unmount());
+        });
     });
 
     it('Bug 4a: fires onCommit exactly once per row press (no double-commit)', async () => {
@@ -1128,7 +1370,7 @@ describe('PathSelectionList', () => {
     });
 
     it('RUX-1 Issue 6: isPathNotFoundErrorMessage detects ENOENT/ENOTDIR/no-such-file/not-a-directory variants', async () => {
-        const { isPathNotFoundErrorMessage } = await import('./PathSelectionList');
+        const { isPathNotFoundErrorMessage } = await import('@/sync/domains/input/machineFileBrowser');
         expect(isPathNotFoundErrorMessage('')).toBe(false);
         expect(isPathNotFoundErrorMessage('network down')).toBe(false);
         expect(isPathNotFoundErrorMessage("ENOENT: no such file or directory, scandir '/x'")).toBe(true);

@@ -224,7 +224,7 @@ describe('NewSessionWizard submit deferral', () => {
                         favoriteMachineItems: [],
                         useMachinePickerSearch: false,
                         onRefreshMachines: () => {},
-                        setSelectedMachineId: () => {},
+                        selectMachine: () => {},
                         getBestPathForMachine: () => '',
                         setSelectedPath: () => {},
                         favoriteMachines: [],

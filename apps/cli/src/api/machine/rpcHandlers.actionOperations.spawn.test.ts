@@ -71,6 +71,18 @@ describe('tracked spawn admission and early receipt', () => {
     await vi.waitFor(async () => expect(await boundary.list()).toMatchObject({ items: [{ state: 'succeeded' }] }));
   });
 
+  it('hands a missing-directory question back without recording a failed launch', async () => {
+    const boundary = createSpawnBoundary();
+    boundary.spawnSession.mockResolvedValueOnce({ type: 'requestToApproveDirectoryCreation', directory: '/tmp/gone' });
+
+    const receipt = await boundary.invoke({ spawnNonce: 'nonce-approval', directory: '/tmp/gone' });
+
+    expect(receipt).toEqual({ type: 'requestToApproveDirectoryCreation', directory: '/tmp/gone' });
+    await vi.waitFor(async () => expect(await boundary.list()).toMatchObject({
+      items: [{ actionId: 'session.spawn_new', state: 'cancelled' }],
+    }));
+  });
+
   it('exposes a changed handoff request conflict rather than replaying the earlier domain response', async () => {
     const boundary = createSpawnBoundary();
     const request = {

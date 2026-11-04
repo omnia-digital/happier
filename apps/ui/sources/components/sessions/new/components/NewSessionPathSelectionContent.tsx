@@ -180,6 +180,7 @@ export function NewSessionPathSelectionContent(props: NewSessionPathSelectionCon
                 machinePlatform={props.machinePlatform ?? 'auto'}
                 onCommit={props.onCommit}
                 onChangeDraftPath={props.onChangeDraftSelectedPath}
+                transientInput
                 onRequestClose={props.onRequestClose ?? (() => {})}
                 onBeforeBrowseMachinePath={props.onBeforeBrowseMachinePath}
                 isFavorite={onToggleFavorite ? isFavorite : undefined}
