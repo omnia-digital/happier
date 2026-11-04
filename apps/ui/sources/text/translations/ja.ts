@@ -5369,6 +5369,7 @@ localTailscale: {
         actionsSectionTitle: "アクション",
         newWorktree: "新しいワークツリー",
         newWorktreeSubtitle: "このセッション用に新しい Git ワークツリーを作成して使用します。",
+        newWorktreeUnavailable: "新しいワークツリーは利用できません",
         pendingWorktreeSubtitle: ({ branch, path }: { branch: string; path: string }) => `${branch} から · ${path}`,
         existingWorktree: "既存のワークツリー",
         existingWorktreeSubtitle: "このセッションで既存の Git ワークツリーを選択します。",
@@ -5518,6 +5519,7 @@ localTailscale: {
       creating: ({ name }: { name: string }) =>
         `ワークツリー '${name}' を作成中...`,
       notGitRepo: "ワークツリーにはGitリポジトリが必要です",
+      repositoryStatusUnavailable: "現在、このフォルダのリポジトリ状態を読み取れません",
       failed: ({ error }: { error: string }) =>
         `ワークツリーの作成に失敗しました: ${error}`,
       success: "ワークツリーが正常に作成されました",

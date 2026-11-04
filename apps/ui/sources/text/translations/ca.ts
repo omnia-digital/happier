@@ -4800,6 +4800,7 @@ deps: {
 	                actionsSectionTitle: 'Accions',
 		            newWorktree: 'Nou arbre de treball',
 		            newWorktreeSubtitle: 'Crea i fes servir un nou arbre de treball de Git per a aquesta sessió.',
+		            newWorktreeUnavailable: 'Nou arbre de treball no disponible',
 		            pendingWorktreeSubtitle: ({ branch, path }: { branch: string; path: string }) => `Des de ${branch} · ${path}`,
                     existingWorktree: 'Arbre de treball existent',
                     existingWorktreeSubtitle: 'Tria un arbre de treball de Git existent per a aquesta sessió.',
@@ -4928,6 +4929,7 @@ deps: {
         worktree: {
             creating: ({ name }: { name: string }) => `Creant worktree '${name}'...`,
             notGitRepo: 'Els worktrees requereixen un repositori git',
+            repositoryStatusUnavailable: 'Ara mateix no es pot llegir l’estat del repositori d’aquesta carpeta',
             failed: ({ error }: { error: string }) => `Error en crear el worktree: ${error}`,
             success: 'Worktree creat amb èxit',
             createTitle: 'Nou worktree des d’una branca',

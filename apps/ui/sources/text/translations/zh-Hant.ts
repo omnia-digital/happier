@@ -4562,6 +4562,7 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
             actionsSectionTitle: '動作',
             newWorktree: '新的 worktree',
             newWorktreeSubtitle: '為此工作階段建立並使用新的 Git worktree。',
+            newWorktreeUnavailable: '新增 worktree 無法使用',
             pendingWorktreeSubtitle: ({ branch, path }: { branch: string; path: string }) => `來自 ${branch} · ${path}`,
             existingWorktree: '現有 worktree',
             existingWorktreeSubtitle: '為此工作階段選擇現有的 Git worktree。',
@@ -4617,6 +4618,7 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
         worktree: {
             creating: ({ name }: { name: string }) => `正在建立 worktree '${name}'...`,
             notGitRepo: 'Worktree 需要 git 倉庫',
+            repositoryStatusUnavailable: '目前無法讀取此資料夾的倉庫狀態',
             failed: ({ error }: { error: string }) => `建立 worktree 失敗：${error}`,
             success: 'Worktree 建立成功',
             createTitle: '從分支建立新的 worktree',

@@ -6,7 +6,9 @@ import type { AgentInputExtraActionChip, AgentInputExtraActionChipRenderContext 
 import { normalizeNodeForView } from '@/components/ui/rendering/normalizeNodeForView';
 import { Text } from '@/components/ui/text/Text';
 import {
+    supportsRepoWorktreeChip,
     type NewSessionCheckoutChipModel,
+    type NewWorktreeUnavailableReason,
 } from '@/components/sessions/new/modules/newSessionCheckoutChipModel';
 import {
     buildGitWorktreeCheckoutCreationDraft,
@@ -28,6 +30,12 @@ import {
 
 const CHIP_KEY = 'new-session-checkout';
 
+function resolveNewWorktreeUnavailableMessage(reason: NewWorktreeUnavailableReason | null): string | null {
+    if (reason === 'not_git_repository') return t('newSession.worktree.notGitRepo');
+    if (reason === 'repository_status_unavailable') return t('newSession.worktree.repositoryStatusUnavailable');
+    return null;
+}
+
 /**
  * Module scope on purpose. The chip descriptor below is rebuilt whenever any of its inputs move —
  * including the once-a-minute `useNowMs` tick that keeps the picker's relative times fresh. A
@@ -40,6 +48,7 @@ function CheckoutChip(props: Readonly<{
     label: string;
     checkoutPickerOpen: boolean;
     setCheckoutPickerOpen: React.Dispatch<React.SetStateAction<boolean>>;
+    onPress?: () => void;
 }>) {
     const { ctx, checkoutPickerOpen, setCheckoutPickerOpen } = props;
     const toggleCollapsedPopover = ctx.toggleCollapsedPopover;
@@ -58,6 +67,7 @@ function CheckoutChip(props: Readonly<{
             ref={ctx.chipAnchorRef}
             testID="new-session-checkout-chip"
             onPress={() => {
+                props.onPress?.();
                 if (toggleCollapsedPopover) {
                     toggleCollapsedPopover(CHIP_KEY);
                     return;
@@ -82,6 +92,7 @@ function CheckoutChip(props: Readonly<{
 export function useNewSessionCheckoutActionChip(params: Readonly<{
     scmScope?: ServerAccountScope | null;
     repoScmSnapshot: ScmWorkingSnapshot | null;
+    retryRepoScmSnapshot: () => void;
     checkoutChipModel: NewSessionCheckoutChipModel;
     checkoutPickerOpen: boolean;
     setCheckoutPickerOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -113,8 +124,10 @@ export function useNewSessionCheckoutActionChip(params: Readonly<{
     // the minute-tick rebuild) keep a stable suggestion rather than reshuffling.
     const [worktreeNameSuggestion] = React.useState(() => generateWorktreeName());
     return React.useMemo<AgentInputExtraActionChip | null>(() => {
-        const supportsRepoWorktreeChip = params.repoScmSnapshot?.repo.isRepo === true && params.repoScmSnapshot.repo.backendId === 'git';
-        if (!supportsRepoWorktreeChip) {
+        // An unknown target (lookup still pending, or nothing selected) stays hidden; a known
+        // unavailable one stays visible so the picker can say why New Worktree cannot be chosen.
+        const { newWorktreeUnavailableReason, worktreeIntentUnavailable } = params.checkoutChipModel;
+        if (!supportsRepoWorktreeChip(params.repoScmSnapshot) && newWorktreeUnavailableReason === null) {
             return null;
         }
 
@@ -219,6 +232,7 @@ export function useNewSessionCheckoutActionChip(params: Readonly<{
             rowIconColor,
             nowMs,
             worktreeNameSuggestion,
+            newWorktreeUnavailableMessage: resolveNewWorktreeUnavailableMessage(newWorktreeUnavailableReason),
             pendingWorktreeName,
             pendingWorktreeBaseRef,
             onSelectPendingWorktree: closePopover,
@@ -231,17 +245,21 @@ export function useNewSessionCheckoutActionChip(params: Readonly<{
 
         // Show the chosen name for a pending creation (e.g. "New Worktree: clever-cloud")
         // on the chip + popover header, rather than the generic "New Worktree".
+        // A New Worktree that was asked for but cannot happen says so on the chip itself, since the
+        // session would otherwise start in the selected folder behind a plain "No Worktree".
         const selectedLabel = pendingWorktreeName
             ? `${t('newSession.checkout.newWorktree')}: ${pendingWorktreeName}`
-            : optionsById[params.checkoutChipModel.selectedOptionId]?.label
-                ?? t('newSession.checkout.noWorktree');
+            : worktreeIntentUnavailable
+                ? t('newSession.checkout.newWorktreeUnavailable')
+                : optionsById[params.checkoutChipModel.selectedOptionId]?.label
+                    ?? t('newSession.checkout.noWorktree');
 
         return {
             key: CHIP_KEY,
             stabilityKey: JSON.stringify([
                 params.scmScope, params.selectedMachineId, params.selectedPath,
                 params.repoScmSnapshot?.fetchedAt, params.repoScmSnapshot?.repo.worktrees,
-                params.checkoutCreationDraft, nowMs,
+                params.checkoutCreationDraft, newWorktreeUnavailableReason, worktreeIntentUnavailable, nowMs,
             ]),
             controlId: 'checkout',
             collapsedOptionsPopover: {
@@ -268,6 +286,10 @@ export function useNewSessionCheckoutActionChip(params: Readonly<{
                     label={selectedLabel}
                     checkoutPickerOpen={params.checkoutPickerOpen}
                     setCheckoutPickerOpen={params.setCheckoutPickerOpen}
+                    // A failed lookup has no event of its own to recover on, so asking is the retry.
+                    onPress={newWorktreeUnavailableReason === 'repository_status_unavailable'
+                        ? params.retryRepoScmSnapshot
+                        : undefined}
                 />
             ),
         };
@@ -279,6 +301,7 @@ export function useNewSessionCheckoutActionChip(params: Readonly<{
         params.pendingGitWorktreeBaseRefRef,
         params.pendingGitWorktreeSourceKindRef,
         params.repoScmSnapshot,
+        params.retryRepoScmSnapshot,
         params.router,
         params.selectedMachineId,
         params.selectedPath,

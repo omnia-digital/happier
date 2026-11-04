@@ -51,6 +51,11 @@ export const PENDING_GIT_WORKTREE_OPTION_ID = 'pending_git_worktree';
  *     value; an empty/invalid value falls back to the generated suggestion; the
  *     "use suggested name" row commits the suggestion directly.
  *
+ * When `newWorktreeUnavailableMessage` is set the root step offers No Worktree and a
+ * disabled New Worktree row carrying that reason, and nothing Git-backed: the existing
+ * and from-branch routes need the repository this target could not provide, and must
+ * not stand in for the choice the user is being told they cannot make.
+ *
  * Branch rows expose `<StatusPill variant="info" />` when a worktree already
  * exists for the branch (the "reuse" signal). Existing worktree rows expose
  * `<RelativeTimeText />` + `<StatusPill />` accessories when SCM provided
@@ -95,6 +100,8 @@ export type WorktreeSelectionListBuilderParams = Readonly<{
      * user commits an empty or git-invalid name.
      */
     worktreeNameSuggestion: string;
+    /** Localized reason New Worktree cannot be chosen for this target; null when it can. */
+    newWorktreeUnavailableMessage?: string | null;
     onSelectNewWorktree?: () => void;
     onSelectCurrentDir: () => void;
     onSelectExistingWorktree: (worktreePath: string) => void;
@@ -551,21 +558,34 @@ function buildCreateWorktreeStep(params: WorktreeSelectionListBuilderParams): Se
 }
 
 export function buildWorktreeSelectionListSteps(params: WorktreeSelectionListBuilderParams): SelectionListStep {
-    const createStep = buildCreateWorktreeStep(params);
+    const newWorktreeUnavailableMessage = params.newWorktreeUnavailableMessage ?? null;
 
-    const quickActions: SelectionListOption[] = [
+    const currentPathOption: SelectionListOption = {
+        id: 'current_path',
+        label: t('newSession.checkout.noWorktree'),
+        subtitle: params.currentDirPath || undefined,
+        icon: <Icon name="folder" size={WORKTREE_ROW_ICON_SIZE} color={params.rowIconColor} />,
+        onSelect: params.onSelectCurrentDir,
+    };
+    const newWorktreeIcon = <Icon name="plus-circle" size={WORKTREE_ROW_ICON_SIZE} color={params.rowIconColor} />;
+
+    const quickActions: SelectionListOption[] = newWorktreeUnavailableMessage !== null ? [
+        currentPathOption,
         {
-            id: 'current_path',
-            label: t('newSession.checkout.noWorktree'),
-            subtitle: params.currentDirPath || undefined,
-            icon: <Icon name="folder" size={WORKTREE_ROW_ICON_SIZE} color={params.rowIconColor} />,
-            onSelect: params.onSelectCurrentDir,
+            id: 'create_git_worktree',
+            label: t('newSession.checkout.newWorktree'),
+            subtitle: newWorktreeUnavailableMessage,
+            accessibilityLabel: `${t('newSession.checkout.newWorktree')}. ${newWorktreeUnavailableMessage}`,
+            icon: newWorktreeIcon,
+            disabled: true,
         },
+    ] : [
+        currentPathOption,
         {
             id: 'create_git_worktree',
             label: t('newSession.checkout.newWorktree'),
             subtitle: t('newSession.checkout.newWorktreeSubtitle'),
-            icon: <Icon name="plus-circle" size={WORKTREE_ROW_ICON_SIZE} color={params.rowIconColor} />,
+            icon: newWorktreeIcon,
             onSelect: params.onSelectNewWorktree,
         },
         {
@@ -618,7 +638,7 @@ export function buildWorktreeSelectionListSteps(params: WorktreeSelectionListBui
                     id: PENDING_GIT_WORKTREE_OPTION_ID,
                     label: `${t('newSession.checkout.newWorktree')}: ${params.pendingWorktreeName}`,
                     subtitle: pendingSubtitle,
-                    icon: <Icon name="plus-circle" size={WORKTREE_ROW_ICON_SIZE} color={params.rowIconColor} />,
+                    icon: newWorktreeIcon,
                     onSelect: params.onSelectPendingWorktree ?? (() => {}),
                 },
             ],
@@ -632,16 +652,18 @@ export function buildWorktreeSelectionListSteps(params: WorktreeSelectionListBui
         options: quickActions,
     });
 
-    sections.push({
-        kind: 'static',
-        id: 'worktree:advanced',
-        options: [{
-            id: 'create_git_worktree_from_branch',
-            label: t('newSession.worktree.createTitle'),
-            icon: <Icon name="git-branch" size={WORKTREE_ROW_ICON_SIZE} color={params.rowIconColor} />,
-            openStep: createStep,
-        }],
-    });
+    if (newWorktreeUnavailableMessage === null) {
+        sections.push({
+            kind: 'static',
+            id: 'worktree:advanced',
+            options: [{
+                id: 'create_git_worktree_from_branch',
+                label: t('newSession.worktree.createTitle'),
+                icon: <Icon name="git-branch" size={WORKTREE_ROW_ICON_SIZE} color={params.rowIconColor} />,
+                openStep: buildCreateWorktreeStep(params),
+            }],
+        });
+    }
 
     return {
         id: 'worktree-root',

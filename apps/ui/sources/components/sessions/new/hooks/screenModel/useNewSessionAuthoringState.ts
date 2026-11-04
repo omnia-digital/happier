@@ -41,6 +41,7 @@ export function useNewSessionAuthoringState(params: Readonly<{
     selectedMachineSpawnReadiness?: MachineSpawnReadiness | null;
     selectedPath: string;
     checkoutCreationDraft: NewSessionCheckoutCreationDraft | null;
+    persistableCheckoutCreationDraft: NewSessionCheckoutCreationDraft | null;
     checkoutSelectionExplicit?: boolean;
     promptStore: NewSessionPromptStore;
     agentType: AgentId;
@@ -165,11 +166,17 @@ export function useNewSessionAuthoringState(params: Readonly<{
     const effectiveAutomationDraft = authoringContext.effectiveAutomationDraft;
     const canCreate = authoringContext.canSubmit;
 
+    // A saved draft keeps a requested New Worktree the target cannot create; the launch draft does not.
+    const buildCurrentSavedAuthoringDraft = React.useCallback(() => ({
+        ...buildCurrentAuthoringDraft(effectiveAutomationDraft),
+        checkoutCreationDraft: params.persistableCheckoutCreationDraft,
+    }), [buildCurrentAuthoringDraft, effectiveAutomationDraft, params.persistableCheckoutCreationDraft]);
+
     const buildCurrentPersistedDraft = React.useCallback(() => {
         // Rebuild from the live composer text rather than the last-rendered draft: the model
         // no longer re-renders per keystroke, so `currentAuthoringDraft` can lag the input.
         const draft = buildPersistedNewSessionDraftFromAuthoringDraft({
-            draft: buildCurrentAuthoringDraft(effectiveAutomationDraft),
+            draft: buildCurrentSavedAuthoringDraft(),
             checkoutSelectionExplicit: params.checkoutSelectionExplicit,
             machineId: params.selectedMachineId,
             entryIntent: params.automationRequestedByRoute ? 'automation' : 'session',
@@ -186,8 +193,7 @@ export function useNewSessionAuthoringState(params: Readonly<{
             : '';
         return launchUserAttemptId ? { ...draft, launchUserAttemptId } : draft;
     }, [
-        buildCurrentAuthoringDraft,
-        effectiveAutomationDraft,
+        buildCurrentSavedAuthoringDraft,
         params.agentNewSessionOptionStateByAgentId,
         params.automationRequestedByRoute,
         params.checkoutSelectionExplicit,
@@ -211,7 +217,7 @@ export function useNewSessionAuthoringState(params: Readonly<{
             scope: params.draftScope,
             draftId: params.draftId,
             patch: buildNewSessionDraftPatch({
-                authoringDraft: buildCurrentAuthoringDraft(effectiveAutomationDraft),
+                authoringDraft: buildCurrentSavedAuthoringDraft(),
                 machineId: params.selectedMachineId,
                 serverId: params.targetServerId ?? null,
                 text: promptStore.getPrompt(),
@@ -224,8 +230,7 @@ export function useNewSessionAuthoringState(params: Readonly<{
             patch: { newSessionLocalState: buildNewSessionDraftLocalState(draft) },
         });
     }, [
-        buildCurrentAuthoringDraft,
-        effectiveAutomationDraft,
+        buildCurrentSavedAuthoringDraft,
         params.draftId,
         params.draftScope,
         params.selectedMachineId,
