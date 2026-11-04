@@ -24,6 +24,7 @@ import type { SessionFoldersV1 } from '@/sync/domains/session/folders';
 import { normalizeSessionListFolderSortMode } from '@/sync/domains/session/listing/sessionListFolderSortMode';
 import {
     normalizeSessionListOrderingModeV1,
+    normalizeSessionListStatusMode,
     resolveEffectiveSessionListFolderSortMode,
 } from '@/sync/domains/session/listing/sessionListOrderingRules';
 import {
@@ -73,7 +74,7 @@ import { persistSessionListFolders } from '../commit/persistSessionListFolders';
 import { persistSessionListGroupOrder } from '../commit/persistSessionListGroupOrder';
 import { projectSessionListMachineView } from './projectSessionListMachineView';
 import { useSessionRepositoryView, type SessionListViewMode } from './useSessionRepositoryView';
-import { projectSessionListStatusView, sessionListStatusRowKey, type SessionListStatusMode } from './projectSessionListStatusView';
+import { projectSessionListStatusView, sessionListStatusRowKey } from './projectSessionListStatusView';
 import { useSessionTicketStatuses } from '@/hooks/session/useSessionTicketStatus';
 import { useSessionListStatusInputs } from './useSessionListStatusInputs';
 
@@ -154,8 +155,8 @@ export function useSessionListViewState({
     const [sessionListOrderingModeRaw, setSessionListOrderingModeV1] = useSettingMutable('sessionListOrderingModeV1');
     const [sessionListStatusSortingRaw, setSessionListStatusSorting] = useSettingMutable('sessionListStatusSortV1');
     const [sessionListStatusGroupingRaw, setSessionListStatusGrouping] = useLocalSettingMutable('sessionListStatusGroupingV1');
-    const sessionListStatusSorting: SessionListStatusMode = sessionListStatusSortingRaw === 'agent' || sessionListStatusSortingRaw === 'ticket' ? sessionListStatusSortingRaw : 'none';
-    const sessionListStatusGrouping: SessionListStatusMode = sessionListStatusGroupingRaw === 'agent' || sessionListStatusGroupingRaw === 'ticket' ? sessionListStatusGroupingRaw : 'none';
+    const sessionListStatusSorting = normalizeSessionListStatusMode(sessionListStatusSortingRaw);
+    const sessionListStatusGrouping = normalizeSessionListStatusMode(sessionListStatusGroupingRaw);
     const statusOrganizationActive = sessionListStatusGrouping !== 'none' || sessionListStatusSorting !== 'none';
     const [sessionFolderViewModeRaw, setSessionFolderViewModeV1] = useSessionFolderViewModeMutable('sessionFolderViewModeV1');
     const sessionTagsEnabled = useSetting('sessionTagsEnabled');

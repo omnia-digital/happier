@@ -26,7 +26,8 @@ import { Icon } from '@/components/ui/icons/Icon';
 import {
     SESSION_LIST_ORDERING_MODES_V1,
     normalizeSessionListOrderingModeV1,
-    resolveEffectiveSessionListFolderSortMode,
+    normalizeSessionListStatusMode,
+    resolveSessionListFolderSortControl,
     type SessionListOrderingModeV1,
 } from '@/sync/domains/session/listing/sessionListOrderingRules';
 import { getCodingPromptTitleUpdatesModeItems } from '@/components/settings/session/codingPromptBehaviorOptions';
@@ -70,7 +71,9 @@ export default React.memo(function SessionSettingsScreen() {
     const [mobileWorkspaceExperience, setMobileWorkspaceExperience] = useSettingMutable('mobileWorkspaceExperienceV1');
     const [cockpitSwipeNavigationEnabled, setCockpitSwipeNavigationEnabled] = useSettingMutable('sessionCockpitSwipeNavigationEnabled');
     const [sessionListOrderingModeV1, setSessionListOrderingModeV1] = useSettingMutable('sessionListOrderingModeV1');
+    const [sessionListStatusSortV1] = useSettingMutable('sessionListStatusSortV1');
     const [sessionListFolderSortModeV1, setSessionListFolderSortModeV1] = useLocalSettingMutable('sessionListFolderSortModeV1');
+    const [sessionListStatusGroupingV1] = useLocalSettingMutable('sessionListStatusGroupingV1');
     const [sessionListShowMachineIdentity, setSessionListShowMachineIdentity] = useLocalSettingMutable('sessionListShowMachineIdentity');
     const [sessionListShowMachineLabel, setSessionListShowMachineLabel] = useLocalSettingMutable('sessionListShowMachineLabel');
     const [sessionsRightPaneDefaultOpen, setSessionsRightPaneDefaultOpen] = useLocalSettingMutable('sessionsRightPaneDefaultOpen');
@@ -342,34 +345,44 @@ export default React.memo(function SessionSettingsScreen() {
     }, [setSessionListOrderingModeV1]);
 
     const normalizedSessionListFolderSortMode = normalizeSessionListFolderSortMode(sessionListFolderSortModeV1);
-    const sessionListFolderSortLockedByOrdering = normalizedSessionListOrderingMode !== 'custom';
-    const effectiveSessionListFolderSortMode = resolveEffectiveSessionListFolderSortMode({
+    const {
+        effectiveMode: effectiveSessionListFolderSortMode,
+        lock: sessionListFolderSortLock,
+        dragBlockedByStatusSorting: sessionListFolderDragBlockedByStatusSorting,
+    } = resolveSessionListFolderSortControl({
         orderingMode: normalizedSessionListOrderingMode,
         folderSortMode: normalizedSessionListFolderSortMode,
+        statusGrouping: normalizeSessionListStatusMode(sessionListStatusGroupingV1),
+        statusSorting: normalizeSessionListStatusMode(sessionListStatusSortV1),
     });
-    const sessionListFolderSortModeItems = React.useMemo(() => [
-        {
-            id: 'foldersFirst',
-            title: t('settingsSession.sessionList.folderSortModeFoldersFirstTitle'),
-            subtitle: sessionListFolderSortLockedByOrdering
+    const sessionListFolderSortModeItems = React.useMemo(() => {
+        const lockSubtitle = sessionListFolderSortLock === 'statusGrouping'
+            ? t('sessionsList.folderSortDisabledInStatusGrouping')
+            : sessionListFolderSortLock === 'dateOrdering'
                 ? t('sessionsList.folderSortDisabledInDateMode')
-                : t('settingsSession.sessionList.folderSortModeFoldersFirstSubtitle'),
-            disabled: sessionListFolderSortLockedByOrdering,
-        },
-        {
-            id: 'mixed',
-            title: t('settingsSession.sessionList.folderSortModeMixedTitle'),
-            subtitle: sessionListFolderSortLockedByOrdering
-                ? t('sessionsList.folderSortDisabledInDateMode')
-                : t('settingsSession.sessionList.folderSortModeMixedSubtitle'),
-            disabled: sessionListFolderSortLockedByOrdering,
-        },
-    ], [sessionListFolderSortLockedByOrdering]);
+                : null;
+        return [
+            {
+                id: 'foldersFirst',
+                title: t('settingsSession.sessionList.folderSortModeFoldersFirstTitle'),
+                subtitle: lockSubtitle ?? t('settingsSession.sessionList.folderSortModeFoldersFirstSubtitle'),
+                disabled: sessionListFolderSortLock !== null,
+            },
+            {
+                id: 'mixed',
+                title: t('settingsSession.sessionList.folderSortModeMixedTitle'),
+                subtitle: lockSubtitle ?? (sessionListFolderDragBlockedByStatusSorting
+                    ? t('sessionsList.folderSortMixedDescriptionStatusSort')
+                    : t('settingsSession.sessionList.folderSortModeMixedSubtitle')),
+                disabled: sessionListFolderSortLock !== null,
+            },
+        ];
+    }, [sessionListFolderDragBlockedByStatusSorting, sessionListFolderSortLock]);
     const handleSessionListFolderSortModeSelect = React.useCallback((itemId: string) => {
-        if (sessionListFolderSortLockedByOrdering) return;
+        if (sessionListFolderSortLock !== null) return;
         const mode = normalizeSessionListFolderSortMode(itemId);
         setSessionListFolderSortModeV1(mode);
-    }, [sessionListFolderSortLockedByOrdering, setSessionListFolderSortModeV1]);
+    }, [sessionListFolderSortLock, setSessionListFolderSortModeV1]);
 
     const sessionListSectionMode = sessionListSectionModeV1 === 'single' ? 'single' : 'activity';
     const sessionListSectionModeItems = React.useMemo(() => [

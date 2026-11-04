@@ -89,6 +89,17 @@ describe('status organization through the canonical sidebar projection', () => {
         expect(projectSessionListStatusView({ items: source, grouping: 'none', sorting: 'none', ticketStatuses: new Map(), nowMs: now })).toBe(source);
     });
 
+    it('places folders ahead of loose rows under status grouping even when the source mixes them', () => {
+        const folder = { ...header('Tests', 'folder'), folderId: 'tests', parentFolderId: null, depth: 0 };
+        const member = row('member', {}, { folderId: 'tests', folderDepth: 1, groupKind: 'folder' });
+        const source = [header('Sessions', 'sessions'), row('loose-before'), folder, member, row('loose-after')];
+
+        const result = projectSessionListStatusView({ items: source, grouping: 'agent', sorting: 'none', ticketStatuses: new Map(), nowMs: now });
+
+        expect(ids(result)).toEqual(['member', 'loose-before', 'loose-after']);
+        expect(result.indexOf(folder)).toBeLessThan(result.findIndex(item => item.type === 'session' && !item.folderId));
+    });
+
     it('keeps nested physical folder containers and source identity without moving assignments or ranks', () => {
         const folder = { ...header('Tests', 'folder'), folderId: 'tests', parentFolderId: null, depth: 0 };
         const nested = { ...header('Nested', 'folder'), folderId: 'nested', parentFolderId: 'tests', depth: 1 };

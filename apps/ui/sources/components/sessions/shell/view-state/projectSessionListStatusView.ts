@@ -1,3 +1,4 @@
+import type { SessionListStatusMode } from '@/sync/domains/session/listing/sessionListOrderingRules';
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
 import type { SessionListVisualStatus } from '@/sync/domains/session/listing/deriveSessionListActivity';
 import { resolveSessionListRowStatus } from '../row/buildSessionListRowModel';
@@ -7,7 +8,6 @@ import type { SessionTicketAssociationV1 } from '@happier-dev/protocol';
 import { resolveSessionTicketStatusLabel } from '@/sync/domains/session/tickets/sessionTicketStatusLabel';
 import { t } from '@/text';
 
-export type SessionListStatusMode = 'none' | 'agent' | 'ticket';
 export const SESSION_LIST_AGENT_STATUS_ORDER = ['input', 'finished', 'error', 'queued', 'working', 'idle', 'delivery_blocked', 'resuming', 'archiving', 'offline', 'cancelled'] as const satisfies readonly SessionListVisualStatus[];
 type Row = Extract<SessionListViewItem, { type: 'session' }>;
 type Header = Extract<SessionListViewItem, { type: 'header' }>;

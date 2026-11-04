@@ -9,11 +9,12 @@ import type { SessionListFolderSortModeV1 } from '@/sync/domains/session/listing
 import { Icon, ICON_SIZE } from '@/components/ui/icons/Icon';
 import { PressableSurface } from '@/components/ui/interaction/PressableSurface';
 import type { SessionListViewMode } from './view-state/useSessionRepositoryView';
-import type { SessionListStatusMode } from './view-state/projectSessionListStatusView';
 import {
     SESSION_LIST_ORDERING_MODES_V1,
-    resolveEffectiveSessionListFolderSortMode,
+    resolveSessionListFolderSortControl,
+    type SessionListFolderSortControl,
     type SessionListOrderingModeV1,
+    type SessionListStatusMode,
 } from '@/sync/domains/session/listing/sessionListOrderingRules';
 
 const FOLDER_SORT_MODE_ACTION_PREFIX = 'session-folder-sort-mode:';
@@ -33,6 +34,25 @@ function getOrderingModeTitle(mode: SessionListOrderingModeV1): string {
     if (mode === 'created') return t('sessionsList.orderingMode.created');
     if (mode === 'updated') return t('sessionsList.orderingMode.updated');
     return t('sessionsList.orderingMode.custom');
+}
+
+function getFolderSortSubtitle(params: Readonly<{
+    mode: SessionListFolderSortModeV1;
+    lock: SessionListFolderSortControl['lock'];
+    dragBlockedByStatusSorting: boolean;
+    machineViewMode: SessionListViewMode;
+}>): string {
+    if (params.lock === 'statusGrouping') return t('sessionsList.folderSortDisabledInStatusGrouping');
+    if (params.lock === 'dateOrdering') return t('sessionsList.folderSortDisabledInDateMode');
+    if (params.mode === 'foldersFirst') {
+        return params.machineViewMode === 'flat'
+            ? t('sessionsList.folderSortFoldersFirstDescriptionFlatView')
+            : t('sessionsList.folderSortFoldersFirstDescription');
+    }
+    if (params.dragBlockedByStatusSorting) return t('sessionsList.folderSortMixedDescriptionStatusSort');
+    if (params.machineViewMode === 'machine') return t('sessionsList.folderSortMixedDescriptionMachineView');
+    if (params.machineViewMode === 'flat') return t('sessionsList.folderSortMixedDescriptionFlatView');
+    return t('sessionsList.folderSortMixedDescription');
 }
 
 export function SessionListViewMenuButton(props: Readonly<{
@@ -60,11 +80,16 @@ export function SessionListViewMenuButton(props: Readonly<{
     const [sortOpen, setSortOpen] = React.useState(false);
     const iconColor = props.disabled ? theme.colors.text.tertiary : theme.colors.text.secondary;
     const selectedIconColor = theme.colors.accent.blue;
-    const effectiveFolderSortMode = resolveEffectiveSessionListFolderSortMode({
+    const {
+        effectiveMode: effectiveFolderSortMode,
+        lock: folderSortLock,
+        dragBlockedByStatusSorting,
+    } = resolveSessionListFolderSortControl({
         orderingMode: props.orderingMode,
         folderSortMode: props.folderSortMode,
+        statusGrouping: props.statusGrouping,
+        statusSorting: props.statusSorting,
     });
-    const folderSortLockedByOrdering = props.orderingMode !== 'custom';
 
     const groupItems = React.useMemo((): DropdownMenuItem[] => [
         {
@@ -170,19 +195,13 @@ export function SessionListViewMenuButton(props: Readonly<{
             testID: mode === 'foldersFirst' ? 'session-folder-sort-mode-folders-first' : 'session-folder-sort-mode-mixed',
             category: t('sessionsList.folderSortMode'),
             title: mode === 'foldersFirst' ? t('sessionsList.folderSortFoldersFirst') : t('sessionsList.folderSortMixed'),
-            subtitle: folderSortLockedByOrdering
-                ? t('sessionsList.folderSortDisabledInDateMode')
-                : mode === 'foldersFirst'
-                    ? t('sessionsList.folderSortFoldersFirstDescription')
-                    : props.machineViewMode === 'machine'
-                        ? t('sessionsList.folderSortMixedDescriptionMachineView')
-                        : t('sessionsList.folderSortMixedDescription'),
+            subtitle: getFolderSortSubtitle({ mode, lock: folderSortLock, dragBlockedByStatusSorting, machineViewMode: props.machineViewMode }),
             icon: <Icon name={mode === 'foldersFirst' ? 'folder' : 'arrows-down-up'} size={ICON_SIZE.sm} color={iconColor} />,
-            disabled: props.disabled || folderSortLockedByOrdering,
+            disabled: props.disabled || folderSortLock !== null,
             rightElement: effectiveFolderSortMode === mode
                 ? <Icon name="check" size={ICON_SIZE.sm} color={selectedIconColor} /> : null,
         })),
-    ], [effectiveFolderSortMode, folderSortLockedByOrdering, iconColor, props.disabled, props.machineViewMode, props.orderingMode, props.statusSorting, selectedIconColor]);
+    ], [dragBlockedByStatusSorting, effectiveFolderSortMode, folderSortLock, iconColor, props.disabled, props.machineViewMode, props.orderingMode, props.statusSorting, selectedIconColor]);
 
     const handleSelect = React.useCallback((itemId: string) => {
         if (itemId.startsWith('status-group:')) {
@@ -209,7 +228,7 @@ export function SessionListViewMenuButton(props: Readonly<{
         }
         const folderSortMode = resolveFolderSortModeAction(itemId);
         if (folderSortMode) {
-            if (props.orderingMode !== 'custom') return;
+            if (folderSortLock !== null) return;
             props.onFolderSortModeChange(folderSortMode);
             return;
         }
@@ -228,7 +247,7 @@ export function SessionListViewMenuButton(props: Readonly<{
         if (itemId === 'show-inactive') {
             props.onHideInactiveSessionsChange(false);
         }
-    }, [props]);
+    }, [folderSortLock, props]);
 
     return (
         <>
