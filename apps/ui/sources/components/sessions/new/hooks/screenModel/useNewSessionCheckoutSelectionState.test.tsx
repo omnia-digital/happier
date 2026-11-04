@@ -229,6 +229,10 @@ describe('useNewSessionCheckoutSelectionState', () => {
         await flushHookEffects();
 
         expect(hook.getCurrent().checkoutCreationDraft).toBeNull();
+        expect(hook.getCurrent().checkoutChipModel).toMatchObject({
+            newWorktreeUnavailableReason: 'not_git_repository',
+            worktreeIntentUnavailable: true,
+        });
 
         await hook.rerender(makeParams({
             persistedDraft: { checkoutCreationDraft: hydratedDraft },
@@ -237,6 +241,146 @@ describe('useNewSessionCheckoutSelectionState', () => {
         await flushHookEffects();
 
         expect(hook.getCurrent().checkoutCreationDraft).toBeNull();
+        expect(hook.getCurrent().checkoutChipModel).toMatchObject({
+            newWorktreeUnavailableReason: null,
+            worktreeIntentUnavailable: false,
+        });
+        await hook.unmount();
+    });
+
+    it('keeps a restored worktree draft when the repository status is unavailable', async () => {
+        const hydratedDraft = {
+            kind: 'git_worktree' as const,
+            displayName: 'hydrated-worktree',
+            baseRef: null,
+            branchMode: 'new' as const,
+        };
+        const hook = await renderHook(() => useNewSessionCheckoutSelectionState(makeParams({
+            persistedDraft: { checkoutCreationDraft: hydratedDraft },
+            repoScmSnapshot: null,
+            repoScmSnapshotUnavailable: true,
+        })));
+        await flushHookEffects();
+
+        expect(hook.getCurrent().checkoutCreationDraft).toEqual(hydratedDraft);
+        expect(hook.getCurrent().checkoutChipModel).toMatchObject({
+            newWorktreeUnavailableReason: 'repository_status_unavailable',
+            worktreeIntentUnavailable: false,
+        });
+        await hook.unmount();
+    });
+
+    it('explains a default New Worktree preference that this folder cannot honour', async () => {
+        const hook = await renderHook(() => useNewSessionCheckoutSelectionState(makeParams({
+            repoScmSnapshot: makeRepoSnapshot('sapling'),
+            defaultCheckoutMode: 'git_worktree',
+        })));
+        await flushHookEffects();
+
+        expect(hook.getCurrent().checkoutCreationDraft).toBeNull();
+        expect(hook.getCurrent().checkoutChipModel.worktreeIntentUnavailable).toBe(true);
+        await hook.unmount();
+    });
+
+    it('stays quiet in a non-Git folder when no worktree was requested', async () => {
+        const hook = await renderHook(() => useNewSessionCheckoutSelectionState(makeParams({
+            repoScmSnapshot: makeRepoSnapshot('sapling'),
+            defaultCheckoutMode: 'current_path',
+        })));
+        await flushHookEffects();
+
+        expect(hook.getCurrent().checkoutChipModel).toMatchObject({
+            newWorktreeUnavailableReason: 'not_git_repository',
+            worktreeIntentUnavailable: false,
+        });
+        await hook.unmount();
+    });
+
+    it('drops the invalidated intent notice once the user chooses No Worktree or moves to another target', async () => {
+        const hydratedDraft = {
+            kind: 'git_worktree' as const,
+            displayName: 'hydrated-worktree',
+            baseRef: null,
+            branchMode: 'new' as const,
+        };
+        const invalidatedParams = makeParams({
+            persistedDraft: { checkoutCreationDraft: hydratedDraft },
+            repoScmSnapshot: makeRepoSnapshot('sapling'),
+            defaultCheckoutMode: 'current_path',
+        });
+
+        const chosen = await renderHook((props: HookParams) => useNewSessionCheckoutSelectionState(props), {
+            initialProps: invalidatedParams,
+        });
+        await flushHookEffects();
+        expect(chosen.getCurrent().checkoutChipModel.worktreeIntentUnavailable).toBe(true);
+        await act(async () => {
+            chosen.getCurrent().setCheckoutCreationDraft(null);
+        });
+        await flushHookEffects();
+        expect(chosen.getCurrent().checkoutChipModel.worktreeIntentUnavailable).toBe(false);
+        await chosen.unmount();
+
+        const moved = await renderHook((props: HookParams) => useNewSessionCheckoutSelectionState(props), {
+            initialProps: invalidatedParams,
+        });
+        await flushHookEffects();
+        expect(moved.getCurrent().checkoutChipModel.worktreeIntentUnavailable).toBe(true);
+        await moved.rerender({ ...invalidatedParams, selectedPath: '/other' });
+        await flushHookEffects();
+        expect(moved.getCurrent().checkoutChipModel.worktreeIntentUnavailable).toBe(false);
+        await moved.unmount();
+    });
+
+    it('does not report a hydrated draft reconciled onto an existing checkout as unavailable', async () => {
+        const snapshot = makeRepoSnapshot();
+        const hook = await renderHook(() => useNewSessionCheckoutSelectionState(makeParams({
+            persistedDraft: {
+                checkoutCreationDraft: { kind: 'git_worktree', displayName: 'restored', baseRef: null, branchMode: 'new' },
+            },
+            selectedPath: '/repo/.worktrees/release',
+            repoScmSnapshot: {
+                ...snapshot,
+                repo: {
+                    ...snapshot.repo,
+                    worktrees: [
+                        { path: '/repo', branch: 'main', isCurrent: false, isMain: true },
+                        { path: '/repo/.worktrees/release', branch: 'release', isCurrent: true },
+                    ],
+                },
+            },
+            defaultCheckoutMode: 'current_path',
+        })));
+        await flushHookEffects();
+
+        expect(hook.getCurrent().checkoutChipModel).toMatchObject({
+            newWorktreeUnavailableReason: null,
+            worktreeIntentUnavailable: false,
+        });
+        await hook.unmount();
+    });
+
+    it('opens the picker for a new-worktree route so an unavailable reason is shown instead of nothing', async () => {
+        const hook = await renderHook(() => useNewSessionCheckoutSelectionState(makeParams({
+            repoScmSnapshot: makeRepoSnapshot('sapling'),
+            defaultCheckoutMode: 'current_path',
+            autoOpenWorktreePickerKey: 'route:new:machine-1:/repo',
+        })));
+        await flushHookEffects();
+
+        expect(hook.getCurrent().checkoutPickerOpen).toBe(true);
+        await hook.unmount();
+    });
+
+    it('does not open the picker for a new-worktree route while the repository lookup is pending', async () => {
+        const hook = await renderHook(() => useNewSessionCheckoutSelectionState(makeParams({
+            repoScmSnapshot: null,
+            defaultCheckoutMode: 'current_path',
+            autoOpenWorktreePickerKey: 'route:new:machine-1:/repo',
+        })));
+        await flushHookEffects();
+
+        expect(hook.getCurrent().checkoutPickerOpen).toBe(false);
         await hook.unmount();
     });
 

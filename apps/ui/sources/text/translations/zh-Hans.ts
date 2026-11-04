@@ -4937,6 +4937,7 @@ export const zhHans: TranslationStructure = {
       actionsSectionTitle: "操作",
       newWorktree: "新建 worktree",
       newWorktreeSubtitle: "为此会话创建并使用一个新的 Git worktree。",
+      newWorktreeUnavailable: "新建 worktree 不可用",
       pendingWorktreeSubtitle: ({ branch, path }: { branch: string; path: string }) => `来自 ${branch} · ${path}`,
       existingWorktree: "现有 worktree",
       existingWorktreeSubtitle: "为此会话选择一个现有的 Git worktree。",
@@ -5070,6 +5071,7 @@ export const zhHans: TranslationStructure = {
       creating: ({ name }: { name: string }) =>
         `正在创建 worktree '${name}'...`,
       notGitRepo: "Worktree 需要 git 仓库",
+      repositoryStatusUnavailable: "目前无法读取此文件夹的仓库状态",
       failed: ({ error }: { error: string }) => `创建 worktree 失败：${error}`,
       success: "Worktree 创建成功",
       createTitle: "从分支新建 worktree",

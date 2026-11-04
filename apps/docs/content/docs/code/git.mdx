@@ -105,6 +105,12 @@ worktree when you submit the session. Reopening the picker or restoring the draf
 preserves the selected creation intent; changing the machine or repository
 revalidates it.
 
+New Worktree needs a Git repository. In a folder outside Git, or when Happier
+cannot read the folder's repository status, the picker keeps **New Worktree**
+visible but disabled and shows the reason. If a restored draft or your default
+asked for a new worktree there, the picker chip reads **New Worktree unavailable**,
+and the session starts in the selected folder.
+
 To carry a conversation into another checkout, choose **Configure a new session**
 from the [fork chooser](/sessions/session-forking), then use the same picker.
 That configure option requires relay support. Direct **Native fork** and

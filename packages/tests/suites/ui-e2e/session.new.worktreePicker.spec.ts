@@ -2,7 +2,8 @@
 
 import { test, expect, type Page } from '@playwright/test';
 import { execFile } from 'node:child_process';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -28,7 +29,7 @@ async function createGitRepository(path: string): Promise<void> {
     await execFileAsync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '-m', 'fixture'], { cwd: path });
 }
 
-async function selectGitWorkingDirectory(params: Readonly<{
+async function selectWorkingDirectory(params: Readonly<{
     page: Page;
     repoDir: string;
 }>): Promise<void> {
@@ -56,6 +57,8 @@ test.describe('ui e2e: /new worktree picker (Phase 5 SelectionList migration)', 
     const fakeClaudeLogPath = resolve(join(suiteDir, 'fake-claude.jsonl'));
     const worktreeRepoDir = resolve(join(suiteDir, 'worktree-picker-repo'));
 
+    // Outside the run directory, which sits inside this repository's own checkout.
+    let plainFolderDir = '';
     let server: StartedServer | null = null;
     let ui: StartedUiWeb | null = null;
     let uiBaseUrl: string | null = null;
@@ -65,6 +68,7 @@ test.describe('ui e2e: /new worktree picker (Phase 5 SelectionList migration)', 
         test.setTimeout(540_000);
         await mkdir(cliHomeDir, { recursive: true });
         await createGitRepository(worktreeRepoDir);
+        plainFolderDir = await realpath(await mkdtemp(join(tmpdir(), 'happier-worktree-picker-plain-')));
 
         server = await startServerLight({
             testDir: suiteDir,
@@ -88,6 +92,7 @@ test.describe('ui e2e: /new worktree picker (Phase 5 SelectionList migration)', 
         try { await daemon?.stop?.(); } catch { /* best-effort */ }
         try { await ui?.stop?.(); } catch { /* best-effort */ }
         try { await server?.stop?.(); } catch { /* best-effort */ }
+        if (plainFolderDir) await rm(plainFolderDir, { recursive: true, force: true });
     });
 
     test('selects fresh worktree intent, preserves it on reopen/reload, then launches in that checkout', async ({ page }, testInfo) => {
@@ -127,7 +132,23 @@ test.describe('ui e2e: /new worktree picker (Phase 5 SelectionList migration)', 
         const draftText = 'worktree picker pointer smoke';
         await page.getByTestId('new-session-composer-input').fill(draftText);
         await expect(page.getByTestId('new-session-composer-input')).toHaveValue(draftText);
-        await selectGitWorkingDirectory({ page, repoDir: worktreeRepoDir });
+
+        // A folder outside Git keeps the choice visible and says why it cannot be taken,
+        // with nothing Git-backed offered in its place.
+        await selectWorkingDirectory({ page, repoDir: plainFolderDir });
+        await page.getByTestId('new-session-checkout-chip').click();
+        const unavailableNewWorktree = page.getByTestId('selection-list:worktree-root:option:create_git_worktree');
+        await expect(unavailableNewWorktree).toBeVisible({ timeout: 30_000 });
+        await expect(page.getByTestId('selection-list:worktree-root:option:existing_git_worktree')).toHaveCount(0);
+        await expect(page.getByTestId('selection-list:worktree-root:option:create_git_worktree_from_branch')).toHaveCount(0);
+        await unavailableNewWorktree.click({ force: true });
+        await expect(page.getByTestId('agent-input-selection-list-popover')).toBeVisible();
+        await expect(page.getByTestId('selection-list:worktree-root:option:pending_git_worktree')).toHaveCount(0);
+        await page.screenshot({ path: testInfo.outputPath('oh65-unavailable-reason.png') });
+        await page.keyboard.press('Escape');
+        await expect(page.getByTestId('agent-input-selection-list-popover')).toBeHidden();
+
+        await selectWorkingDirectory({ page, repoDir: worktreeRepoDir });
 
         // Open the agent-input checkout chip → SelectionList popover.
         await expect(page.getByTestId('new-session-checkout-chip')).toHaveCount(1, { timeout: 60_000 });

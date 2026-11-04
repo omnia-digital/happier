@@ -1,6 +1,7 @@
 import * as React from 'react';
 import {
     resolveNewSessionCheckoutChipModel,
+    supportsRepoWorktreeChip,
     type NewSessionCheckoutChipModel,
 } from '@/components/sessions/new/modules/newSessionCheckoutChipModel';
 import {
@@ -26,6 +27,7 @@ export function useNewSessionCheckoutSelectionState(params: Readonly<{
     selectedPath: string;
     targetScopeKey?: string | null;
     repoScmSnapshot: ScmWorkingSnapshot | null;
+    repoScmSnapshotUnavailable?: boolean;
     defaultCheckoutMode: NewSessionCheckoutMode;
     autoOpenWorktreePickerKey?: string | null;
 }>): Readonly<{
@@ -57,8 +59,12 @@ export function useNewSessionCheckoutSelectionState(params: Readonly<{
             checkoutCreationDraft: resolveCheckoutCreationDraftAction(next, current.checkoutCreationDraft),
         }));
     }, []);
+    // Clearing an invalidated draft rewrites the selection to `current_path`, so the fact that
+    // New Worktree was asked for has to outlive it for the chip to explain what happened.
+    const [worktreeIntentInvalidated, setWorktreeIntentInvalidated] = React.useState(false);
     const setExplicitCheckoutCreationDraft = React.useCallback<React.Dispatch<React.SetStateAction<NewSessionCheckoutCreationDraft | null>>>((next) => {
         hasLocalCheckoutSelectionAuthorityRef.current = true;
+        setWorktreeIntentInvalidated(false);
         setCheckoutSelectionState((current) => {
             const checkoutCreationDraft = resolveCheckoutCreationDraftAction(next, current.checkoutCreationDraft);
             return {
@@ -96,30 +102,36 @@ export function useNewSessionCheckoutSelectionState(params: Readonly<{
             selectedPath: params.selectedPath,
             checkoutCreationDraft,
             repoSnapshot: params.repoScmSnapshot,
+            repoSnapshotUnavailable: params.repoScmSnapshotUnavailable,
+            worktreeIntentRequested: worktreeIntentInvalidated
+                || (effectiveCheckoutSelection.explicitMode ?? params.defaultCheckoutMode) === 'git_worktree',
         });
     }, [
         checkoutCreationDraft,
+        effectiveCheckoutSelection.explicitMode,
+        params.defaultCheckoutMode,
         params.repoScmSnapshot,
+        params.repoScmSnapshotUnavailable,
         params.selectedPath,
+        worktreeIntentInvalidated,
     ]);
 
     React.useEffect(() => {
         const selectedExistingCheckout = checkoutChipModel.selectedOptionId.startsWith('checkout:');
+        const gitDetectionAllowsDraft = params.repoScmSnapshot === null || supportsRepoWorktreeChip(params.repoScmSnapshot);
         const shouldPreserveCheckoutCreationDraft = checkoutCreationDraft !== null
             && (
                 (
                     !shouldReconcileInitialHydratedCheckoutCreationDraftRef.current
                     || !selectedExistingCheckout
                 )
-                && (
-                    params.repoScmSnapshot === null
-                    || (params.repoScmSnapshot.repo.isRepo === true && params.repoScmSnapshot.repo.backendId === 'git')
-                )
+                && gitDetectionAllowsDraft
             );
 
         if (!shouldPreserveCheckoutCreationDraft && checkoutCreationDraft !== null) {
             shouldReconcileInitialHydratedCheckoutCreationDraftRef.current = false;
             hasLocalCheckoutSelectionAuthorityRef.current = true;
+            if (!gitDetectionAllowsDraft) setWorktreeIntentInvalidated(true);
             setCheckoutSelectionState({
                 checkoutCreationDraft: null,
                 explicitMode: effectiveCheckoutSelection.explicitMode === null ? null : 'current_path',
@@ -146,6 +158,7 @@ export function useNewSessionCheckoutSelectionState(params: Readonly<{
         }
         previousSelectionKeyRef.current = selectionKey;
         hasLocalCheckoutSelectionAuthorityRef.current = true;
+        setWorktreeIntentInvalidated(false);
         if (checkoutCreationDraft === null) {
             return;
         }
@@ -157,8 +170,7 @@ export function useNewSessionCheckoutSelectionState(params: Readonly<{
         if (params.repoScmSnapshot === null || checkoutCreationDraft !== null) return;
         if (
             (effectiveCheckoutSelection.explicitMode ?? params.defaultCheckoutMode) !== 'git_worktree'
-            || params.repoScmSnapshot.repo.isRepo !== true
-            || params.repoScmSnapshot.repo.backendId !== 'git'
+            || !supportsRepoWorktreeChip(params.repoScmSnapshot)
         ) {
             return;
         }
@@ -183,7 +195,8 @@ export function useNewSessionCheckoutSelectionState(params: Readonly<{
         if (!autoOpenKey) {
             return;
         }
-        if (!(params.repoScmSnapshot?.repo.isRepo === true && params.repoScmSnapshot.repo.backendId === 'git')) {
+        // Open once the target is known either way: the picker is what explains an unavailable New Worktree.
+        if (!supportsRepoWorktreeChip(params.repoScmSnapshot) && checkoutChipModel.newWorktreeUnavailableReason === null) {
             return;
         }
         if (lastAutoOpenWorktreePickerKeyRef.current === autoOpenKey) {
@@ -191,7 +204,7 @@ export function useNewSessionCheckoutSelectionState(params: Readonly<{
         }
         lastAutoOpenWorktreePickerKeyRef.current = autoOpenKey;
         setCheckoutPickerOpen(true);
-    }, [params.autoOpenWorktreePickerKey, params.repoScmSnapshot]);
+    }, [checkoutChipModel.newWorktreeUnavailableReason, params.autoOpenWorktreePickerKey, params.repoScmSnapshot]);
 
     return {
         checkoutCreationDraft,

@@ -745,7 +745,7 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         getBestPathForMachineRef.current = getBestPathForMachine;
     }, [getBestPathForMachine]);
     const [pathPickerSearchQuery, setPathPickerSearchQuery] = React.useState('');
-    const repoScmSnapshot = useNewSessionRepoScmSnapshot({
+    const { snapshot: repoScmSnapshot, unavailable: repoScmSnapshotUnavailable } = useNewSessionRepoScmSnapshot({
         scope: pathTargetBinding?.scope ?? null,
         machineId: selectedMachineId,
         path: selectedPath,
@@ -767,6 +767,7 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         selectedMachineId,
         selectedPath,
         repoScmSnapshot,
+        repoScmSnapshotUnavailable,
         defaultCheckoutMode: newSessionDefaultCheckoutMode,
         autoOpenWorktreePickerKey: effectiveWorktreeRouteMode === 'new'
             ? `route:new:${selectedMachineId ?? ''}:${selectedPath}`

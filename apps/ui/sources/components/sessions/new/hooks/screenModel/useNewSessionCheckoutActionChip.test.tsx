@@ -88,7 +88,7 @@ function makeCheckoutChipModel(
     ],
     selectedOptionId: NewSessionCheckoutChipModel['selectedOptionId'] = 'current_path',
 ): NewSessionCheckoutChipModel {
-    return { selectedOptionId, options };
+    return { selectedOptionId, options, newWorktreeUnavailableReason: null, worktreeIntentUnavailable: false };
 }
 
 function createStateSetter<T>(): React.Dispatch<React.SetStateAction<T>> {
@@ -481,7 +481,7 @@ describe('useNewSessionCheckoutActionChip', () => {
         expect(pendingRow?.label).toContain('clever-cloud');
     });
 
-    it('returns null when the SCM snapshot does not indicate a git repository', async () => {
+    it('stays hidden while the repository lookup is pending rather than flashing an unavailable state', async () => {
         const chip = await renderCheckoutChip({
             repoScmSnapshot: null,
             checkoutChipModel: makeCheckoutChipModel([
@@ -494,6 +494,93 @@ describe('useNewSessionCheckoutActionChip', () => {
         });
 
         expect(chip).toBeNull();
+    });
+
+    it('explains why New Worktree is unavailable in a non-Git folder and offers no create action', async () => {
+        const setCheckoutCreationDraft = vi.fn();
+        const chip = await renderCheckoutChip({
+            repoScmSnapshot: makeSnapshot([], { isRepo: false, backendId: undefined, rootPath: null }),
+            checkoutChipModel: {
+                ...makeCheckoutChipModel([{ id: 'current_path', kind: 'current_path', path: '/plain' }]),
+                newWorktreeUnavailableReason: 'not_git_repository',
+            },
+            selectedPath: '/plain',
+            setCheckoutCreationDraft,
+        });
+
+        expect(chip?.collapsedOptionsPopover?.label).toBe('newSession.checkout.noWorktree');
+        const newWorktreeRow = findCheckoutChipOptionFromChip(chip, 'worktree:quick-actions', 'create_git_worktree');
+        expect(newWorktreeRow).toMatchObject({
+            disabled: true,
+            subtitle: 'newSession.worktree.notGitRepo',
+        });
+        expect(newWorktreeRow?.onSelect).toBeUndefined();
+        expect(newWorktreeRow?.openStep).toBeUndefined();
+
+        // Nothing Git-backed may stand in for the unavailable choice.
+        expect(getCheckoutChipSectionOptionsFromChip(chip, 'worktree:quick-actions').map((option) => option.id)).toEqual([
+            'current_path',
+            'create_git_worktree',
+        ]);
+        expect(getCheckoutChipRootStepFromChip(chip)?.sections.map((section) => section.id)).toEqual(['worktree:quick-actions']);
+        expect(setCheckoutCreationDraft).not.toHaveBeenCalled();
+    });
+
+    it('explains an unavailable repository status and keeps a retained creation draft visible', async () => {
+        const chip = await renderCheckoutChip({
+            repoScmSnapshot: null,
+            checkoutChipModel: {
+                ...makeCheckoutChipModel([{ id: 'current_path', kind: 'current_path', path: '/repo' }]),
+                newWorktreeUnavailableReason: 'repository_status_unavailable',
+            },
+            selectedPath: '/repo',
+            checkoutCreationDraft: { kind: 'git_worktree', displayName: 'clever-cloud', baseRef: null, branchMode: 'new' },
+        });
+
+        expect(chip?.collapsedOptionsPopover?.selectedOptionId).toBe('pending_git_worktree');
+        expect(chip?.collapsedOptionsPopover?.label).toContain('clever-cloud');
+        expect(findCheckoutChipOptionFromChip(chip, 'worktree:quick-actions', 'create_git_worktree')).toMatchObject({
+            disabled: true,
+            subtitle: 'newSession.worktree.repositoryStatusUnavailable',
+        });
+    });
+
+    it('labels the chip when a requested New Worktree could not be honoured', async () => {
+        const chip = await renderCheckoutChip({
+            repoScmSnapshot: makeSnapshot([], { isRepo: false, backendId: undefined, rootPath: null }),
+            checkoutChipModel: {
+                ...makeCheckoutChipModel([{ id: 'current_path', kind: 'current_path', path: '/plain' }]),
+                newWorktreeUnavailableReason: 'not_git_repository',
+                worktreeIntentUnavailable: true,
+            },
+            selectedPath: '/plain',
+        });
+
+        expect(chip?.collapsedOptionsPopover?.label).toBe('newSession.checkout.newWorktreeUnavailable');
+        expect(chip?.collapsedOptionsPopover?.selectedOptionId).toBe('current_path');
+    });
+
+    it('rebuilds the stable chip signature when availability changes on the same snapshot', async () => {
+        const params = {
+            repoScmSnapshot: null,
+            selectedPath: '/plain',
+        } as const;
+        const before = await renderCheckoutChip({
+            ...params,
+            checkoutChipModel: {
+                ...makeCheckoutChipModel([{ id: 'current_path', kind: 'current_path', path: '/plain' }]),
+                newWorktreeUnavailableReason: 'repository_status_unavailable',
+            },
+        });
+        const after = await renderCheckoutChip({
+            ...params,
+            checkoutChipModel: {
+                ...makeCheckoutChipModel([{ id: 'current_path', kind: 'current_path', path: '/plain' }]),
+                newWorktreeUnavailableReason: 'not_git_repository',
+            },
+        });
+
+        expect(after?.stabilityKey).not.toBe(before?.stabilityKey);
     });
 
     /**

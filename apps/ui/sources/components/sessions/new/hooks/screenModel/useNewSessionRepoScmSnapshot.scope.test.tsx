@@ -78,8 +78,8 @@ describe('new-session SCM target scope through the real repository cache', () =>
         const input = { machineId, path: '/repo', scope: foreignScope };
         const hook = await renderHook(() => useNewSessionRepoScmSnapshot(input));
         await flushHookEffects();
-        expect(hook.getCurrent()?.branch.head).toBe('foreign');
-        expect(hook.getCurrent()?.repo.worktrees?.[0]?.changeCount).toBe(7);
+        expect(hook.getCurrent().snapshot?.branch.head).toBe('foreign');
+        expect(hook.getCurrent().snapshot?.repo.worktrees?.[0]?.changeCount).toBe(7);
         expect(rpc.mock.calls.map(([request]) => [request.serverId, request.accountId, request.method])).toEqual([
             ['foreign-home', 'foreign-account', RPC_METHODS.SCM_STATUS_SNAPSHOT],
             ['foreign-home', 'foreign-account', RPC_METHODS.SCM_WORKTREES_ENRICHMENT],
@@ -94,12 +94,12 @@ describe('new-session SCM target scope through the real repository cache', () =>
         rpc.mockImplementation(() => new Promise(() => {}));
         const initialProps = { machineId, path: '/repo', scope: activeScope as ServerAccountScope | null };
         const hook = await renderHook((props: typeof initialProps) => useNewSessionRepoScmSnapshot(props), { initialProps });
-        expect(hook.getCurrent()?.repo.rootPath).toBe('/repo');
+        expect(hook.getCurrent().snapshot?.repo.rootPath).toBe('/repo');
         await hook.rerender({ ...initialProps,
             machineId: changed === 'machine' ? `${machineId}-other` : machineId,
             scope: changed === 'server' ? foreignScope : changed === 'account' ? { ...activeScope, accountId: 'replacement-account' } : activeScope,
         });
-        expect(hook.getCurrent()).toBeNull();
+        expect(hook.getCurrent().snapshot).toBeNull();
         await hook.unmount();
     });
 
@@ -114,10 +114,10 @@ describe('new-session SCM target scope through the real repository cache', () =>
         const initialProps = { machineId, path: '/repo', scope: activeScope };
         const hook = await renderHook((props: typeof initialProps) => useNewSessionRepoScmSnapshot(props), { initialProps });
         await hook.rerender({ ...initialProps, scope: foreignScope });
-        expect(hook.getCurrent()?.branch.head).toBe('foreign');
+        expect(hook.getCurrent().snapshot?.branch.head).toBe('foreign');
         await act(async () => { release({ success: true, snapshot: makeSnapshot({ branch: { head: 'old-account', upstream: null, ahead: 0, behind: 0, detached: false } }) }); });
         await flushHookEffects();
-        expect(hook.getCurrent()?.branch.head).toBe('foreign');
+        expect(hook.getCurrent().snapshot?.branch.head).toBe('foreign');
         await hook.unmount();
     });
 
@@ -139,7 +139,7 @@ describe('new-session SCM target scope through the real repository cache', () =>
         rpc.mockClear();
         const input = { machineId, path: '/repo', scope: null };
         const hook = await renderHook(() => useNewSessionRepoScmSnapshot(input));
-        expect(hook.getCurrent()).toBeNull();
+        expect(hook.getCurrent().snapshot).toBeNull();
         expect(rpc).not.toHaveBeenCalled();
         await hook.unmount();
     });

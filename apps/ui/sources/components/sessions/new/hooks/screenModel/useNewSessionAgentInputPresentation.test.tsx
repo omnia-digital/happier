@@ -116,6 +116,8 @@ describe('useNewSessionAgentInputPresentation', () => {
             repoScmSnapshot: null,
             checkoutChipModel: {
                 selectedOptionId: 'current_path',
+                newWorktreeUnavailableReason: null,
+                worktreeIntentUnavailable: false,
                 options: [{ id: 'current_path', kind: 'current_path', path: '/repo' }],
             },
             checkoutPickerOpen: false,
@@ -212,6 +214,8 @@ describe('useNewSessionAgentInputPresentation', () => {
             repoScmSnapshot: null,
             checkoutChipModel: {
                 selectedOptionId: 'current_path',
+                newWorktreeUnavailableReason: null,
+                worktreeIntentUnavailable: false,
                 options: [{ id: 'current_path', kind: 'current_path', path: '/repo' }],
             },
             checkoutPickerOpen: false,
@@ -356,6 +360,8 @@ describe('useNewSessionAgentInputPresentation', () => {
             repoScmSnapshot: null,
             checkoutChipModel: {
                 selectedOptionId: 'current_path',
+                newWorktreeUnavailableReason: null,
+                worktreeIntentUnavailable: false,
                 options: [{ id: 'current_path', kind: 'current_path', path: '/repo' }],
             },
             checkoutPickerOpen: false,
@@ -475,6 +481,8 @@ describe('useNewSessionAgentInputPresentation', () => {
             repoScmSnapshot: null,
             checkoutChipModel: {
                 selectedOptionId: 'current_path',
+                newWorktreeUnavailableReason: null,
+                worktreeIntentUnavailable: false,
                 options: [{ id: 'current_path', kind: 'current_path', path: '/repo' }],
             },
             checkoutPickerOpen: false,
@@ -570,6 +578,8 @@ describe('useNewSessionAgentInputPresentation', () => {
             repoScmSnapshot: null,
             checkoutChipModel: {
                 selectedOptionId: 'current_path',
+                newWorktreeUnavailableReason: null,
+                worktreeIntentUnavailable: false,
                 options: [{ id: 'current_path', kind: 'current_path', path: '/repo' }],
             },
             checkoutPickerOpen: false,
@@ -667,6 +677,8 @@ describe('useNewSessionAgentInputPresentation', () => {
             repoScmSnapshot: null,
             checkoutChipModel: {
                 selectedOptionId: 'current_path',
+                newWorktreeUnavailableReason: null,
+                worktreeIntentUnavailable: false,
                 options: [{ id: 'current_path', kind: 'current_path', path: '/repo' }],
             },
             checkoutPickerOpen: false,

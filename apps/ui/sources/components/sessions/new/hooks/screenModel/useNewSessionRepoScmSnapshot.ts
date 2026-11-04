@@ -27,31 +27,49 @@ import { pathBelongsToRepo } from './worktreePathComparison';
  * background enrichment refresh never invalidates the light data driving the
  * chip. Stale-while-revalidate is implemented per layer (cached value returned
  * immediately, refresh happens in the background).
+ *
+ * `unavailable` separates a lookup that settled with nothing to show from one still
+ * in flight, which both read as a null snapshot. It is recorded against the path it
+ * failed for, so moving to another path falls back to plain "loading" immediately,
+ * while a retry of the same path keeps the result on screen until a snapshot lands.
  */
+export type NewSessionRepoScmSnapshotState = Readonly<{
+    snapshot: ScmWorkingSnapshot | null;
+    unavailable: boolean;
+}>;
+
 export function useNewSessionRepoScmSnapshot(input: Readonly<{
     machineId: string | null;
     path: string;
     scope: ServerAccountScope | null;
-}>): ScmWorkingSnapshot | null {
+}>): NewSessionRepoScmSnapshotState {
     const targetKey = input.scope && input.machineId?.trim()
         ? JSON.stringify([input.scope.serverId, input.scope.accountId, input.machineId.trim()])
         : null;
-    const [state, setState] = React.useState<{ targetKey: string | null; snapshot: ScmWorkingSnapshot | null }>(() => {
+    const [state, setState] = React.useState<{
+        targetKey: string | null;
+        snapshot: ScmWorkingSnapshot | null;
+        unavailablePath: string | null;
+    }>(() => {
         const machineId = input.machineId?.trim() ?? '';
         const path = input.path.trim();
-        if (!input.scope || !machineId || !path) return { targetKey, snapshot: null };
+        if (!input.scope || !machineId || !path) return { targetKey, snapshot: null, unavailablePath: null };
         const light = scmRepositoryService.readCachedSnapshotForMachinePath({
             machineId,
             path,
             scope: input.scope,
         });
-        if (!light) return { targetKey, snapshot: null };
+        if (!light) return { targetKey, snapshot: null, unavailablePath: null };
         const enrichment = scmRepositoryService.readCachedWorktreesEnrichment({
             machineId,
             path,
             scope: input.scope,
         });
-        return { targetKey, snapshot: enrichment ? mergeWorktreesEnrichmentIntoSnapshot(light, enrichment) : light };
+        return {
+            targetKey,
+            snapshot: enrichment ? mergeWorktreesEnrichmentIntoSnapshot(light, enrichment) : light,
+            unavailablePath: null,
+        };
     });
 
     const refreshSnapshot = React.useCallback(() => {
@@ -59,7 +77,7 @@ export function useNewSessionRepoScmSnapshot(input: Readonly<{
         const path = input.path.trim();
         const scope = input.scope;
         if (!scope || !machineId || !path) {
-            setState({ targetKey, snapshot: null });
+            setState({ targetKey, snapshot: null, unavailablePath: null });
             return () => {};
         }
 
@@ -85,10 +103,11 @@ export function useNewSessionRepoScmSnapshot(input: Readonly<{
         // a reset would only flash the chip's worktree list empty for one
         // round-trip until the new path's light fetch lands. (Honors the UI rule
         // against flashing empty states for already-hydrated lists.)
-        const applySeed = () => {
+        const applySeed = (fetchSettled: boolean) => {
             setState((previousState) => {
-                if (seededFromCache) return { targetKey, snapshot: seededFromCache };
-                const previous = previousState.targetKey === targetKey ? previousState.snapshot : null;
+                if (seededFromCache) return { targetKey, snapshot: seededFromCache, unavailablePath: null };
+                const sameTarget = previousState.targetKey === targetKey;
+                const previous = sameTarget ? previousState.snapshot : null;
                 if (previous && pathBelongsToRepo({
                     candidatePath: path,
                     repoRootPath: previous.repo.rootPath,
@@ -96,10 +115,14 @@ export function useNewSessionRepoScmSnapshot(input: Readonly<{
                 })) {
                     return previousState;
                 }
-                return { targetKey, snapshot: null };
+                return {
+                    targetKey,
+                    snapshot: null,
+                    unavailablePath: fetchSettled ? path : (sameTarget ? previousState.unavailablePath : null),
+                };
             });
         };
-        applySeed();
+        applySeed(false);
 
         void (async () => {
             try {
@@ -115,7 +138,11 @@ export function useNewSessionRepoScmSnapshot(input: Readonly<{
                 const lightWithCachedEnrichment = lightSnapshot && cachedEnrichment
                     ? mergeWorktreesEnrichmentIntoSnapshot(lightSnapshot, cachedEnrichment)
                     : lightSnapshot;
-                setState({ targetKey, snapshot: lightWithCachedEnrichment });
+                setState({
+                    targetKey,
+                    snapshot: lightWithCachedEnrichment,
+                    unavailablePath: lightWithCachedEnrichment ? null : path,
+                });
 
                 // STAGE 2: Background enrichment for the freshly listed worktrees.
                 const worktreePaths = lightSnapshot?.repo.worktrees?.map((w) => w.path) ?? [];
@@ -128,10 +155,14 @@ export function useNewSessionRepoScmSnapshot(input: Readonly<{
                     worktreePaths,
                 });
                 if (cancelled || !enrichment || !lightSnapshot) return;
-                setState({ targetKey, snapshot: mergeWorktreesEnrichmentIntoSnapshot(lightSnapshot, enrichment) });
+                setState({
+                    targetKey,
+                    snapshot: mergeWorktreesEnrichmentIntoSnapshot(lightSnapshot, enrichment),
+                    unavailablePath: null,
+                });
             } catch (_error) {
                 if (!cancelled) {
-                    applySeed();
+                    applySeed(true);
                 }
             }
         })();
@@ -147,5 +178,9 @@ export function useNewSessionRepoScmSnapshot(input: Readonly<{
 
     useFocusEffect(refreshSnapshot);
 
-    return state.targetKey === targetKey ? state.snapshot : null;
+    if (state.targetKey !== targetKey) return { snapshot: null, unavailable: false };
+    return {
+        snapshot: state.snapshot,
+        unavailable: state.snapshot === null && state.unavailablePath === input.path.trim(),
+    };
 }

@@ -5123,6 +5123,7 @@ export const pl: TranslationStructure = {
 	          actionsSectionTitle: "Akcje",
 		      newWorktree: "Nowy worktree",
 		      newWorktreeSubtitle: "Utwórz i użyj nowego worktree Git dla tej sesji.",
+		      newWorktreeUnavailable: "Nowy worktree niedostępny",
 		      pendingWorktreeSubtitle: ({ branch, path }: { branch: string; path: string }) => `Z ${branch} · ${path}`,
               existingWorktree: "Istniejący worktree",
               existingWorktreeSubtitle: "Wybierz istniejący worktree Git dla tej sesji.",
@@ -5263,6 +5264,7 @@ export const pl: TranslationStructure = {
       creating: ({ name }: { name: string }) =>
         `Tworzenie worktree '${name}'...`,
       notGitRepo: "Worktree wymaga repozytorium git",
+      repositoryStatusUnavailable: "Nie można teraz odczytać stanu repozytorium tego folderu",
       failed: ({ error }: { error: string }) =>
         `Nie udało się utworzyć worktree: ${error}`,
       success: "Worktree został utworzony pomyślnie",
