@@ -5201,6 +5201,7 @@ export const es: TranslationStructure = {
       emptyInThisFolder: "Sin coincidencias en esta carpeta",
       favoriteAdd: "Añadir a favoritos",
       favoriteRemove: "Quitar de favoritos",
+      savedPathMissing: 'No se encontró en esta máquina',
       reviewUnassignedFavorites: 'Revisar favoritos sin asignar',
       unassignedFavoritesHint: 'Estos favoritos antiguos no tienen una máquina conocida. Asigna solo las rutas de esta máquina.',
       assignToSelectedMachine: 'Asignar a la máquina seleccionada',

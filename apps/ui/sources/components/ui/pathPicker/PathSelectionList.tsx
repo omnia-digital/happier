@@ -39,12 +39,17 @@ import { formatPathRelativeToHome } from '@/utils/sessions/formatPathRelativeToH
 import { resolveDirectoryFavoriteComparisonKey } from '@/components/sessions/new/hooks/favoriteDirectoriesToggle';
 import { InputBrowseButton } from '@/components/ui/buttons/InputBrowseButton';
 import { useModalPortalTarget } from '@/modal/portal/ModalPortalTarget';
-import { listMachineFileBrowserDirectoryEntries, type MachineFileBrowserIdentity } from '@/sync/domains/input/machineFileBrowser';
+import {
+    isPathNotFoundErrorMessage,
+    listMachineFileBrowserDirectoryEntries,
+    type MachineFileBrowserIdentity,
+} from '@/sync/domains/input/machineFileBrowser';
 import { t } from '@/text';
 import { Pressable, type GestureResponderEvent } from 'react-native';
 import { useUnistyles } from 'react-native-unistyles';
 
 import { PathFavoriteToggleButton } from './PathFavoriteToggleButton';
+import { useMissingSavedPaths } from './useMissingSavedPaths';
 import { Icon } from '@/components/ui/icons/Icon';
 import {
     createPathSelectionInputBehavior,
@@ -88,24 +93,6 @@ function PathDrillDownButton(props: Readonly<{
 
 export type PathSelectionListFavorite = Readonly<{ path: string; label?: string }>;
 export type PathSelectionListRecent = Readonly<{ path: string; lastUsedAt: number }>;
-
-/**
- * RUX-1 Issue 6: detect "path does not exist" errors from the file-browser
- * RPC. Looks for the canonical Node/POSIX error codes that indicate the
- * directory does not exist OR is not a directory. Anything else is treated
- * as a transient/RPC failure and surfaced via the generic error path.
- *
- * Exported for unit testing. Case-insensitive.
- */
-export function isPathNotFoundErrorMessage(message: string): boolean {
-    const normalized = message.toLowerCase();
-    if (normalized.length === 0) return false;
-    if (normalized.includes('enoent')) return true;
-    if (normalized.includes('enotdir')) return true;
-    if (normalized.includes('no such file or directory')) return true;
-    if (normalized.includes('not a directory')) return true;
-    return false;
-}
 
 export type PathSelectionListProps = Readonly<{
     initialValue: string;
@@ -178,10 +165,29 @@ export type PathSelectionListProps = Readonly<{
 
 type FavoriteAccessoryFactory = (absolutePath: string, optionTestIdPrefix: string) => React.ReactNode | undefined;
 
+type SavedPathRowActions = Readonly<{
+    missingPaths: ReadonlySet<string>;
+    onCommit: (path: string) => void;
+    onReviewMissingPath: (path: string) => void;
+}>;
+
+/**
+ * A missing row stays enabled because a disabled row also disables its favorite
+ * toggle, which is the only way to remove a stale favorite. Pressing it moves the path
+ * into the input, so it can only be committed by a second, deliberate action there.
+ */
+function resolveSavedPathRowState(absolutePath: string, actions: SavedPathRowActions) {
+    const isMissing = actions.missingPaths.has(absolutePath);
+    return {
+        subtitle: isMissing ? t('newSession.pathPicker.savedPathMissing') : absolutePath,
+        onSelect: () => (isMissing ? actions.onReviewMissingPath : actions.onCommit)(absolutePath),
+    };
+}
+
 function buildFavoriteOptions(
     favorites: ReadonlyArray<PathSelectionListFavorite>,
     machineHomeDir: string,
-    onCommit: (path: string) => void,
+    rowActions: SavedPathRowActions,
     favoriteAccessory: FavoriteAccessoryFactory,
     rootTestId: string,
 ): ReadonlyArray<SelectionListOption> {
@@ -194,10 +200,9 @@ function buildFavoriteOptions(
             return {
                 id: optionId,
                 label: entry.label ?? formatPathRelativeToHome(absolutePath, machineHomeDir),
-                subtitle: absolutePath,
+                ...resolveSavedPathRowState(absolutePath, rowActions),
                 labelEllipsizeMode: 'head',
                 subtitleEllipsizeMode: 'head',
-                onSelect: () => onCommit(absolutePath),
                 autocompleteValue: absolutePath,
                 rightAccessory: favoriteAccessory(absolutePath, accessoryTestIdPrefix),
             } satisfies SelectionListOption;
@@ -207,7 +212,7 @@ function buildFavoriteOptions(
 function buildRecentOptions(
     recents: ReadonlyArray<PathSelectionListRecent>,
     machineHomeDir: string,
-    onCommit: (path: string) => void,
+    rowActions: SavedPathRowActions,
     favoriteAccessory: FavoriteAccessoryFactory,
     rootTestId: string,
 ): ReadonlyArray<SelectionListOption> {
@@ -220,10 +225,9 @@ function buildRecentOptions(
             return {
                 id: optionId,
                 label: formatPathRelativeToHome(absolutePath, machineHomeDir),
-                subtitle: absolutePath,
+                ...resolveSavedPathRowState(absolutePath, rowActions),
                 labelEllipsizeMode: 'head',
                 subtitleEllipsizeMode: 'head',
-                onSelect: () => onCommit(absolutePath),
                 autocompleteValue: absolutePath,
                 rightAccessory: favoriteAccessory(absolutePath, accessoryTestIdPrefix),
             } satisfies SelectionListOption;
@@ -409,6 +413,23 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
             machineHomeDir,
         });
     }, [hasUserEditedInput, initialValue, machineHomeDir, visibleFavorites, visibleRecents]);
+
+    const savedPaths = React.useMemo(
+        () => [...visibleFavorites, ...visibleRecents].map((entry) => resolveAbsolutePath(entry.path, machineHomeDir)),
+        [machineHomeDir, visibleFavorites, visibleRecents],
+    );
+    const missingPaths = useMissingSavedPaths({
+        paths: savedPaths,
+        browseIdentity,
+        machineId,
+        serverId,
+        targetScopeKey: props.targetScopeKey,
+        browserIdentity: props.browserIdentity,
+    });
+    const savedPathRowActions = React.useMemo<SavedPathRowActions>(
+        () => ({ missingPaths, onCommit, onReviewMissingPath: handleChangeInputValue }),
+        [handleChangeInputValue, missingPaths, onCommit],
+    );
 
     // Path-domain input behavior bound to the machine's platform (NEVER the
     // local browser's platform). When `machinePlatform === 'auto'`, the
@@ -637,7 +658,7 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
                 kind: 'static',
                 id: 'favorites',
                 title: t('newSession.pathPicker.favoritesTitle'),
-                options: buildFavoriteOptions(visibleFavorites, machineHomeDir, onCommit, renderFavoriteAccessoryStatic, ROOT_TEST_ID),
+                options: buildFavoriteOptions(visibleFavorites, machineHomeDir, savedPathRowActions, renderFavoriteAccessoryStatic, ROOT_TEST_ID),
                 // RUX-9.2: favorites carry path subtitles too — disable
                 // subtitle-tier ranking for the same reason.
                 disableSubtitleRanking: true,
@@ -646,7 +667,7 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
                 kind: 'static',
                 id: 'recent',
                 title: t('newSession.pathPicker.recentTitle'),
-                options: buildRecentOptions(visibleRecents, machineHomeDir, onCommit, renderFavoriteAccessoryStatic, ROOT_TEST_ID),
+                options: buildRecentOptions(visibleRecents, machineHomeDir, savedPathRowActions, renderFavoriteAccessoryStatic, ROOT_TEST_ID),
                 // RUX-9.2: same — recent rows have path subtitles.
                 disableSubtitleRanking: true,
             },
@@ -693,7 +714,7 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
         machineHomeDir,
         machineId,
         machinePlatform,
-        onCommit,
+        savedPathRowActions,
         visibleFavorites,
         visibleRecents,
         props.unassignedFavorites,

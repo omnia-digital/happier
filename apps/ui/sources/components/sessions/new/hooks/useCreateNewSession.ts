@@ -137,6 +137,12 @@ export type CreatedSessionFollowUpContext = Readonly<{
 }>;
 
 export type HandleCreateSessionOptions = Readonly<{
+    /**
+     * The user confirmed creating the missing folder this launch names. Only the
+     * confirmation in this hook sets it: nothing else may treat a path the machine
+     * reports as missing, such as a saved path that went stale, as approved.
+     */
+    approvedNewDirectoryCreation?: boolean;
     initialMessage?: 'send' | 'skip';
     inputTextOverride?: string;
     /**
@@ -362,6 +368,7 @@ export function useCreateNewSession(params: Readonly<{
         let confirmedCreatedSessionId: string | null = null;
         let operationReentryRegistration: NewSessionOperationReentryRegistration | null = null;
         let launchDraftCurrentness: SessionDraftCurrentness | null = null;
+        let relaunchWithApprovedDirectory = false;
         const isRepoNativeWorktreeLaunch = current.checkoutCreationDraft?.kind === 'git_worktree';
 
         if (!current.selectedMachineId) {
@@ -902,7 +909,9 @@ export function useCreateNewSession(params: Readonly<{
                         },
                         machineId: current.selectedMachineId,
                         serverId: resolvedTargetServerId,
-                        approvedNewDirectoryCreation: true,
+                        // A worktree directory was just materialized by this launch.
+                        approvedNewDirectoryCreation: isRepoNativeWorktreeLaunch
+                            || opts?.approvedNewDirectoryCreation === true,
                         agentModeUpdatedAt: normalizedAcpModeId ? spawnPermissionModeUpdatedAt : null,
                         sourceContext: current.sourceContext ?? null,
                     }),
@@ -1397,6 +1406,15 @@ export function useCreateNewSession(params: Readonly<{
                 if (presentedOperation) {
                     acknowledgeActionOperationPresented(presentedOperation);
                 }
+            } else if (result.type === 'requestToApproveDirectoryCreation' && !isRepoNativeWorktreeLaunch) {
+                launchAttemptRef.current = null;
+                const approved = await Modal.confirm(
+                    t('newSession.directoryDoesNotExist'),
+                    t('newSession.createDirectoryConfirm', { directory: result.directory }),
+                    { cancelText: t('common.cancel'), confirmText: t('common.create') },
+                );
+                relaunchWithApprovedDirectory = approved && mountedRef.current && isLaunchScopeStillActive();
+                if (!relaunchWithApprovedDirectory) current.setIsCreating(false);
             } else if (result.type === 'requestToApproveDirectoryCreation') {
                 launchAttemptRef.current = null;
                 const rollbackErrorMessage = await rollbackSpawnArtifacts();
@@ -1608,6 +1626,9 @@ export function useCreateNewSession(params: Readonly<{
         } finally {
             createInFlightRef.current = false;
             operationReentryRegistration?.release();
+            if (relaunchWithApprovedDirectory) {
+                void handleCreateSession({ ...opts, approvedNewDirectoryCreation: true });
+            }
         }
     }, [applySettings, mountedRef]);
 

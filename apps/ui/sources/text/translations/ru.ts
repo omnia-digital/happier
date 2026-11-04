@@ -5130,6 +5130,7 @@ export const ru: TranslationStructure = {
       emptyInThisFolder: "Нет совпадений в этой папке",
       favoriteAdd: "Добавить в избранное",
       favoriteRemove: "Удалить из избранного",
+      savedPathMissing: 'Не найдено на этой машине',
       reviewUnassignedFavorites: 'Проверить неназначенные избранные пути',
       unassignedFavoritesHint: 'Для этих старых избранных путей машина неизвестна. Назначайте только пути этой машины.',
       assignToSelectedMachine: 'Назначить выбранной машине',

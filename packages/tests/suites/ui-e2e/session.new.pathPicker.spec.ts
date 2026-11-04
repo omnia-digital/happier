@@ -60,7 +60,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, rm } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { accountSettingsParse } from '@happier-dev/protocol';
 
@@ -86,6 +86,7 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
     const cliHomeDir = resolve(join(suiteDir, 'cli-home'));
     const scrollCliHomeDir = resolve(join(suiteDir, 'scroll-cli-home'));
     const favoriteDir = resolve(join(suiteDir, 'oh64-favorite-dir'));
+    const staleFavoriteDir = resolve(join(suiteDir, 'oh64-stale-favorite-dir'));
 
     let server: StartedServer | null = null;
     let ui: StartedUiWeb | null = null;
@@ -97,6 +98,7 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         test.setTimeout(540_000);
         await mkdir(cliHomeDir, { recursive: true });
         await mkdir(favoriteDir, { recursive: true });
+        await mkdir(staleFavoriteDir, { recursive: true });
 
         server = await startServerLight({ testDir: suiteDir });
         ui = await startUiWeb({
@@ -166,6 +168,28 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         await expect(page.getByTestId('agent-input-content-popover')
             .getByTestId(`path-selection-list:path-root:option:favorite:${favoriteDir}`))
             .toBeVisible({ timeout: 60_000 });
+
+        // A saved folder deleted on the machine is reported by that machine's daemon,
+        // and pressing its row must not commit it as the session directory.
+        const reopenedPopover = page.getByTestId('agent-input-content-popover');
+        const reopenedInput = reopenedPopover.getByTestId('path-selection-list:header:input');
+        await reopenedInput.fill(`${suiteDir}/`);
+        await reopenedPopover.getByTestId(`path-selection-list:path-root:option:in-folder:${staleFavoriteDir}`)
+            .getByRole('button', { name: 'Add to favorites' })
+            .click();
+        const staleRowTestId = `path-selection-list:path-root:option:favorite:${staleFavoriteDir}`;
+        await expect(reopenedPopover.getByTestId(staleRowTestId)).toBeVisible({ timeout: 60_000 });
+        await rm(staleFavoriteDir, { recursive: true });
+
+        await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/new?happier_hmr=0`, 60_000);
+        await page.getByTestId('agent-input-path-chip').click();
+        const staleRow = reopenedPopover.getByTestId(staleRowTestId);
+        await expect(staleRow).toContainText('Not found on this machine', { timeout: 60_000 });
+        await expect(reopenedPopover.getByTestId(`path-selection-list:path-root:option:favorite:${favoriteDir}`))
+            .not.toContainText('Not found on this machine');
+        await staleRow.click();
+        await expect(reopenedInput).toHaveValue(staleFavoriteDir);
+        await expect(reopenedPopover).toHaveCount(1);
     });
 
     test('scrolls an overflowing selected-machine path list inside the New Session popover', async ({ page }, testInfo) => {

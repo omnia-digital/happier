@@ -7,6 +7,7 @@ import {
     getCachedMachineFileBrowserRoots,
     listMachineFileBrowserDirectoryEntries,
     listMachineFileBrowserRoots,
+    probeMachineDirectory,
     warmMachineFileBrowserDirectoryCache,
 } from './machineFileBrowser';
 
@@ -223,5 +224,85 @@ describe('machineFileBrowser domain', () => {
             machineId: 'machine-1', serverId: 'server-1', browserIdentity: identity,
             directoryPath: '/repo', includeFiles: false,
         })).toBeNull();
+    });
+
+    describe('probeMachineDirectory', () => {
+        const browserIdentity = {
+            target: { serverId: 'server-1', accountId: 'account-b', machineId: 'machine-1' },
+            viewerScope: { serverId: 'server-1', accountId: 'account-a' },
+        };
+
+        it('reports a directory the machine says is gone as missing, on that exact target', async () => {
+            activeScope = { serverId: 'server-1', accountId: 'account-a' };
+            const ops = await import('@/sync/ops/machineFileBrowser');
+            (ops.machineFilesystemListDirectory as any).mockReset();
+            (ops.machineFilesystemListDirectory as any).mockResolvedValueOnce({
+                ok: false,
+                error: "ENOENT: no such file or directory, scandir '/repo/gone'",
+            });
+
+            await expect(probeMachineDirectory({
+                machineId: 'machine-1',
+                serverId: 'server-1',
+                browserIdentity,
+                directoryPath: '/repo/gone',
+            })).resolves.toBe('missing');
+            expect(ops.machineFilesystemListDirectory).toHaveBeenCalledWith(
+                'machine-1',
+                { path: '/repo/gone', includeFiles: false, maxEntries: 1 },
+                { serverId: 'server-1', accountId: 'account-b' },
+            );
+        });
+
+        it('treats a failure that says nothing about the directory as unknown, not missing', async () => {
+            activeScope = { serverId: 'server-1', accountId: 'account-a' };
+            const ops = await import('@/sync/ops/machineFileBrowser');
+            (ops.machineFilesystemListDirectory as any).mockReset();
+            (ops.machineFilesystemListDirectory as any).mockResolvedValueOnce({
+                ok: false,
+                error: 'RPC method not available',
+                errorCode: 'method_not_available',
+            });
+
+            await expect(probeMachineDirectory({
+                machineId: 'machine-1',
+                serverId: 'server-1',
+                directoryPath: '/repo/maybe',
+            })).resolves.toBe('unknown');
+        });
+
+        it('does not let its one-entry response replace the browse cache for that directory', async () => {
+            activeScope = { serverId: 'server-1', accountId: 'account-a' };
+            const ops = await import('@/sync/ops/machineFileBrowser');
+            (ops.machineFilesystemListDirectory as any).mockReset();
+            (ops.machineFilesystemListDirectory as any).mockResolvedValueOnce({
+                ok: true,
+                path: '/repo/kept',
+                entries: [{ name: 'a', path: '/repo/kept/a', type: 'directory' }],
+                truncated: true,
+            });
+            const scope = { machineId: 'machine-probe-cache', serverId: 'server-1', directoryPath: '/repo/kept' };
+
+            await expect(probeMachineDirectory(scope)).resolves.toBe('available');
+            expect(getCachedMachineFileBrowserEntries({ ...scope, includeFiles: false })).toBeNull();
+        });
+
+        it('discards a late answer after the viewer Account changes', async () => {
+            activeScope = { serverId: 'server-1', accountId: 'account-a' };
+            const ops = await import('@/sync/ops/machineFileBrowser');
+            (ops.machineFilesystemListDirectory as any).mockReset();
+            (ops.machineFilesystemListDirectory as any).mockImplementationOnce(async () => {
+                activeScope = { serverId: 'server-1', accountId: 'account-c' };
+                return { ok: false, error: 'ENOENT: no such file or directory' };
+            });
+
+            await expect(probeMachineDirectory({
+                machineId: 'machine-1',
+                serverId: 'server-1',
+                browserIdentity,
+                directoryPath: '/repo/gone',
+            })).resolves.toBe('unknown');
+            activeScope = { serverId: 'server-1', accountId: 'account-a' };
+        });
     });
 });

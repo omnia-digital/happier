@@ -168,7 +168,11 @@ export function useNewSessionMachinePathState(params: Readonly<{
         if (nextScopeKey === previousCacheScopeKeyRef.current) return;
         previousCacheScopeKeyRef.current = nextScopeKey;
         hasChangedCacheScopeRef.current = true;
-        if (!selectedMachineId || normalizePathParam(params.pathParam) || hasUserEditedPathRef.current) return;
+        if (!selectedMachineId || normalizePathParam(params.pathParam)) return;
+        // A cleared field is the user's choice on any target. An edited path named a
+        // folder on the previous target, and a reused machine ID does not make it valid here.
+        if (hasUserEditedPathRef.current && selectedPathDraftRef.current.trim().length === 0) return;
+        hasUserEditedPathRef.current = false;
         applyCommittedSelectedPath(getBestPathForMachine(selectedMachineId));
     }, [applyCommittedSelectedPath, getBestPathForMachine, params.cacheScopeKey, params.pathParam, selectedMachineId]);
 

@@ -5320,6 +5320,7 @@ export const pt: TranslationStructure = {
       emptyInThisFolder: "Sem correspondências nesta pasta",
       favoriteAdd: "Adicionar aos favoritos",
       favoriteRemove: "Remover dos favoritos",
+      savedPathMissing: 'Não encontrado nesta máquina',
       reviewUnassignedFavorites: 'Rever favoritos não atribuídos',
       unassignedFavoritesHint: 'Estes favoritos antigos não têm uma máquina conhecida. Atribua apenas caminhos desta máquina.',
       assignToSelectedMachine: 'Atribuir à máquina selecionada',
