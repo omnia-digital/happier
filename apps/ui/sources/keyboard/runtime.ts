@@ -31,6 +31,8 @@ export type KeyboardShortcutDispatcherOptions = Readonly<{
 }>;
 
 export type KeyboardShortcutLabelOptions = Readonly<{
+    enabled?: boolean;
+    enabledWhenDisabledCommandIds?: readonly KeyboardCommandId[];
     disabledCommandIds?: readonly string[];
     overrides?: Readonly<Record<string, readonly KeybindingRule[]>>;
     singleKeyShortcutsEnabled?: boolean;
@@ -63,6 +65,13 @@ export type NativeHardwareKeyboardAllowedEvent = Readonly<{
 export type NativeHardwareKeyboardAllowlist = Readonly<{
     allowedEvents: readonly NativeHardwareKeyboardAllowedEvent[];
 }>;
+
+function isCommandEnabledByRegistry(
+    commandId: KeyboardCommandId,
+    options: Pick<KeyboardShortcutLabelOptions, 'enabled' | 'enabledWhenDisabledCommandIds'>,
+): boolean {
+    return options.enabled !== false || options.enabledWhenDisabledCommandIds?.includes(commandId) === true;
+}
 
 function isSingleKeyRule(rule: KeybindingRule): boolean {
     const parsed = parseKeybindingRule(rule);
@@ -199,11 +208,10 @@ export function buildNativeHardwareKeyboardAllowlist(options: Readonly<{
 export function createKeyboardShortcutDispatcher(options: KeyboardShortcutDispatcherOptions) {
     return (event: NormalizedKeyboardEvent): boolean => {
         const surface = options.surface ?? 'native';
-        const enabledWhenDisabledCommandIds = options.enabledWhenDisabledCommandIds ?? [];
-        if (!options.enabled && enabledWhenDisabledCommandIds.length === 0) return false;
+        if (!options.enabled && !options.enabledWhenDisabledCommandIds?.length) return false;
         const context = options.getContext();
         for (const command of defaultKeyboardCommands) {
-            if (!options.enabled && !enabledWhenDisabledCommandIds.includes(command.id)) continue;
+            if (!isCommandEnabledByRegistry(command.id, options)) continue;
             const handler = options.handlers[command.id];
             if (!handler) continue;
             if (options.disabledCommandIds.includes(command.id)) continue;
@@ -289,6 +297,7 @@ export function buildKeyboardShortcutLabels(
 ): Partial<Record<KeyboardCommandId, string>> {
     return Object.fromEntries(
         defaultKeyboardCommands
+            .filter((command) => isCommandEnabledByRegistry(command.id, options))
             .filter((command) => !options.disabledCommandIds?.includes(command.id))
             .filter((command) => !options.handlers || Boolean(options.handlers[command.id]))
             .filter((command) => !options.context || !command.when || command.when(options.context))

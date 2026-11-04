@@ -2368,6 +2368,78 @@ describe('SessionsList (native virtualization)', () => {
         expect(Modal.alert).not.toHaveBeenCalled();
     });
 
+    describe('Move to folder shortcut target', () => {
+        const presenceKinds = ['menu', 'hover', 'focus'] as const;
+        const moveItem = { id: 'ui.session.move-to-folder', title: 'Move to folder' };
+        const registerRow = (
+            screen: Awaited<ReturnType<typeof renderSessionsList>>,
+            sessionId: string,
+            registration: Readonly<{ items?: readonly unknown[]; mutating?: boolean; execute?: () => Promise<void> }>,
+        ) => {
+            findSessionItem(screen, sessionId)?.props.onShortcutTargetChange(`server_a:${sessionId}`, {
+                target: { sessionId, serverId: 'server_a' },
+                items: registration.items ?? [],
+                execute: registration.execute ?? (async () => undefined),
+                mutating: registration.mutating ?? false,
+            });
+        };
+        const pressMoveToFolder = async () => {
+            const { Modal } = await import('@/modal');
+            vi.mocked(Modal.show).mockClear();
+            vi.mocked(Modal.alert).mockClear();
+            let handled: unknown;
+            await act(async () => {
+                handled = keyboardShortcutHandlersRef.current?.['sessions.row.moveToFolder']?.();
+            });
+            return {
+                handled,
+                opened: vi.mocked(Modal.show).mock.calls.length + vi.mocked(Modal.alert).mock.calls.length,
+            };
+        };
+
+        it.each(presenceKinds)('declines instead of moving the selected session when the %s row has no Move action', async (kind) => {
+            mockPathname = '/session/sess_b';
+            const screen = await renderSessionsList();
+            await act(async () => {
+                registerRow(screen, 'sess_a', {});
+                registerRow(screen, 'sess_b', { items: [moveItem] });
+                findSessionItem(screen, 'sess_a')?.props.onShortcutPresenceChange('server_a:sess_a', kind, true);
+            });
+
+            expect(await pressMoveToFolder()).toEqual({ handled: false, opened: 0 });
+        });
+
+        it('declines for a selected row that is mutating or offers no Move action', async () => {
+            mockPathname = '/session/sess_b';
+            const screen = await renderSessionsList();
+            await act(async () => { registerRow(screen, 'sess_b', { items: [moveItem], mutating: true }); });
+            expect(await pressMoveToFolder()).toEqual({ handled: false, opened: 0 });
+
+            await act(async () => { registerRow(screen, 'sess_b', {}); });
+            expect(await pressMoveToFolder()).toEqual({ handled: false, opened: 0 });
+        });
+
+        it('does not open a second sheet while the same row shortcut is still pending', async () => {
+            mockPathname = '/session/sess_b';
+            const screen = await renderSessionsList();
+            let finish: (() => void) | undefined;
+            const execute = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
+            await act(async () => { registerRow(screen, 'sess_b', { items: [moveItem], execute }); });
+
+            expect(await pressMoveToFolder()).toEqual({ handled: true, opened: 0 });
+            expect(await pressMoveToFolder()).toEqual({ handled: false, opened: 0 });
+            expect(execute).toHaveBeenCalledTimes(1);
+            await act(async () => { finish?.(); });
+        });
+
+        it('still opens the sheet for a selected session with no mounted row to consult', async () => {
+            mockPathname = '/session/sess_b';
+            await renderSessionsList();
+
+            expect(await pressMoveToFolder()).toEqual({ handled: true, opened: 1 });
+        });
+    });
+
     it('registers visible session shortcut handlers through the keyboard provider', async () => {
         mockPathname = '/session/sess_a';
 

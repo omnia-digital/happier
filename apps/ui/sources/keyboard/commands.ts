@@ -223,7 +223,7 @@ export const defaultKeyboardCommands: readonly KeyboardCommand[] = [
         id: 'sessions.row.moveToFolder',
         defaultBinding: { binding: 'Alt+Shift+F' },
         settingsTitleKey: 'settingsKeyboard.commands.sessionsRowMoveToFolder',
-        when: (context) => !context.isEditableTarget,
+        when: whenSessionRowActionAllowed,
     },
     {
         id: 'sessions.row.moveToWorkspaceRoot',

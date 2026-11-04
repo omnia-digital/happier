@@ -3,6 +3,39 @@ import { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { renderScreen, standardCleanup } from '@/dev/testkit';
+import {
+    SESSION_ACTION_ARCHIVE_ID,
+    SESSION_ACTION_CLEAR_ATTENTION_STANDING_ID,
+    SESSION_ACTION_EDIT_TAGS_ID,
+    SESSION_ACTION_MARK_READ_ID,
+    SESSION_ACTION_MARK_UNREAD_ID,
+    SESSION_ACTION_MOVE_TO_FOLDER_ID,
+    SESSION_ACTION_PIN_ID,
+    SESSION_ACTION_RENAME_ID,
+    SESSION_ACTION_SET_ATTENTION_STANDING_ID,
+    SESSION_ACTION_STOP_ID,
+    SESSION_ACTION_UNARCHIVE_ID,
+    SESSION_ACTION_UNPIN_ID,
+} from '@/components/sessions/actions/sessionActionIds';
+import { SESSION_COPY_DEBUG_INFORMATION_MENU_ITEM_ID } from '@/components/sessions/debug/sessionDebugMenuItem';
+import { SESSION_NEW_SAME_SETUP_ACTION_ID } from '@/components/sessions/new/navigation/newSessionSameSetup';
+import {
+    SESSION_ATTENTION_REMINDER_CUSTOM_ID,
+    SESSION_ATTENTION_REMINDER_MANAGE_PRESETS_ID,
+    SESSION_ATTENTION_REMINDER_MENU_ID,
+    SESSION_ATTENTION_REMINDER_NEXT_WEEK_ID,
+    SESSION_ATTENTION_REMINDER_ONE_HOUR_ID,
+    SESSION_ATTENTION_REMINDER_REMOVE_ID,
+    SESSION_ATTENTION_REMINDER_THREE_HOURS_ID,
+    SESSION_ATTENTION_REMINDER_TOMORROW_ID,
+} from './row/actionMenu/sessionAttentionReminderAction';
+import {
+    getSessionRowMenuCommandId,
+    SESSION_DELETE_DRAFT_MENU_ITEM_ID,
+    SESSION_ROW_MENU_FORK_ID,
+    SESSION_ROW_MENU_SELECT_ID,
+    sessionRowMenuCommandIds,
+} from './row/actionMenu/sessionRowMenuKeyboard';
 import { installSessionShellCommonModuleMocks } from './sessionShellTestHelpers';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -100,6 +133,34 @@ function sessionRow(sessionId: string) {
     };
 }
 
+const sessionRowMenuItemIds = [
+    SESSION_ROW_MENU_SELECT_ID,
+    SESSION_ACTION_RENAME_ID,
+    SESSION_ACTION_MARK_READ_ID,
+    SESSION_ACTION_MARK_UNREAD_ID,
+    SESSION_ACTION_SET_ATTENTION_STANDING_ID,
+    SESSION_ACTION_CLEAR_ATTENTION_STANDING_ID,
+    SESSION_ATTENTION_REMINDER_MENU_ID,
+    SESSION_ATTENTION_REMINDER_ONE_HOUR_ID,
+    SESSION_ATTENTION_REMINDER_THREE_HOURS_ID,
+    SESSION_ATTENTION_REMINDER_TOMORROW_ID,
+    SESSION_ATTENTION_REMINDER_NEXT_WEEK_ID,
+    SESSION_ATTENTION_REMINDER_CUSTOM_ID,
+    SESSION_ATTENTION_REMINDER_MANAGE_PRESETS_ID,
+    SESSION_ATTENTION_REMINDER_REMOVE_ID,
+    SESSION_NEW_SAME_SETUP_ACTION_ID,
+    SESSION_DELETE_DRAFT_MENU_ITEM_ID,
+    SESSION_COPY_DEBUG_INFORMATION_MENU_ITEM_ID,
+    SESSION_ROW_MENU_FORK_ID,
+    SESSION_ACTION_STOP_ID,
+    SESSION_ACTION_ARCHIVE_ID,
+    SESSION_ACTION_UNARCHIVE_ID,
+    SESSION_ACTION_MOVE_TO_FOLDER_ID,
+    SESSION_ACTION_EDIT_TAGS_ID,
+    SESSION_ACTION_PIN_ID,
+    SESSION_ACTION_UNPIN_ID,
+] as const;
+
 describe('SessionsList numbered shortcuts', () => {
     beforeEach(() => {
         routeState.pathname = '/';
@@ -167,6 +228,68 @@ describe('SessionsList numbered shortcuts', () => {
         });
         expect(keyboardState.handlers?.['session.menu.rename']?.()).toBe(false);
         expect(secondAction).toHaveBeenCalledTimes(1);
+    });
+
+    describe('session row menu inventory', () => {
+        const usesArchiveConfirmation = (itemId: string) => itemId === SESSION_ACTION_ARCHIVE_ID;
+        const renderTargetedRows = async (items: readonly unknown[]) => {
+            routeState.pathname = '/session/s2';
+            const { SessionsListContent } = await import('./SessionsList');
+            const screen = await renderScreen(<SessionsListContent data={listViewData.items} />);
+            const rows = screen.root.findAllByType('SessionItem' as any);
+            const targeted = vi.fn(async () => undefined);
+            const selected = vi.fn(async () => undefined);
+            await act(async () => {
+                for (const [sessionId, execute] of [['s1', targeted], ['s2', selected]] as const) {
+                    rows.find((row) => row.props.session.id === sessionId)?.props.onShortcutTargetChange(`server_a:${sessionId}`, {
+                        target: { sessionId, serverId: 'server_a' }, items, execute, mutating: false,
+                    });
+                }
+                rows.find((row) => row.props.session.id === 's1')?.props.onShortcutPresenceChange('server_a:s1', 'hover', true);
+            });
+            return { targeted, selected };
+        };
+
+        it('names every command the row menu binds', () => {
+            expect(new Set(sessionRowMenuItemIds.map(getSessionRowMenuCommandId))).toEqual(new Set(sessionRowMenuCommandIds));
+        });
+
+        it.each(sessionRowMenuItemIds)('runs %s on the targeted row rather than the selected row', async (itemId) => {
+            const { targeted, selected } = await renderTargetedRows([{ id: itemId, title: itemId }]);
+
+            expect(keyboardState.handlers?.[getSessionRowMenuCommandId(itemId)!]?.()).toBe(true);
+            await act(async () => undefined);
+
+            expect(targeted).toHaveBeenCalledTimes(1);
+            expect(targeted).toHaveBeenCalledWith(
+                itemId,
+                usesArchiveConfirmation(itemId) ? { forceArchiveConfirmation: true } : undefined,
+            );
+            expect(selected).not.toHaveBeenCalled();
+        });
+
+        it.each(sessionRowMenuItemIds)('declines %s when the targeted row has it disabled', async (itemId) => {
+            const { targeted, selected } = await renderTargetedRows([{ id: itemId, title: itemId, disabled: true }]);
+
+            expect(keyboardState.handlers?.[getSessionRowMenuCommandId(itemId)!]?.()).toBe(false);
+            await act(async () => undefined);
+
+            expect(targeted).not.toHaveBeenCalled();
+            expect(selected).not.toHaveBeenCalled();
+        });
+
+        it('reaches a command nested in a submenu', async () => {
+            const { targeted } = await renderTargetedRows([{
+                id: SESSION_ATTENTION_REMINDER_MENU_ID,
+                title: 'Remind me',
+                submenu: { items: [{ id: SESSION_ATTENTION_REMINDER_ONE_HOUR_ID, title: 'In 1 hour' }] },
+            }]);
+
+            expect(keyboardState.handlers?.['session.menu.reminderOneHour']?.()).toBe(true);
+            await act(async () => undefined);
+
+            expect(targeted).toHaveBeenCalledWith(SESSION_ATTENTION_REMINDER_ONE_HOUR_ID, undefined);
+        });
     });
 
     it('clears held hints while the sidebar is inactive and keeps them clear on return', async () => {

@@ -777,4 +777,35 @@ test.describe('ui e2e: session list ordering mode', () => {
     await page.screenshot({ path: testInfo.outputPath('oh50-menu-labels-large-text.png') });
     await page.keyboard.press('Escape');
   });
+
+  test('shows no menu hotkey hints while the shortcut registry cannot dispatch them', async ({ page }) => {
+    test.setTimeout(240_000);
+    if (!server || !uiBaseUrl || !token) throw new Error('missing server/ui fixtures');
+
+    const title = `hotkey registry off ${run.runId}`;
+    const sessionId = await createPlainSession({
+      baseUrl: server.baseUrl, token, title, rootPath: repoRootDir(),
+      machineId: SEEDED_MACHINE_ID, tagPrefix: 'session-menu-hotkey',
+    });
+    await patchPlainAccountSettingsV2({
+      baseUrl: server.baseUrl,
+      token,
+      settingsPatch: { keyboardShortcutsV2Enabled: false },
+    });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 300_000);
+    await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+    const row = page.getByTestId(`session-list-item-${sessionId}`);
+    await expect(row).toHaveCount(1, { timeout: 120_000 });
+
+    await row.click({ button: 'right' });
+    const rename = page.getByTestId('dropdown-option-ui_session_rename');
+    await expect(rename).toBeVisible();
+    await expect(rename).toContainText('Rename Session');
+    await expect(rename).not.toContainText(/Shift\+E/);
+    await page.keyboard.press('Alt+Shift+E');
+    await expect(page.getByTestId('web-prompt-input')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+  });
 });

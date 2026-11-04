@@ -282,6 +282,30 @@ describe('createKeyboardShortcutDispatcher', () => {
         expect(labels['shortcutsHelp.open']).toBeUndefined();
     });
 
+    it('labels only commands the dispatcher would run while the registry is disabled', () => {
+        const handlers = {
+            'commandPalette.open': vi.fn(),
+            'session.hovered.archive': vi.fn(),
+            'session.menu.rename': vi.fn(),
+        };
+        const options = { platform: 'macos', surface: 'web', singleKeyShortcutsEnabled: true, disabledCommandIds: [], overrides: {}, handlers } as const;
+        const enabledWhenDisabledCommandIds = ['commandPalette.open'] as const;
+        const dispatch = createKeyboardShortcutDispatcher({
+            ...options, enabled: false, enabledWhenDisabledCommandIds, getContext: () => context,
+        });
+
+        const labels = buildKeyboardShortcutLabels('macos', 'web', { ...options, enabled: false, enabledWhenDisabledCommandIds });
+
+        expect(labels).toEqual({ 'commandPalette.open': 'Option+K' });
+        expect(dispatch(keyEvent({ key: 'k', code: 'KeyK', altKey: true }))).toBe(true);
+        expect(dispatch(keyEvent({ key: 'e', code: 'KeyE', altKey: true, shiftKey: true }))).toBe(false);
+        expect(dispatch(keyEvent({ key: 'a', code: 'KeyA' }))).toBe(false);
+        expect(buildKeyboardShortcutLabels('macos', 'web', { ...options, enabled: true })).toMatchObject({
+            'session.hovered.archive': 'A',
+            'session.menu.rename': 'Option+Shift+E',
+        });
+    });
+
     it('builds computer-aware web labels from the active safe default', () => {
         const labels = buildKeyboardShortcutLabels('macos', 'web', {
             disabledCommandIds: [],

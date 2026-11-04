@@ -200,6 +200,36 @@ describe('KeyboardShortcutProvider', () => {
         expect(String(body)).not.toContain('New session');
     });
 
+    it.each([true, false])('shows session row hints only when the registry can dispatch them (enabled: %s)', async (enabled) => {
+        testState.settings = { ...testState.settings, keyboardShortcutsV2Enabled: enabled };
+        const { renderScreen } = await import('@/dev/testkit');
+        const { KeyboardShortcutProvider, useKeyboardShortcutHandlers, useKeyboardShortcutLabels } = await import('./KeyboardShortcutProvider');
+        let labels: ReturnType<typeof useKeyboardShortcutLabels> = {};
+        const rename = vi.fn();
+        function RowCommands() {
+            useKeyboardShortcutHandlers({ 'session.menu.rename': rename, 'session.hovered.archive': vi.fn() });
+            labels = useKeyboardShortcutLabels();
+            return <Child />;
+        }
+
+        await renderScreen(
+            <KeyboardShortcutProvider
+                handlers={{ 'commandPalette.open': vi.fn() }}
+                enabledWhenDisabledCommandIds={['commandPalette.open']}
+            >
+                <RowCommands />
+            </KeyboardShortcutProvider>,
+        );
+        await act(async () => {
+            window.dispatchEvent(createKeyboardEvent({ key: 'e', code: 'KeyE', altKey: true, shiftKey: true }));
+        });
+
+        expect(rename).toHaveBeenCalledTimes(enabled ? 1 : 0);
+        expect(Boolean(labels['session.menu.rename'])).toBe(enabled);
+        expect(Boolean(labels['session.hovered.archive'])).toBe(enabled);
+        expect(labels['commandPalette.open']).toBeTruthy();
+    });
+
     it('does not consume web events that another focused surface already handled', async () => {
         const openCommandPalette = vi.fn();
         const { renderScreen } = await import('@/dev/testkit');
