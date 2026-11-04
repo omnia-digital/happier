@@ -13,7 +13,7 @@ import { t } from '@/text';
 import { useWorkspaceFavicon } from './useWorkspaceFavicon';
 import type { RepositoryCheckout, RepositoryAssociationChoice } from '@/sync/domains/session/listing/sessionRepositoryIdentity';
 import { Icon } from '@/components/ui/icons/Icon';
-import { MachineDisplayGlyph } from '@/components/sessions/SessionMachineIdentity';
+import { MachineDisplayGlyph, SessionMachineIdentity } from '@/components/sessions/SessionMachineIdentity';
 import { normalizeKnownProjectMachineId } from '@/sync/runtime/orchestration/projectKeyIdentity';
 
 const WORKSPACE_FAVICON_SIZE = 16;
@@ -132,6 +132,7 @@ export const ProjectGroupHeader = React.memo(function ProjectGroupHeader(props: 
     workspaceLabelsV1: Record<string, string>;
     workspaceFaviconsEnabled?: boolean;
     workspaceMachineSubtitlesEnabled?: boolean;
+    machineIdentityEnabled?: boolean;
     dragHandleGesture?: UseSessionInlineDragResult['gesture'];
     reorderEnabled?: boolean;
     onMoveUp?: () => void;
@@ -154,6 +155,7 @@ export const ProjectGroupHeader = React.memo(function ProjectGroupHeader(props: 
         workspaceLabelsV1,
         workspaceFaviconsEnabled = false,
         workspaceMachineSubtitlesEnabled = true,
+        machineIdentityEnabled = true,
         onRenameWorkspace,
         onResetWorkspaceName,
         onCreateSession,
@@ -180,6 +182,9 @@ export const ProjectGroupHeader = React.memo(function ProjectGroupHeader(props: 
     const canCreateSession = typeof onCreateSession === 'function' && Boolean(item.workspaceScopeHint || checkouts?.length);
     const workspaceServerId = item.workspaceScopeHint?.serverId ?? item.serverId ?? null;
     const subtitleMachineId = normalizeKnownProjectMachineId(item.machine?.id);
+    const machineLabel = hasMultipleMachines && item.subtitle ? item.subtitle : null;
+    const showMachineGlyph = workspaceMachineSubtitlesEnabled || machineIdentityEnabled;
+    const announcesMachine = Boolean(machineLabel) && (workspaceMachineSubtitlesEnabled || (showMachineGlyph && Boolean(subtitleMachineId)));
     const favicon = useWorkspaceFavicon({
         enabled: workspaceFaviconsEnabled,
         serverId: workspaceServerId,
@@ -191,6 +196,7 @@ export const ProjectGroupHeader = React.memo(function ProjectGroupHeader(props: 
         if (checkouts) {
             const checkoutItem = (checkout: RepositoryCheckout, index: number, action: string): DropdownMenuItem => ({
                 id: `${action}:${index}`, title: checkout.machineLabel ?? checkout.machineId, subtitle: checkout.path,
+                icon: <MachineDisplayGlyph serverId={checkout.serverId} machineId={checkout.machineId} size={16} color={actionIconColor} />,
             });
             const items: DropdownMenuItem[] = [
                 { id: 'repository-new-session', title: t('machine.launchNewSessionInDirectory'), submenu: {
@@ -281,7 +287,7 @@ export const ProjectGroupHeader = React.memo(function ProjectGroupHeader(props: 
                     onPress={onToggleCollapse}
                     testID={headerTestId}
                     accessibilityRole="button"
-                    accessibilityLabel={displayTitle}
+                    accessibilityLabel={announcesMachine ? `${displayTitle}, ${machineLabel}` : displayTitle}
                     onHoverIn={isWeb ? () => setIsRowHovered(true) : undefined}
                     onHoverOut={isWeb ? () => setIsRowHovered(false) : undefined}
                 >
@@ -328,17 +334,20 @@ export const ProjectGroupHeader = React.memo(function ProjectGroupHeader(props: 
                             </View>
                         </View>
                     </View>
-                    {workspaceMachineSubtitlesEnabled && hasMultipleMachines && item.subtitle ? (
+                    {machineLabel && subtitleMachineId && showMachineGlyph ? (
+                        <View style={styles.subtitleRow}>
+                            <SessionMachineIdentity
+                                label={machineLabel}
+                                serverId={workspaceServerId}
+                                machineId={subtitleMachineId}
+                                variant="subtitle"
+                                testID={`session-list-project-machine:${reorderHandleKey}`}
+                                showLabel={workspaceMachineSubtitlesEnabled}
+                            />
+                        </View>
+                    ) : machineLabel && workspaceMachineSubtitlesEnabled ? (
                         <View testID={`session-list-project-machine:${reorderHandleKey}`} style={styles.subtitleRow}>
-                            {subtitleMachineId ? (
-                                <MachineDisplayGlyph
-                                    serverId={workspaceServerId}
-                                    machineId={subtitleMachineId}
-                                    size={12}
-                                    color={theme.colors.text.secondary}
-                                />
-                            ) : null}
-                            <Text style={styles.subtitle}>{item.subtitle}</Text>
+                            <Text style={styles.subtitle}>{machineLabel}</Text>
                         </View>
                     ) : null}
                 </Pressable>

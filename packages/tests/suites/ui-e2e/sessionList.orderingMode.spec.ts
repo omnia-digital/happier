@@ -527,6 +527,15 @@ test.describe('ui e2e: session list ordering mode', () => {
     await expect(projectMachine(customized.label)).toHaveCount(1, { timeout: 120_000 });
     expect(await readGlyph(customized.label)).not.toBe(defaultGlyph);
     expect(await readGlyph(untouched.label)).toBe(defaultGlyph);
+
+    await patchPlainAccountSettingsV2({ ...fixtures, settingsPatch: { workspaceMachineSubtitlesEnabled: false } });
+    const glyphOnly = (label: string) => page.locator(`[data-testid^="session-list-project-machine:"][aria-label="${label}"]`);
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+    await expect(glyphOnly(customized.label)).toHaveCount(1, { timeout: 120_000 });
+    await expect(glyphOnly(customized.label)).not.toContainText(customized.label);
+    expect(await glyphOnly(customized.label).locator('svg').first().evaluate((svg) => svg.innerHTML)).not.toBe(defaultGlyph);
+    expect(await glyphOnly(untouched.label).locator('svg').first().evaluate((svg) => svg.innerHTML)).toBe(defaultGlyph);
+    await patchPlainAccountSettingsV2({ ...fixtures, settingsPatch: { workspaceMachineSubtitlesEnabled: true } });
   });
 
   test('opens a blank Same Setup draft for the clicked row from plus, right-click, and three-dot', async ({ page }) => {
