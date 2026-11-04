@@ -625,7 +625,7 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
         title: "機器",
         empty: "沒有已連線的機器。",
         cadence: "顯示時每3分鐘重新整理。",
-        olderCli: "此機器的CLI不支援主機指標。",
+        olderCli: "此機器的CLI不支援主機指標。已發布的CLI不包含這些指標，因此更新應用程式或CLI不會新增它們。請在此機器上安裝fork版CLI，然後重新啟動其守護程式。",
         readFailed: "無法讀取主機指標，將重試。",
         loading: "正在讀取主機指標…",
         stale: "上次讀數 · 已過期",

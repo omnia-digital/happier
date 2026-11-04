@@ -421,7 +421,7 @@ export const de: TranslationStructure = {
         title: "Maschinen",
         empty: "Keine Maschinen verbunden.",
         cadence: "Bei Sichtbarkeit alle 3 Min. aktualisiert.",
-        olderCli: "Diese Maschinen-CLI unterstützt keine Host-Messwerte.",
+        olderCli: "Diese Maschinen-CLI unterstützt keine Host-Messwerte. Veröffentlichte CLIs enthalten sie nicht, daher fügt ein Update der App oder CLI sie nicht hinzu. Installiere die Fork-CLI auf dieser Maschine und starte dann ihren Daemon neu.",
         readFailed: "Host-Messwerte konnten nicht gelesen werden. Neuer Versuch folgt.",
         loading: "Host-Messwerte werden gelesen…",
         stale: "Vorheriger Messwert · veraltet",
