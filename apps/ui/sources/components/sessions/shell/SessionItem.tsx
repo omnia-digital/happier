@@ -1514,7 +1514,7 @@ const SessionItemContent = React.memo(
             <Pressable
                 testID={`session-list-item-${resolvedSession.id}`}
                 accessibilityActions={accessibilityActions}
-                accessibilityLabel={[sessionNameResolved, showMachineLabel ? machineLabel : null, resolveSessionRowStatusLabel(visualStatus)].filter(Boolean).join(', ')}
+                accessibilityLabel={[sessionNameResolved, machineLabel, resolveSessionRowStatusLabel(visualStatus)].filter(Boolean).join(', ')}
                 accessibilityState={{ selected: Boolean(selected || rowSelection.isSelected) }}
                 onAccessibilityAction={accessibilityActions.length > 0 ? handleAccessibilityAction : undefined}
                 onLayout={sourceTagChips.length > 0 ? handleRowLayout : undefined}

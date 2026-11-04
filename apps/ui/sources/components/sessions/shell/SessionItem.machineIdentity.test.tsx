@@ -328,6 +328,8 @@ describe('SessionItem machine identity', () => {
             expect(indicator?.props.accessibilityLabel).toBe('Long named studio workstation');
             expect(indicator?.findAllByType(Icon as never).some(node => node.props.name === 'laptop')).toBe(true);
             expect(indicator?.findAllByType('Text' as never)).toHaveLength(0);
+            expect(screen.findByTestId(`session-list-item-${SESSION_ID}`)?.props.accessibilityLabel)
+                .toContain('Long named studio workstation');
             await act(async () => indicator?.props.onPointerEnter());
             expect(screen.root.findAll((node) => node.props?.label === 'Long named studio workstation').length).toBeGreaterThan(0);
             await act(async () => indicator?.props.onPointerLeave());
