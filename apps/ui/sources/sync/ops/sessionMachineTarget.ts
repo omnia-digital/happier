@@ -64,6 +64,8 @@ export function resolveSessionWorkspacePresentationFromState(input: Readonly<{
   workspaceLabelsV1?: unknown;
   workspacePathDisplayModeV1?: WorkspacePathDisplayModeV1 | null;
   sessionRepositoryAssociationsV1?: SessionRepositoryAssociations;
+  /** A foreign Home's account, once its credentials have been read. The active Home needs none. */
+  repositoryScope?: ServerAccountScope | null;
 }>) {
   const scope = resolveMachineDisplayScope({
     serverId: input.serverId,
@@ -90,9 +92,7 @@ export function resolveSessionWorkspacePresentationFromState(input: Readonly<{
     workspaceLabelsV1: input.workspaceLabelsV1,
     workspacePathDisplayModeV1: input.workspacePathDisplayModeV1,
     sessionRepositoryAssociationsV1: input.sessionRepositoryAssociationsV1,
-    // A foreign Home's account is only known asynchronously, so its associations cannot be
-    // attributed here; those sessions fall back to their directory name.
-    repositoryScope: scope.isActive ? input.state.profileScope : null,
+    repositoryScope: scope.isActive ? input.state.profileScope : input.repositoryScope,
   });
 }
 

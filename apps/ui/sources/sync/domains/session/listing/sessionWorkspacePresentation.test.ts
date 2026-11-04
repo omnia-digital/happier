@@ -115,6 +115,34 @@ describe('session identity label', () => {
         }).identityLabel).toBe('chosen');
     });
 
+    it.each(['Client/Web', 'Mobile / iOS', 'Back\\End'])('shows the user-named repository group %s whole', (name) => {
+        expect(resolve({
+            sessionRepositoryAssociationsV1: association('github.com/acme/repo', { identity: 'manual:group', label: name }),
+        }).identityLabel).toBe(name);
+    });
+
+    it('keeps its own directory name when the repository has no identity, not the checkout discovered first', () => {
+        const siblingPath = '/Users/lee/.worktrees/generated-16';
+        const associations: SessionRepositoryAssociations = {
+            [repositoryWorkspaceKey({ ...repositoryScope, machineId: 'm1', path: siblingPath })]: {
+                identity: null,
+                label: siblingPath,
+                rootPath: siblingPath,
+                worktreePaths: ['/Users/lee/app', siblingPath, '/Users/lee/.worktrees/generated-17'],
+            },
+        };
+        expect(resolve({ sessionRepositoryAssociationsV1: associations }).identityLabel).toBe('generated-17');
+    });
+
+    it('still names an identity-less checkout after a repository the user chose for it', () => {
+        const manual = { identity: 'github.com/acme/chosen', label: 'github.com/acme/chosen' };
+        expect(resolve({
+            sessionRepositoryAssociationsV1: {
+                [rootKey]: { ...association('/Users/lee/repo')[rootKey], identity: null, manual },
+            },
+        }).identityLabel).toBe('chosen');
+    });
+
     it('keeps an explicit workspace label above the repository name', () => {
         const { workspaceKey } = resolve();
         expect(resolve({ workspaceLabelsV1: { [workspaceKey]: 'Preview app' } }).identityLabel).toBe('Preview app');

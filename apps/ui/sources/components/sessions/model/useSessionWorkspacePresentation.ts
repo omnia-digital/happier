@@ -5,12 +5,15 @@ import { resolveSessionWorkspacePresentationFromState } from '@/sync/ops/session
 import { createProjectForSessionResolver } from '@/sync/runtime/orchestration/projectForSessionResolver';
 import { useMachineDisplayScopes } from '@/sync/store/hooks';
 
-type PresentationInput = Omit<Parameters<typeof resolveSessionWorkspacePresentationFromState>[0], 'state' | 'machines'>;
+import { useServerAccountScopes } from './useServerAccountScopes';
+
+type PresentationInput = Omit<Parameters<typeof resolveSessionWorkspacePresentationFromState>[0], 'state' | 'machines' | 'repositoryScope'>;
 
 /** The header subscribes only to its visible scalars, not machine heartbeats or another Home. */
 export function useSessionWorkspacePresentation(input: PresentationInput) {
     const scopeKey = input.serverId?.trim() || '';
     const scopes = useMachineDisplayScopes(['', scopeKey]);
+    const repositoryScope = useServerAccountScopes(scopeKey ? [scopeKey] : [])[scopeKey];
     return getStorage()(useShallow(state => {
         if (!input.sessionId && !input.metadata) return null;
         const presentation = resolveSessionWorkspacePresentationFromState({
@@ -18,6 +21,7 @@ export function useSessionWorkspacePresentation(input: PresentationInput) {
             activeServerId: scopes[''].serverId,
             resolvedMachineScope: scopes[scopeKey],
             sessionRepositoryAssociationsV1: state.localSettings.sessionRepositoryAssociationsV1,
+            repositoryScope,
             state: { ...state, getProjectForSession: createProjectForSessionResolver(state.sessions) },
         });
         return {

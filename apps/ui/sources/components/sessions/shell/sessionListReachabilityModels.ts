@@ -1,4 +1,5 @@
 import { resolveMachineDisplayScope, type MachineDisplayRenderable } from '@/sync/domains/machines/machineDisplayRenderable';
+import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import type { SessionRepositoryAssociations } from '@/sync/domains/session/listing/sessionRepositoryIdentity';
 import { resolveSessionWorkspacePresentation } from '@/sync/domains/session/listing/sessionWorkspacePresentation';
 import { storage, type SessionListViewItem } from '@/sync/domains/state/storage';
@@ -19,6 +20,8 @@ export type SessionListReachabilityModels = Readonly<{
     hasMultipleMachines: boolean;
 }>;
 
+type RepositoryScopes = Readonly<Record<string, ServerAccountScope | undefined>>;
+
 type SessionListReachabilityCacheEntry = Readonly<{
     display: SessionReachableDisplay;
     machineKey: string;
@@ -26,6 +29,7 @@ type SessionListReachabilityCacheEntry = Readonly<{
     session: Extract<SessionListViewItem, { type: 'session' }>['session'];
     workspaceLabelsV1: Readonly<Record<string, string>>;
     sessionRepositoryAssociationsV1: SessionRepositoryAssociations | undefined;
+    repositoryScopes: RepositoryScopes | undefined;
 }>;
 
 type RetainedSessionListReachabilityModels = Readonly<{
@@ -35,6 +39,7 @@ type RetainedSessionListReachabilityModels = Readonly<{
     previousKeys: readonly string[];
     workspaceLabelsV1: Readonly<Record<string, string>>;
     sessionRepositoryAssociationsV1: SessionRepositoryAssociations | undefined;
+    repositoryScopes: RepositoryScopes | undefined;
 }>;
 
 export type SessionListReachabilityModelsCache = {
@@ -107,6 +112,7 @@ export function buildSessionReachableDisplay(input: Readonly<{
     machineDisplayScopes?: Readonly<Record<string, MachineDisplayPreferenceScope>>;
     workspaceLabelsV1: Readonly<Record<string, string>>;
     sessionRepositoryAssociationsV1?: SessionRepositoryAssociations;
+    repositoryScopes?: RepositoryScopes;
 }>): Readonly<{
     display: SessionReachableDisplay;
     machineKey: string;
@@ -122,6 +128,7 @@ export function buildSessionReachableDisplay(input: Readonly<{
         machineListByServerId: input.machineListByServerId,
         workspaceLabelsV1: input.workspaceLabelsV1,
         sessionRepositoryAssociationsV1: input.sessionRepositoryAssociationsV1,
+        repositoryScope: input.repositoryScopes?.[input.item.serverId ?? ''],
     });
     const display = {
         machineId: workspace.machineId,
@@ -143,18 +150,21 @@ function canReuseReachabilityEntry(input: Readonly<{
     machineDisplaySignature: string;
     workspaceLabelsV1: Readonly<Record<string, string>>;
     sessionRepositoryAssociationsV1: SessionRepositoryAssociations | undefined;
+    repositoryScopes: RepositoryScopes | undefined;
 }>): input is Readonly<{
     cached: SessionListReachabilityCacheEntry;
     item: Extract<SessionListViewItem, { type: 'session' }>;
     machineDisplaySignature: string;
     workspaceLabelsV1: Readonly<Record<string, string>>;
     sessionRepositoryAssociationsV1: SessionRepositoryAssociations | undefined;
+    repositoryScopes: RepositoryScopes | undefined;
 }> {
     return input.cached != null
         && input.cached.session === input.item.session
         && input.cached.machineDisplaySignature === input.machineDisplaySignature
         && input.cached.workspaceLabelsV1 === input.workspaceLabelsV1
-        && input.cached.sessionRepositoryAssociationsV1 === input.sessionRepositoryAssociationsV1;
+        && input.cached.sessionRepositoryAssociationsV1 === input.sessionRepositoryAssociationsV1
+        && input.cached.repositoryScopes === input.repositoryScopes;
 }
 
 function areReachabilityModelKeysAndDisplaysEqual(input: Readonly<{
@@ -182,6 +192,7 @@ export function buildSessionListReachabilityModels(input: Readonly<{
     machineDisplayScopes?: Readonly<Record<string, MachineDisplayPreferenceScope>>;
     workspaceLabelsV1: Readonly<Record<string, string>>;
     sessionRepositoryAssociationsV1?: SessionRepositoryAssociations;
+    repositoryScopes?: RepositoryScopes;
     cache?: SessionListReachabilityModelsCache;
 }>): SessionListReachabilityModels {
     const items = input.items;
@@ -216,6 +227,7 @@ export function buildSessionListReachabilityModels(input: Readonly<{
         && retained.machineDisplaySignature === machineDisplaySignature
         && areStringRecordsEqual(retained.workspaceLabelsV1, input.workspaceLabelsV1)
         && retained.sessionRepositoryAssociationsV1 === input.sessionRepositoryAssociationsV1
+        && retained.repositoryScopes === input.repositoryScopes
     ) {
         input.cache.entriesByKey = retained.entriesByKey;
         input.cache.previousKeys = retained.previousKeys;
@@ -238,6 +250,7 @@ export function buildSessionListReachabilityModels(input: Readonly<{
             machineDisplaySignature: signaturesByServer.get(item.serverId ?? '') ?? '',
             workspaceLabelsV1: input.workspaceLabelsV1,
             sessionRepositoryAssociationsV1: input.sessionRepositoryAssociationsV1,
+            repositoryScopes: input.repositoryScopes,
         });
         const entry: SessionListReachabilityCacheEntry = canReuse && cached
             ? cached
@@ -249,6 +262,7 @@ export function buildSessionListReachabilityModels(input: Readonly<{
                     machineDisplayScopes: input.machineDisplayScopes,
                     workspaceLabelsV1: input.workspaceLabelsV1,
                     sessionRepositoryAssociationsV1: input.sessionRepositoryAssociationsV1,
+                    repositoryScopes: input.repositoryScopes,
                 });
                 return {
                     display: result.display,
@@ -257,6 +271,7 @@ export function buildSessionListReachabilityModels(input: Readonly<{
                     session: item.session,
                     workspaceLabelsV1: input.workspaceLabelsV1,
                     sessionRepositoryAssociationsV1: input.sessionRepositoryAssociationsV1,
+                    repositoryScopes: input.repositoryScopes,
                 } satisfies SessionListReachabilityCacheEntry;
             })();
 
@@ -303,6 +318,7 @@ export function buildSessionListReachabilityModels(input: Readonly<{
             previousKeys: nextKeys,
             workspaceLabelsV1: input.workspaceLabelsV1,
             sessionRepositoryAssociationsV1: input.sessionRepositoryAssociationsV1,
+            repositoryScopes: input.repositoryScopes,
         });
     }
 

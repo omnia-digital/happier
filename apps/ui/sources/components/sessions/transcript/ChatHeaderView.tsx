@@ -239,6 +239,7 @@ export const ChatHeaderView = React.memo(function ChatHeaderView({
                             label={subtitle}
                             testID="session-header-workspace-identity"
                             focusable={true}
+                            style={styles.subtitleAnchor}
                         >
                             <Text
                                 numberOfLines={1}
@@ -355,6 +356,10 @@ const styles = StyleSheet.create(() => ({
         }),
         fontWeight: '600',
         flexShrink: 1,
+    },
+    // The title column aligns to the start, so without a cap this sizes to its unwrapped text.
+    subtitleAnchor: {
+        maxWidth: '100%',
     },
     subtitle: {
         fontSize: 12,

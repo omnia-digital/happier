@@ -4,18 +4,17 @@ import { scmRepositoryService } from '@/scm/scmRepositoryService';
 import { storage, useActiveServerAccountScope, useLocalSetting, useSessionOrganizationGroupOrderByServer } from '@/sync/domains/state/storage';
 import { applyLocalSettingsFromUi } from '@/sync/store/settingsWriters';
 import { listRepositoryAssociationChoices, withManualRepositoryAssociation, type RepositoryWorkspace, type RepositoryAssociationChoice } from '@/sync/domains/session/listing/sessionRepositoryIdentity';
-import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
 import type { SessionListOrderingModeV1, SessionListOrderingSectionMode } from '@/sync/domains/session/listing/sessionListOrderingRules';
 import type { SessionListFolderSortModeV1 } from '@/sync/domains/session/listing/sessionListFolderSortMode';
-import { areServerProfileIdentifiersEquivalent, resolveServerProfileScopeIdForIdentifier } from '@/sync/domains/server/serverProfiles';
+import { resolveServerProfileScopeIdForIdentifier } from '@/sync/domains/server/serverProfiles';
 import type { SessionListGroupOrderScope } from '../commit/persistSessionListGroupOrder';
+import { useServerAccountScopes } from '@/components/sessions/model/useServerAccountScopes';
 import { discoverSessionRepositories, type RepositoryDiscoveryFailure, type RepositoryDiscoveryWorkspace } from './sessionRepositoryDiscovery';
 import { collectRepositoryDiscoveryWorkspaces, projectSessionListRepositoryView } from './projectSessionListRepositoryView';
 import { projectSessionListFlatView } from './projectSessionListFlatView';
 
 export type SessionListViewMode = 'original' | 'machine' | 'repository' | 'flat';
-type Scopes = Readonly<Record<string, ServerAccountScope | undefined>>;
 
 type Input = Readonly<{
     items: SessionListViewItem[] | null;
@@ -33,7 +32,6 @@ export function useSessionRepositoryView(input: Input) {
     const activeScope = useActiveServerAccountScope();
     const associations = useLocalSetting('sessionRepositoryAssociationsV1');
     const serverIdsKey = React.useMemo(() => JSON.stringify([...new Set((input.items ?? []).map(item => item.serverId ?? activeScope?.serverId ?? '').filter(Boolean))].sort()), [input.items, activeScope?.serverId]);
-    const scopeReadKey = JSON.stringify([activeScope, serverIdsKey]);
     // The visible Home set changes as sessions arrive. It does not invalidate
     // an authenticated discovery already in flight for another Home.
     const contextKey = JSON.stringify(activeScope);
@@ -41,45 +39,16 @@ export function useSessionRepositoryView(input: Input) {
     const inputRef = React.useRef(input); inputRef.current = input;
     const modeRef = React.useRef(input.mode); modeRef.current = input.mode;
     const contextRef = React.useRef(contextKey); contextRef.current = contextKey;
-    const [resolvedScopes, setResolvedScopes] = React.useState<{ contextKey: string; values: Scopes } | null>(null);
-    const scopes = React.useMemo((): Scopes => {
-        const result: Record<string, ServerAccountScope | undefined> = resolvedScopes?.contextKey === scopeReadKey ? { ...resolvedScopes.values } : {};
-        if (activeScope) {
-            result[''] = activeScope;
-            result[activeScope.serverId] = activeScope;
-            for (const serverId of JSON.parse(serverIdsKey) as string[]) {
-                if (areServerProfileIdentifiersEquivalent(serverId, activeScope.serverId)) result[serverId] = activeScope;
-            }
-        }
-        return result;
-    }, [activeScope, scopeReadKey, resolvedScopes, serverIdsKey]);
+    const scopes = useServerAccountScopes(React.useMemo(() => JSON.parse(serverIdsKey) as string[], [serverIdsKey]));
     const jobRef = React.useRef<{ contextKey: string; cancelled: boolean; followUpWorkspaces: RepositoryDiscoveryWorkspace[]; promise: Promise<void> } | null>(null);
     const scopesRef = React.useRef(scopes); scopesRef.current = scopes;
     const runRef = React.useRef<(refresh: boolean, newWorkspaces?: readonly RepositoryDiscoveryWorkspace[]) => Promise<void>>(() => Promise.resolve());
     const observedWorkspacesRef = React.useRef<{ contextKey: string; mode: SessionListViewMode; keys: Set<string> } | null>(null);
     const [refreshing, setRefreshing] = React.useState(false);
-    React.useEffect(() => {
-        if (input.mode !== 'repository' && input.mode !== 'flat') return;
-        let cancelRead = () => {};
-        const readScopes = () => {
-            cancelRead();
-            let current = true;
-            cancelRead = () => { current = false; };
-            setResolvedScopes(null);
-            // Local authenticated context only: account changes never initiate SCM/RPC.
-            void Promise.all((JSON.parse(serverIdsKey) as string[]).map(async serverId => {
-                try { return [serverId, await scmRepositoryService.resolveScopeForServer(serverId) ?? undefined] as const; }
-                catch (error) { console.warn('Repository view could not read the local Home account scope', error); return [serverId, undefined] as const; }
-            })).then(entries => { if (current) setResolvedScopes({ contextKey: scopeReadKey, values: Object.fromEntries(entries) }); });
-        };
-        const unsubscribe = TokenStorage.subscribeCredentialChanges(() => {
-            if (jobRef.current) jobRef.current.cancelled = true;
-            setRefreshing(false);
-            readScopes();
-        });
-        readScopes();
-        return () => { cancelRead(); unsubscribe(); };
-    }, [input.mode, scopeReadKey, serverIdsKey]);
+    React.useEffect(() => TokenStorage.subscribeCredentialChanges(() => {
+        if (jobRef.current) jobRef.current.cancelled = true;
+        setRefreshing(false);
+    }), []);
 
     React.useEffect(() => () => { if (jobRef.current) jobRef.current.cancelled = true; }, []);
     React.useEffect(() => {

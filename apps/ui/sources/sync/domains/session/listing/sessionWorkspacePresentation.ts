@@ -82,7 +82,11 @@ function resolveWorkspaceBasename(path: string): string {
     return normalizeNonEmptyString(segments[segments.length - 1]) ?? normalized;
 }
 
-/** Repository labels hold a remote identity or a checkout path; only the final segment is a name. */
+/**
+ * A label without an identity is only the path of whichever checkout was discovered first, so it
+ * names no one else's session. A remote identity reduces to its final segment; a repository group
+ * the user named is shown as typed.
+ */
 function readRepositoryDisplayName(params: Readonly<{
     associations: SessionRepositoryAssociations | undefined;
     scope: ServerAccountScope | null | undefined;
@@ -95,8 +99,9 @@ function readRepositoryDisplayName(params: Readonly<{
         machineId: params.machineId,
         path: params.path,
     });
-    if (!association) return null;
-    return normalizeNonEmptyString(resolveWorkspaceBasename(association.manual?.label ?? association.label));
+    if (association?.manual?.identity.startsWith('manual:')) return normalizeNonEmptyString(association.manual.label);
+    const remoteLabel = association?.manual?.label ?? (association?.identity ? association.label : null);
+    return remoteLabel ? normalizeNonEmptyString(resolveWorkspaceBasename(remoteLabel)) : null;
 }
 
 export function resolveSessionWorkspacePresentation(params: Readonly<{
