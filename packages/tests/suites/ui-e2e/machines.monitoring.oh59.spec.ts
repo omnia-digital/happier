@@ -214,7 +214,7 @@ test.describe('OH59 actual local collector through authenticated fixture machine
                     }
                 }
                 await expect(page.getByTestId(`machine-monitoring-${LEGACY}-summary`)).toContainText('does not support host metrics');
-                await expect(page.getByTestId(`machine-monitoring-${LEGACY}-details`)).toHaveAttribute('aria-label', /online.*does not support host metrics/);
+                await expect(page.getByTestId(`machine-monitoring-${LEGACY}-details`)).toHaveAttribute('aria-label', /online.*does not support host metrics.*Run a metrics-capable CLI on this machine/);
                 await page.screenshot({ path: join(suiteDir, `compact-${themePreference}-${uiFontScale}.png`) });
                 await button.focus();
                 await page.keyboard.press('Enter');

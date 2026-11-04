@@ -419,7 +419,7 @@ export const en = {
         title: "Machines",
         empty: "No machines connected.",
         cadence: "Refreshes every 3 min while visible.",
-        olderCli: "This machine CLI does not support host metrics.",
+        olderCli: "This machine CLI does not support host metrics. Run a metrics-capable CLI on this machine; updating the app alone won't add them.",
         readFailed: "Could not read host metrics. Will retry.",
         loading: "Reading host metrics…",
         stale: "Previous reading · stale",

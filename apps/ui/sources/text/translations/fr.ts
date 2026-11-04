@@ -421,7 +421,7 @@ export const fr: TranslationStructure = {
         title: "Ordinateurs",
         empty: "Aucune machine connectée.",
         cadence: "Actualisation toutes les 3 min lorsque visible.",
-        olderCli: "La CLI de cette machine ne prend pas en charge ces mesures.",
+        olderCli: "La CLI de cette machine ne prend pas en charge ces mesures. Exécutez sur cette machine une CLI compatible avec ces mesures ; la seule mise à jour de l’application ne les ajoutera pas.",
         readFailed: "Impossible de lire les mesures. Une nouvelle tentative suivra.",
         loading: "Lecture des mesures…",
         stale: "Mesure précédente · périmée",

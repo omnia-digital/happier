@@ -588,7 +588,7 @@ export const ja: TranslationStructure = {
         title: "マシン",
         empty: "接続されたマシンはありません。",
         cadence: "表示中は3分ごとに更新します。",
-        olderCli: "このマシンのCLIはホストの指標に対応していません。",
+        olderCli: "このマシンのCLIはホストの指標に対応していません。このマシンで指標に対応したCLIを実行してください。アプリを更新するだけでは追加されません。",
         readFailed: "ホストの指標を取得できませんでした。再試行します。",
         loading: "ホストの指標を取得中…",
         stale: "前回の測定値 · 古い情報",

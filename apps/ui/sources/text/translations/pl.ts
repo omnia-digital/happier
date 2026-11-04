@@ -616,7 +616,7 @@ export const pl: TranslationStructure = {
         title: "Maszyny",
         empty: "Brak połączonych maszyn.",
         cadence: "Odświeżanie co 3 min, gdy widoczne.",
-        olderCli: "CLI tej maszyny nie obsługuje pomiarów hosta.",
+        olderCli: "CLI tej maszyny nie obsługuje pomiarów hosta. Uruchom na tej maszynie CLI obsługujące pomiary; sama aktualizacja aplikacji ich nie doda.",
         readFailed: "Nie można odczytać pomiarów. Próba zostanie ponowiona.",
         loading: "Odczytywanie pomiarów…",
         stale: "Poprzedni pomiar · nieaktualny",

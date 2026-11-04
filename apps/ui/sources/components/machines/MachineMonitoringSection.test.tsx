@@ -34,6 +34,8 @@ describe('machine monitoring real store and rendered leaf', () => {
             expect(screen.getTextContent()).not.toMatch(/\bOnline\b/i);
             expect(screen.getTextContent()).toContain('does not support host metrics');
             expect(screen.findByTestId(buttonId)!.props.accessibilityLabel).toMatch(/\bonline\b/i);
+            // The next step must be stated: only the host's CLI can add the producer, not an app update.
+            expect(screen.findByTestId(buttonId)!.props.accessibilityLabel).toContain('Run a metrics-capable CLI on this machine');
             expect(screen.getTextContent()).not.toContain('Storage capacity used, not I/O');
             await screen.pressByTestIdAsync(buttonId);
             expect(screen.findByTestId(buttonId)!.props.accessibilityState.expanded).toBe(true);

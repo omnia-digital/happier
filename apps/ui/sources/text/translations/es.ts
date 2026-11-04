@@ -605,7 +605,7 @@ export const es: TranslationStructure = {
         title: "Máquinas",
         empty: "No hay máquinas conectadas.",
         cadence: "Se actualiza cada 3 min mientras está visible.",
-        olderCli: "La CLI de esta máquina no admite métricas del equipo.",
+        olderCli: "La CLI de esta máquina no admite métricas del equipo. Ejecuta en esta máquina una CLI compatible con métricas; actualizar solo la app no las añadirá.",
         readFailed: "No se pudieron leer las métricas. Se reintentará.",
         loading: "Leyendo métricas…",
         stale: "Lectura anterior · desactualizada",
