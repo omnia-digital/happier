@@ -17,6 +17,7 @@
  * `GITHUB_TOKEN`/`GH_TOKEN` is used for the release metadata read when set.
  */
 
+import { readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -207,11 +208,22 @@ export function renderHappierFormulaFromRelease({
   ].join('\n');
 }
 
+/** The stable app's name: Tauri names the macOS bundle after it, so the cask must install that. */
+function readStableDesktopProductName() {
+  const configUrl = new URL('../../../apps/ui/src-tauri/tauri.conf.json', import.meta.url);
+  return String(JSON.parse(readFileSync(configUrl, 'utf8')).productName);
+}
+
 /**
- * @param {{ release: Release; checksumsText: string; repo?: string }} params
+ * @param {{ release: Release; checksumsText: string; repo?: string; productName?: string }} params
  * @returns {string}
  */
-export function renderHappierCaskFromRelease({ release, checksumsText, repo = DEFAULT_REPO }) {
+export function renderHappierCaskFromRelease({
+  release,
+  checksumsText,
+  repo = DEFAULT_REPO,
+  productName = readStableDesktopProductName(),
+}) {
   const version = readStableReleaseVersion(release, 'ui-desktop-v');
   const checksumsName = `checksums-happier-ui-desktop-v${version}.txt`;
   requireChecksumsAsset(release, checksumsName);
@@ -239,7 +251,7 @@ export function renderHappierCaskFromRelease({ release, checksumsText, repo = DE
     `         intel: "${sha256ByArch.intel}"`,
     '',
     `  url "${urlTemplate}"`,
-    '  name "Happier"',
+    `  name "${productName}"`,
     '  desc "Cross-device client for coding agents"',
     '  homepage "https://happier.dev/"',
     '',
@@ -255,7 +267,7 @@ export function renderHappierCaskFromRelease({ release, checksumsText, repo = DE
     '  auto_updates true',
     `  depends_on macos: :${HAPPIER_MIN_MACOS.symbol}`,
     '',
-    '  app "Happier.app"',
+    `  app "${productName}.app"`,
     '',
     '  uninstall quit: "dev.happier.app"',
     '',

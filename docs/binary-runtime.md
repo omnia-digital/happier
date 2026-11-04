@@ -325,8 +325,10 @@ stable release's real assets and its signed `checksums-*.txt`.
   `bundle.macOS.minimumSystemVersion: "13.0"` too (decided 2026-09-26). A generator test binds the
   Tauri value to `HAPPIER_MIN_MACOS`. The preview and publicdev configs merge over it without
   overriding `bundle.macOS`.
-- The cask submission candidate is `packaging/homebrew/Casks/happier.rb`. Submit it for the first
-  desktop release built with that minimum. Earlier DMGs declare `LSMinimumSystemVersion` 10.13,
+- The cask submission candidate is `packaging/homebrew/Casks/happier.rb`. The generator takes the
+  cask's `name` and `app` bundle from `productName` in `apps/ui/src-tauri/tauri.conf.json`. The
+  checked-in candidate renders v0.2.12, whose DMG carries `Happier.app`, so re-render it before
+  submitting. Submit it for the first desktop release built with that minimum. Earlier DMGs declare `LSMinimumSystemVersion` 10.13,
   which `brew audit --online` would flag against `:ventura`.
 
 - **Layout.** The formula installs the unmodified `cli-v<version>` payload for darwin/linux ×

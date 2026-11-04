@@ -30,10 +30,22 @@ test('the formula fixture and the committed cask are exactly what the generator 
     renderFixtureFormula(),
     readFileSync(new URL('./fixtures/homebrew-formula-v0.2.12.rb', import.meta.url), 'utf8'),
   );
+  // The v0.2.12 DMG predates the stable rename, so its cask names the bundle that DMG contains.
   assert.equal(
-    renderHappierCaskFromRelease({ release: fixture.desktop.release, checksumsText: fixture.desktop.checksums }),
+    renderHappierCaskFromRelease({
+      release: fixture.desktop.release,
+      checksumsText: fixture.desktop.checksums,
+      productName: 'Happier',
+    }),
     readFileSync(`${repoRoot}packaging/homebrew/Casks/happier.rb`, 'utf8'),
   );
+});
+
+test('the cask installs the app bundle the stable Tauri config produces', () => {
+  const { productName } = JSON.parse(readFileSync(`${repoRoot}apps/ui/src-tauri/tauri.conf.json`, 'utf8'));
+  const cask = renderHappierCaskFromRelease({ release: fixture.desktop.release, checksumsText: fixture.desktop.checksums });
+  assert.ok(cask.includes(`\n  app "${productName}.app"\n`), 'app stanza must match the stable bundle');
+  assert.ok(cask.includes(`\n  name "${productName}"\n`), 'name must match the stable bundle');
 });
 
 test('the formula pins each platform payload to its signed-checksum sha256 and real asset URL', () => {
