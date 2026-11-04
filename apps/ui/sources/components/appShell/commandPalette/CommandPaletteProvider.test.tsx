@@ -203,6 +203,30 @@ describe('CommandPaletteProvider', () => {
         expect(Modal.show).toHaveBeenCalledTimes(1);
     });
 
+    it('hides palette hints the disabled V2 shortcut registry cannot dispatch', async () => {
+        const { renderScreen } = await import('@/dev/testkit');
+        const { Modal } = await import('@/modal');
+        const { CommandPaletteProvider } = await import('./CommandPaletteProvider');
+
+        await renderScreen(
+            <CommandPaletteProvider>
+                <Child />
+            </CommandPaletteProvider>,
+        );
+        await act(async () => {
+            window.dispatchEvent(createKeyboardEvent({ key: 'k', code: 'KeyK', altKey: true }));
+        });
+
+        const showProps = vi.mocked(Modal.show).mock.calls[0]?.[0]?.props as { commands?: Array<{ id: string; shortcut?: string }> } | undefined;
+        expect(showProps?.commands?.find((command) => command.id === 'new-session')).toBeDefined();
+        expect(showProps?.commands?.find((command) => command.id === 'new-session')?.shortcut).toBeUndefined();
+
+        await act(async () => {
+            window.dispatchEvent(createKeyboardEvent({ key: 'n', code: 'KeyN', altKey: true }));
+        });
+        expect(testState.routerPush).not.toHaveBeenCalled();
+    });
+
     it('does not consume Mod+K when command palette is disabled while V2 shortcuts are enabled', async () => {
         testState.settings = {
             commandPaletteEnabled: false,

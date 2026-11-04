@@ -1772,7 +1772,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         }
         sessionListSelectionStore.selectRange(targetKey);
     }, [resolveSelectionKeyboardCurrentKey, sessionListSelectionStore, visibleSessionNavigationEntries]);
-    const handleSessionRowMenuShortcut = React.useCallback((commandId: KeyboardCommandId): boolean => {
+    const resolveSessionRowShortcutKey = React.useCallback((commandId: KeyboardCommandId): string | null => {
         const presence = rowShortcutPresenceRef.current;
         const selectedEntry = visibleSessionNavigationEntries.find((entry) => entry.sessionKey === activeSessionKey);
         const selectedKey = selectedEntry ? `${selectedEntry.serverId ?? ''}:${selectedEntry.sessionId}` : null;
@@ -1781,7 +1781,10 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
             : commandId === 'session.hovered.archive'
                 ? [presence.hover, presence.focus]
                 : [presence.hover, presence.focus, selectedKey];
-        const key = keys.find((candidate) => candidate != null && rowShortcutTargetsRef.current.has(candidate));
+        return keys.find((candidate) => candidate != null && rowShortcutTargetsRef.current.has(candidate)) ?? null;
+    }, [activeSessionKey, visibleSessionNavigationEntries]);
+    const handleSessionRowMenuShortcut = React.useCallback((commandId: KeyboardCommandId): boolean => {
+        const key = resolveSessionRowShortcutKey(commandId);
         if (!key) return false;
         if (!renderedListItems.some((item) => item.type === 'session'
             && `${item.serverId ?? ''}:${item.session.id}` === key)) return false;
@@ -1804,7 +1807,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
             if (commandId === 'session.hovered.archive') archiveShortcutPendingRef.current = false;
         });
         return true;
-    }, [activeSessionKey, renderedListItems, showMoveError, visibleSessionNavigationEntries]);
+    }, [renderedListItems, resolveSessionRowShortcutKey, showMoveError]);
     useKeyboardShortcutHandlers(React.useMemo(() => {
         if (!surfaceOwnership.interactive) return {};
         return {
@@ -1830,6 +1833,8 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                 : {}),
             'sessions.row.moveToFolder': () => {
                 if (handleSessionRowMenuShortcut('sessions.row.moveToFolder')) return true;
+                // A mounted row's menu has already decided; the direct sheet only serves a selected session with no mounted row.
+                if (rowShortcutPresenceRef.current.menu || resolveSessionRowShortcutKey('sessions.row.moveToFolder')) return false;
                 const rowId = resolveSessionTreeRowId(activeSessionKey);
                 if (!rowId) return false;
                 void openMoveSheetForTreeRow(rowId, rowLabelByTreeRowId.get(rowId) ?? t('sessionsList.sessionFallbackLabel'));
@@ -1864,6 +1869,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         moveTreeRowByKeyboard,
         moveTreeRowToWorkspaceRoot,
         openMoveSheetForTreeRow,
+        resolveSessionRowShortcutKey,
         rowLabelByTreeRowId,
         sessionListKeyboardFocused,
         sessionListMachineViewMode,

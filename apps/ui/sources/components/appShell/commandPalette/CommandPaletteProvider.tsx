@@ -53,11 +53,13 @@ function WebCommandPaletteProvider({ children }: { children: React.ReactNode }) 
     const { logout } = useAuth();
     const {
         commandPaletteEnabled,
+        keyboardShortcutsV2Enabled,
         keyboardSingleKeyShortcutsEnabled,
         keyboardShortcutDisabledCommandIdsV1,
         keyboardShortcutOverridesV1,
     } = storage(useShallow((state) => ({
         commandPaletteEnabled: state.settings.commandPaletteEnabled,
+        keyboardShortcutsV2Enabled: state.settings.keyboardShortcutsV2Enabled,
         keyboardSingleKeyShortcutsEnabled: state.settings.keyboardSingleKeyShortcutsEnabled,
         keyboardShortcutDisabledCommandIdsV1: state.settings.keyboardShortcutDisabledCommandIdsV1,
         keyboardShortcutOverridesV1: state.settings.keyboardShortcutOverridesV1,
@@ -80,6 +82,7 @@ function WebCommandPaletteProvider({ children }: { children: React.ReactNode }) 
     const keyboardPlatform = useMemo(resolveKeyboardPlatform, []);
     const shortcutLabels = useMemo(
         () => buildKeyboardShortcutLabels(keyboardPlatform, Platform.OS === 'web' ? 'web' : 'native', {
+            enabled: keyboardShortcutsV2Enabled === true,
             disabledCommandIds: keyboardShortcutDisabledCommandIdsV1 ?? [],
             overrides: keyboardShortcutOverridesV1 ?? {},
             singleKeyShortcutsEnabled: keyboardSingleKeyShortcutsEnabled === true,
@@ -96,6 +99,7 @@ function WebCommandPaletteProvider({ children }: { children: React.ReactNode }) 
             keyboardPlatform,
             keyboardShortcutDisabledCommandIdsV1,
             keyboardShortcutOverridesV1,
+            keyboardShortcutsV2Enabled,
             keyboardSingleKeyShortcutsEnabled,
         ],
     );

@@ -5,6 +5,8 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createSessionFixture, pressTestInstanceAsync, renderScreen, standardCleanup } from '@/dev/testkit';
 import { createSessionItemTestRowModel, installSessionShellCommonModuleMocks } from './sessionShellTestHelpers';
 import { SESSION_ACTION_RENAME_ID } from '@/components/sessions/actions/sessionActionIds';
+import type { DropdownMenuItem } from '@/components/ui/forms/dropdown/DropdownMenu';
+import type { SessionRowShortcutTarget } from './row/actionMenu/sessionRowMenuKeyboard';
 import { getActiveServerSnapshot } from '@/sync/domains/server/serverRuntime';
 import { clearTempData, peekTempData, type NewSessionData } from '@/utils/sessions/tempDataStore';
 import { SessionListSelectionProvider, useSessionListSelectionActions } from './selection/SessionListSelectionContext';
@@ -91,8 +93,12 @@ type SessionItemProps = Omit<React.ComponentProps<(typeof import('./SessionItem'
     rowModel?: React.ComponentProps<(typeof import('./SessionItem'))['SessionItem']>['rowModel'];
 };
 let SessionItem: React.ComponentType<SessionItemProps>;
+let keyboard: typeof import('@/keyboard/KeyboardShortcutProvider');
+let rowMenuKeyboard: typeof import('./row/actionMenu/sessionRowMenuKeyboard');
 
 beforeAll(async () => {
+    keyboard = await import('@/keyboard/KeyboardShortcutProvider');
+    rowMenuKeyboard = await import('./row/actionMenu/sessionRowMenuKeyboard');
     storage = (await import('@/sync/domains/state/storage')).storage;
     initialStorageState = storage.getState();
     const { SessionItem: ProductionSessionItem } = await import('./SessionItem');
@@ -317,5 +323,79 @@ describe('SessionItem right-click menu (web)', () => {
             expect(seed?.sourceContext).toBeUndefined();
         }
         expect(navigateToSessionSpy).not.toHaveBeenCalled();
+    });
+
+    describe('menu shortcut inventory', () => {
+        const flattenMenu = (items: readonly DropdownMenuItem[]): DropdownMenuItem[] =>
+            items.flatMap((item) => [item, ...flattenMenu(item.submenu?.items ?? [])]);
+
+        afterEach(() => vi.unstubAllGlobals());
+
+        const renderShortcutRow = async () => {
+            vi.stubGlobal('window', { addEventListener: vi.fn(), removeEventListener: vi.fn() });
+            const serverId = getActiveServerSnapshot().serverId;
+            const session = createSessionFixture({
+                id: 'inventory_session', serverId, active: true, encryptionMode: 'plain', owner: 'u1',
+                metadata: { path: '/inventory', machineId: 'inventory-machine', host: 'inventory.local', flavor: 'codex' },
+            });
+            storage.setState({
+                profileScope: { serverId, accountId: 'active-account' },
+                settings: { ...storage.getState().settings, keyboardShortcutsV2Enabled: true, keyboardSingleKeyShortcutsEnabled: true },
+            });
+            storage.getState().applySessions([session]);
+            const commandHandlers = Object.fromEntries(rowMenuKeyboard.sessionRowMenuCommandIds.map((id) => [id, vi.fn()]));
+            let labels: ReturnType<typeof keyboard.useKeyboardShortcutLabels> = {};
+            let registration: SessionRowShortcutTarget | null = null;
+            function LabelProbe() {
+                labels = keyboard.useKeyboardShortcutLabels();
+                return null;
+            }
+            const screen = await renderScreen(
+                <keyboard.KeyboardShortcutProvider handlers={commandHandlers}>
+                    <LabelProbe />
+                    <SessionItem
+                        session={session} serverId={serverId} selected={false} isFirst isLast isSingle variant="default" compact={false}
+                        forkActionContext={{ replayEnabled: true, executionRunsEnabled: false }}
+                        attentionStandingEnabled onMoveToFolder={vi.fn()}
+                        onShortcutTargetChange={(_key, target) => { registration = target ?? registration; }}
+                    />
+                </keyboard.KeyboardShortcutProvider>,
+            );
+            return { screen, labels: () => labels, registration: () => registration };
+        };
+
+        it('shows the dispatch label beside every actionable item in the rendered menu', async () => {
+            const { screen, labels } = await renderShortcutRow();
+            const row = screen.findByTestId('session-list-item-inventory_session');
+            if (!row) throw new Error('session row not found');
+            await act(async () => row.props.onContextMenu({ preventDefault: vi.fn(), stopPropagation: vi.fn() }));
+            const menu = screen.findAllByType('DropdownMenu' as React.ElementType).find((candidate) => candidate.props.open === true);
+            if (!menu) throw new Error('row menu not open');
+            const items = flattenMenu(menu.props.items).filter((item) => item.disabled !== true);
+
+            expect(items.map((item) => item.id)).toEqual(expect.arrayContaining([
+                SESSION_ACTION_RENAME_ID, 'session.sameSetup', rowMenuKeyboard.SESSION_ROW_MENU_FORK_ID,
+                'attention-reminder', 'attention-reminder:3600000',
+            ]));
+            for (const item of items) {
+                const commandId = rowMenuKeyboard.getSessionRowMenuCommandId(item.id);
+                expect(commandId, `${item.id} has no keyboard command`).not.toBeNull();
+                expect(item.shortcut, `${item.id} hint`).toBe(labels()[commandId!]);
+                expect(item.shortcut, `${item.id} hint`).toBeTruthy();
+            }
+        });
+
+        it('runs the leading menu commands through the real row handlers', async () => {
+            const { Modal } = await import('@/modal');
+            const { registration } = await renderShortcutRow();
+            const target = registration();
+            if (!target) throw new Error('row shortcut target not registered');
+
+            await act(async () => target.execute(rowMenuKeyboard.SESSION_ROW_MENU_FORK_ID));
+            await vi.waitFor(() => expect(Modal.show).toHaveBeenCalledTimes(1));
+
+            await act(async () => target.execute('session.sameSetup'));
+            expect(routerPushSpy).toHaveBeenCalledWith(expect.objectContaining({ pathname: '/new' }));
+        });
     });
 });

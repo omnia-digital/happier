@@ -6,6 +6,7 @@ import type { Settings } from '@/sync/domains/settings/settings';
 
 const testState = vi.hoisted(() => ({
     platformOS: 'web',
+    modalActive: false,
     settings: {
         commandPaletteEnabled: true,
         keyboardShortcutsV2Enabled: true,
@@ -34,7 +35,14 @@ vi.mock('react-native', async () => {
 
 vi.mock('@/modal', async () => {
     const { createModalModuleMock } = await import('@/dev/testkit/mocks/modal');
-    return createModalModuleMock().module;
+    const { module } = createModalModuleMock();
+    return {
+        ...module,
+        useOptionalModal: () => ({
+            ...module.useOptionalModal(),
+            isKeyboardLiftSuppressedByModal: testState.modalActive,
+        }),
+    };
 });
 
 vi.mock('@/sync/domains/state/storage', async () => {
@@ -83,6 +91,7 @@ describe('KeyboardShortcutProvider', () => {
         vi.resetModules();
         vi.clearAllMocks();
         testState.platformOS = 'web';
+        testState.modalActive = false;
         testState.settings = {
             commandPaletteEnabled: true,
             keyboardShortcutsV2Enabled: true,
@@ -200,6 +209,36 @@ describe('KeyboardShortcutProvider', () => {
         expect(String(body)).not.toContain('New session');
     });
 
+    it.each([true, false])('shows session row hints only when the registry can dispatch them (enabled: %s)', async (enabled) => {
+        testState.settings = { ...testState.settings, keyboardShortcutsV2Enabled: enabled };
+        const { renderScreen } = await import('@/dev/testkit');
+        const { KeyboardShortcutProvider, useKeyboardShortcutHandlers, useKeyboardShortcutLabels } = await import('./KeyboardShortcutProvider');
+        let labels: ReturnType<typeof useKeyboardShortcutLabels> = {};
+        const rename = vi.fn();
+        function RowCommands() {
+            useKeyboardShortcutHandlers({ 'session.menu.rename': rename, 'session.hovered.archive': vi.fn() });
+            labels = useKeyboardShortcutLabels();
+            return <Child />;
+        }
+
+        await renderScreen(
+            <KeyboardShortcutProvider
+                handlers={{ 'commandPalette.open': vi.fn() }}
+                enabledWhenDisabledCommandIds={['commandPalette.open']}
+            >
+                <RowCommands />
+            </KeyboardShortcutProvider>,
+        );
+        await act(async () => {
+            window.dispatchEvent(createKeyboardEvent({ key: 'e', code: 'KeyE', altKey: true, shiftKey: true }));
+        });
+
+        expect(rename).toHaveBeenCalledTimes(enabled ? 1 : 0);
+        expect(Boolean(labels['session.menu.rename'])).toBe(enabled);
+        expect(Boolean(labels['session.hovered.archive'])).toBe(enabled);
+        expect(labels['commandPalette.open']).toBeTruthy();
+    });
+
     it('does not consume web events that another focused surface already handled', async () => {
         const openCommandPalette = vi.fn();
         const { renderScreen } = await import('@/dev/testkit');
@@ -276,6 +315,51 @@ describe('KeyboardShortcutProvider', () => {
         const withHover = createKeyboardEvent({ key: 'a', code: 'KeyA' });
         await act(async () => { window.dispatchEvent(withHover); });
         expect(withHover.preventDefault).toHaveBeenCalledOnce();
+    });
+
+    describe.each([
+        ['sessions.row.moveToWorkspaceRoot', { key: 'r', code: 'KeyR' }],
+        ['sessions.row.moveUp', { key: 'ArrowUp', code: 'ArrowUp' }],
+        ['sessions.row.moveDown', { key: 'ArrowDown', code: 'ArrowDown' }],
+    ] as const)('%s', (commandId, keys) => {
+        const renderMoveCommand = async () => {
+            const { renderScreen } = await import('@/dev/testkit');
+            const { KeyboardShortcutProvider, useKeyboardShortcutHandlers } = await import('./KeyboardShortcutProvider');
+            const move = vi.fn();
+            function RowCommands() {
+                useKeyboardShortcutHandlers({ [commandId]: move }, { isOwnedSessionRowMenuActive: () => true });
+                return <Child />;
+            }
+            await renderScreen(<KeyboardShortcutProvider handlers={{}}><RowCommands /></KeyboardShortcutProvider>);
+            return {
+                move,
+                press: () => act(async () => {
+                    window.dispatchEvent(createKeyboardEvent({ ...keys, altKey: true, shiftKey: true }));
+                }),
+            };
+        };
+
+        it('does not move the selected session behind a modal', async () => {
+            testState.modalActive = true;
+            const { move, press } = await renderMoveCommand();
+
+            await press();
+
+            expect(move).not.toHaveBeenCalled();
+        });
+
+        it('waits for an open row menu to close before moving the selected session', async () => {
+            const { ESCAPE_LAYER_PRIORITIES, registerEscapeKeyBlocker } = await import('./escape');
+            const { move, press } = await renderMoveCommand();
+            const releaseMenu = registerEscapeKeyBlocker(ESCAPE_LAYER_PRIORITIES.popover);
+
+            await press();
+            expect(move).not.toHaveBeenCalled();
+
+            releaseMenu();
+            await press();
+            expect(move).toHaveBeenCalledTimes(1);
+        });
     });
 
     it('dispatches a row menu chord only for its owned popover and yields to modal, editor, and repeat contexts', async () => {

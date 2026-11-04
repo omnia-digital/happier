@@ -217,6 +217,8 @@ export function KeyboardShortcutProvider(props: React.PropsWithChildren<Readonly
 
     const shortcutLabels = React.useMemo(
         () => buildKeyboardShortcutLabels(platform, surface, {
+            enabled: keyboardShortcutsV2Enabled === true,
+            enabledWhenDisabledCommandIds: props.enabledWhenDisabledCommandIds,
             disabledCommandIds: keyboardShortcutDisabledCommandIdsV1 ?? [],
             overrides: keyboardShortcutOverridesV1 ?? {},
             singleKeyShortcutsEnabled: keyboardSingleKeyShortcutsEnabled === true,
@@ -229,9 +231,11 @@ export function KeyboardShortcutProvider(props: React.PropsWithChildren<Readonly
         [
             keyboardShortcutDisabledCommandIdsV1,
             keyboardShortcutOverridesV1,
+            keyboardShortcutsV2Enabled,
             keyboardSingleKeyShortcutsEnabled,
             labelHandlers,
             platform,
+            props.enabledWhenDisabledCommandIds,
             surface,
         ],
     );
