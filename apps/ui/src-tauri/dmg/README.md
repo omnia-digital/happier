@@ -54,7 +54,7 @@ regenerate the background from a new design export.
 
 ## Icon labels
 
-Finder cannot hide labels. "Happier" must never be renamed: the label is the
-bundle filename and follows the app into /Applications. Renaming the
-Applications symlink to U+2800 (invisible) remains an option for the relayout
-step; not applied.
+Finder cannot hide labels. The app label is the bundle filename and follows the
+app into /Applications, so it always shows the variant's `productName`; never
+rename the bundle to change it. Renaming the Applications symlink to U+2800
+(invisible) remains an option for the relayout step; not applied.

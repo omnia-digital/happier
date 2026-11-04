@@ -152,6 +152,7 @@ export function SelectionListVirtualizedSection(
             const optionAria = buildSelectionListOptionA11yProps({
                 optionTestId,
                 isSelected,
+                disabled: option.disabled,
                 accessibilityLabel: option.accessibilityLabel,
             });
             const row = (

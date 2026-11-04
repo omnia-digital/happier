@@ -83,6 +83,7 @@ export function useNewSessionAgentInputPresentation(params: Readonly<{
     effectiveAutomationDraft: AutomationSettingsValue;
     setAutomationDraft: React.Dispatch<React.SetStateAction<NewSessionAutomationDraft>>;
     repoScmSnapshot: ScmWorkingSnapshot | null;
+    retryRepoScmSnapshot: () => void;
     checkoutChipModel: NewSessionCheckoutChipModel;
     checkoutPickerOpen: boolean;
     setCheckoutPickerOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -204,6 +205,7 @@ export function useNewSessionAgentInputPresentation(params: Readonly<{
     const checkoutActionChip = useNewSessionCheckoutActionChip({
         scmScope: params.scmScope,
         repoScmSnapshot: params.repoScmSnapshot,
+        retryRepoScmSnapshot: params.retryRepoScmSnapshot,
         checkoutChipModel: params.checkoutChipModel,
         checkoutPickerOpen: params.checkoutPickerOpen,
         setCheckoutPickerOpen: params.setCheckoutPickerOpen,

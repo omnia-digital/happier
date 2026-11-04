@@ -25,9 +25,15 @@ export type NewSessionCheckoutChipOption =
         kind: 'create_git_worktree';
       }>;
 
+export type NewWorktreeUnavailableReason = 'not_git_repository' | 'repository_status_unavailable';
+
 export type NewSessionCheckoutChipModel = Readonly<{
     selectedOptionId: NewSessionCheckoutChipOption['id'];
     options: ReadonlyArray<NewSessionCheckoutChipOption>;
+    /** Why New Worktree cannot be chosen for this target; null while it can, or while the lookup is pending. */
+    newWorktreeUnavailableReason: NewWorktreeUnavailableReason | null;
+    /** A requested New Worktree has no creation draft and this target cannot produce one. */
+    worktreeIntentUnavailable: boolean;
 }>;
 
 function normalizePath(raw: unknown): string {
@@ -49,8 +55,16 @@ function resolvePathDisplayName(path: string): string {
     return segments.at(-1) ?? path;
 }
 
-function supportsRepoWorktreeChip(snapshot: ScmWorkingSnapshot | null): boolean {
+export function supportsRepoWorktreeChip(snapshot: ScmWorkingSnapshot | null): boolean {
     return snapshot?.repo.isRepo === true && snapshot.repo.backendId === 'git';
+}
+
+function resolveNewWorktreeUnavailableReason(
+    snapshot: ScmWorkingSnapshot | null,
+    snapshotUnavailable: boolean,
+): NewWorktreeUnavailableReason | null {
+    if (snapshot === null) return snapshotUnavailable ? 'repository_status_unavailable' : null;
+    return supportsRepoWorktreeChip(snapshot) ? null : 'not_git_repository';
 }
 
 function resolveMainRepoWorktreePath(snapshot: ScmWorkingSnapshot | null, fallbackPath: string): string {
@@ -64,14 +78,31 @@ export function resolveNewSessionCheckoutChipModel(params: Readonly<{
     selectedPath: string;
     checkoutCreationDraft: NewSessionCheckoutCreationDraft | null;
     repoSnapshot: ScmWorkingSnapshot | null;
+    /** The repository lookup settled with no snapshot, rather than still being in flight. */
+    repoSnapshotUnavailable?: boolean;
+    /** New Worktree was asked for: a restored draft, an explicit choice, or the default mode. */
+    worktreeIntentRequested?: boolean;
 }>): NewSessionCheckoutChipModel {
     const selectedPath = normalizePath(params.selectedPath);
     if (!selectedPath) {
         return {
             selectedOptionId: 'current_path',
             options: [{ id: 'current_path', kind: 'current_path', path: selectedPath }],
+            newWorktreeUnavailableReason: null,
+            worktreeIntentUnavailable: false,
         };
     }
+
+    const newWorktreeUnavailableReason = resolveNewWorktreeUnavailableReason(
+        params.repoSnapshot,
+        params.repoSnapshotUnavailable === true,
+    );
+    const availability = {
+        newWorktreeUnavailableReason,
+        worktreeIntentUnavailable: newWorktreeUnavailableReason !== null
+            && params.worktreeIntentRequested === true
+            && params.checkoutCreationDraft === null,
+    };
 
     const repoRootPath = normalizePath(params.repoSnapshot?.repo.rootPath) || selectedPath;
     const noWorktreePath = resolveMainRepoWorktreePath(params.repoSnapshot, repoRootPath);
@@ -84,6 +115,7 @@ export function resolveNewSessionCheckoutChipModel(params: Readonly<{
         return {
             selectedOptionId: 'current_path',
             options: baseOptions,
+            ...availability,
         };
     }
 
@@ -125,6 +157,7 @@ export function resolveNewSessionCheckoutChipModel(params: Readonly<{
         return {
             selectedOptionId: 'create_git_worktree',
             options,
+            ...availability,
         };
     }
 
@@ -136,11 +169,13 @@ export function resolveNewSessionCheckoutChipModel(params: Readonly<{
         return {
             selectedOptionId: selectedExistingCheckout.id,
             options,
+            ...availability,
         };
     }
 
     return {
         selectedOptionId: 'current_path',
         options,
+        ...availability,
     };
 }

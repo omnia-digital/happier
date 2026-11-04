@@ -116,7 +116,7 @@ describe('status organization through the canonical sidebar projection', () => {
         expect(result.indexOf(sibling)).toBeGreaterThan(result.indexOf(result.find(item => item.type === 'session' && item.session.id === 'parent-session')!));
     });
 
-    it('sorts by status within each folder and loose run without moving sessions across folder boundaries', () => {
+    it('keeps folder members under their header and sorts loose rows only into loose slots', () => {
         const folder = { ...header('Tests', 'folder'), folderId: 'tests', parentFolderId: null, depth: 0 };
         const member = row('member', {}, { folderId: 'tests', folderDepth: 1, groupKind: 'folder' });
         const source = [header('Sessions', 'sessions'), row('loose-before'), folder, member, row('loose-after')];
@@ -124,7 +124,7 @@ describe('status organization through the canonical sidebar projection', () => {
 
         const result = projectSessionListStatusView({ items: source, grouping: 'none', sorting: 'agent', ticketStatuses: new Map(), nowMs: now, agentStatuses: statuses });
 
-        expect(ids(result)).toEqual(['loose-before', 'member', 'loose-after']);
+        expect(ids(result)).toEqual(['loose-after', 'member', 'loose-before']);
         expect(result[result.indexOf(folder) + 1]).toMatchObject({ type: 'session', folderId: 'tests' });
     });
 
@@ -139,6 +139,75 @@ describe('status organization through the canonical sidebar projection', () => {
         expect(result.find(item => item.type === 'session' && item.session.id === 'first')).toMatchObject({ folderId: 'tests', session: first.session });
         expect(result.find(item => item.type === 'session' && item.session.id === 'second')).toMatchObject({ folderId: 'nested', session: second.session });
         expect(ids(result).sort()).toEqual(['first', 'loose', 'second']);
+    });
+
+    it('sorts each folder apart from loose rows when status grouping is off, and across a pinned band that has no folder headers', () => {
+        const folderRow = (id: string, folderId: string, options: Partial<Row['session']> = {}) => row(id, options, { folderId, folderDepth: 1, groupKind: 'folder' });
+        const working = { thinking: true, thinkingAt: now };
+        const input = { hasPendingPermissionRequests: true };
+        const folder = { ...header('Tests', 'folder'), folderId: 'tests', parentFolderId: null, depth: 0 };
+        const nested = { ...header('Nested', 'folder'), folderId: 'nested', parentFolderId: 'tests', depth: 1 };
+        const layout = (items: readonly SessionListViewItem[]) => projectSessionListStatusView({ items, grouping: 'none', sorting: 'agent', ticketStatuses: new Map(), nowMs: now })
+            .map(item => item.type === 'session' ? item.session.id : item.title);
+
+        // Canonical emission: a folder header, its nested folders, its own rows, then loose rows, with no header between them.
+        expect(layout([header('Sessions', 'sessions'), header('Repo'), folder, nested, folderRow('nested-idle', 'nested'), folderRow('nested-working', 'nested', working),
+            folderRow('parent-idle', 'tests'), folderRow('parent-working', 'tests', working), row('loose-idle'), row('loose-input', input)]))
+            .toEqual(['Sessions', 'Repo', 'Tests', 'Nested', 'nested-working', 'nested-idle', 'parent-working', 'parent-idle', 'loose-input', 'loose-idle']);
+
+        // Pinned rows keep their physical folder but are one sibling list.
+        const pinned = { pinned: true, groupKind: 'pinned' as const };
+        expect(layout([header('Pinned', 'pinned'), row('pin-idle', {}, { ...pinned, folderId: 'tests' }), row('pin-working', working, pinned), row('pin-input', input, { ...pinned, folderId: 'tests' })]))
+            .toEqual(['Pinned', 'pin-input', 'pin-working', 'pin-idle']);
+    });
+
+    it('sorts each scope across the saved blocks that split it, keeping those blocks in place', () => {
+        const input = { hasPendingPermissionRequests: true };
+        const parent = { ...header('Parent', 'folder'), folderId: 'parent', parentFolderId: null, depth: 0 };
+        const nested = { ...header('Nested', 'folder'), folderId: 'nested', parentFolderId: 'parent', depth: 1 };
+        const inFolder = (id: string, folderId: string, options: Partial<Row['session']> = {}) => row(id, options, { folderId, folderDepth: 1, groupKind: 'folder' });
+        const layout = (items: readonly SessionListViewItem[]) => projectSessionListStatusView({ items, grouping: 'none', sorting: 'agent', ticketStatuses: new Map(), nowMs: now })
+            .map(item => item.type === 'session' ? item.session.id : item.title);
+
+        // Custom order with mixed folders saves a folder's rows on either side of a nested folder.
+        expect(layout([parent, inFolder('parent-idle', 'parent'), nested, inFolder('nested-idle', 'nested'), inFolder('parent-input', 'parent', input)]))
+            .toEqual(['Parent', 'parent-input', 'Nested', 'nested-idle', 'parent-idle']);
+        // It saves loose rows on either side of a folder block the same way.
+        expect(layout([row('loose-idle'), parent, inFolder('parent-idle', 'parent'), row('loose-input', input)]))
+            .toEqual(['loose-input', 'Parent', 'parent-idle', 'loose-idle']);
+        // A retained project heading still ends the scope.
+        expect(layout([header('Repo A'), row('a-idle'), header('Repo B'), row('b-input', input)]))
+            .toEqual(['Repo A', 'a-idle', 'Repo B', 'b-input']);
+    });
+
+    it('groups a band without folder headers as one list, even when its rows keep a physical folder', () => {
+        const working = { thinking: true, thinkingAt: now };
+        const pinned = { pinned: true, groupKind: 'pinned' as const };
+        const layout = (items: readonly SessionListViewItem[]) => projectSessionListStatusView({ items, grouping: 'agent', sorting: 'none', ticketStatuses: new Map(), nowMs: now })
+            .map(item => item.type === 'session' ? item.session.id : item.title);
+        expect(layout([header('Pinned', 'pinned'), row('a-idle', {}, { ...pinned, folderId: 'a' }), row('a-working', working, { ...pinned, folderId: 'a' }), row('b-idle', {}, { ...pinned, folderId: 'b' }), row('b-working', working, { ...pinned, folderId: 'b' }), row('loose-idle', {}, pinned)]))
+            .toEqual(['Pinned', 'working...', 'a-working', 'b-working', 'Idle', 'a-idle', 'b-idle', 'loose-idle']);
+        expect(layout([header('Attention', 'attention'), row('promoted-idle', {}, { groupKind: 'attention', folderId: 'a' }), row('promoted-loose', {}, { groupKind: 'attention' })]))
+            .toEqual(['Attention', 'Idle', 'promoted-idle', 'promoted-loose']);
+    });
+
+    it('gives real pinned folder and loose sessions one status group, and keeps a pinned row whose band a folder focus removed', () => {
+        const rows = [row('assigned'), row('loose')];
+        const sessions = Object.fromEntries(rows.map(item => [item.session.id, item.session]));
+        const source = buildSessionListViewData(sessions, {}, { groupInactiveSessionsByProject: true, sectionModeV1: 'single', serverScope: { serverId: 'home' } });
+        const workspace = { t: 'workspaceScope' as const, serverId: 'home', machineId: 'mac', rootPath: '/repo' };
+        const folders = { v: 1 as const, folders: [{ id: 'planning', workspace, parentId: null, name: 'Planning', createdAt: 1, updatedAt: 1 }] };
+        const foldered = applySessionFoldersToSessionListViewData(source, { enabled: true, folders, assignmentsBySessionKey: { 'home:assigned': 'planning' } });
+        const sourceIndex = buildSessionListIndexFromViewData(foldered)!;
+        const visibleIndex = computeVisibleSessionListIndex({ source: sourceIndex, resolveSessionRow: (_home, id) => sessions[id], hideInactiveSessions: false,
+            pinnedSessionKeysV1: ['home:assigned', 'home:loose'], sessionListGroupOrderV1: {}, presentation: { enabled: false, presentation: 'flat-with-badge' } });
+        const visible = buildSessionListViewDataFromIndex({ index: visibleIndex, sourceIndex, source: foldered })!;
+        const group = (items: readonly SessionListViewItem[]) => projectSessionListStatusView({ items, grouping: 'agent', sorting: 'none', ticketStatuses: new Map(), nowMs: now });
+
+        const pinnedBand = group(visible).filter(item => item.type === 'session' || item.headerKind === 'status' || item.headerKind === 'pinned');
+        expect(pinnedBand.map(item => item.type === 'session' ? item.session.id : item.title).slice(0, 4)).toEqual(['Pinned', 'Idle', 'assigned', 'loose']);
+        expect(pinnedBand.find(item => item.type === 'session' && item.session.id === 'assigned')).toMatchObject({ folderId: 'planning' });
+        expect(ids(group(filterSessionListItemsByFocusedFolder(visible, 'planning')))).toEqual(['assigned']);
     });
 
     it('composes real folder/pin/filter/machine/repository owners and restores their exact saved presentation', () => {

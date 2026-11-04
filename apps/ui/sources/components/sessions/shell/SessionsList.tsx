@@ -2103,6 +2103,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
                         workspaceLabelsV1={workspaceLabelsV1}
                         workspaceFaviconsEnabled={workspaceFaviconsEnabled}
                         workspaceMachineSubtitlesEnabled={workspaceMachineSubtitlesEnabled}
+                        machineIdentityEnabled={sessionListShowMachineIdentity !== false}
                         onMoveUp={moveActionHandlers.onMoveUp}
                         onMoveDown={moveActionHandlers.onMoveDown}
                         onRenameWorkspace={handleRenameWorkspace}
@@ -2182,6 +2183,7 @@ export const SessionsListContent = React.memo(function SessionsListContent(props
         workspaceLabelsV1,
         workspaceFaviconsEnabled,
         workspaceMachineSubtitlesEnabled,
+        sessionListShowMachineIdentity,
     ]);
 
     const pinnedKeysSignature = React.useMemo(

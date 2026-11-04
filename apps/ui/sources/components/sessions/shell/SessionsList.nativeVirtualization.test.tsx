@@ -3,6 +3,7 @@ import { act } from 'react-test-renderer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { findGestureByKind, renderHook, renderScreen, standardCleanup } from '@/dev/testkit';
+import type { DropdownMenuItem } from '@/components/ui/forms/dropdown/DropdownMenu';
 import type { SessionListViewItem } from '@/sync/domains/state/storage';
 import { localSettingsDefaults, type LocalSettings } from '@/sync/domains/settings/localSettings';
 import { settingsDefaults } from '@/sync/domains/settings/settings';
@@ -52,6 +53,7 @@ const setSessionFoldersV1 = vi.fn();
 let sessionListOrderingModeV1: 'custom' | 'created' | 'updated' = 'custom';
 let sessionListIdentityDisplay: 'avatar' | 'agentLogo' | 'none' = 'avatar';
 let sessionListShowMachineLabel = true;
+let sessionListShowMachineIdentity = true;
 const machineLabelSettingListeners = new Set<() => void>();
 const setSessionListOrderingModeV1 = vi.fn();
 let sessionFolderAssignmentsBySessionKey: Record<string, string | null> = {};
@@ -568,7 +570,11 @@ installSessionShellCommonModuleMocks({
                         machineLabelSettingListeners.add(listener);
                         return () => machineLabelSettingListeners.delete(listener);
                     },
-                    () => key === 'sessionListShowMachineLabel' ? sessionListShowMachineLabel : localSettingsDefaults[key],
+                    () => {
+                        if (key === 'sessionListShowMachineLabel') return sessionListShowMachineLabel;
+                        if (key === 'sessionListShowMachineIdentity') return sessionListShowMachineIdentity;
+                        return localSettingsDefaults[key];
+                    },
                 )) as typeof import('@/sync/domains/state/storage')['useLocalSetting'],
                 useLocalSettingMutable: useLocalSettingMutableMock,
                 storage: actual.storage,
@@ -865,6 +871,7 @@ describe('SessionsList (native virtualization)', () => {
         sessionListOrderingModeV1 = 'custom';
         sessionListIdentityDisplay = 'avatar';
         sessionListShowMachineLabel = true;
+        sessionListShowMachineIdentity = true;
         machineLabelSettingListeners.clear();
         sessionFolderAssignmentsBySessionKey = {};
         rememberLastProjectSessionSelections = null;
@@ -4067,6 +4074,217 @@ describe('SessionsList (native virtualization)', () => {
         expect(rows[0]?.props.rowModel?.subtitle).toBe('Machine A · a');
         expect(rows[1]?.props.rowModel?.rowKey).toBe('server_b:shared-session');
         expect(rows[1]?.props.rowModel?.subtitle).toBe('Machine B · b');
+    });
+
+    it('pairs a project machine subtitle with the chosen glyph of that machine on its own Home', async () => {
+        platformOs = 'web';
+        const { ProjectGroupHeader } = await import('./SessionsList');
+        const { storage } = await import('@/sync/domains/state/storage');
+        const { withMachineDisplayColor, withMachineDisplayIcon } = await import('@/sync/domains/machines/machineDisplayIconPreference');
+        const { useUnistyles } = await import('react-native-unistyles');
+        const { theme } = useUnistyles();
+        const previousLocalSettings = storage.getState().localSettings;
+        storage.setState((state) => ({
+            localSettings: {
+                ...state.localSettings,
+                machineDisplayIconByMachineV1: withMachineDisplayIcon(
+                    withMachineDisplayIcon({}, 'server_a', 'machine-shared', 'laptop'),
+                    'server_b',
+                    'machine-shared',
+                    'cloud',
+                ),
+                machineDisplayColorByMachineV1: withMachineDisplayColor({}, 'server_a', 'machine-shared', 'blue'),
+            },
+        }));
+        const machineHeader = (serverId: string, machineId: string, subtitle: string) => ({
+            type: 'header',
+            title: '/repo',
+            subtitle,
+            headerKind: 'project',
+            groupKey: `server:${serverId}:active:project:abc`,
+            workspaceKey: 'wl_abc',
+            workspaceScopeHint: machineId === 'unknown' ? null : { serverId, machineId, rootPath: '/repo' },
+            machine: { ...machineDisplayById['machine-target'], id: machineId },
+            serverId,
+            serverName: serverId,
+        } satisfies Extract<SessionListViewItem, { type: 'header' }>);
+        const renderHeader = (
+            item: Extract<SessionListViewItem, { type: 'header' }>,
+            options: Readonly<{ hasMultipleMachines?: boolean; workspaceMachineSubtitlesEnabled?: boolean; machineIdentityEnabled?: boolean }> = {},
+        ) => renderScreen(
+            <ProjectGroupHeader
+                item={item}
+                hasMultipleMachines={options.hasMultipleMachines ?? true}
+                workspaceMachineSubtitlesEnabled={options.workspaceMachineSubtitlesEnabled}
+                machineIdentityEnabled={options.machineIdentityEnabled}
+                workspaceLabelsV1={{}}
+                onRenameWorkspace={vi.fn()}
+                onResetWorkspaceName={vi.fn()}
+                onCreateSession={vi.fn()}
+                onAddFolder={vi.fn()}
+                collapsed={false}
+                onToggleCollapse={vi.fn()}
+                headerTestId="project-header"
+            />,
+        );
+        const headerLabel = (screen: Awaited<ReturnType<typeof renderHeader>>) => screen.root
+            .findAll((node) => node.props.testID === 'project-header')[0]?.props.accessibilityLabel;
+        const visibleText = (screen: Awaited<ReturnType<typeof renderHeader>>, text: string) => screen.root
+            .findAll((node) => String(node.type) === 'Text' && node.props.children === text);
+        const machineGlyphs = (screen: Awaited<ReturnType<typeof renderHeader>>) => screen.root
+            .findAllByType('Icon' as never)
+            .filter((icon) => !['caret-down', 'caret-right', 'plus', 'list', 'dots-three'].includes(String(icon.props.name)));
+
+        try {
+            const homeA = await renderHeader(machineHeader('server_a', 'machine-shared', 'Studio'));
+            const homeB = await renderHeader(machineHeader('server_b', 'machine-shared', 'Studio'));
+            const homeless = await renderHeader({
+                ...machineHeader('server_a', 'machine-shared', 'Studio'),
+                workspaceScopeHint: null,
+            });
+            const unattributed = await renderHeader(machineHeader('server_a', 'unknown', 'unknown'));
+            const labelHidden = await renderHeader(
+                machineHeader('server_a', 'machine-shared', 'Studio'),
+                { workspaceMachineSubtitlesEnabled: false },
+            );
+            const unattributedLabelHidden = await renderHeader(
+                machineHeader('server_a', 'unknown', 'unknown'),
+                { workspaceMachineSubtitlesEnabled: false },
+            );
+            const identityHidden = await renderHeader(
+                machineHeader('server_a', 'machine-shared', 'Studio'),
+                { workspaceMachineSubtitlesEnabled: false, machineIdentityEnabled: false },
+            );
+            const singleMachine = await renderHeader(
+                machineHeader('server_a', 'machine-shared', 'Studio'),
+                { hasMultipleMachines: false },
+            );
+
+            expect(machineGlyphs(homeA).map((icon) => icon.props)).toEqual([
+                expect.objectContaining({ name: 'laptop', color: theme.colors.accent.blue }),
+            ]);
+            expect(machineGlyphs(homeB).map((icon) => icon.props)).toEqual([
+                expect.objectContaining({ name: 'cloud', color: theme.colors.text.secondary }),
+            ]);
+            expect(machineGlyphs(homeless).map((icon) => icon.props.name)).toEqual(['laptop']);
+            expect(machineGlyphs(unattributed)).toEqual([]);
+            expect(unattributed.root.findAll((node) => String(node.type) === 'Text' && node.props.children === 'unknown')).toHaveLength(1);
+            expect(headerLabel(homeA)).toBe('/repo, Studio');
+
+            expect(machineGlyphs(labelHidden).map((icon) => icon.props)).toEqual([
+                expect.objectContaining({ name: 'laptop', color: theme.colors.accent.blue }),
+            ]);
+            expect(visibleText(labelHidden, 'Studio')).toEqual([]);
+            expect(headerLabel(labelHidden)).toBe('/repo, Studio');
+
+            expect(machineGlyphs(unattributedLabelHidden)).toEqual([]);
+            expect(visibleText(unattributedLabelHidden, 'unknown')).toEqual([]);
+            expect(headerLabel(unattributedLabelHidden)).toBe('/repo');
+
+            expect(machineGlyphs(identityHidden)).toEqual([]);
+            expect(headerLabel(identityHidden)).toBe('/repo');
+
+            expect(machineGlyphs(singleMachine)).toEqual([]);
+            expect(headerLabel(singleMachine)).toBe('/repo');
+        } finally {
+            storage.setState({ localSettings: previousLocalSettings });
+        }
+    });
+
+    it('updates mounted project headers when the machine identity setting changes', async () => {
+        mockVisibleSessionListViewData = [
+            {
+                type: 'header',
+                title: 'Active',
+                headerKind: 'active',
+                serverId: 'server_a',
+                serverName: 'Server A',
+            },
+            {
+                type: 'header',
+                title: '/repo',
+                headerKind: 'project',
+                groupKey: 'server:server_a:active:project:abc',
+                workspaceKey: 'wl_abc',
+                serverId: 'server_a',
+                serverName: 'Server A',
+            },
+            {
+                type: 'session',
+                session: sessionA,
+                groupKey: 'server:server_a:active:project:abc',
+                groupKind: 'project',
+                variant: 'no-path',
+                serverId: 'server_a',
+                serverName: 'Server A',
+            },
+        ];
+        const screen = await renderSessionsList();
+        const machineIdentityEnabled = () => expectPresent(
+            screen.root.findAll((node) => 'machineIdentityEnabled' in node.props)[0],
+            'expected mounted project header',
+        ).props.machineIdentityEnabled;
+        expect(machineIdentityEnabled()).toBe(true);
+
+        await act(async () => {
+            sessionListShowMachineIdentity = false;
+            machineLabelSettingListeners.forEach((listener) => listener());
+        });
+
+        expect(machineIdentityEnabled()).toBe(false);
+    });
+
+    it('tells same-labeled checkouts apart by machine glyph in every repository menu', async () => {
+        platformOs = 'ios';
+        const { ProjectGroupHeader } = await import('./SessionsList');
+        const { storage } = await import('@/sync/domains/state/storage');
+        const { withMachineDisplayIcon } = await import('@/sync/domains/machines/machineDisplayIconPreference');
+        const previousLocalSettings = storage.getState().localSettings;
+        storage.setState((state) => ({
+            localSettings: {
+                ...state.localSettings,
+                machineDisplayIconByMachineV1: withMachineDisplayIcon(
+                    withMachineDisplayIcon({}, 'server_a', 'machine-one', 'laptop'),
+                    'server_a',
+                    'machine-two',
+                    'cloud',
+                ),
+            },
+        }));
+        const checkout = (machineId: string) => ({ serverId: 'server_a', accountId: 'profile-1', machineId, path: '/repo', machineLabel: 'Studio' });
+
+        try {
+            const screen = await renderScreen(
+                <ProjectGroupHeader
+                    item={{
+                        type: 'header',
+                        title: 'Repository',
+                        headerKind: 'project',
+                        groupKey: 'repository-v1:abc',
+                        serverId: 'server_a',
+                        repository: { identity: 'example.com/team/repo', checkouts: [checkout('machine-one'), checkout('machine-two')], orderScope: 'scope' },
+                    }}
+                    hasMultipleMachines
+                    workspaceLabelsV1={{}}
+                    onRenameWorkspace={vi.fn()}
+                    onResetWorkspaceName={vi.fn()}
+                    onCreateSession={vi.fn()}
+                    onAddFolder={vi.fn()}
+                    collapsed={false}
+                    onToggleCollapse={vi.fn()}
+                    headerTestId="repository-header"
+                />,
+            );
+            const menuItems: readonly DropdownMenuItem[] = screen.root.findAllByType('DropdownMenu' as never)[0]?.props.items;
+            for (const action of ['repository-new-session', 'repository-add-folder', 'repository-associate']) {
+                const rows = menuItems.find((item) => item.id === action)?.submenu?.items ?? [];
+                const glyphs = await renderScreen(React.createElement('View', null, ...rows.map((row) => row.icon)));
+                expect(rows.map((row) => row.title)).toEqual(['Studio', 'Studio']);
+                expect(glyphs.root.findAllByType('Icon' as never).map((icon) => icon.props.name)).toEqual(['laptop', 'cloud']);
+            }
+        } finally {
+            storage.setState({ localSettings: previousLocalSettings });
+        }
     });
 
     it('uses start-side overflow ellipsis for workspace path headers on web without reordering the path', async () => {

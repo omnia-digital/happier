@@ -4750,6 +4750,7 @@ export const en = {
             actionsSectionTitle: 'Actions',
             newWorktree: 'New Worktree',
             newWorktreeSubtitle: 'Create and use a new Git worktree for this session.',
+            newWorktreeUnavailable: 'New Worktree unavailable',
             pendingWorktreeSubtitle: ({ branch, path }: { branch: string; path: string }) => `From ${branch} · ${path}`,
             existingWorktree: 'Existing Worktree',
             existingWorktreeSubtitle: 'Pick an existing Git worktree for this session.',
@@ -4886,6 +4887,7 @@ export const en = {
         worktree: {
             creating: ({ name }: { name: string }) => `Creating worktree '${name}'...`,
             notGitRepo: 'Worktrees require a git repository',
+            repositoryStatusUnavailable: "Can't read this folder's repository status right now",
             failed: ({ error }: { error: string }) => `Failed to create worktree: ${error}`,
             success: 'Worktree created successfully',
             // Keys consumed by buildWorktreeSelectionListSteps (R10/R6).

@@ -78,6 +78,8 @@ describe('resolveNewSessionCheckoutChipModel', () => {
                     path: '/tmp/random',
                 },
             ],
+            newWorktreeUnavailableReason: null,
+            worktreeIntentUnavailable: false,
         });
     });
 
@@ -117,6 +119,8 @@ describe('resolveNewSessionCheckoutChipModel', () => {
                     gitBranch: 'release',
                 },
             ],
+            newWorktreeUnavailableReason: null,
+            worktreeIntentUnavailable: false,
         });
     });
 
@@ -234,5 +238,80 @@ describe('resolveNewSessionCheckoutChipModel', () => {
             'checkout:/repo/payments-feature-auth',
             'checkout:/repo/payments-release',
         ]);
+    });
+
+    describe('New Worktree availability', () => {
+        const nonRepoSnapshot = makeRepoSnapshot({
+            repo: { isRepo: false, rootPath: null, backendId: undefined, mode: undefined, worktrees: [] },
+        });
+
+        it('has no reason while the repository lookup is still pending', () => {
+            const model = resolveNewSessionCheckoutChipModel({
+                selectedPath: '/repo/payments',
+                checkoutCreationDraft: null,
+                repoSnapshot: null,
+            });
+
+            expect(model.newWorktreeUnavailableReason).toBeNull();
+            expect(model.worktreeIntentUnavailable).toBe(false);
+        });
+
+        it('has no reason for a Git repository, even when worktree intent is requested', () => {
+            const model = resolveNewSessionCheckoutChipModel({
+                selectedPath: '/repo/payments',
+                checkoutCreationDraft: null,
+                repoSnapshot: makeRepoSnapshot(),
+                worktreeIntentRequested: true,
+            });
+
+            expect(model.newWorktreeUnavailableReason).toBeNull();
+            expect(model.worktreeIntentUnavailable).toBe(false);
+        });
+
+        it.each([
+            ['a folder outside any repository', nonRepoSnapshot],
+            ['a repository on another SCM backend', makeRepoSnapshot({
+                repo: { isRepo: true, rootPath: '/repo/payments', backendId: 'sapling', mode: '.sl', worktrees: [] },
+            })],
+        ])('reports not_git_repository for %s and offers no creation', (_label, repoSnapshot) => {
+            const model = resolveNewSessionCheckoutChipModel({
+                selectedPath: '/repo/payments',
+                checkoutCreationDraft: null,
+                repoSnapshot,
+            });
+
+            expect(model.newWorktreeUnavailableReason).toBe('not_git_repository');
+            expect(model.options.map((option) => option.kind)).toEqual(['current_path']);
+        });
+
+        it('reports repository_status_unavailable when the lookup settled without a snapshot', () => {
+            const model = resolveNewSessionCheckoutChipModel({
+                selectedPath: '/repo/payments',
+                checkoutCreationDraft: null,
+                repoSnapshot: null,
+                repoSnapshotUnavailable: true,
+            });
+
+            expect(model.newWorktreeUnavailableReason).toBe('repository_status_unavailable');
+        });
+
+        it('flags requested worktree intent only when no creation draft can honour it', () => {
+            const unfulfilled = resolveNewSessionCheckoutChipModel({
+                selectedPath: '/repo/payments',
+                checkoutCreationDraft: null,
+                repoSnapshot: nonRepoSnapshot,
+                worktreeIntentRequested: true,
+            });
+            const retainedDraft = resolveNewSessionCheckoutChipModel({
+                selectedPath: '/repo/payments',
+                checkoutCreationDraft: { kind: 'git_worktree', displayName: 'clever-cloud', baseRef: null, branchMode: 'new' },
+                repoSnapshot: null,
+                repoSnapshotUnavailable: true,
+                worktreeIntentRequested: true,
+            });
+
+            expect(unfulfilled.worktreeIntentUnavailable).toBe(true);
+            expect(retainedDraft.worktreeIntentUnavailable).toBe(false);
+        });
     });
 });

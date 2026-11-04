@@ -91,6 +91,31 @@ describe('SelectionList accessibility contract (Phase 2.10)', () => {
         expect(innerItem!.props.role).toBe('presentation');
     });
 
+    it('exposes a disabled option as disabled on its wrapper, and only that option', async () => {
+        const { SelectionList } = await import('../SelectionList');
+        const screen = await renderScreen(
+            <SelectionList
+                {...defaultProps({
+                    rootStep: {
+                        id: 'root',
+                        inputPlaceholder: 'Search',
+                        sections: [{
+                            kind: 'static',
+                            id: 'section-a',
+                            options: [
+                                { id: 'off', label: 'Off', disabled: true },
+                                { id: 'on', label: 'On' },
+                            ],
+                        }],
+                    },
+                })}
+            />,
+        );
+
+        expect(screen.findByTestId('sl:root:option-wrapper:off')?.props['aria-disabled']).toBe(true);
+        expect(screen.findByTestId('sl:root:option-wrapper:on')?.props['aria-disabled']).toBeUndefined();
+    });
+
     it('applies option accessibility labels to plain option wrappers', async () => {
         const { SelectionList } = await import('../SelectionList');
         const screen = await renderScreen(

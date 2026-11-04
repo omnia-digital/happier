@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -30,10 +31,41 @@ test('the formula fixture and the committed cask are exactly what the generator 
     renderFixtureFormula(),
     readFileSync(new URL('./fixtures/homebrew-formula-v0.2.12.rb', import.meta.url), 'utf8'),
   );
+  // The v0.2.12 DMG predates the stable rename, so its cask names the bundle that DMG contains.
   assert.equal(
-    renderHappierCaskFromRelease({ release: fixture.desktop.release, checksumsText: fixture.desktop.checksums }),
+    renderHappierCaskFromRelease({
+      release: fixture.desktop.release,
+      checksumsText: fixture.desktop.checksums,
+      appName: 'Happier',
+    }),
     readFileSync(`${repoRoot}packaging/homebrew/Casks/happier.rb`, 'utf8'),
   );
+});
+
+test('the cask installs, names and zaps the bundle the rendered release carries', () => {
+  const cask = renderHappierCaskFromRelease({
+    release: fixture.desktop.release,
+    checksumsText: fixture.desktop.checksums,
+    appName: 'Omnia Happier',
+  });
+  assert.ok(cask.includes('\n  app "Omnia Happier.app"\n'), 'app stanza must name the bundle in the DMG');
+  assert.ok(cask.includes('\n  name "Omnia Happier"\n'), 'name must match the bundle');
+  // tauri-plugin-autostart writes ~/Library/LaunchAgents/<productName>.plist for Start at login.
+  assert.ok(cask.includes('"~/Library/LaunchAgents/Omnia Happier.plist",'), 'zap must remove that bundle\'s login item');
+  assert.ok(!cask.includes('LaunchAgents/Happier.plist'));
+});
+
+test('the bundle name is an explicit input: the checkout cannot know which bundle an older DMG holds', () => {
+  assert.throws(
+    () => renderHappierCaskFromRelease({ release: fixture.desktop.release, checksumsText: fixture.desktop.checksums }),
+    /app name/,
+  );
+  const cli = spawnSync(process.execPath, [fileURLToPath(new URL('./render-homebrew-packages.mjs', import.meta.url)), '--desktop-version', '0.2.12'], {
+    encoding: 'utf8',
+    env: { ...process.env, GITHUB_TOKEN: '', GH_TOKEN: '' },
+  });
+  assert.notEqual(cli.status, 0);
+  assert.match(cli.stderr, /--desktop-app-name/);
 });
 
 test('the formula pins each platform payload to its signed-checksum sha256 and real asset URL', () => {
@@ -65,7 +97,7 @@ test('refuses to render when GitHub\'s asset digest disagrees with the signed ch
   const dmg = release.assets.find((asset) => asset.name === 'happier-ui-desktop-darwin-x86_64-v0.2.12.dmg');
   dmg.digest = `sha256:${'0'.repeat(64)}`;
   assert.throws(
-    () => renderHappierCaskFromRelease({ release, checksumsText: fixture.desktop.checksums }),
+    () => renderHappierCaskFromRelease({ release, checksumsText: fixture.desktop.checksums, appName: 'Happier' }),
     /happier-ui-desktop-darwin-x86_64-v0\.2\.12\.dmg.*digest/,
   );
 });
@@ -74,7 +106,7 @@ test('refuses a release that is missing a macOS DMG, a draft, or a prerelease', 
   const missing = clone(fixture.desktop.release);
   missing.assets = missing.assets.filter((asset) => !asset.name.endsWith('darwin-aarch64-v0.2.12.dmg'));
   assert.throws(
-    () => renderHappierCaskFromRelease({ release: missing, checksumsText: fixture.desktop.checksums }),
+    () => renderHappierCaskFromRelease({ release: missing, checksumsText: fixture.desktop.checksums, appName: 'Happier' }),
     /happier-ui-desktop-darwin-aarch64-v0\.2\.12\.dmg/,
   );
   for (const flag of ['draft', 'prerelease']) {
@@ -87,7 +119,7 @@ test('refuses a release that is missing a macOS DMG, a draft, or a prerelease', 
 });
 
 test('the cask derives per-arch DMG URLs that match the published assets', () => {
-  const cask = renderHappierCaskFromRelease({ release: fixture.desktop.release, checksumsText: fixture.desktop.checksums });
+  const cask = renderHappierCaskFromRelease({ release: fixture.desktop.release, checksumsText: fixture.desktop.checksums, appName: 'Happier' });
   assert.match(cask, /sha256 arm: {3}"b9536e3244b30c891b4310bdcf892738682a84ad3f1afee00b9e64a9146eb509",\n {9}intel: "cc85a7d049a0d52fcd11d310d65310349a8535477789021303ea034a110451a9"/);
   assert.match(cask, /url "https:\/\/github\.com\/happier-dev\/happier\/releases\/download\/ui-desktop-v#\{version\}\/happier-ui-desktop-darwin-#\{arch\}-v#\{version\}\.dmg"/);
   assert.match(cask, /auto_updates true/);
@@ -98,7 +130,7 @@ test('the cask and the formula declare the same macOS minimum, which is the desk
   assert.deepEqual(HAPPIER_MIN_MACOS, { symbol: 'ventura', version: '13.0' });
   const tauriConfig = JSON.parse(readFileSync(`${repoRoot}apps/ui/src-tauri/tauri.conf.json`, 'utf8'));
   assert.equal(tauriConfig.bundle.macOS.minimumSystemVersion, HAPPIER_MIN_MACOS.version);
-  const cask = renderHappierCaskFromRelease({ release: fixture.desktop.release, checksumsText: fixture.desktop.checksums });
+  const cask = renderHappierCaskFromRelease({ release: fixture.desktop.release, checksumsText: fixture.desktop.checksums, appName: 'Happier' });
   assert.match(cask, new RegExp(`\n  depends_on macos: :${HAPPIER_MIN_MACOS.symbol}\n`));
   assert.doesNotMatch(cask, /depends_on :macos/);
   assert.match(renderFixtureFormula(), new RegExp(`    depends_on macos: :${HAPPIER_MIN_MACOS.symbol}\n`));
