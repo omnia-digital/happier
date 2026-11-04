@@ -28,6 +28,7 @@ import type { LocalSettings } from '../domains/settings/localSettings';
 import { readMachineDisplayColor, readMachineDisplayIcon, resolveMachineDisplayPreferenceScope, type MachineDisplayPreferenceScope } from '../domains/machines/machineDisplayIconPreference';
 import { getActiveServerId, subscribeServerProfiles } from '../domains/server/serverProfiles';
 import type { AgentTextMessage, Message } from '../domains/messages/messageTypes';
+import { resolveMessageReplySource, type MessageReplyTarget, type ReplyableMessage } from '../domains/messages/messageReply';
 import type { Settings } from '../domains/settings/settings';
 import { settingsDefaults } from '../domains/settings/settings';
 import type { SessionListViewItem } from '../domains/session/listing/sessionListViewData';
@@ -1118,6 +1119,17 @@ export function useMessage(sessionId: string, messageId: string): Message | null
       };
     })
   ).message;
+}
+
+export function useMessageReplySource(sessionId: string, target: MessageReplyTarget): ReplyableMessage | null {
+  const internalId = getStorage()((state) => {
+    const session = state.sessionMessages[sessionId];
+    return resolveMessageReplySource(sessionId, target, session?.messagesById ?? {}, session?.reducerState)?.id ?? '';
+  });
+  // Keep revision and streaming observation with the incumbent per-message
+  // subscription; the selector above only translates durable route identity.
+  const message = useMessage(sessionId, internalId);
+  return message?.kind === 'user-text' || message?.kind === 'agent-text' ? message : null;
 }
 
 export function useMessagesByRefs(messageRefs: readonly MessageStoreRef[]): readonly (Message | null)[] {

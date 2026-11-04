@@ -1,3 +1,5 @@
+import { MessageReplyButton } from '@/components/sessions/transcript/messageActions/MessageReplyButton';
+import { SentMessageReplyPreview } from '@/components/sessions/transcript/MessageReplyPreview';
 import * as React from "react";
 import { View, Pressable, Platform } from 'react-native';
 import { isRecoveredHistoryTranscriptObservationProvenance } from '@happier-dev/protocol';
@@ -335,6 +337,7 @@ export const MessageViewWithSessionCommon = React.memo(function MessageViewWithS
     <View style={styles.messageContainer} renderToHardwareTextureAndroid={true}>
       <View style={[styles.messageContent, { maxWidth: contentMaxWidth }]}>
         <RecoveredHistoryIndicator message={props.message} />
+        {props.message.kind === 'user-text' ? <SentMessageReplyPreview sessionId={props.sessionId} messageId={props.message.id} meta={props.message.meta} /> : null}
         <RenderBlock
           message={props.message}
           metadata={props.metadata}
@@ -741,6 +744,7 @@ function UserTextBlock(props: {
             isWeb={isWeb}
             invertTimestampAndActions={timestampPresentation.invertTimestampAndActions}
           >
+            <MessageReplyButton sessionId={props.sessionId} message={props.message} canSendMessages={props.canSendMessages} onHoverIn={isWeb ? () => setIsCopyButtonHovered(true) : undefined} onHoverOut={isWeb ? () => setIsCopyButtonHovered(false) : undefined} />
             {props.rollbackAction ? (
               <TranscriptRollbackActionButton
                 sessionId={props.sessionId}
@@ -879,6 +883,7 @@ function UserTextBlock(props: {
             isWeb={isWeb}
             invertTimestampAndActions={timestampPresentation.invertTimestampAndActions}
           >
+            <MessageReplyButton sessionId={props.sessionId} message={props.message} canSendMessages={props.canSendMessages} onHoverIn={isWeb ? () => setIsCopyButtonHovered(true) : undefined} onHoverOut={isWeb ? () => setIsCopyButtonHovered(false) : undefined} />
             {props.rollbackAction ? (
               <TranscriptRollbackActionButton
                 sessionId={props.sessionId}
@@ -1392,6 +1397,7 @@ function AgentTextBlock(props: {
           isWeb={isWeb}
           invertTimestampAndActions={timestampPresentation.invertTimestampAndActions}
         >
+            <MessageReplyButton sessionId={props.sessionId} message={props.message} canSendMessages={props.canSendMessages} onHoverIn={isWeb ? () => setIsCopyButtonHovered(true) : undefined} onHoverOut={isWeb ? () => setIsCopyButtonHovered(false) : undefined} />
           {props.rollbackAction ? (
             <TranscriptRollbackActionButton
               sessionId={props.sessionId}
@@ -1781,7 +1787,7 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: 'column',
     alignSelf: 'stretch',
     paddingHorizontal: 16,
-    paddingBottom: 22,
+    paddingBottom: Platform.OS === 'web' ? 22 : 48,
     position: 'relative',
   },
   structuredUserMessageContent: {
@@ -1795,7 +1801,7 @@ const styles = StyleSheet.create((theme) => ({
       // and hugged by userMessageBubbleAligner below.
       alignSelf: 'stretch',
       position: 'relative',
-      paddingBottom: 22,
+      paddingBottom: Platform.OS === 'web' ? 22 : 48,
     },
     userMessageBubbleAligner: {
       // Hug + right-align the bubble within the full-width wrapper. The bubble itself stays
@@ -1831,7 +1837,7 @@ const styles = StyleSheet.create((theme) => ({
     // renders nothing — it only made the transcript's radius census look wider than
     // the surfaces the user can actually see. Removed rather than unified.
     marginHorizontal: 16,
-    paddingBottom: 22,
+    paddingBottom: Platform.OS === 'web' ? 22 : 48,
     alignSelf: 'stretch',
     position: 'relative',
     maxWidth: '100%',

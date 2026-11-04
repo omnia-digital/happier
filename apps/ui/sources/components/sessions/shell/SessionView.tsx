@@ -1,3 +1,7 @@
+import { MessageReplyPreview } from '@/components/sessions/transcript/MessageReplyPreview';
+import { SessionMessageReplyActionContext, useSessionComposerReply, type SessionComposerReplyIntent } from '@/components/sessions/agentInput/useSessionComposerReply';
+import { applyMessageReply, resolveMessageReplySource } from '@/sync/domains/messages/messageReply';
+import { areServerProfileIdentifiersEquivalent } from '@/sync/domains/server/serverProfiles';
 import { resolveNewSessionCapabilityProbeContext } from '@/components/sessions/new/modules/newSessionCapabilityProbeContext';
 import type { SessionModelDiscoveryContext } from '@/components/sessions/agentInput/components/AgentInputModelDiscoveryDetail';
 import Color from 'color';
@@ -2617,6 +2621,12 @@ function SessionViewLoaded({
     const activeServerAccountScopeKey = activeServerAccountScope
         ? serverAccountScopeKeySuffix(activeServerAccountScope)
         : 'local';
+    const composerReply = useSessionComposerReply(
+        JSON.stringify([sessionRouteServerId, activeServerAccountScopeKey]),
+        sessionId,
+    );
+    const replyScopeAvailable = Boolean(activeServerAccountScope
+        && areServerProfileIdentifiersEquivalent(activeServerAccountScope.serverId, sessionRouteServerId));
     // The last armed-switch outcome that still has something to say.
     //
     // This screen holds the FACT; `continueSessionWithArmedAgent` owns what it
@@ -4447,6 +4457,12 @@ function SessionViewLoaded({
         armedContinuationSubmission: liveArmedContinuationSubmission,
         clearArmedContinuationSubmissionIfCurrent: clearPersistedArmedContinuationSubmissionIfCurrent,
     } = inSessionAgentPicker;
+    const armedSubmissionReplyIntentRef = React.useRef<Readonly<{
+        scopeKey: string;
+        localId: string;
+        intent: SessionComposerReplyIntent;
+    }> | null>(null);
+    const replyIntentAtMountRef = React.useRef(composerReply.captureIntent());
     const clearArmedContinuationSubmissionDraftsIfCurrent = React.useCallback((
         submission: SessionArmedAgentContinuationSubmission,
     ) => {
@@ -4456,9 +4472,17 @@ function SessionViewLoaded({
             admittedPermissionMode: submission.input.meta.permissionMode,
             expectedAccountScope: activeServerAccountScope,
         }), { tag: 'SessionView.publishAdmittedPermissionIntent' });
+        const submittedReplyIntent = armedSubmissionReplyIntentRef.current;
+        const replyIntent = submittedReplyIntent?.scopeKey === activeServerAccountScopeKey
+            && submittedReplyIntent.localId === submission.localId
+            ? submittedReplyIntent.intent
+            : replyIntentAtMountRef.current;
+        // A restored pending transition predates this mount. A reply choice made
+        // since mounting belongs to the current draft, not to that older input.
+        if (!composerReply.isCurrentIntent(replyIntent)) return;
         const currentness = submission.currentness;
         let didClearSemantic = false;
-        clearComposerAfterOutboundHandoff({
+        const didClearDraft = clearComposerAfterOutboundHandoff({
             snapshot: {
                 sessionId,
                 text: currentness?.text ?? submission.input.text,
@@ -4484,6 +4508,9 @@ function SessionViewLoaded({
                 }
                 : {}),
         });
+        if (didClearDraft && replyIntent.target) {
+            composerReply.clearIfCurrent(replyIntent.target);
+        }
         if (didClearSemantic && draftScope) {
             fireAndForget(
                 existingSessionDraftSemanticValues.flush(draftScope, sessionId),
@@ -4516,6 +4543,9 @@ function SessionViewLoaded({
         }
     }, [
         activeServerAccountScope,
+        activeServerAccountScopeKey,
+        composerReply.isCurrentIntent,
+        composerReply.clearIfCurrent,
         clearDraftForSessionIfCurrentValueMatches,
         clearSentReviewCommentDrafts,
         draftScope,
@@ -5416,6 +5446,29 @@ function SessionViewLoaded({
             composerTextBeforeSend: string,
             sendIntent?: AgentInputSendOptions,
         ) => {
+            // Capture identity and full context before prompts, uploads, takeover or
+            // any other await. A later selection belongs to the next draft.
+            const replyIntentSnapshot = composerReply.captureIntent();
+            const replySnapshot = replyIntentSnapshot.target;
+            const liveReplyScope = replySnapshot ? getActiveServerAccountScope() : null;
+            const resolvedReplySource = replySnapshot
+                ? resolveMessageReplySource(
+                    sessionId,
+                    replySnapshot,
+                    storage.getState().sessionMessages[sessionId]?.messagesById ?? {},
+                    storage.getState().sessionMessages[sessionId]?.reducerState,
+                )
+                : null;
+            if (replySnapshot && (!replyScopeAvailable || !liveReplyScope
+                || serverAccountScopeKeySuffix(liveReplyScope) !== activeServerAccountScopeKey
+                || !resolvedReplySource)) {
+                Modal.alert(t('common.error'), t('session.messageReply.sourceMissingSend'));
+                return;
+            }
+            const replySource = resolvedReplySource ? { ...resolvedReplySource } : null;
+            const applyReplyToOutbound = (outbound: { text: string; displayText?: string; metaOverrides?: Record<string, unknown> }) => {
+                if (replySnapshot && replySource) Object.assign(outbound, applyMessageReply(outbound, replySnapshot, replySource));
+            };
             const configuredMode = storage.getState().settings.sessionMessageSendMode;
             const busySteerSendPolicy = storage.getState().settings.sessionBusySteerSendPolicy;
             const permissionModeApplyTiming = storage.getState().settings.sessionPermissionModeApplyTiming;
@@ -5541,6 +5594,8 @@ function SessionViewLoaded({
                 restoreTransientInputState: inputComposerRestoreTransientStateRef.current,
             });
             let didClearAtOutboundHandoff = false;
+            let didClearReplyAtOutboundHandoff = false;
+            let replyIntentAfterHandoff = replyIntentSnapshot;
             let semanticDraftCurrentnessAfterHandoffClear: SessionDraftCurrentness | null = null;
             let outboundHandoffLocalId: string | null = null;
             let didRecordOutboundAccepted = false;
@@ -5550,11 +5605,14 @@ function SessionViewLoaded({
                 trackMessageSent();
                 requestMountedTranscriptFollow();
             };
+            const canClearSubmittedReplyDraft = () => composerReply.isCurrentIntent(replyIntentSnapshot)
+                || (didClearAtOutboundHandoff && composerReply.isCurrentIntent(replyIntentAfterHandoff));
             const clearAfterOutboundHandoff = () => {
                 // Composer admission ends at the durable/optimistic outbound handoff. Runtime
                 // wake and provider delivery continue through their canonical session/Pending
                 // projections and must not keep the submit button in a local sending state.
                 setIsComposerSendPending(false);
+                if (!composerReply.isCurrentIntent(replyIntentSnapshot)) return false;
                 const didClear = sendSnapshot.currentness
                     ? clearDraftCurrentness(sendSnapshot)
                     : clearComposerAfterOutboundHandoff({
@@ -5570,6 +5628,10 @@ function SessionViewLoaded({
                         SESSION_COMPOSER_SEMANTIC_DRAFT_FIELD_IDS,
                     )?.currentness ?? null;
                 }
+                if (didClear && replySnapshot) {
+                    didClearReplyAtOutboundHandoff = composerReply.clearIfCurrent(replySnapshot) || didClearReplyAtOutboundHandoff;
+                    replyIntentAfterHandoff = composerReply.captureIntent();
+                }
                 didClearAtOutboundHandoff = didClearAtOutboundHandoff || didClear;
                 return didClear;
             };
@@ -5584,13 +5646,16 @@ function SessionViewLoaded({
                         sessionId,
                         outboundHandoffLocalId,
                     ),
-                    isSemanticRestoreSafe: () => areSessionDraftCurrentnessCapturesEqual(
+                    isSemanticRestoreSafe: () => composerReply.isCurrentIntent(replyIntentAfterHandoff) && areSessionDraftCurrentnessCapturesEqual(
                         semanticDraftCurrentnessAfterHandoffClear,
                         captureDraftForOutboundHandoff?.(SESSION_COMPOSER_SEMANTIC_DRAFT_FIELD_IDS)?.currentness ?? null,
                     ),
                     restoreDraftForSessionIfCurrentValueMatches,
                     restoreTransientInputState: transientInputStateHandoff.restoreTransientInputState,
                 });
+                if (didRestore && didClearReplyAtOutboundHandoff && replySnapshot) {
+                    composerReply.restoreIfEmpty(replySnapshot);
+                }
                 if (didRestore && attachmentDraftsForRestore) {
                     restoreAttachmentDraftsFromSnapshot(attachmentDraftsForRestore);
                 }
@@ -5694,6 +5759,14 @@ function SessionViewLoaded({
                     }
                     : transitionSubmission;
                 const isScopeCurrent = () => areServerAccountScopesEqual(activeServerAccountScope, getActiveServerAccountScope());
+                if (armedSubmissionReplyIntentRef.current?.scopeKey !== activeServerAccountScopeKey
+                    || armedSubmissionReplyIntentRef.current.localId !== destination.localId) {
+                    armedSubmissionReplyIntentRef.current = {
+                        scopeKey: activeServerAccountScopeKey,
+                        localId: destination.localId,
+                        intent: replyIntentSnapshot,
+                    };
+                }
                 const { disposition, result } = await continueSessionWithArmedAgent(submissionForDispatch, {
                     isCurrent: isScopeCurrent,
                     onBeforeTransitionDispatch: () => inSessionAgentPicker.recordArmedContinuationSubmission({
@@ -5809,6 +5882,7 @@ function SessionViewLoaded({
                                 displayText: trimmedText,
                                 metaOverrides: attachmentsMetaOverrides,
                             };
+                        applyReplyToOutbound(outbound);
                         outbound.metaOverrides = buildNextMessageMetaOverrides(
                             mergeMessageMetaOverrides(outbound.metaOverrides, sendIntent?.structuredInputMetaOverrides),
                             attachmentSendDestination,
@@ -5833,6 +5907,7 @@ function SessionViewLoaded({
                         };
                         const clearAttachmentsAfterProjectionHandoff = () => {
                             if (didClearForAttachmentHandoff) return;
+                            if (!composerReply.isCurrentIntent(replyIntentSnapshot)) return;
                             if (!areSubmittedAttachmentDraftsStillCurrent()) {
                                 removeSubmittedAttachmentDraftsFromCurrent();
                                 didClearForAttachmentHandoff = clearAfterOutboundHandoff();
@@ -5859,7 +5934,7 @@ function SessionViewLoaded({
                                 },
                                 () => {
                                     clearAttachmentsAfterProjectionHandoff();
-                                    if (shouldSendReviewComments) {
+                                    if (shouldSendReviewComments && canClearSubmittedReplyDraft()) {
                                         clearSentReviewCommentDrafts();
                                     }
                                     recordOutboundAccepted();
@@ -5917,7 +5992,7 @@ function SessionViewLoaded({
                             Modal.alert(t('common.error'), result.errorMessage ?? t('errors.failedToSendMessage'));
                             return;
                         }
-                        if (shouldSendReviewComments) {
+                        if (shouldSendReviewComments && canClearSubmittedReplyDraft()) {
                             clearSentReviewCommentDrafts();
                         }
                         if (!didClearForAttachmentHandoff) {
@@ -5958,6 +6033,7 @@ function SessionViewLoaded({
                     : null);
 
             if (!outbound) return;
+            applyReplyToOutbound(outbound);
 
             const voiceComposerRouting =
                 outboundBase.kind === 'plain' && !participantRecipient
@@ -5982,6 +6058,8 @@ function SessionViewLoaded({
                         const voiceSend = await sendVoiceSessionComposerText({
                             conversationSessionId: sessionId,
                             text: outbound.text,
+                            displayText: outbound.displayText,
+                            metaOverrides: outbound.metaOverrides,
                             sessionMetadata: session.metadata,
                             getAdapter: (adapterId) => getVoiceAdapterRegistry().get(adapterId),
                         });
@@ -5996,7 +6074,7 @@ function SessionViewLoaded({
                         }
                         clearAfterOutboundHandoff();
                         recordOutboundAccepted();
-                        if (shouldSendReviewComments) {
+                        if (shouldSendReviewComments && canClearSubmittedReplyDraft()) {
                             clearSentReviewCommentDrafts();
                         }
                     } finally {
@@ -6028,8 +6106,8 @@ function SessionViewLoaded({
                     };
                 } else {
                     outbound.text = routed.text;
-                    outbound.displayText = routed.displayText;
-                    outbound.metaOverrides = routed.metaOverrides;
+                    outbound.displayText = replySnapshot ? outbound.displayText : routed.displayText;
+                    outbound.metaOverrides = mergeMessageMetaOverrides(outbound.metaOverrides, routed.metaOverrides);
                 }
             }
             outbound.metaOverrides = buildNextMessageMetaOverrides(
@@ -6095,7 +6173,7 @@ function SessionViewLoaded({
                             },
                             () => {
                                 clearAfterOutboundHandoff();
-                                if (shouldSendReviewComments) {
+                                if (shouldSendReviewComments && canClearSubmittedReplyDraft()) {
                                     clearSentReviewCommentDrafts();
                                 }
                                 recordOutboundAccepted();
@@ -6159,7 +6237,7 @@ function SessionViewLoaded({
                     recordOutboundAccepted();
 
 
-                    if (shouldSendReviewComments) {
+                    if (shouldSendReviewComments && canClearSubmittedReplyDraft()) {
                         clearSentReviewCommentDrafts();
                     }
                 } finally {
@@ -6436,7 +6514,18 @@ function SessionViewLoaded({
                     />
                 </ComposerAuxiliaryFrame>
             ) : null}
+            {composerReply.target && !pendingMessageEdit ? (
+                <ComposerAuxiliaryFrame>
+                    <MessageReplyPreview
+                        sessionId={sessionId}
+                        target={composerReply.target}
+                        testID="session-composer-reply-preview"
+                        onCancel={composerReply.cancel}
+                    />
+                </ComposerAuxiliaryFrame>
+            ) : null}
             <SessionAgentInputRuntimeStatusBoundary
+                inputFocusRequest={composerReply.target}
                 session={session}
                 sessionLatestUsage={session.latestUsage}
                 placeholder={isReadOnly ? t('session.sharing.viewOnlyMode') : t('session.inputPlaceholder')}
@@ -6657,13 +6746,15 @@ function SessionViewLoaded({
 
     return (
         <SessionResumeProvider onResumeSession={handleResumeSession}>
-            <AppPaneScopeHost
-                scopeId={paneScopeId}
-                // Keep the real session tree mounted; the pane host is responsible for hiding
-                // the main region in pane focus mode so focus toggles don't accidentally
-                // render an empty placeholder region.
-                main={main}
-            />
+            <SessionMessageReplyActionContext.Provider value={hasWriteAccess && replyScopeAvailable && !pendingMessageEdit ? composerReply.select : null}>
+                <AppPaneScopeHost
+                    scopeId={paneScopeId}
+                    // Keep the real session tree mounted; the pane host is responsible for hiding
+                    // the main region in pane focus mode so focus toggles don't accidentally
+                    // render an empty placeholder region.
+                    main={main}
+                />
+            </SessionMessageReplyActionContext.Provider>
         </SessionResumeProvider>
     );
 }

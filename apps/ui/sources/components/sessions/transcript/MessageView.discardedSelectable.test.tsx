@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { renderScreen, standardCleanup } from '@/dev/testkit';
 import { installMessageViewCommonModuleMocks } from './messageViewTestHelpers';
+import { SessionMessageReplyActionContext } from '@/components/sessions/agentInput/useSessionComposerReply';
+import { act } from 'react-test-renderer';
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -91,5 +93,22 @@ describe('MessageView (discarded label)', () => {
       (n: any) => n.type === 'Text' && n.props?.children === 'message.discarded',
     )[0]!;
     expect(discarded.props.selectable).toBe(true);
+  });
+
+  it.each(['user-text', 'agent-text'] as const)('offers an accessible reply beside existing message actions for %s', async (kind) => {
+    const { MessageView } = await import('./MessageView');
+    const selectReply = vi.fn();
+    const message = { kind, id: 'source', seq: 7, transcriptBlockIndex: 2, localId: null, createdAt: 1, text: 'Earlier message' };
+    const screen = await renderScreen(
+      <SessionMessageReplyActionContext.Provider value={selectReply}>
+        <MessageView message={message} metadata={null} sessionId="s1" interaction={{ canSendMessages: true } as any} />
+      </SessionMessageReplyActionContext.Provider>,
+    );
+    const action = screen.findByTestId('transcript-message-reply:source');
+    expect(action?.props.accessibilityRole).toBe('button');
+    expect(action?.props.accessibilityLabel).toBe('session.messageReply.action');
+    await act(async () => action?.props.onPress());
+    expect(selectReply).toHaveBeenCalledWith({ sessionId: 's1', messageId: 'source', role: kind === 'user-text' ? 'user' : 'assistant', seq: 7, transcriptBlockIndex: 2 });
+    expect(screen.findByTestId('transcript-message-copy:source')).toBeTruthy();
   });
 });

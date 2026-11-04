@@ -32,6 +32,37 @@ describe('pendingQueueV2 updatePendingMessageV2', () => {
         resetPendingQueueState();
     });
 
+    it('keeps a queued reply source snapshot while editing the displayed reply text', async () => {
+        const sessionId = 's_reply_edit';
+        const pendingId = 'reply-pending';
+        const target = { sessionId, messageId: 'earlier', role: 'assistant' };
+        const context = `Earlier conversation message (JSON data):\n${JSON.stringify({ ...target, text: 'Earlier complete source' })}\n\nReply to that message:\n`;
+        const rawRecord = {
+            role: 'user' as const, content: { type: 'text' as const, text: context + 'Original reply' },
+            meta: { displayText: 'Original reply', happierMessageReplyV1: target },
+        };
+        storage.getState().applySessions([buildSession({ sessionId, overrides: { encryptionMode: 'plain' } })]);
+        storage.getState().upsertPendingMessage(sessionId, {
+            id: pendingId, localId: pendingId, createdAt: 1, updatedAt: 1, source: 'server_pending',
+            deliveryStatus: 'accepted', text: rawRecord.content.text, displayText: 'Original reply', rawRecord,
+        });
+        let patched: unknown;
+        await updatePendingMessageV2({
+            sessionId, pendingId, text: 'Edited reply', encryption: await createPendingQueueEncryption({ sessionId }),
+            request: async (_path, init) => {
+                patched = JSON.parse(String(init?.body));
+                return new Response('{}', { status: 200 });
+            },
+        });
+        expect(patched).toMatchObject({ content: { t: 'plain', v: {
+            content: { type: 'text', text: context + 'Edited reply' },
+            meta: { displayText: 'Edited reply', happierMessageReplyV1: target },
+        } } });
+        expect(storage.getState().sessionPending[sessionId]?.messages[0]).toMatchObject({
+            text: context + 'Edited reply', displayText: 'Edited reply',
+        });
+    });
+
     it('retires exact-scope enqueue custody after a successful PATCH', async () => {
         const sessionId = 's_test_patch_retires_enqueue';
         const pendingId = 'p-enqueue';

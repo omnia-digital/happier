@@ -253,6 +253,8 @@ interface AgentInputProps {
     placeholder: string;
     onChangeText: (text: string) => void;
     sessionId?: string;
+    /** An explicit caller intent to focus the retained input without altering its draft. */
+    inputFocusRequest?: object | null;
     onSend: (options?: AgentInputSendOptions) => void;
     submitAccessibilityLabel?: string;
     sendIcon?: React.ReactNode;
@@ -1366,6 +1368,9 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
 
     const sendActionDisabled = Boolean(props.disabled || props.isSendDisabled || props.isSending);
     const inputRef = React.useRef<MultiTextInputHandle>(null);
+    React.useEffect(() => {
+        if (props.inputFocusRequest) inputRef.current?.focus();
+    }, [props.inputFocusRequest]);
     const initialInputState = React.useMemo<TextInputState>(() => ({
         text: props.value,
         selection: { start: props.value.length, end: props.value.length },

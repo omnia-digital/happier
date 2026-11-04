@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Session } from '@/sync/domains/state/storageTypes';
 import type { SessionSubmitPort } from './types';
 import { submitSessionUserMessage } from './submitSessionUserMessage';
+import { applyMessageReply, createMessageReplyTarget } from '@/sync/domains/messages/messageReply';
+import type { AgentTextMessage } from '@/sync/domains/messages/messageTypes';
 
 vi.mock('@/sync/domains/state/storage', async () => {
     const { createStorageModuleStub } = await import('@/dev/testkit/mocks/storage');
@@ -83,6 +85,29 @@ const baseOptions = {
 };
 
 describe('submitSessionUserMessage', () => {
+    it('keeps exact contextual input and source identity through failed queue admission and retry', async () => {
+        const source: AgentTextMessage = {
+            kind: 'agent-text', id: 'earlier-source', seq: 3, transcriptBlockIndex: 1,
+            localId: null, createdAt: 1, text: 'Original context\n'.repeat(1000) + 'complete ending',
+        };
+        const target = createMessageReplyTarget('s1', source);
+        const outbound = applyMessageReply({ text: 'Reply to the earlier proposal' }, target, source);
+        const harness = createPort();
+        harness.enqueuePendingMessage.mockRejectedValueOnce(new Error('offline'));
+        const opts = { ...baseOptions, ...outbound, session: createSession(), localId: 'reply-retry' };
+        const failed = await submitSessionUserMessage(harness.port, opts);
+        expect(failed).toMatchObject({ type: 'send_failed', persistence: 'none' });
+        const retried = await submitSessionUserMessage(harness.port, opts);
+        expect(retried.persistence).toBe('pending');
+        for (const [sessionId, text, displayText, meta] of harness.enqueuePendingMessage.mock.calls) {
+            expect(sessionId).toBe('s1');
+            expect(text).toContain(JSON.stringify({ ...target, text: source.text }));
+            expect(text).toContain('complete ending');
+            expect(displayText).toBe('Reply to the earlier proposal');
+            expect(meta).toMatchObject({ happierMessageReplyV1: target });
+        }
+    });
+
     it('persists ordinary input with the canonical enqueue action', async () => {
         const harness = createPort();
 

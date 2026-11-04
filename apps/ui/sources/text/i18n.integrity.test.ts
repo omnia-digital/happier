@@ -291,6 +291,8 @@ const IGNORED_UNTRANSLATED_KEYS_BY_LOCALE: Readonly<Record<string, ReadonlySet<s
         'server.serverGroupServersLabel',
         'session.agentActivity.screenTitle',
         'session.inactiveNotResumable',
+        // "Assistant" is also the French role name, as in voiceActivity.format.assistant.
+        'session.messageReply.assistant',
         'session.planOutput.title',
         'session.rightPanel.tabs.git',
         'session.sharing.session',

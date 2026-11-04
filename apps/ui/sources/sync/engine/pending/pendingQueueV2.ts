@@ -1,3 +1,4 @@
+import { editMessageReplyText, readMessageReplyTarget } from '@/sync/domains/messages/messageReply';
 import { storage } from '@/sync/domains/state/storage';
 import {
     assertSafePendingIdPathSegment,
@@ -2358,9 +2359,19 @@ export async function updatePendingMessageV2(params: {
                 const record = parsed.data;
                 const existingMeta = isPlainObject(record.meta) ? record.meta : {};
                 const { appendSystemPrompt: _appendSystemPrompt, ...nextMeta } = existingMeta;
+                const replyTarget = readMessageReplyTarget(nextMeta);
+                let nextText = text;
+                if (replyTarget) {
+                    try {
+                        nextText = editMessageReplyText(record.content.text, text, replyTarget);
+                    } catch {
+                        throw new Error(t('session.messageReply.sourceMissingSend'));
+                    }
+                    nextMeta.displayText = text;
+                }
                 return {
                     ...record,
-                    content: { type: 'text', text },
+                    content: { type: 'text', text: nextText },
                     meta: nextMeta,
                 };
             }
@@ -2417,10 +2428,12 @@ export async function updatePendingMessageV2(params: {
     storage.getState().upsertPendingMessage(sessionId, {
         ...currentProjection,
         pendingDecryptFailure: undefined,
-        text,
+        text: rawRecord.content.type === 'text' ? rawRecord.content.text : text,
         updatedAt,
         rawRecord,
-        displayText: currentProjection.pendingDecryptFailure ? undefined : currentProjection.displayText,
+        displayText: readMessageReplyTarget(rawRecord.meta)
+            ? text
+            : currentProjection.pendingDecryptFailure ? undefined : currentProjection.displayText,
     });
     if (currentPendingOutbox?.operation === 'enqueue') {
         markPendingProjectionAcknowledgedIfOwned(sessionId, pendingId, params.outboxScope);

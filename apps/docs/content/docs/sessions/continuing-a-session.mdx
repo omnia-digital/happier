@@ -88,6 +88,21 @@ controls. In development builds, its composer also remains available while the
 machine is offline: Happier queues what you send and can resume the session after
 its owning daemon returns.
 
+## Replying to an earlier message
+
+In development builds, choose **Reply to message** beside Pin on a user or
+assistant message. The composer focuses and shows the source author and excerpt
+without replacing your draft text or attachments. Choose another message to
+replace the target, or cancel the reply to keep composing normally.
+
+Sending includes the selected message's identity and full source text in the
+Agent's input. Long previews are clipped only on screen. The sent reply shows
+its source relationship in the transcript, and queued replies keep that context
+when retried or edited. If the source is unavailable before sending, Happier
+keeps your draft and asks you to reload it or remove the reply target. An unsent
+reply selection belongs to the current session composer and does not survive
+restarting the app.
+
 ## When the machine is offline
 
 For a **direct** session, the transcript cannot refresh, live following stops,

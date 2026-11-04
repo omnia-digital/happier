@@ -5043,6 +5043,15 @@ export const de: TranslationStructure = {
     },
 
     session: {
+        messageReply: {
+            action: "Auf Nachricht antworten",
+            replyingTo: "Antwort auf",
+            user: "Du",
+            assistant: "Assistent",
+            cancel: "Antwortbezug entfernen",
+            sourceUnavailable: "Ursprüngliche Nachricht nicht verfügbar",
+            sourceMissingSend: "Die ursprüngliche Nachricht ist nicht verfügbar. Lade sie erneut oder entferne den Antwortbezug vor dem Senden.",
+        },
         inputPlaceholder: 'Woran willst du arbeiten?',
         transcriptNavigation: {
             title: 'Navigieren',
