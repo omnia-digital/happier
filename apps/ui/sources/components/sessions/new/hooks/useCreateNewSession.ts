@@ -217,6 +217,26 @@ function findPresentedSpawnOperation(params: Readonly<{
     return candidates.length === 1 ? candidates[0]! : null;
 }
 
+/**
+ * Released daemons (0.2.17 and earlier) settle the directory-approval question as a failed
+ * operation. The dialog already presented it, so it must not also reach Inbox. Remove once no
+ * supported daemon predates the non-failure projection in the tracked spawn handler.
+ */
+function findApprovalQuestionSpawnOperation(params: Readonly<{
+    accountId?: string | null;
+    machineId: string;
+    requestId: string;
+}>): ActionOperationSnapshotV1 | null {
+    return Array.from(actionOperationStore.getState().operationsById.values()).find((operation) => (
+        operation.actionId === 'session.spawn_new'
+        && operation.state === 'failed'
+        && operation.error?.errorCode === 'spawn_custody_unresolved'
+        && operation.scope.machineId === params.machineId
+        && (!params.accountId || operation.scope.accountId === params.accountId)
+        && operation.requestId === params.requestId
+    )) ?? null;
+}
+
 function isDetachedTrackedSpawnTransportError(error: unknown): boolean {
     if (isSocketIoAckTimeoutError(error)) return true;
     if (!(error instanceof Error)) return false;
@@ -501,14 +521,6 @@ export function useCreateNewSession(params: Readonly<{
                 lastUsedAgent: current.agentType,
                 lastUsedBackendTarget: current.backendTarget,
             };
-            if (recentTarget?.serverId === resolvedTargetServerId
-                && recentTarget.machineId === current.selectedMachineId) {
-                settingsUpdate.machinePathPreferencesByTargetV1 = recordRecentPathForTarget(
-                    storage.getState().settings.machinePathPreferencesByTargetV1,
-                    recentTarget,
-                    effectiveSelectedPath,
-                );
-            }
             if (profilesActive) {
                 settingsUpdate.lastUsedProfile = current.selectedProfileId;
             }
@@ -1030,6 +1042,17 @@ export function useCreateNewSession(params: Readonly<{
                     });
                     launchAttemptRef.current = launchAttempt;
                 }
+                // Recorded only now: a launch the daemon stopped must not become this target's default path.
+                if (recentTarget?.serverId === resolvedTargetServerId
+                    && recentTarget.machineId === current.selectedMachineId) {
+                    applySettings({
+                        machinePathPreferencesByTargetV1: recordRecentPathForTarget(
+                            storage.getState().settings.machinePathPreferencesByTargetV1,
+                            recentTarget,
+                            effectiveSelectedPath,
+                        ),
+                    });
+                }
                 if (!isLaunchScopeStillActive()) {
                     operationReentryRegistration?.markSetupNeedsAttention(result.sessionId);
                     launchAttemptRef.current = null;
@@ -1413,6 +1436,12 @@ export function useCreateNewSession(params: Readonly<{
                     t('newSession.createDirectoryConfirm', { directory: result.directory }),
                     { cancelText: t('common.cancel'), confirmText: t('common.create') },
                 );
+                const approvalQuestionOperation = findApprovalQuestionSpawnOperation({
+                    accountId: recentTarget?.accountId ?? current.draftScope?.accountId,
+                    machineId: current.selectedMachineId,
+                    requestId: launchAttempt.spawnNonce,
+                });
+                if (approvalQuestionOperation) acknowledgeActionOperationPresented(approvalQuestionOperation);
                 relaunchWithApprovedDirectory = approved && mountedRef.current && isLaunchScopeStillActive();
                 if (!relaunchWithApprovedDirectory) current.setIsCreating(false);
             } else if (result.type === 'requestToApproveDirectoryCreation') {

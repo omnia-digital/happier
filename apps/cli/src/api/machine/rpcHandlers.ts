@@ -1067,6 +1067,8 @@ export function registerMachineRpcHandlers(params: Readonly<{
       projectResult: (result) => {
         if (result.type === 'success' && result.sessionId) return { ok: true, result };
         if (result.type === 'error') return { ok: false, errorCode: result.errorCode, error: result.errorMessage };
+        // Nothing failed: this attempt stopped to ask, and an approved retry is a new attempt.
+        if (result.type === 'requestToApproveDirectoryCreation') return { kind: 'cancelled' };
         return { ok: false, errorCode: 'spawn_custody_unresolved', error: 'Spawn custody did not resolve to a session' };
       },
     });

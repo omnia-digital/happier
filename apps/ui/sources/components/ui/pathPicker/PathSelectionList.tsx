@@ -143,6 +143,12 @@ export type PathSelectionListProps = Readonly<{
     machinePlatform?: PathTargetPlatform;
     onCommit: (path: string) => void;
     onChangeDraftPath?: (path: string) => void;
+    /**
+     * The input goes away with this list, as in a popover, while the draft stays. A
+     * reviewed missing path then only fills the input, so dismissing the list cannot
+     * leave a launch path that nothing on screen shows.
+     */
+    transientInput?: boolean;
     onRequestClose: () => void;
     /**
      * Pre-existing escape-hatch hook from PathSelector — must still fire (and
@@ -174,7 +180,7 @@ type SavedPathRowActions = Readonly<{
 /**
  * A missing row stays enabled because a disabled row also disables its favorite
  * toggle, which is the only way to remove a stale favorite. Pressing it moves the path
- * into the input, so it can only be committed by a second, deliberate action there.
+ * into the input for review instead of committing it.
  */
 function resolveSavedPathRowState(absolutePath: string, actions: SavedPathRowActions) {
     const isMissing = actions.missingPaths.has(absolutePath);
@@ -272,6 +278,7 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
         machinePlatform = 'auto',
         onCommit,
         onChangeDraftPath,
+        transientInput,
         onRequestClose,
         onBeforeBrowseMachinePath,
         isFavorite,
@@ -291,6 +298,14 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
         setInputValue(nextValue);
         onChangeDraftPath?.(nextValue);
     }, [onChangeDraftPath]);
+    const handleReviewMissingPath = React.useCallback((path: string) => {
+        if (!transientInput) {
+            handleChangeInputValue(path);
+            return;
+        }
+        setHasUserEditedInput(true);
+        setInputValue(path);
+    }, [handleChangeInputValue, transientInput]);
 
     // Bug 4e fix: when the parent swaps `initialValue` (e.g. the user
     // selected a different machine and the path picker is reused with a
@@ -427,8 +442,8 @@ export function PathSelectionList(props: PathSelectionListProps): React.ReactEle
         browserIdentity: props.browserIdentity,
     });
     const savedPathRowActions = React.useMemo<SavedPathRowActions>(
-        () => ({ missingPaths, onCommit, onReviewMissingPath: handleChangeInputValue }),
-        [handleChangeInputValue, missingPaths, onCommit],
+        () => ({ missingPaths, onCommit, onReviewMissingPath: handleReviewMissingPath }),
+        [handleReviewMissingPath, missingPaths, onCommit],
     );
 
     // Path-domain input behavior bound to the machine's platform (NEVER the

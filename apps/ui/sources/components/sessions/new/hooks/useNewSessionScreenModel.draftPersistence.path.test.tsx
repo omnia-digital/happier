@@ -14,10 +14,26 @@ import {
     routerSetParamsMock,
     saveNewSessionDraftMock,
     searchParamsState,
+    settingsState,
+    settleNewSessionScreenModel,
     useCreateNewSessionArgsRef,
     useNewSessionScreenModelModulePromise,
 } from './__tests__/draftPersistenceTestEnvironment';
 import { findCheckoutChip, getCheckoutChipLabel } from './__tests__/checkoutChipSelectors';
+
+const machineFilesystemListDirectoryMock = vi.hoisted(() => vi.fn());
+
+// The daemon RPC is the boundary; the screen model and file-browser owner stay real.
+vi.mock('@/sync/ops/machineFileBrowser', () => ({
+    machineFilesystemListRoots: vi.fn(),
+    machineFilesystemListDirectory: machineFilesystemListDirectoryMock,
+}));
+
+// This environment fakes the account store, so the owner's identity check reads the same scope here.
+vi.mock('@/sync/domains/scope/activeServerAccountScope', async (importOriginal) => ({
+    ...await importOriginal<typeof import('@/sync/domains/scope/activeServerAccountScope')>(),
+    getActiveServerAccountScope: () => ({ serverId: 'server-a', accountId: 'account-a' }),
+}));
 
 /**
  * Path-domain draft-persistence behavior:
@@ -113,6 +129,35 @@ describe('useNewSessionScreenModel (draft hydration — path)', () => {
         const props = element.props as { onBeforeBrowseMachinePath?: unknown };
         expect(props.onBeforeBrowseMachinePath).not.toBe(requestClose);
         expect(props.onBeforeBrowseMachinePath).toBeUndefined();
+    });
+
+    it('moves a default path the selected machine no longer has to its next recent path', async () => {
+        const preferences = settingsState as { machinePathPreferencesByTargetV1?: unknown };
+        preferences.machinePathPreferencesByTargetV1 = {
+            [JSON.stringify(['server-a', 'account-a', 'machine-2'])]: {
+                favorites: [],
+                recentPaths: ['/two/deleted', '/two/kept'],
+            },
+        };
+        searchParamsState.value = { machineId: 'machine-2' };
+        machineFilesystemListDirectoryMock.mockImplementation(async (_machineId: string, request: { path: string }) => (
+            request.path === '/two/deleted'
+                ? { ok: false, error: 'ENOENT: no such file or directory' }
+                : { ok: true, path: request.path, entries: [], truncated: false }
+        ));
+
+        try {
+            const { useNewSessionScreenModel } = await useNewSessionScreenModelModulePromise;
+            let model: any = null;
+            const Probe = () => { model = useNewSessionScreenModel(); return null; };
+
+            await renderScreen(React.createElement(Probe));
+            await settleNewSessionScreenModel();
+
+            expect(model?.simpleProps?.selectedPath).toBe('/two/kept');
+        } finally {
+            delete preferences.machinePathPreferencesByTargetV1;
+        }
     });
 
     it('clears stale workspace linkage after the selected path changes to an unrelated route path', async () => {

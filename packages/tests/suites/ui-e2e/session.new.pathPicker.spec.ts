@@ -190,6 +190,11 @@ test.describe('ui e2e: /new path picker (Phase 11 SelectionList migration)', () 
         await staleRow.click();
         await expect(reopenedInput).toHaveValue(staleFavoriteDir);
         await expect(reopenedPopover).toHaveCount(1);
+
+        // Dismissing the review leaves the chosen path as it was.
+        await page.keyboard.press('Escape');
+        await expect(reopenedPopover).toHaveCount(0);
+        await expect(page.getByTestId('agent-input-path-chip')).not.toContainText('oh64-stale-favorite-dir');
     });
 
     test('scrolls an overflowing selected-machine path list inside the New Session popover', async ({ page }, testInfo) => {

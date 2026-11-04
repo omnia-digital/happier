@@ -20,7 +20,10 @@ type SpawnPayloadCapture = {
 const applySettingsMock = vi.hoisted(() => vi.fn());
 const prepareAccountSettingsForDaemonSpawnMock = vi.hoisted(() => vi.fn(async () => ({})));
 
-async function setupHarness(storageSettings: Settings = {} as Settings) {
+async function setupHarness(
+    storageSettings: Settings = {} as Settings,
+    spawnResult: Readonly<Record<string, unknown>> = { type: 'error', errorCode: 'unexpected', errorMessage: 'stop' },
+) {
     const captured: { value: SpawnPayloadCapture } = { value: null };
     const createdAutomationTemplate: { value: Record<string, unknown> | null } = { value: null };
 
@@ -208,7 +211,7 @@ async function setupHarness(storageSettings: Settings = {} as Settings) {
     vi.doMock('@/sync/ops', () => ({
         machineSpawnNewSession: vi.fn(async (opts: SpawnPayloadCapture) => {
             captured.value = opts;
-            return { type: 'error', errorCode: 'unexpected', errorMessage: 'stop' };
+            return spawnResult;
         }),
         completeMachineSpawnAttemptCustody: vi.fn(async () => true),
         resetMachineSpawnAttemptCustody: vi.fn(async () => true),
@@ -217,6 +220,8 @@ async function setupHarness(storageSettings: Settings = {} as Settings) {
     const { useCreateNewSession } = await import('./useCreateNewSession');
     return { useCreateNewSession, captured, createdAutomationTemplate, storageSettings };
 }
+
+const LAUNCHED = { type: 'success', sessionId: 'session-launched' };
 
 const recentPathTarget: MachinePathTarget = {
     serverId: 'server-a',
@@ -242,7 +247,7 @@ describe('useCreateNewSession configured ACP backend spawning', () => {
         const { useCreateNewSession, captured, storageSettings } = await setupHarness({
             recentMachinePaths: legacyRecentMachinePaths,
             machinePathPreferencesByTargetV1: {},
-        } as Settings);
+        } as Settings, LAUNCHED);
 
         let handleCreateSession: null | (() => Promise<void>) = null;
         const settings = { experiments: false } as unknown as Settings;
@@ -303,6 +308,8 @@ describe('useCreateNewSession configured ACP backend spawning', () => {
         expect(applySettingsMock).toHaveBeenCalledWith({
             lastUsedAgent: 'customAcp',
             lastUsedBackendTarget: { kind: 'configuredAcpBackend', backendId: 'custom-kiro-preset' },
+        });
+        expect(applySettingsMock).toHaveBeenCalledWith({
             machinePathPreferencesByTargetV1: {
                 [recentPathTargetKey]: { favorites: [], recentPaths: ['/tmp'] },
             },
@@ -452,7 +459,7 @@ describe('useCreateNewSession configured ACP backend spawning', () => {
                 [recentPathTargetKey]: { favorites: ['/workspace'], recentPaths: ['/old/a', '/tmp'] },
                 [otherMachineTargetKey]: { favorites: [], recentPaths: ['/other'] },
             },
-        } as Settings);
+        } as Settings, LAUNCHED);
 
         let handleCreateSession: null | (() => Promise<void>) = null;
         const settings = { experiments: false } as unknown as Settings;
@@ -516,6 +523,8 @@ describe('useCreateNewSession configured ACP backend spawning', () => {
         expect(applySettingsMock).toHaveBeenCalledWith({
             lastUsedAgent: 'customAcp',
             lastUsedBackendTarget: { kind: 'configuredAcpBackend', backendId: 'custom-kiro-preset' },
+        });
+        expect(applySettingsMock).toHaveBeenCalledWith({
             machinePathPreferencesByTargetV1: {
                 [recentPathTargetKey]: { favorites: ['/workspace'], recentPaths: ['/tmp', '/old/a'] },
                 [otherMachineTargetKey]: { favorites: [], recentPaths: ['/other'] },

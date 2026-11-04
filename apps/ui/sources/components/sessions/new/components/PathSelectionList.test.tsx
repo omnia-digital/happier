@@ -598,6 +598,37 @@ describe('PathSelectionList', () => {
             act(() => screen.tree.unmount());
         });
 
+        it('keeps a reviewed path out of the launch draft when the popover input will not outlive it', async () => {
+            answerMissingFor('/Users/leeroy/gone');
+            const onCommit = vi.fn();
+            const onChangeDraftSelectedPath = vi.fn();
+            const { NewSessionPathSelectionContent } = await import('./NewSessionPathSelectionContent');
+            const screen = await renderScreen(
+                <NewSessionPathSelectionContent
+                    machineHomeDir="/Users/leeroy"
+                    selectedPath="/Users/leeroy/good"
+                    initialSuggestionMode="history"
+                    onCommit={onCommit}
+                    onChangeDraftSelectedPath={onChangeDraftSelectedPath}
+                    recentPaths={[]}
+                    favoriteDirectories={['~/gone']}
+                    onToggleFavoriteDirectory={() => {}}
+                    machineId="m-1"
+                    serverId={null}
+                    machinePlatform="unix"
+                />,
+            );
+            await flushPathSelectionDynamicResolver();
+
+            await screen.pressByTestIdAsync(favoriteRow);
+
+            const input = screen.findByTestId('path-selection-list:header:input');
+            expect(readProps<ValueLikeProps>(input!).value).toBe('/Users/leeroy/gone');
+            expect(onCommit).not.toHaveBeenCalled();
+            expect(onChangeDraftSelectedPath).not.toHaveBeenCalled();
+            act(() => screen.tree.unmount());
+        });
+
         it('does not commit a missing favorite on press, but moves it into the input for review', async () => {
             answerMissingFor('/Users/leeroy/gone');
             const onCommit = vi.fn();

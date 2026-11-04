@@ -744,7 +744,9 @@ vi.mock('@/sync/store/settingsWriters', () => ({
 }));
 
 vi.mock('@/utils/sessions/recentPaths', () => ({
-    getRecentPathsForMachine: () => [],
+    getRecentPathsForMachine: (input: Readonly<{ machineId: string; recentMachinePaths: ReadonlyArray<Readonly<{ machineId: string; path: string }>> }>) => (
+        input.recentMachinePaths.filter((entry) => entry.machineId === input.machineId).map((entry) => entry.path)
+    ),
 }));
 
 vi.mock('@/hooks/auth/useCLIDetection', () => ({

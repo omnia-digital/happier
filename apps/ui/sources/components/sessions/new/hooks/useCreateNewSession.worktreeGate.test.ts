@@ -1313,7 +1313,10 @@ describe('useCreateNewSession (worktree gating)', () => {
     });
 
     describe('launching at a folder the machine does not have', () => {
-        async function renderPlainLaunch(overrides: Readonly<{ selectedPath?: string }> = {}) {
+        async function renderPlainLaunch(overrides: Readonly<{
+            selectedPath?: string;
+            checkoutCreationDraft?: { kind: 'git_worktree'; displayName: string; baseRef: string };
+        }> = {}) {
             const { useCreateNewSession } = await import('./useCreateNewSession');
             const typecheck = useCreateNewSession;
             const params = {
@@ -1323,6 +1326,7 @@ describe('useCreateNewSession (worktree gating)', () => {
                 selectedMachineId: 'machine-1',
                 selectedPath: overrides.selectedPath ?? '/saved/gone',
                 selectedMachine: { id: 'machine-1', metadata: {} },
+                ...(overrides.checkoutCreationDraft ? { checkoutCreationDraft: overrides.checkoutCreationDraft } : {}),
                 setIsCreating: vi.fn(),
                 setIsResumeSupportChecking: vi.fn(),
                 getVerifiedMachinePathTarget: async () => ({
@@ -1385,6 +1389,85 @@ describe('useCreateNewSession (worktree gating)', () => {
             expect(machineSpawnNewSessionMock).toHaveBeenCalledTimes(1);
             expect(vi.mocked(Modal.alert)).not.toHaveBeenCalled();
             expect(params.setIsCreating).toHaveBeenLastCalledWith(false);
+        });
+
+        it('does not record a declined folder as a recent path', async () => {
+            const { Modal } = await import('@/modal');
+            vi.mocked(Modal.confirm).mockResolvedValueOnce(false);
+            machineSpawnNewSessionMock.mockImplementationOnce(async () => ({
+                type: 'requestToApproveDirectoryCreation',
+                directory: '/saved/gone',
+            } as any));
+
+            const { hook } = await renderPlainLaunch();
+            await act(async () => { await hook.handleCreateSession(); });
+
+            expect(applySettingsMock).toHaveBeenCalled();
+            expect(applySettingsMock).not.toHaveBeenCalledWith(expect.objectContaining({
+                machinePathPreferencesByTargetV1: expect.anything(),
+            }));
+        });
+
+        it('records the path as recent once the session exists', async () => {
+            const { hook } = await renderPlainLaunch({ selectedPath: '/saved/kept' });
+            await act(async () => { await hook.handleCreateSession(); });
+
+            const recorded = applySettingsMock.mock.calls
+                .map(([delta]) => (delta as { machinePathPreferencesByTargetV1?: unknown }).machinePathPreferencesByTargetV1)
+                .filter(Boolean);
+            expect(JSON.stringify(recorded)).toContain('/saved/kept');
+        });
+
+        it('records the path of a session that outlives the launch scope', async () => {
+            const { hook, params } = await renderPlainLaunch({ selectedPath: '/saved/kept' });
+            machineSpawnNewSessionMock.mockImplementationOnce(async () => {
+                params.selectedPath = '/moved/on';
+                return { type: 'success', sessionId: 'session-kept' } as any;
+            });
+            await act(async () => { await hook.handleCreateSession(); });
+
+            const recorded = applySettingsMock.mock.calls
+                .map(([delta]) => (delta as { machinePathPreferencesByTargetV1?: unknown }).machinePathPreferencesByTargetV1)
+                .filter(Boolean);
+            expect(JSON.stringify(recorded)).toContain('/saved/kept');
+        });
+
+        it('clears the failed operation a released daemon records for the approval question', async () => {
+            const { Modal } = await import('@/modal');
+            const { actionOperationStore } = await import('@/sync/domains/actionOperations/actionOperationStore');
+            const { createInboxActionOperationEntriesSelector } = await import('@/sync/domains/actionOperations/actionOperationSelectors');
+            vi.mocked(Modal.confirm).mockResolvedValueOnce(false);
+            machineSpawnNewSessionMock.mockImplementationOnce(async (input) => {
+                actionOperationStore.merge({
+                    operationId: 'spawn-awaiting-approval',
+                    actionId: 'session.spawn_new',
+                    title: 'Start session',
+                    scope: { accountId: 'account-a', machineId: 'machine-1' },
+                    requestId: (input as { spawnNonce: string }).spawnNonce,
+                    state: 'failed',
+                    cancellation: 'unsupported',
+                    createdAt: 1,
+                    updatedAt: 2,
+                    settledAt: 2,
+                    revision: 2,
+                    error: { errorCode: 'spawn_custody_unresolved', error: 'Spawn custody did not resolve to a session' },
+                } as unknown as Parameters<typeof actionOperationStore.merge>[0]);
+                return { type: 'requestToApproveDirectoryCreation', directory: '/saved/gone' } as any;
+            });
+
+            const { hook } = await renderPlainLaunch();
+            await act(async () => { await hook.handleCreateSession(); });
+
+            expect(createInboxActionOperationEntriesSelector('account-a')(actionOperationStore.getState())).toEqual([]);
+        });
+
+        it('keeps pre-approving the directory a worktree launch materializes itself', async () => {
+            const { hook } = await renderPlainLaunch({
+                checkoutCreationDraft: { kind: 'git_worktree', displayName: 'feature/auth', baseRef: 'main' },
+            });
+            await act(async () => { await hook.handleCreateSession(); });
+
+            expect(spawnOptionsAt(0)?.approvedNewDirectoryCreation).toBe(true);
         });
 
         it('relaunches with the approval once the user confirms creating the folder', async () => {

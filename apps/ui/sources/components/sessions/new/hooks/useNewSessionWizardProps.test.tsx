@@ -78,7 +78,7 @@ describe('useNewSessionWizardProps', () => {
                 favoriteMachineItems: [],
                 useMachinePickerSearch: false,
                 refreshMachineData: () => {},
-                setSelectedMachineId: () => {},
+                selectMachine: () => {},
                 getBestPathForMachine: () => '',
                 setSelectedPath: () => {},
                 favoriteMachines: [],
