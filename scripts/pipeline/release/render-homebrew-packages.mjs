@@ -9,10 +9,11 @@
  * agree. Output lands in `dist/homebrew/{Formula,Casks}/happier.rb` by default. The formula is a
  * release product (rendered by `release.yml` for the tap, never checked in); the cask prepared for
  * the homebrew/cask submission is kept at `packaging/homebrew/Casks/happier.rb`
- * (`--desktop-version <v> --out-dir packaging/homebrew`).
+ * (`--desktop-version <v> --desktop-app-name <bundle> --out-dir packaging/homebrew`).
  *
  * Usage:
- *   node scripts/pipeline/release/render-homebrew-packages.mjs --cli-version 0.2.13 [--desktop-version 0.2.12]
+ *   node scripts/pipeline/release/render-homebrew-packages.mjs --cli-version 0.2.13
+ *     [--desktop-version 0.2.12 --desktop-app-name Happier]
  *     [--repo happier-dev/happier] [--out-dir dist/homebrew]
  * `GITHUB_TOKEN`/`GH_TOKEN` is used for the release metadata read when set.
  */
@@ -208,10 +209,19 @@ export function renderHappierFormulaFromRelease({
 }
 
 /**
- * @param {{ release: Release; checksumsText: string; repo?: string }} params
+ * `appName` is the bundle inside this release's DMG (`<appName>.app`), which Tauri names after the
+ * `productName` the release was built with. It is a fact of the release, not of this checkout:
+ * upstream releases and fork releases built before the stable rename carry `Happier.app`, later
+ * fork releases `Omnia Happier.app`. The release metadata does not record it, so it is required.
+ *
+ * @param {{ release: Release; checksumsText: string; repo?: string; appName: string }} params
  * @returns {string}
  */
-export function renderHappierCaskFromRelease({ release, checksumsText, repo = DEFAULT_REPO }) {
+export function renderHappierCaskFromRelease({ release, checksumsText, repo = DEFAULT_REPO, appName }) {
+  const bundleName = String(appName ?? '').trim();
+  if (!bundleName) {
+    throw new Error('[homebrew] the cask needs the app name of the bundle in the release DMG');
+  }
   const version = readStableReleaseVersion(release, 'ui-desktop-v');
   const checksumsName = `checksums-happier-ui-desktop-v${version}.txt`;
   requireChecksumsAsset(release, checksumsName);
@@ -239,7 +249,7 @@ export function renderHappierCaskFromRelease({ release, checksumsText, repo = DE
     `         intel: "${sha256ByArch.intel}"`,
     '',
     `  url "${urlTemplate}"`,
-    '  name "Happier"',
+    `  name "${bundleName}"`,
     '  desc "Cross-device client for coding agents"',
     '  homepage "https://happier.dev/"',
     '',
@@ -255,7 +265,7 @@ export function renderHappierCaskFromRelease({ release, checksumsText, repo = DE
     '  auto_updates true',
     `  depends_on macos: :${HAPPIER_MIN_MACOS.symbol}`,
     '',
-    '  app "Happier.app"',
+    `  app "${bundleName}.app"`,
     '',
     '  uninstall quit: "dev.happier.app"',
     '',
@@ -264,7 +274,8 @@ export function renderHappierCaskFromRelease({ release, checksumsText, repo = DE
     '  zap trash: [',
     '    "~/Library/Caches/dev.happier.app",',
     '    "~/Library/HTTPStorages/dev.happier.app",',
-    '    "~/Library/LaunchAgents/Happier.plist",',
+    // tauri-plugin-autostart names the Start-at-login agent after the bundle's productName.
+    `    "~/Library/LaunchAgents/${bundleName}.plist",`,
     '    "~/Library/Preferences/dev.happier.app.plist",',
     '    "~/Library/Saved Application State/dev.happier.app.savedState",',
     '    "~/Library/WebKit/dev.happier.app",',
@@ -307,6 +318,7 @@ async function main() {
     options: {
       'cli-version': { type: 'string', default: '' },
       'desktop-version': { type: 'string', default: '' },
+      'desktop-app-name': { type: 'string', default: '' },
       repo: { type: 'string', default: DEFAULT_REPO },
       'out-dir': { type: 'string', default: '' },
     },
@@ -314,8 +326,12 @@ async function main() {
   });
   const cliVersion = String(values['cli-version']).trim();
   const desktopVersion = String(values['desktop-version']).trim();
+  const desktopAppName = String(values['desktop-app-name']).trim();
   if (!cliVersion && !desktopVersion) {
     throw new Error('[homebrew] pass --cli-version and/or --desktop-version');
+  }
+  if (desktopVersion && !desktopAppName) {
+    throw new Error('[homebrew] --desktop-version needs --desktop-app-name: the bundle name in that release\'s DMG (without .app)');
   }
   const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
   const outDir = resolve(String(values['out-dir']).trim() || join(repoRoot, 'dist', 'homebrew'));
@@ -334,7 +350,7 @@ async function main() {
     const source = await fetchReleaseWithChecksums({ repo, tag: `ui-desktop-v${desktopVersion}`, token });
     const path = join(outDir, 'Casks', 'happier.rb');
     await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, renderHappierCaskFromRelease({ ...source, repo }), 'utf8');
+    await writeFile(path, renderHappierCaskFromRelease({ ...source, repo, appName: desktopAppName }), 'utf8');
     written.push(path);
   }
   console.log(JSON.stringify({ written }, null, 2));

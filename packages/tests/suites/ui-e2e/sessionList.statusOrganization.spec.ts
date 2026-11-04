@@ -16,6 +16,7 @@ import { encryptDataKeyBase64, decryptDataKeyBase64 } from '../../src/testkit/rp
 import { readCliAccessKey } from '../../src/testkit/cliAccessKey';
 import { repoRootDir } from '../../src/testkit/paths';
 import { readUiE2eScopedAccountSettings } from '../../src/testkit/uiE2e/scopedAccountSettingsStorage';
+import { mutateUiE2eLocalSettings, readUiE2eLocalSettings } from '../../src/testkit/uiE2e/localSettingsStorage';
 import { createMachineBoundSessionScopedSocketCollector } from '../../src/testkit/sessionSocketBinding';
 import type { SocketCollector } from '../../src/testkit/socketClient';
 import { fetchJson } from '../../src/testkit/http';
@@ -179,7 +180,7 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await choose('session-list-status-group-ticket');
             await expect(page.getByText('Q/A - Dev', { exact: true }).first()).toBeVisible({ timeout: 60_000 });
             await expect(row(idle)).toBeVisible({ timeout: 60_000 });
-            expect((await readFile(readLog, 'utf8')).split('\n')).toContain('DEV-1');
+            await expect.poll(async () => (await readFile(readLog, 'utf8')).split('\n')).toContain('DEV-1');
             await publishRuntimeActivity(workingPublisher, working, 'active');
             await choose('session-list-status-sort-agent');
             await expectFilteredOrder('OH60 QA', working, idle);
@@ -258,6 +259,119 @@ test.describe('independent sidebar Agent Status and Ticket Status organization',
             await expect(page.locator('[data-testid^="session-list-header:machine-view:"]').first()).toBeVisible();
             await expect(row(noTicket)).toHaveCount(1);
             const ids = await visibleIds(); expect(new Set(ids).size).toBe(ids.length);
+            // Flat is a persisted layout choice. It clears only grouping, leaving the chosen sort intact.
+            await choose('session-view-flat');
+            await expect(page.locator('[data-testid^="session-list-header:machine-view:"]')).toHaveCount(0);
+            await expect(statusHeaders).toHaveCount(0);
+            await expect.poll(async () => (await readUiE2eLocalSettings({ page })).sessionListMachineViewV1).toBe('flat');
+            expect((await readUiE2eScopedAccountSettings({ page })).sessionListStatusSortV1).toBe('agent');
+            await page.reload();
+            await expect(row(noTicket)).toBeVisible({ timeout: 120_000 });
+            expect((await readUiE2eLocalSettings({ page })).sessionListMachineViewV1).toBe('flat');
+            expect((await readUiE2eScopedAccountSettings({ page })).sessionListStatusSortV1).toBe('agent');
+
+            // The menu is genuinely taller than the old 320px cap but remains within a short viewport.
+            await page.setViewportSize({ width: 1000, height: 420 });
+            await gotoDomContentLoadedWithRetries(page, baseUrl, 120_000);
+            await expect(page.getByTestId('session-list-group-menu-trigger').first()).toBeVisible({ timeout: 120_000 });
+            const sidebarScrollHost = await page.getByTestId('sessions-list-keyboard-zone').first().evaluateHandle((zone) => {
+                const scrollables = Array.from(zone.querySelectorAll<HTMLElement>('*')).filter((element) =>
+                    element.scrollHeight > element.clientHeight + 8 && /auto|scroll/.test(getComputedStyle(element).overflowY));
+                return scrollables.sort((left, right) =>
+                    (right.scrollHeight - right.clientHeight) - (left.scrollHeight - left.clientHeight))[0] ?? null;
+            });
+            const sidebarOffset = () => sidebarScrollHost.evaluate((host) => {
+                if (!(host instanceof HTMLElement)) throw new Error('Fixture sidebar has no scrollable list');
+                return host.scrollTop;
+            });
+            await sidebarScrollHost.evaluate((host) => {
+                if (!(host instanceof HTMLElement)) throw new Error('Fixture sidebar has no scrollable list');
+                const trigger = host.querySelector<HTMLElement>('[data-testid="session-list-group-menu-trigger"]');
+                if (!trigger) throw new Error('Fixture scroll host does not contain the Group trigger');
+                // Keep the trigger visible so click actionability does not scroll the list before
+                // the menu-wheel assertion. The Home header scrolls with the list at this width.
+                const triggerOffset = host.scrollTop + trigger.getBoundingClientRect().top - host.getBoundingClientRect().top;
+                host.scrollTop = Math.min(160, host.scrollHeight - host.clientHeight, triggerOffset / 2);
+            });
+            const sidebarBeforeWheel = await sidebarOffset();
+            expect(sidebarBeforeWheel).toBeGreaterThan(0);
+            const pageOffsets = () => page.evaluate(() => ({
+                window: window.scrollY,
+                document: document.scrollingElement?.scrollTop ?? 0,
+            }));
+            const pageBeforeWheel = await pageOffsets();
+            await page.getByTestId('session-list-group-menu-trigger').first().click();
+            await expect(page.getByTestId('session-view-flat')).toBeVisible();
+            expect(await sidebarOffset()).toBe(sidebarBeforeWheel);
+            const groupMenuMetrics = () => page.getByTestId('session-view-flat').evaluate((item) => {
+                let scrollHost = item.parentElement;
+                while (scrollHost && !(scrollHost.scrollHeight > scrollHost.clientHeight + 8 && /auto|scroll/.test(getComputedStyle(scrollHost).overflowY))) {
+                    scrollHost = scrollHost.parentElement;
+                }
+                if (!scrollHost) throw new Error('Group menu has no scrollable viewport');
+                const rect = scrollHost.getBoundingClientRect();
+                return { top: rect.top, bottom: rect.bottom, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2,
+                    scrollTop: scrollHost.scrollTop, clientHeight: scrollHost.clientHeight, scrollHeight: scrollHost.scrollHeight };
+            });
+            const initialMenu = await groupMenuMetrics();
+            expect(initialMenu.top).toBeGreaterThanOrEqual(8);
+            expect(initialMenu.bottom).toBeLessThanOrEqual(412);
+            expect(initialMenu.clientHeight).toBeGreaterThan(320);
+            await page.screenshot({ path: testInfo.outputPath('oh71-group-menu-short-open.png') });
+            await page.mouse.move(initialMenu.x, initialMenu.y);
+            await page.mouse.wheel(0, 580);
+            await expect.poll(async () => (await groupMenuMetrics()).scrollTop).toBeGreaterThan(0);
+            const wheelOffset = (await groupMenuMetrics()).scrollTop;
+            expect(await sidebarOffset()).toBe(sidebarBeforeWheel);
+            expect(await pageOffsets()).toEqual(pageBeforeWheel);
+            await page.mouse.wheel(0, 580);
+            await expect.poll(async () => {
+                const menu = await groupMenuMetrics();
+                return Math.ceil(menu.scrollHeight - menu.clientHeight - menu.scrollTop);
+            }).toBeLessThanOrEqual(1);
+            expect(await sidebarOffset()).toBe(sidebarBeforeWheel);
+            expect(await pageOffsets()).toEqual(pageBeforeWheel);
+            const lowerCategoryOption = page.getByTestId('session-folder-view-toggle');
+            await expect(lowerCategoryOption).toBeInViewport();
+            const beforeHoverOffset = (await groupMenuMetrics()).scrollTop;
+            await lowerCategoryOption.hover();
+            await expect.poll(async () => (await groupMenuMetrics()).scrollTop).toBeGreaterThanOrEqual(beforeHoverOffset);
+            await page.screenshot({ path: testInfo.outputPath('oh71-group-menu-short-scrolled.png') });
+            // A live session revision must not undo a deliberate wheel position.
+            await publishRuntimeActivity(idlePublisher, idle, 'active');
+            await expect(page.getByTestId('session-row-status-' + idle + '-working')).toBeVisible({ timeout: 60_000 });
+            await expect.poll(async () => (await groupMenuMetrics()).scrollTop).toBeGreaterThanOrEqual(wheelOffset);
+            // Keyboard navigation can still reach and activate the last option.
+            for (let index = 0; index < 12; index++) await page.keyboard.press('ArrowDown');
+            await page.keyboard.press('Enter');
+            await expect.poll(async () => (await readUiE2eScopedAccountSettings({ page })).hideInactiveSessions).toBe(true);
+            await choose('session-view-flat');
+            await expect.poll(async () => (await readUiE2eLocalSettings({ page })).sessionListMachineViewV1).toBe('flat');
+
+            // Large text, dark theme and a narrow viewport retain both labeled controls and a bounded menu.
+            await mutateUiE2eLocalSettings({ page, settingsPatch: { uiFontScale: 1.3, uiItemDensity: 'compact', themePreference: 'dark' } });
+            await page.setViewportSize({ width: 390, height: 420 });
+            await page.reload();
+            await expect(page.getByTestId('session-list-group-menu-trigger').first()).toBeVisible({ timeout: 120_000 });
+            await expect(page.getByTestId('session-list-sort-menu-trigger').first()).toBeVisible();
+            await page.getByTestId('session-list-search-trigger').first().click();
+            await page.getByTestId('session-list-search-input').first().fill('OH60 QA');
+            await expectTicketRowContentInsideCard(idle, 'OH60 QA idle status compare');
+            await page.screenshot({ path: testInfo.outputPath('oh60-ticket-row-dark-large-narrow.png') });
+            await page.getByTestId('session-list-search-clear').first().click();
+            await expect(page.getByTestId('session-list-group-menu-trigger').first()).toHaveAttribute('aria-label', 'Group');
+            await expect(page.getByTestId('session-list-sort-menu-trigger').first()).toHaveAttribute('aria-label', 'Sort');
+            await page.getByTestId('session-list-sort-menu-trigger').first().click();
+            await expect(page.getByTestId('session-list-status-sort-agent')).toBeVisible();
+            await page.screenshot({ path: testInfo.outputPath('oh71-sort-menu-dark-large-narrow.png') });
+            await page.keyboard.press('Escape');
+            await expect(page.getByTestId('session-list-status-sort-agent')).toHaveCount(0);
+            await page.getByTestId('session-list-group-menu-trigger').first().click();
+            await expect(page.getByTestId('session-view-flat')).toBeVisible();
+            const narrowMenu = await groupMenuMetrics();
+            expect(narrowMenu.top).toBeGreaterThanOrEqual(8);
+            expect(narrowMenu.bottom).toBeLessThanOrEqual(412);
+            await page.screenshot({ path: testInfo.outputPath('oh71-group-menu-dark-large-narrow.png') });
             const persisted = await fetchSessionV2(server.baseUrl, access.token, idle);
             expect(decryptDataKeyBase64(persisted.metadata, sessionKeys.get(idle)!)).toMatchObject({ unknownOldCliField: { keep: 'preserved' }, sessionTicketV1: { ticket: { key: 'DEV-1' } } });
             // Keep publisher handles live until after the visible assertions and fixture teardown.

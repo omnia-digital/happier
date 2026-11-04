@@ -745,13 +745,18 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         getBestPathForMachineRef.current = getBestPathForMachine;
     }, [getBestPathForMachine]);
     const [pathPickerSearchQuery, setPathPickerSearchQuery] = React.useState('');
-    const repoScmSnapshot = useNewSessionRepoScmSnapshot({
+    const {
+        snapshot: repoScmSnapshot,
+        unavailable: repoScmSnapshotUnavailable,
+        retry: retryRepoScmSnapshot,
+    } = useNewSessionRepoScmSnapshot({
         scope: pathTargetBinding?.scope ?? null,
         machineId: selectedMachineId,
         path: selectedPath,
     });
     const {
         checkoutCreationDraft,
+        persistableCheckoutCreationDraft,
         setCheckoutCreationDraft,
         checkoutSelectionExplicit,
         checkoutPickerOpen,
@@ -767,6 +772,7 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         selectedMachineId,
         selectedPath,
         repoScmSnapshot,
+        repoScmSnapshotUnavailable,
         defaultCheckoutMode: newSessionDefaultCheckoutMode,
         autoOpenWorktreePickerKey: effectiveWorktreeRouteMode === 'new'
             ? `route:new:${selectedMachineId ?? ''}:${selectedPath}`
@@ -1778,6 +1784,7 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         selectedMachineSpawnReadiness,
         selectedPath,
         checkoutCreationDraft,
+        persistableCheckoutCreationDraft,
         checkoutSelectionExplicit,
         promptStore,
         agentType,
@@ -1952,6 +1959,7 @@ export function useNewSessionScreenModel(params?: Readonly<{ draftId?: string }>
         effectiveAutomationDraft,
         setAutomationDraft,
         repoScmSnapshot,
+        retryRepoScmSnapshot,
         checkoutChipModel,
         checkoutPickerOpen,
         setCheckoutPickerOpen,

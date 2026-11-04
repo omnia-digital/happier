@@ -721,6 +721,28 @@ test.describe('ui e2e: session list attention', () => {
       await publishPendingAgentRequest({ baseUrl: server.baseUrl, token, socket: publishers[3]!, sessionId: sessions[3]!.id });
       await updateSessionRuntimeStatus({ baseUrl: server.baseUrl, token, sessionId: sessions[4]!.id, latestTurnStatus: 'failed' });
 
+      const expectOpenRowKeepsItsStatusFill = async (themeName: 'light' | 'dark') => {
+        const openId = sessions[statuses.indexOf('error')]!.id;
+        const openRow = row(page, openId);
+        const readRow = () => openRow.evaluate((node) => {
+          const { backgroundColor } = getComputedStyle(node);
+          const { width, height } = node.getBoundingClientRect();
+          return { backgroundColor, width, height };
+        });
+        const closedRow = await readRow();
+        await openRow.click();
+        await expect.poll(() => new URL(page.url()).pathname, { timeout: 60_000 }).toBe(`/session/${openId}`);
+        const outline = page.getByTestId(`session-item-current-outline-${openId}`);
+        await expect(outline).toBeVisible();
+        await expect(page.getByTestId(`session-item-current-indicator-${openId}`)).toBeVisible();
+        await expect(page.getByTestId(`session-row-status-${openId}-error`)).toBeVisible();
+        expect(await readRow()).toEqual(closedRow);
+        const outlineColor = await outline.evaluate((node) => getComputedStyle(node).borderTopColor);
+        expect(outlineColor).not.toBe(closedRow.backgroundColor);
+        await expect(page.locator('[data-testid^="session-item-current-outline-"]')).toHaveCount(1);
+        await page.screenshot({ path: test.info().outputPath(`oh63-open-error-row-${themeName}.png`) });
+      };
+
       await page.setViewportSize({ width: 1440, height: 900 });
       await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
       await waitForInitialAppUi({ page, timeoutMs: 180_000 });
@@ -742,6 +764,7 @@ test.describe('ui e2e: session list attention', () => {
         return visibleIds.filter((id) => expectedAgentOrder.includes(id));
       }).toEqual(expectedAgentOrder);
       await page.screenshot({ path: test.info().outputPath('oh57-five-statuses-light.png') });
+      await expectOpenRowKeepsItsStatusFill('light');
 
       await mutateUiE2eLocalSettings({ page, settingsPatch: { themePreference: 'dark' } });
       await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
@@ -750,6 +773,7 @@ test.describe('ui e2e: session list attention', () => {
         await row(page, sessions[index]!.id).screenshot({ path: test.info().outputPath(`oh57-${status}-dark-row.png`) });
       }
       await page.screenshot({ path: test.info().outputPath('oh57-five-statuses-dark.png') });
+      await expectOpenRowKeepsItsStatusFill('dark');
     } finally {
       stopKeepAlives.forEach((stop) => stop());
       publishers.forEach((publisher) => publisher.close());

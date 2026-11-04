@@ -82,6 +82,7 @@ export function PlanOptionRow(props: Readonly<{
     const optionAria = buildSelectionListOptionA11yProps({
         optionTestId,
         isSelected: props.isSelected,
+        disabled: props.option.disabled,
         accessibilityLabel: props.option.accessibilityLabel,
     });
     if (props.measureMode === true) {

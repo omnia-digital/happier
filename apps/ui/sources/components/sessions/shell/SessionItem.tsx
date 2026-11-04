@@ -301,17 +301,28 @@ const stylesheet = StyleSheet.create((theme) => ({
         flexShrink: 0,
     },
     sessionItemSelected: {
-        backgroundColor: theme.colors.surface.selected,
         borderColor: theme.dark ? theme.colors.surface.selected : theme.colors.surface.base,
+    },
+    // The row fill belongs to the status tint, so the open conversation is marked by lines alone:
+    // a neutral ink that no status uses, painted out of flow so selecting a row moves nothing.
+    sessionCurrentOutline: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        top: 2,
+        bottom: 2,
+        borderWidth: 1,
+        borderRadius: theme.borderRadius.md,
+        borderColor: theme.colors.text.secondary,
     },
     sessionCurrentIndicator: {
         position: 'absolute',
         left: 0,
-        top: 3,
-        bottom: 3,
+        top: 2 + theme.borderRadius.md,
+        bottom: 2 + theme.borderRadius.md,
         width: 3,
         borderRadius: 999,
-        backgroundColor: theme.colors.accent.blue,
+        backgroundColor: theme.colors.text.primary,
     },
     sessionTitleSelected: {
         color: theme.colors.text.primary,
@@ -1557,6 +1568,13 @@ const SessionItemContent = React.memo(
                 onPressOut={enableLongPressContextMenu ? clearContextMenuPressInTimer : undefined}
                 onLongPress={enableLongPressContextMenu ? openContextMenuFromLongPress : undefined}
             >
+                {selected ? (
+                    <View
+                        testID={`session-item-current-outline-${resolvedSession.id}`}
+                        pointerEvents="none"
+                        style={styles.sessionCurrentOutline}
+                    />
+                ) : null}
                 {selected ? (
                     <View
                         testID={`session-item-current-indicator-${resolvedSession.id}`}

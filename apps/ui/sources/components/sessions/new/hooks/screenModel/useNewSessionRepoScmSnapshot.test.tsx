@@ -110,7 +110,7 @@ describe('useNewSessionRepoScmSnapshot', () => {
             focusEffectRunnerState.callback?.();
         });
 
-        expect(hook.getCurrent()).toEqual(cachedSnapshot);
+        expect(hook.getCurrent().snapshot).toEqual(cachedSnapshot);
 
         const refreshedSnapshot = makeSnapshot({ fetchedAt: 2 });
         await act(async () => {
@@ -118,7 +118,7 @@ describe('useNewSessionRepoScmSnapshot', () => {
         });
         await flushHookEffects();
 
-        expect(hook.getCurrent()).toEqual(refreshedSnapshot);
+        expect(hook.getCurrent().snapshot).toEqual(refreshedSnapshot);
         await hook.unmount();
     });
 
@@ -191,7 +191,7 @@ describe('useNewSessionRepoScmSnapshot', () => {
             worktreePaths: ['/repo', '/repo/.worktrees/feature'],
         });
 
-        const final = hook.getCurrent();
+        const final = hook.getCurrent().snapshot;
         expect(final?.repo.worktrees?.[0]?.changeCount).toBe(4);
         expect(final?.repo.worktrees?.[0]?.lastActivityAt).toBe(1_700_000_000_000);
         expect(final?.repo.worktrees?.[1]?.changeCount).toBe(0);
@@ -226,7 +226,7 @@ describe('useNewSessionRepoScmSnapshot', () => {
         });
         await flushHookEffects();
 
-        const final = hook.getCurrent();
+        const final = hook.getCurrent().snapshot;
         expect(final?.repo.worktrees?.[0]?.changeCount).toBeUndefined();
         expect(final?.repo.worktrees?.[0]?.path).toBe('/repo');
         await hook.unmount();
@@ -260,7 +260,7 @@ describe('useNewSessionRepoScmSnapshot', () => {
             path: '/repo',
         }));
 
-        const seed = hook.getCurrent();
+        const seed = hook.getCurrent().snapshot;
         expect(seed?.repo.worktrees?.[0]?.changeCount).toBe(7);
         expect(seed?.repo.worktrees?.[0]?.lastActivityAt).toBe(1_700_000_000_000);
 
@@ -306,12 +306,12 @@ describe('useNewSessionRepoScmSnapshot', () => {
             focusEffectRunnerState.callback?.();
         });
         await flushHookEffects();
-        expect(hook.getCurrent()?.repo.rootPath).toBe('/repo');
+        expect(hook.getCurrent().snapshot?.repo.rootPath).toBe('/repo');
 
         // Switch the bound path to a sibling worktree of the same repo.
         await hook.rerender({ scope, machineId: 'machine-a', path: '/repo/.dev/worktree/feature' });
 
-        const afterSwitch = hook.getCurrent();
+        const afterSwitch = hook.getCurrent().snapshot;
         expect(afterSwitch).not.toBeNull();
         expect(afterSwitch?.repo.worktrees?.map((worktree) => worktree.path)).toEqual([
             '/repo',
@@ -349,10 +349,99 @@ describe('useNewSessionRepoScmSnapshot', () => {
             focusEffectRunnerState.callback?.();
         });
         await flushHookEffects();
-        expect(hook.getCurrent()?.repo.rootPath).toBe('/repo');
+        expect(hook.getCurrent().snapshot?.repo.rootPath).toBe('/repo');
 
         await hook.rerender({ scope, machineId: 'machine-a', path: '/different-repo' });
-        expect(hook.getCurrent()).toBeNull();
+        expect(hook.getCurrent().snapshot).toBeNull();
+        await hook.unmount();
+    });
+
+    it('reports repository status unavailable only once the fetch settles without a snapshot, and recovers on refocus', async () => {
+        let rejectFetch: ((error: Error) => void) | null = null;
+        readCachedSnapshotForMachinePathMock.mockReturnValue(null);
+        readCachedWorktreesEnrichmentMock.mockReturnValue(null);
+        fetchSnapshotForMachinePathMock.mockImplementation(() => new Promise((_resolve, reject) => {
+            rejectFetch = reject;
+        }));
+        fetchWorktreesEnrichmentMock.mockResolvedValue(null);
+
+        const hook = await renderHook(() => useNewSessionRepoScmSnapshot({
+            scope,
+            machineId: 'machine-a',
+            path: '/repo',
+        }));
+        await flushHookEffects();
+
+        // Still loading: an in-flight lookup must never read as a failure.
+        expect(hook.getCurrent()).toMatchObject({ snapshot: null, unavailable: false });
+
+        await act(async () => {
+            rejectFetch?.(new Error('machine offline'));
+        });
+        await flushHookEffects();
+        expect(hook.getCurrent()).toMatchObject({ snapshot: null, unavailable: true });
+
+        // A retry keeps the reason on screen rather than flashing it away while it runs.
+        const recovered = makeSnapshot({ fetchedAt: 9 });
+        let resolveFetch: ((value: ScmWorkingSnapshot) => void) | null = null;
+        fetchSnapshotForMachinePathMock.mockImplementation(() => new Promise((resolve) => {
+            resolveFetch = resolve;
+        }));
+        await act(async () => {
+            focusEffectRunnerState.callback?.();
+        });
+        expect(hook.getCurrent()).toMatchObject({ snapshot: null, unavailable: true });
+
+        await act(async () => {
+            resolveFetch?.(recovered);
+        });
+        await flushHookEffects();
+        expect(hook.getCurrent()).toMatchObject({ snapshot: recovered, unavailable: false });
+        await hook.unmount();
+    });
+
+    it('recovers from an unavailable status on retry without a focus or target change', async () => {
+        readCachedSnapshotForMachinePathMock.mockReturnValue(null);
+        readCachedWorktreesEnrichmentMock.mockReturnValue(null);
+        fetchSnapshotForMachinePathMock.mockRejectedValue(new Error('machine offline'));
+        fetchWorktreesEnrichmentMock.mockResolvedValue(null);
+
+        const hook = await renderHook(() => useNewSessionRepoScmSnapshot({
+            scope,
+            machineId: 'machine-a',
+            path: '/repo',
+        }));
+        await flushHookEffects();
+        expect(hook.getCurrent()).toMatchObject({ snapshot: null, unavailable: true });
+
+        const recovered = makeSnapshot({ fetchedAt: 9 });
+        fetchSnapshotForMachinePathMock.mockResolvedValue(recovered);
+        await act(async () => {
+            hook.getCurrent().retry();
+        });
+        await flushHookEffects();
+
+        expect(hook.getCurrent()).toMatchObject({ snapshot: recovered, unavailable: false });
+        await hook.unmount();
+    });
+
+    it('does not carry an unavailable result over to a different path', async () => {
+        readCachedSnapshotForMachinePathMock.mockReturnValue(null);
+        readCachedWorktreesEnrichmentMock.mockReturnValue(null);
+        fetchSnapshotForMachinePathMock.mockRejectedValue(new Error('machine offline'));
+        fetchWorktreesEnrichmentMock.mockResolvedValue(null);
+
+        const initialProps = { scope, machineId: 'machine-a', path: '/repo' };
+        const hook = await renderHook(
+            (props: typeof initialProps) => useNewSessionRepoScmSnapshot(props),
+            { initialProps },
+        );
+        await flushHookEffects();
+        expect(hook.getCurrent().unavailable).toBe(true);
+
+        fetchSnapshotForMachinePathMock.mockImplementation(() => new Promise(() => {}));
+        await hook.rerender({ ...initialProps, path: '/other' });
+        expect(hook.getCurrent()).toMatchObject({ snapshot: null, unavailable: false });
         await hook.unmount();
     });
 
@@ -385,14 +474,14 @@ describe('useNewSessionRepoScmSnapshot', () => {
         });
         await flushHookEffects();
 
-        expect(hook.getCurrent()).toEqual(focusedSnapshot);
+        expect(hook.getCurrent().snapshot).toEqual(focusedSnapshot);
 
         await act(async () => {
             focusEffectRunnerState.callback?.();
         });
         await flushHookEffects();
 
-        expect(hook.getCurrent()).toEqual(refocusedSnapshot);
+        expect(hook.getCurrent().snapshot).toEqual(refocusedSnapshot);
         expect(fetchSnapshotForMachinePathMock.mock.calls.length).toBeGreaterThanOrEqual(2);
         await hook.unmount();
     });

@@ -69,17 +69,17 @@ export function normalizeTauriBuildVersionForWindows(buildVersion) {
 /**
  * linuxdeploy's AppImage plugin is (still) brittle around spaces/shell quoting in artifact names.
  * Tauri uses `productName` as the basis for bundle filenames, so we override it on Linux for
- * preview-like lanes while keeping the human-friendly window title untouched (set in config).
+ * every lane while keeping the human-friendly window title untouched (set in config). Production
+ * keeps the space-free `Happier`: the `Omnia Happier` display name is a macOS bundle contract.
  *
  * @param {{ environment: string }} opts
- * @returns {string | null}
+ * @returns {string}
  */
 export function resolveLinuxProductNameOverride(opts) {
   const env = String(opts.environment ?? '').trim();
-  if (!env || env === 'production') return null;
   if (env === 'dev' || env === 'publicdev') return 'HappierDev';
   if (env === 'preview') return 'HappierPreview';
-  return null;
+  return 'Happier';
 }
 
 /**
@@ -142,7 +142,7 @@ export function resolveLinuxHsetupResourcesOverrideConfig() {
  */
 export function resolveLinuxAppImageDiagnosticsLayout(opts) {
   const environment = String(opts.environment ?? '').trim();
-  const productName = resolveLinuxProductNameOverride({ environment }) ?? 'Happier';
+  const productName = resolveLinuxProductNameOverride({ environment });
   return {
     productName,
     appRelativePath: path.join('usr', 'bin', readTauriMainBinaryName(opts)),
@@ -442,8 +442,8 @@ function main() {
   /** @type {string[]} */
   const configs = [];
 
-  const linuxProductNameOverride = resolveLinuxProductNameOverride({ environment });
-  if (platform === 'linux' && linuxProductNameOverride) {
+  if (platform === 'linux') {
+    const linuxProductNameOverride = resolveLinuxProductNameOverride({ environment });
     const linuxProductNameOverridePath = tempFile(tmpRoot, 'tauri.linux.productName.override.json');
     if (opts.dryRun) {
       console.log(`[dry-run] write ${linuxProductNameOverridePath} (productName=${linuxProductNameOverride})`);

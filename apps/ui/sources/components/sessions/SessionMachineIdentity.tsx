@@ -33,24 +33,24 @@ export const SessionMachineIdentity = React.memo(function SessionMachineIdentity
     label: string;
     serverId?: string | null;
     machineId?: string | null;
-    variant: 'row' | 'header';
+    variant: 'row' | 'header' | 'subtitle';
     testID: string;
     showLabel?: boolean;
 }>) {
     const { theme } = useUnistyles();
-    const isHeader = variant === 'header';
-    const color = isHeader ? theme.colors.chrome.header.foreground : theme.colors.text.secondary;
+    const isRow = variant === 'row';
+    const color = variant === 'header' ? theme.colors.chrome.header.foreground : theme.colors.text.secondary;
 
     return (
         <SessionIdentityHoverAnchor
             label={label}
             testID={testID}
             focusable={!showLabel}
-            style={isHeader ? styles.headerIdentity : styles.rowIdentity}
+            style={styles[`${variant}Identity`]}
         >
-            <MachineDisplayGlyph serverId={serverId} machineId={machineId} size={isHeader ? 12 : 11} color={color} />
+            <MachineDisplayGlyph serverId={serverId} machineId={machineId} size={isRow ? 11 : 12} color={color} />
             {showLabel ? <Text
-                style={[isHeader ? styles.headerText : styles.rowText, { color }]}
+                style={[isRow ? styles.rowText : styles.headerText, { color }]}
                 numberOfLines={1}
                 ellipsizeMode="tail"
             >
@@ -79,6 +79,13 @@ const styles = StyleSheet.create(() => ({
         alignItems: 'center',
         gap: 4,
         maxWidth: 150,
+        minWidth: 0,
+        flexShrink: 1,
+    },
+    subtitleIdentity: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
         minWidth: 0,
         flexShrink: 1,
     },
