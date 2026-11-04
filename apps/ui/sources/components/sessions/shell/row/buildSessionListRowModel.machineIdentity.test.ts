@@ -125,6 +125,21 @@ describe('session row machine identity', () => {
             expect(row.machineLabel).toBe('Replacement Mac');
             expect(row.showMachineIdentity).toBe(true);
             expect(row.showMachineLabel).toBe(false);
+            expect(row.subtitle).toBe('project');
         }
+    });
+
+    it('keeps the machine name out of the subtitle whether or not the machine icon is shown', () => {
+        expect(build({ showMachineIdentity: false, showMachineLabel: false }).subtitle).toBe('project');
+        expect(build({ showMachineIdentity: false, showMachineLabel: true }).subtitle).toBe('Replacement Mac · project');
+    });
+
+    it('leaves no subtitle for a machine-only row when machine text is hidden', () => {
+        const row = build({
+            showMachineLabel: false,
+            reachableSessionDisplayByKey: { 'server-a:session-a': { machineLabel: 'Replacement Mac', workspaceSubtitle: '' } },
+        });
+        expect(row.subtitle).toBe('');
+        expect(row.machineLabel).toBe('Replacement Mac');
     });
 });

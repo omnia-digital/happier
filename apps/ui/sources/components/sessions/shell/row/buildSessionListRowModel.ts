@@ -265,13 +265,13 @@ function resolveRowSubtitle(input: Readonly<{
     const reachableDisplay = input.settings.reachableSessionDisplayByKey[input.rowKey];
     if (reachableDisplay) {
         const workspaceSubtitle = normalizeNonEmptyString(reachableDisplay.workspaceSubtitle) ?? '';
-        const machineLabel = normalizeNonEmptyString(reachableDisplay.machineLabel) ?? '';
+        const machineLabel = input.settings.hasMultipleMachines && input.settings.showMachineLabel !== false
+            ? normalizeNonEmptyString(reachableDisplay.machineLabel) ?? ''
+            : '';
         return {
-            subtitle: input.settings.hasMultipleMachines
-                ? (machineLabel && workspaceSubtitle
-                    ? `${machineLabel} · ${workspaceSubtitle}`
-                    : machineLabel || workspaceSubtitle)
-                : workspaceSubtitle,
+            subtitle: machineLabel && workspaceSubtitle
+                ? `${machineLabel} · ${workspaceSubtitle}`
+                : machineLabel || workspaceSubtitle,
             subtitleEllipsizeMode: reachableDisplay.workspaceSubtitleEllipsizeMode ?? 'head',
         };
     }

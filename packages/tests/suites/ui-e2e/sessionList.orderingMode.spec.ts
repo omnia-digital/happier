@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { encodePlainMachineStoredContent, MACHINE_PLAIN_DATA_KEY_MARKER } from '@happier-dev/protocol';
 import { mkdir, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 
 import { patchPlainAccountSettingsV2, upsertPlainAccountSettingsV2 } from '../../src/testkit/accountSettings';
 import { createTestAuthMtls } from '../../src/testkit/auth';
@@ -396,6 +396,8 @@ test.describe('ui e2e: session list ordering mode', () => {
     };
     const pinnedSessionId = await createPlainSession({ ...sessionParams, title: `card pinned ${run.runId}` });
     const ordinarySessionId = await createPlainSession({ ...sessionParams, title: `card ordinary ${run.runId}` });
+    // Rows only add a machine prefix to their path once the list spans more than one machine.
+    await createPlainSession({ ...sessionParams, machineId: SEEDED_MACHINE_ID, title: `card second machine ${run.runId}` });
     await importSessionOrganization({
       baseUrl: server.baseUrl,
       token,
@@ -470,6 +472,23 @@ test.describe('ui e2e: session list ordering mode', () => {
     await expect(page.getByTestId(`session-list-machine-identity-${pinnedSessionId}`).locator('svg').first())
       .toHaveJSProperty('innerHTML', chosenGlyph);
     expect((await readUiE2eLocalSettings({ page })).sessionListShowMachineLabel).toBe(false);
+
+    // Date rows paint the path line, the other place a card can show the machine name.
+    const accountParams = { baseUrl: server.baseUrl, token };
+    await patchPlainAccountSettingsV2({
+      ...accountParams,
+      settingsPatch: { sessionListDensity: 'detailed', sessionListActiveGroupingV1: 'date', sessionListInactiveGroupingV1: 'date' },
+    });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+    const ordinaryRow = page.getByTestId(`session-list-item-${ordinarySessionId}`);
+    await expect(ordinaryRow).toContainText(basename(repoRootDir()), { timeout: 60_000 });
+    await expect(ordinaryRow).not.toContainText(machineLabel);
+    await expect(ordinaryRow).toHaveAttribute('aria-label', new RegExp(machineLabel));
+    await patchPlainAccountSettingsV2({
+      ...accountParams,
+      settingsPatch: { sessionListDensity: 'narrow', sessionListActiveGroupingV1: 'project', sessionListInactiveGroupingV1: 'project' },
+    });
   });
 
   test('opens a blank Same Setup draft for the clicked row from plus, right-click, and three-dot', async ({ page }) => {
