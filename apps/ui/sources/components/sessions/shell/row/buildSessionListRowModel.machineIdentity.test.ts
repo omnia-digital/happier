@@ -47,6 +47,17 @@ describe('session row machine identity', () => {
         expect(row.subtitle).toBe('Replacement Mac · project');
     });
 
+    it('carries the workspace identity on its own, without the machine prefix of the subtitle', () => {
+        expect(build().identityLabel).toBe('project');
+    });
+
+    it('invents no identity when the resolved projection is missing or empty', () => {
+        expect(build({ reachableSessionDisplayByKey: {} }).identityLabel).toBeNull();
+        expect(build({ reachableSessionDisplayByKey: {
+            'server-a:session-a': { machineLabel: 'Replacement Mac', workspaceSubtitle: '' },
+        } }).identityLabel).toBeNull();
+    });
+
     it('hides the indicator on opt-out without changing the canonical machine or workspace subtitle', () => {
         const row = build({ showMachineIdentity: false });
         expect(row.machineLabel).toBe('Replacement Mac');

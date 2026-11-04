@@ -11,6 +11,10 @@ import { installTranscriptCommonModuleMocks, resetTranscriptCommonModuleMockStat
 
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
 
+vi.mock('@/components/ui/overlays/anchoredTooltipModuleLoader', () => ({
+    loadAnchoredTooltipComponent: async () => (props: Record<string, unknown>) => React.createElement('AnchoredTooltip', props),
+}));
+
 let platformOs: 'ios' | 'android' | 'web' = 'ios';
 const headerMocks = vi.hoisted(() => ({
     identityMode: 'avatar' as 'avatar' | 'agentLogo' | 'none',
@@ -114,6 +118,17 @@ describe('ChatHeaderView machine identity', () => {
         expect(screen.findByTestId('session-header-machine-identity')?.props.accessibilityLabel).toBe('Long named build workstation');
         expect(screen.getTextContent()).not.toContain('Studio Mac');
         expect(screen.getTextContent()).toContain('other project');
+    });
+
+    it('offers the full workspace identity on hover without a second label', async () => {
+        platformOs = 'web';
+        const { ChatHeaderView } = await import('./ChatHeaderView');
+        const screen = await renderScreen(<ChatHeaderView title="Title" subtitle="long-repository-name" />);
+        const identity = screen.findByTestId('session-header-workspace-identity');
+        expect(identity?.props.accessibilityLabel).toBe('long-repository-name');
+        expect(screen.getTextContent().split('long-repository-name')).toHaveLength(2);
+        await act(async () => { identity?.props.onPointerEnter(); });
+        await vi.waitFor(() => expect(screen.findByTestId('session-header-workspace-identity-tooltip')).not.toBeNull());
     });
 
     it('keeps the full machine name accessible when a long label is visually truncated', async () => {

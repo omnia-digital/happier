@@ -113,6 +113,7 @@ export type SessionListRowModel = Readonly<{
     isIdentityLoading: boolean;
     title: string;
     subtitle: string;
+    identityLabel: string | null;
     machineLabel: string | null;
     machineId: string | null;
     showMachineIdentity: boolean;

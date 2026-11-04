@@ -1,6 +1,7 @@
 import { type MachineDisplayRenderable } from '@/sync/domains/machines/machineDisplayRenderable';
 import { resolveCanonicalMachineId } from '@/sync/domains/machines/identity/resolveCanonicalMachineId';
 import { findMachineInCollection, type MachineCollection } from '@/sync/domains/machines/identity/machineCollection';
+import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import { formatPathRelativeToHome } from '@/utils/sessions/formatPathRelativeToHome';
 import { normalizeNonEmptyString } from '@/utils/strings/normalizeNonEmptyString';
 
@@ -8,6 +9,7 @@ import {
     normalizeSessionPathForProjectGrouping,
     resolveSessionProjectGroupingKeyParts,
 } from './sessionListProjectGroupingKeys';
+import { readRepositoryAssociation, type SessionRepositoryAssociations } from './sessionRepositoryIdentity';
 
 export type SessionWorkspacePresentationMetadata = Readonly<{
     host?: unknown;
@@ -31,6 +33,8 @@ export type SessionWorkspacePresentation = Readonly<{
     pathKey: string;
     displayPath: string;
     displayTitle: string;
+    /** What a session is called on its row and header. Always a name, whatever the path display mode. */
+    identityLabel: string;
     customLabel: string | null;
     hasCustomLabel: boolean;
     machineId: string | null;
@@ -78,12 +82,32 @@ function resolveWorkspaceBasename(path: string): string {
     return normalizeNonEmptyString(segments[segments.length - 1]) ?? normalized;
 }
 
+/** Repository labels hold a remote identity or a checkout path; only the final segment is a name. */
+function readRepositoryDisplayName(params: Readonly<{
+    associations: SessionRepositoryAssociations | undefined;
+    scope: ServerAccountScope | null | undefined;
+    machineId: string | null;
+    path: string;
+}>): string | null {
+    if (!params.associations || !params.scope || !params.machineId || !params.path) return null;
+    const association = readRepositoryAssociation(params.associations, {
+        ...params.scope,
+        machineId: params.machineId,
+        path: params.path,
+    });
+    if (!association) return null;
+    return normalizeNonEmptyString(resolveWorkspaceBasename(association.manual?.label ?? association.label));
+}
+
 export function resolveSessionWorkspacePresentation(params: Readonly<{
     metadata: SessionWorkspacePresentationMetadata;
     machines: MachineCollection<MachineDisplayRenderable>;
     target?: SessionWorkspacePresentationTarget;
     workspaceLabelsV1?: unknown;
     workspacePathDisplayModeV1?: WorkspacePathDisplayModeV1 | null;
+    sessionRepositoryAssociationsV1?: SessionRepositoryAssociations;
+    /** The account the associations belong to. Without one, none of them can be attributed. */
+    repositoryScope?: ServerAccountScope | null;
 }>): SessionWorkspacePresentation {
     const parts = resolveSessionProjectGroupingKeyParts(params.metadata);
     const targetMachineId = normalizeNonEmptyString(params.target?.machineId);
@@ -105,9 +129,14 @@ export function resolveSessionWorkspacePresentation(params: Readonly<{
     const workspaceKey = `wl_${workspaceHash}`;
     const displayPath = pathKey ? formatPathRelativeToHome(pathKey, homeDir ?? undefined) : '';
     const customLabel = readWorkspaceLabel(params.workspaceLabelsV1, workspaceKey);
-    const defaultDisplayTitle = params.workspacePathDisplayModeV1 === 'path'
-        ? displayPath
-        : resolveWorkspaceBasename(displayPath || pathKey);
+    const directoryName = resolveWorkspaceBasename(displayPath || pathKey);
+    const defaultDisplayTitle = params.workspacePathDisplayModeV1 === 'path' ? displayPath : directoryName;
+    const repositoryName = readRepositoryDisplayName({
+        associations: params.sessionRepositoryAssociationsV1,
+        scope: params.repositoryScope,
+        machineId: displayMachineId ?? null,
+        path: pathKey,
+    });
     const displayMachine = (() => {
         if (displayMachineId) {
             return directMachine ?? makeUnknownMachine(displayMachineId);
@@ -122,6 +151,7 @@ export function resolveSessionWorkspacePresentation(params: Readonly<{
         pathKey,
         displayPath,
         displayTitle: customLabel ?? defaultDisplayTitle,
+        identityLabel: customLabel ?? repositoryName ?? directoryName,
         customLabel,
         hasCustomLabel: customLabel !== null,
         machineId: displayMachineId ?? null,

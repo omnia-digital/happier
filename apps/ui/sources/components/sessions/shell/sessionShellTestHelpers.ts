@@ -102,6 +102,7 @@ export function createSessionItemTestRowModel(
         sessionId,
         serverId,
         serverName: input.serverName,
+        identityLabel: null,
         machineLabel: null,
         machineId: null,
         showMachineIdentity: true,

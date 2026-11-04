@@ -447,6 +447,7 @@ export function buildSessionListRowModel(input: BuildSessionListRowModelInput): 
         }),
         title,
         subtitle,
+        identityLabel: normalizeNonEmptyString(settings.reachableSessionDisplayByKey[rowKey]?.workspaceSubtitle),
         machineLabel: normalizeNonEmptyString(settings.reachableSessionDisplayByKey[rowKey]?.machineLabel),
         machineId: settings.reachableSessionDisplayByKey[rowKey]?.machineId ?? null,
         showMachineIdentity: settings.showMachineIdentity !== false,

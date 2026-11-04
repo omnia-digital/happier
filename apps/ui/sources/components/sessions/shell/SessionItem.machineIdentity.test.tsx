@@ -33,6 +33,9 @@ type SessionItemProps = Omit<
 };
 
 vi.mock('react-native-reanimated', () => ({}));
+vi.mock('@/components/ui/overlays/anchoredTooltipModuleLoader', () => ({
+    loadAnchoredTooltipComponent: async () => (props: Record<string, unknown>) => React.createElement('AnchoredTooltip', props),
+}));
 installSessionShellCommonModuleMocks({
     reactNative: async () => {
         const { createReactNativeWebMock } = await import('@/dev/testkit/mocks/reactNative');
@@ -173,6 +176,71 @@ describe('SessionItem machine identity', () => {
             identityDisplay: options.identityDisplay ?? 'agentLogo',
         })} />);
     }
+
+    async function renderIdentityRow(
+        density: 'default' | 'compact' | 'minimal',
+        options: Readonly<{ pathLine?: boolean; draftPreview?: string }> = {},
+    ) {
+        const { SessionItem } = await import('./SessionItem');
+        const props: SessionItemProps = {
+            session, serverId: 'server-a', compact: density !== 'default', compactMinimal: density === 'minimal',
+            variant: options.pathLine ? 'default' : 'no-path',
+            subtitleOverride: options.pathLine ? 'Studio · long-repository-name' : undefined,
+        };
+        return renderScreen(<SessionItem {...props} rowModel={createSessionItemTestRowModel(props, {
+            identityLabel: 'long-repository-name', title: 'Review',
+            ...(options.draftPreview ? { draft: { preview: options.draftPreview } as never } : {}),
+        })} />);
+    }
+    const identityLabelTestId = `session-list-identity-label-${SESSION_ID}`;
+
+    it.each(['default', 'compact', 'minimal'] as const)(
+        'paints the workspace identity on a quiet %s row that has no secondary line',
+        async (density) => {
+            const screen = await renderIdentityRow(density);
+            expect(screen.findByTestId(identityLabelTestId)?.props.accessibilityLabel).toBe('long-repository-name');
+            // One wrapping unit with the agent and machine, so a narrow row gains one line, not two.
+            expect(screen.findByTestId(`session-list-right-identity-${SESSION_ID}`)?.findAll(
+                (node) => node.props?.testID === identityLabelTestId,
+            ).length).toBeGreaterThan(0);
+            expect(screen.getTextContent()).toContain('long-repository-name');
+            expect(screen.findByTestId(`session-list-item-${SESSION_ID}`)?.props.accessibilityLabel)
+                .toContain('long-repository-name');
+        },
+    );
+
+    it('does not paint the identity twice when the path line already carries it', async () => {
+        const screen = await renderIdentityRow('default', { pathLine: true });
+        expect(screen.findByTestId(identityLabelTestId)).toBeNull();
+        expect(screen.getTextContent()).toContain('Studio · long-repository-name');
+    });
+
+    it('keeps the identity when a draft preview takes the place of the path line', async () => {
+        const screen = await renderIdentityRow('default', { pathLine: true, draftPreview: 'Half a thought' });
+        expect(screen.findByTestId(identityLabelTestId)).not.toBeNull();
+    });
+
+    it('offers the full identity on hover', async () => {
+        const screen = await renderIdentityRow('default');
+        const label = screen.findByTestId(identityLabelTestId);
+        await act(async () => { label?.props.onPointerEnter(); });
+        await vi.waitFor(() => expect(screen.findByTestId(`${identityLabelTestId}-tooltip`)).not.toBeNull());
+    });
+
+    it('offers the full identity on the path line too', async () => {
+        const screen = await renderIdentityRow('default', { pathLine: true });
+        const line = screen.findByTestId(`session-list-path-subtitle-${SESSION_ID}`);
+        expect(line?.props.accessibilityLabel).toBe('Studio · long-repository-name');
+        await act(async () => { line?.props.onPointerEnter(); });
+        await vi.waitFor(() => expect(screen.findByTestId(`session-list-path-subtitle-${SESSION_ID}-tooltip`)).not.toBeNull());
+    });
+
+    it('paints no identity when the row model has none', async () => {
+        const { SessionItem } = await import('./SessionItem');
+        const props: SessionItemProps = { session, serverId: 'server-a', compact: true, compactMinimal: true, variant: 'no-path' };
+        const screen = await renderScreen(<SessionItem {...props} rowModel={createSessionItemTestRowModel(props, { title: 'Review' })} />);
+        expect(screen.findByTestId(identityLabelTestId)).toBeNull();
+    });
 
     it('uses app item density for row spacing and grows row geometry for larger text', async () => {
         const rowHeight = async (density: 'comfortable' | 'cozy' | 'compact', fontScale: number) => {

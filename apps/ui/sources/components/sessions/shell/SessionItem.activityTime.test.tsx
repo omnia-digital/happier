@@ -232,6 +232,7 @@ function createSessionRowModel(overrides: Partial<SessionListRowModel> = {}): Se
         sessionId,
         serverId,
         serverName: 'Server A',
+        identityLabel: null,
         machineLabel: null,
         machineId: null,
         showMachineIdentity: true,

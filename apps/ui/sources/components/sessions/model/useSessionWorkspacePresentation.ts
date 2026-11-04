@@ -17,12 +17,13 @@ export function useSessionWorkspacePresentation(input: PresentationInput) {
             ...input,
             activeServerId: scopes[''].serverId,
             resolvedMachineScope: scopes[scopeKey],
+            sessionRepositoryAssociationsV1: state.localSettings.sessionRepositoryAssociationsV1,
             state: { ...state, getProjectForSession: createProjectForSessionResolver(state.sessions) },
         });
         return {
             machineId: presentation.machineId,
             machineLabel: presentation.machineLabel,
-            displayTitle: presentation.displayTitle,
+            identityLabel: presentation.identityLabel,
             displayPath: presentation.displayPath,
             hasCustomLabel: presentation.hasCustomLabel,
         };

@@ -268,7 +268,7 @@ test.describe('ui e2e: session list Repository view', () => {
       await selectViewMenu(page, 'session-view-repository');
       const headers = page.locator('[data-testid^="session-list-project-header:"]');
       await expect(headers.filter({ hasText: 'example.com/team/repo' })).toHaveCount(1);
-      await page.getByTestId('session-list-ordering-menu-trigger').first().click();
+      await page.getByTestId('session-list-group-menu-trigger').first().click();
       await expect(page.getByTestId('session-repository-refresh')).toBeEnabled();
       await page.keyboard.press('Escape');
       const headerCount = await headers.count();
@@ -287,7 +287,18 @@ test.describe('ui e2e: session list Repository view', () => {
       await expect(headers).toHaveCount(headerCount);
       await expect(headers.filter({ hasText: 'example.com/team/repo' })).toHaveCount(1);
       await expect(headers.filter({ hasText: worktreePath })).toHaveCount(0);
+      // The row names the repository, not the generated worktree directory, in any grouping.
+      const rowIdentity = page.getByTestId(`session-list-identity-label-${sessionId}`);
+      await expect(rowIdentity).toHaveText('repo');
+      await selectViewMenu(page, 'session-view-machine');
+      await expect(rowIdentity).toHaveText('repo');
+      await rowIdentity.hover();
+      await expect(page.getByTestId(`session-list-identity-label-${sessionId}-tooltip`)).toContainText('repo');
+      await page.getByTestId(`session-list-item-${sessionId}`).click();
+      await expect(page.getByTestId('session-header-workspace-identity')).toHaveText('repo');
       await page.screenshot({ path: join(suiteDir, 'new-worktree-origin-repository.png') });
+      await page.setViewportSize({ width: 820, height: 1100 });
+      await page.screenshot({ path: join(suiteDir, 'new-worktree-origin-repository-narrow.png') });
     } catch (error) {
       throw appendBrowserDiagnostics(error, diagnostics());
     }

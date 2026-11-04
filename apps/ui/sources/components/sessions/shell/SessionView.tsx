@@ -1648,13 +1648,11 @@ export const SessionView = React.memo((props: SessionViewProps) => {
         projection: sessionOrganizationProjection,
     }), [currentSessionRouteServerId, sessionOrganizationProjection]);
     const workspaceLabelsV1 = organizationListViewState.workspaceLabelsV1;
-    const workspacePathDisplayModeV1 = useSetting('workspacePathDisplayModeV1');
     const sessionWorkspacePresentation = useSessionWorkspacePresentation({
         serverId: currentSessionRouteServerId,
         sessionId: stableSessionForHeader?.id,
         metadata: stableSessionForHeader?.metadata ?? null,
         workspaceLabelsV1,
-        workspacePathDisplayModeV1,
     });
     const sessionEncryptionMode: 'e2ee' | 'plain' = (session?.encryptionMode ?? 'e2ee');
     const isEncryptedSessionLocked = Boolean(session && sessionEncryptionMode === 'e2ee' && !hasAuthCredentials);
@@ -1806,7 +1804,7 @@ export const SessionView = React.memo((props: SessionViewProps) => {
             ticketElement: headerSession.metadata && (hasSessionWriteAccess(headerSession.accessLevel) || readSessionTicketAssociation(headerSession.metadata))
                 ? <SessionTicketHeader sessionId={sessionId} metadata={headerSession.metadata} accessLevel={headerSession.accessLevel} serverId={currentSessionRouteServerId} />
                 : undefined,
-            subtitle: sessionWorkspacePresentation?.displayTitle || undefined,
+            subtitle: sessionWorkspacePresentation?.identityLabel || undefined,
             machineLabel: sessionWorkspacePresentation?.machineLabel ?? null,
             machineId: sessionWorkspacePresentation?.machineId ?? null,
             machineServerId: currentSessionRouteServerId,

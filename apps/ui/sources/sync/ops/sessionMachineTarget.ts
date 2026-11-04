@@ -15,6 +15,7 @@ import { resolveMachineDisplayScope } from '@/sync/domains/machines/machineDispl
 import type { MachineCollection } from '@/sync/domains/machines/identity/machineCollection';
 import type { MachineDisplayPreferenceScope } from '@/sync/domains/machines/machineDisplayIconPreference';
 import { resolveSessionWorkspacePresentation, type WorkspacePathDisplayModeV1 } from '@/sync/domains/session/listing/sessionWorkspacePresentation';
+import type { SessionRepositoryAssociations } from '@/sync/domains/session/listing/sessionRepositoryIdentity';
 import { resolveSessionMachineId } from '@/sync/domains/session/directSessions/resolveSessionMachineId';
 import { normalizeKnownProjectMachineId } from '@/sync/runtime/orchestration/projectKeyIdentity';
 import { resolvePathRelativeToRoot } from '@/utils/path/resolvePathRelativeToRoot';
@@ -62,6 +63,7 @@ export function resolveSessionWorkspacePresentationFromState(input: Readonly<{
   machineListByServerId?: SessionWorkspacePresentationState['machineListByServerId'];
   workspaceLabelsV1?: unknown;
   workspacePathDisplayModeV1?: WorkspacePathDisplayModeV1 | null;
+  sessionRepositoryAssociationsV1?: SessionRepositoryAssociations;
 }>) {
   const scope = resolveMachineDisplayScope({
     serverId: input.serverId,
@@ -87,6 +89,10 @@ export function resolveSessionWorkspacePresentationFromState(input: Readonly<{
     target,
     workspaceLabelsV1: input.workspaceLabelsV1,
     workspacePathDisplayModeV1: input.workspacePathDisplayModeV1,
+    sessionRepositoryAssociationsV1: input.sessionRepositoryAssociationsV1,
+    // A foreign Home's account is only known asynchronously, so its associations cannot be
+    // attributed here; those sessions fall back to their directory name.
+    repositoryScope: scope.isActive ? input.state.profileScope : null,
   });
 }
 

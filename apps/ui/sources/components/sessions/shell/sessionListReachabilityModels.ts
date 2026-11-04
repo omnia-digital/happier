@@ -1,4 +1,5 @@
 import { resolveMachineDisplayScope, type MachineDisplayRenderable } from '@/sync/domains/machines/machineDisplayRenderable';
+import type { SessionRepositoryAssociations } from '@/sync/domains/session/listing/sessionRepositoryIdentity';
 import { resolveSessionWorkspacePresentation } from '@/sync/domains/session/listing/sessionWorkspacePresentation';
 import { storage, type SessionListViewItem } from '@/sync/domains/state/storage';
 import { findMachineDisplayScope, type MachineDisplayPreferenceScope } from '@/sync/domains/machines/machineDisplayIconPreference';
@@ -24,6 +25,7 @@ type SessionListReachabilityCacheEntry = Readonly<{
     machineDisplaySignature: string;
     session: Extract<SessionListViewItem, { type: 'session' }>['session'];
     workspaceLabelsV1: Readonly<Record<string, string>>;
+    sessionRepositoryAssociationsV1: SessionRepositoryAssociations | undefined;
 }>;
 
 type RetainedSessionListReachabilityModels = Readonly<{
@@ -32,6 +34,7 @@ type RetainedSessionListReachabilityModels = Readonly<{
     models: SessionListReachabilityModels;
     previousKeys: readonly string[];
     workspaceLabelsV1: Readonly<Record<string, string>>;
+    sessionRepositoryAssociationsV1: SessionRepositoryAssociations | undefined;
 }>;
 
 export type SessionListReachabilityModelsCache = {
@@ -103,6 +106,7 @@ export function buildSessionReachableDisplay(input: Readonly<{
     machineListByServerId?: Readonly<Record<string, readonly MachineDisplayRenderable[] | null | undefined>>;
     machineDisplayScopes?: Readonly<Record<string, MachineDisplayPreferenceScope>>;
     workspaceLabelsV1: Readonly<Record<string, string>>;
+    sessionRepositoryAssociationsV1?: SessionRepositoryAssociations;
 }>): Readonly<{
     display: SessionReachableDisplay;
     machineKey: string;
@@ -117,11 +121,12 @@ export function buildSessionReachableDisplay(input: Readonly<{
         machines: input.machinesById,
         machineListByServerId: input.machineListByServerId,
         workspaceLabelsV1: input.workspaceLabelsV1,
+        sessionRepositoryAssociationsV1: input.sessionRepositoryAssociationsV1,
     });
     const display = {
         machineId: workspace.machineId,
         machineLabel: workspace.machineLabel,
-        workspaceSubtitle: workspace.displayTitle,
+        workspaceSubtitle: workspace.identityLabel,
         workspaceSubtitleEllipsizeMode: workspace.hasCustomLabel ? 'tail' : 'head',
     } satisfies SessionReachableDisplay;
 
@@ -137,16 +142,19 @@ function canReuseReachabilityEntry(input: Readonly<{
     item: Extract<SessionListViewItem, { type: 'session' }>;
     machineDisplaySignature: string;
     workspaceLabelsV1: Readonly<Record<string, string>>;
+    sessionRepositoryAssociationsV1: SessionRepositoryAssociations | undefined;
 }>): input is Readonly<{
     cached: SessionListReachabilityCacheEntry;
     item: Extract<SessionListViewItem, { type: 'session' }>;
     machineDisplaySignature: string;
     workspaceLabelsV1: Readonly<Record<string, string>>;
+    sessionRepositoryAssociationsV1: SessionRepositoryAssociations | undefined;
 }> {
     return input.cached != null
         && input.cached.session === input.item.session
         && input.cached.machineDisplaySignature === input.machineDisplaySignature
-        && input.cached.workspaceLabelsV1 === input.workspaceLabelsV1;
+        && input.cached.workspaceLabelsV1 === input.workspaceLabelsV1
+        && input.cached.sessionRepositoryAssociationsV1 === input.sessionRepositoryAssociationsV1;
 }
 
 function areReachabilityModelKeysAndDisplaysEqual(input: Readonly<{
@@ -173,6 +181,7 @@ export function buildSessionListReachabilityModels(input: Readonly<{
     machineListByServerId?: Readonly<Record<string, readonly MachineDisplayRenderable[] | null | undefined>>;
     machineDisplayScopes?: Readonly<Record<string, MachineDisplayPreferenceScope>>;
     workspaceLabelsV1: Readonly<Record<string, string>>;
+    sessionRepositoryAssociationsV1?: SessionRepositoryAssociations;
     cache?: SessionListReachabilityModelsCache;
 }>): SessionListReachabilityModels {
     const items = input.items;
@@ -206,6 +215,7 @@ export function buildSessionListReachabilityModels(input: Readonly<{
         && retained
         && retained.machineDisplaySignature === machineDisplaySignature
         && areStringRecordsEqual(retained.workspaceLabelsV1, input.workspaceLabelsV1)
+        && retained.sessionRepositoryAssociationsV1 === input.sessionRepositoryAssociationsV1
     ) {
         input.cache.entriesByKey = retained.entriesByKey;
         input.cache.previousKeys = retained.previousKeys;
@@ -227,6 +237,7 @@ export function buildSessionListReachabilityModels(input: Readonly<{
             item,
             machineDisplaySignature: signaturesByServer.get(item.serverId ?? '') ?? '',
             workspaceLabelsV1: input.workspaceLabelsV1,
+            sessionRepositoryAssociationsV1: input.sessionRepositoryAssociationsV1,
         });
         const entry: SessionListReachabilityCacheEntry = canReuse && cached
             ? cached
@@ -237,6 +248,7 @@ export function buildSessionListReachabilityModels(input: Readonly<{
                     machineListByServerId,
                     machineDisplayScopes: input.machineDisplayScopes,
                     workspaceLabelsV1: input.workspaceLabelsV1,
+                    sessionRepositoryAssociationsV1: input.sessionRepositoryAssociationsV1,
                 });
                 return {
                     display: result.display,
@@ -244,6 +256,7 @@ export function buildSessionListReachabilityModels(input: Readonly<{
                     machineDisplaySignature: signaturesByServer.get(item.serverId ?? '') ?? '',
                     session: item.session,
                     workspaceLabelsV1: input.workspaceLabelsV1,
+                    sessionRepositoryAssociationsV1: input.sessionRepositoryAssociationsV1,
                 } satisfies SessionListReachabilityCacheEntry;
             })();
 
@@ -289,6 +302,7 @@ export function buildSessionListReachabilityModels(input: Readonly<{
             models,
             previousKeys: nextKeys,
             workspaceLabelsV1: input.workspaceLabelsV1,
+            sessionRepositoryAssociationsV1: input.sessionRepositoryAssociationsV1,
         });
     }
 

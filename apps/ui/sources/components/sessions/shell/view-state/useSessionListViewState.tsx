@@ -484,9 +484,10 @@ export function useSessionListViewState({
                 machineListByServerId: renderMachineDisplayLists,
                 machineDisplayScopes,
                 workspaceLabelsV1,
+                sessionRepositoryAssociationsV1: repositoryView.associations,
             }),
         );
-    }, [statusPresentedItems, renderMachineDisplayById, renderMachineDisplayLists, machineDisplayScopes, workspaceLabelsV1]);
+    }, [statusPresentedItems, renderMachineDisplayById, renderMachineDisplayLists, machineDisplayScopes, workspaceLabelsV1, repositoryView.associations]);
 
     const selectedItemsRef = React.useRef<ReadonlyArray<SessionListSelectedItem> | null>(null);
     const visibleListItems = React.useMemo(() => {

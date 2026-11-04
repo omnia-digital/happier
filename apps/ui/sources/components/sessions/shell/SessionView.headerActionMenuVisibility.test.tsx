@@ -33,6 +33,7 @@ const resolveSessionWorkspacePresentationSpy = vi.hoisted(() => vi.fn((params: a
   pathKey: params?.target?.basePath ?? '',
   displayPath: params?.target?.basePath ?? '',
   displayTitle: params?.target?.basePath ?? '',
+  identityLabel: params?.target?.basePath ?? '',
   customLabel: null,
   hasCustomLabel: false,
   machineId: params?.target?.machineId ?? null,
