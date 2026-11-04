@@ -23,6 +23,7 @@ import {
 import { normalizeSessionListFolderSortMode } from '@/sync/domains/session/listing/sessionListFolderSortMode';
 import { normalizeSessionListBackgroundWorkAttentionMode } from '@/sync/domains/session/listing/sessionListBackgroundWorkAttention';
 import { Icon } from '@/components/ui/icons/Icon';
+import { getFolderSortLockSubtitle } from '@/components/sessions/shell/sessionListViewMenu';
 import {
     SESSION_LIST_ORDERING_MODES_V1,
     normalizeSessionListOrderingModeV1,
@@ -356,11 +357,7 @@ export default React.memo(function SessionSettingsScreen() {
         statusSorting: normalizeSessionListStatusMode(sessionListStatusSortV1),
     });
     const sessionListFolderSortModeItems = React.useMemo(() => {
-        const lockSubtitle = sessionListFolderSortLock === 'statusGrouping'
-            ? t('sessionsList.folderSortDisabledInStatusGrouping')
-            : sessionListFolderSortLock === 'dateOrdering'
-                ? t('sessionsList.folderSortDisabledInDateMode')
-                : null;
+        const lockSubtitle = getFolderSortLockSubtitle(sessionListFolderSortLock);
         return [
             {
                 id: 'foldersFirst',

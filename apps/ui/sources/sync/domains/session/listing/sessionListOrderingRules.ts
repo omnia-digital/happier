@@ -127,8 +127,8 @@ export function resolveEffectiveSessionListFolderSortMode(params: Readonly<{
 
 export type SessionListFolderSortControl = Readonly<{
     effectiveMode: SessionListFolderSortModeV1;
-    /** Why neither choice can change the list; null when the saved choice applies. */
-    lock: 'statusGrouping' | 'dateOrdering' | null;
+    /** Why neither choice can change the list; null when the saved choice applies. Both locks are named together so clearing one never leaves an unexplained lock. */
+    lock: 'statusGrouping' | 'dateOrdering' | 'statusGroupingAndDateOrdering' | null;
     /** The saved choice still positions folders, but drag reordering is off until status sorting is cleared. */
     dragBlockedByStatusSorting: boolean;
 }>;
@@ -144,9 +144,11 @@ export function resolveSessionListFolderSortControl(params: Readonly<{
     statusGrouping: SessionListStatusMode;
     statusSorting: SessionListStatusMode;
 }>): SessionListFolderSortControl {
-    const lock = params.statusGrouping !== 'none'
-        ? 'statusGrouping'
-        : params.orderingMode !== 'custom' ? 'dateOrdering' : null;
+    const groupingLocks = params.statusGrouping !== 'none';
+    const orderingLocks = params.orderingMode !== 'custom';
+    const lock = groupingLocks && orderingLocks ? 'statusGroupingAndDateOrdering'
+        : groupingLocks ? 'statusGrouping'
+            : orderingLocks ? 'dateOrdering' : null;
     return {
         effectiveMode: lock ? 'foldersFirst' : resolveEffectiveSessionListFolderSortMode(params),
         lock,

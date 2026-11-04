@@ -862,9 +862,39 @@ describe('SessionsList session folders shell', () => {
         expect(restoredMixed?.rightElement).toBeTruthy();
     });
 
-    it('keeps mixed folder order selectable under status sorting without promising a drag that is off', async () => {
+    it('names both steps when machine view and status sorting each keep dragging off', async () => {
         sessionListStatusSortV1 = 'ticket';
         sessionListMachineViewV1 = 'machine';
+        sessionListFolderSortModeV1 = 'mixed';
+
+        const screen = await renderSessionsList();
+        const dropdown = screen.findAllByType('DropdownMenu' as React.ElementType)
+            .find((node) => node.props?.items?.some((item: any) => item.id === 'session-folder-sort-mode:mixed'));
+        const mixedItem = dropdown?.props.items.find((item: any) => item.id === 'session-folder-sort-mode:mixed');
+
+        expect(mixedItem?.disabled).toBe(false);
+        expect(mixedItem?.subtitle).toBe('sessionsList.folderSortMixedDescriptionMachineViewStatusSort');
+    });
+
+    it('names both settings to change when status grouping and date sorting each lock folder order', async () => {
+        sessionListStatusGroupingV1 = 'agent';
+        sessionListOrderingModeV1 = 'updated';
+        sessionListFolderSortModeV1 = 'mixed';
+
+        const screen = await renderSessionsList();
+        const dropdown = screen.findAllByType('DropdownMenu' as React.ElementType)
+            .find((node) => node.props?.items?.some((item: any) => item.id === 'session-folder-sort-mode:mixed'));
+        const mixedItem = dropdown?.props.items.find((item: any) => item.id === 'session-folder-sort-mode:mixed');
+        const foldersFirstItem = dropdown?.props.items.find((item: any) => item.id === 'session-folder-sort-mode:foldersFirst');
+
+        expect(mixedItem?.disabled).toBe(true);
+        expect(mixedItem?.subtitle).toBe('sessionsList.folderSortDisabledInStatusGroupingAndDateMode');
+        expect(foldersFirstItem?.subtitle).toBe('sessionsList.folderSortDisabledInStatusGroupingAndDateMode');
+    });
+
+    it('keeps mixed folder order selectable under status sorting without promising a drag that is off', async () => {
+        sessionListStatusSortV1 = 'ticket';
+        sessionListMachineViewV1 = 'original';
         sessionListFolderSortModeV1 = 'mixed';
 
         const screen = await renderSessionsList();

@@ -63,7 +63,12 @@ export function projectSessionListStatusView(input: Readonly<{
     if (input.grouping === 'none') {
         const out: SessionListViewItem[] = []; let rows: Row[] = [];
         const flush = () => { out.push(...sortRows(rows)); rows = []; };
-        for (const item of input.items) { if (item.type === 'header') { flush(); out.push(item); } else rows.push(item); }
+        // A folder's members and the loose rows beside it are separate runs: sorting never moves a session across a folder boundary.
+        for (const item of input.items) {
+            if (item.type === 'header') { flush(); out.push(item); continue; }
+            if (rows.length > 0 && (rows[0].folderId ?? null) !== (item.folderId ?? null)) flush();
+            rows.push(item);
+        }
         flush(); return out;
     }
     const output: SessionListViewItem[] = []; let band: Header | null = null; let body: SessionListViewItem[] = [];
@@ -84,7 +89,14 @@ export function projectSessionListStatusView(input: Readonly<{
         for (const item of body) if (item.type === 'session') {
             if (item.folderId) { const rows = members.get(item.folderId) ?? []; rows.push(item); members.set(item.folderId, rows); } else loose.push(item);
         }
-        for (const folder of folders) { output.push(folder); emitGroups(members.get(folder.folderId ?? '') ?? [], folder.groupKey ?? folder.folderId ?? '', folder.folderId); members.delete(folder.folderId ?? ''); }
+        // Folders first at every depth: a folder's own sessions follow all of its subfolders.
+        const open: Header[] = [];
+        const close = (folder: Header) => { emitGroups(members.get(folder.folderId ?? '') ?? [], folder.groupKey ?? folder.folderId ?? '', folder.folderId); members.delete(folder.folderId ?? ''); };
+        for (const folder of folders) {
+            while (open.length > 0 && open[open.length - 1].folderId !== folder.parentFolderId) close(open.pop()!);
+            output.push(folder); open.push(folder);
+        }
+        while (open.length > 0) close(open.pop()!);
         // A filtered source may omit an ancestor header; preserve its rows rather than dropping them.
         for (const [folderId, rows] of members) emitGroups(rows, folderId);
         emitGroups(loose, 'unfiled');

@@ -100,6 +100,34 @@ describe('status organization through the canonical sidebar projection', () => {
         expect(result.indexOf(folder)).toBeLessThan(result.findIndex(item => item.type === 'session' && !item.folderId));
     });
 
+    it('places a subfolder ahead of its parent folder sessions under status grouping', () => {
+        const parent = { ...header('Parent', 'folder'), folderId: 'parent', parentFolderId: null, depth: 0 };
+        const child = { ...header('Child', 'folder'), folderId: 'child', parentFolderId: 'parent', depth: 1 };
+        const parentSession = row('parent-session', {}, { folderId: 'parent', folderDepth: 1, groupKind: 'folder' });
+        const childSession = row('child-session', {}, { folderId: 'child', folderDepth: 2, groupKind: 'folder' });
+        const sibling = { ...header('Sibling', 'folder'), folderId: 'sibling', parentFolderId: null, depth: 0 };
+        const siblingSession = row('sibling-session', {}, { folderId: 'sibling', folderDepth: 1, groupKind: 'folder' });
+        const source = [header('Sessions', 'sessions'), parent, parentSession, child, childSession, sibling, siblingSession, row('loose')];
+
+        const result = projectSessionListStatusView({ items: source, grouping: 'agent', sorting: 'none', ticketStatuses: new Map(), nowMs: now });
+
+        expect(ids(result)).toEqual(['child-session', 'parent-session', 'sibling-session', 'loose']);
+        expect(result.indexOf(child)).toBeLessThan(result.indexOf(result.find(item => item.type === 'session' && item.session.id === 'parent-session')!));
+        expect(result.indexOf(sibling)).toBeGreaterThan(result.indexOf(result.find(item => item.type === 'session' && item.session.id === 'parent-session')!));
+    });
+
+    it('sorts by status within each folder and loose run without moving sessions across folder boundaries', () => {
+        const folder = { ...header('Tests', 'folder'), folderId: 'tests', parentFolderId: null, depth: 0 };
+        const member = row('member', {}, { folderId: 'tests', folderDepth: 1, groupKind: 'folder' });
+        const source = [header('Sessions', 'sessions'), row('loose-before'), folder, member, row('loose-after')];
+        const statuses = new Map<string, SessionListVisualStatus>([['home:member', 'idle'], ['home:loose-after', 'input'], ['home:loose-before', 'idle']]);
+
+        const result = projectSessionListStatusView({ items: source, grouping: 'none', sorting: 'agent', ticketStatuses: new Map(), nowMs: now, agentStatuses: statuses });
+
+        expect(ids(result)).toEqual(['loose-before', 'member', 'loose-after']);
+        expect(result[result.indexOf(folder) + 1]).toMatchObject({ type: 'session', folderId: 'tests' });
+    });
+
     it('keeps nested physical folder containers and source identity without moving assignments or ranks', () => {
         const folder = { ...header('Tests', 'folder'), folderId: 'tests', parentFolderId: null, depth: 0 };
         const nested = { ...header('Nested', 'folder'), folderId: 'nested', parentFolderId: 'tests', depth: 1 };

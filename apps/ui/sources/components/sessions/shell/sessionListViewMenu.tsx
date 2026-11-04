@@ -36,21 +36,34 @@ function getOrderingModeTitle(mode: SessionListOrderingModeV1): string {
     return t('sessionsList.orderingMode.custom');
 }
 
+/** Shared by the sidebar menu and Session Settings so both explain a Folder order lock the same way. */
+export function getFolderSortLockSubtitle(lock: SessionListFolderSortControl['lock']): string | null {
+    if (lock === 'statusGroupingAndDateOrdering') return t('sessionsList.folderSortDisabledInStatusGroupingAndDateMode');
+    if (lock === 'statusGrouping') return t('sessionsList.folderSortDisabledInStatusGrouping');
+    if (lock === 'dateOrdering') return t('sessionsList.folderSortDisabledInDateMode');
+    return null;
+}
+
 function getFolderSortSubtitle(params: Readonly<{
     mode: SessionListFolderSortModeV1;
     lock: SessionListFolderSortControl['lock'];
     dragBlockedByStatusSorting: boolean;
     machineViewMode: SessionListViewMode;
 }>): string {
-    if (params.lock === 'statusGrouping') return t('sessionsList.folderSortDisabledInStatusGrouping');
-    if (params.lock === 'dateOrdering') return t('sessionsList.folderSortDisabledInDateMode');
+    const lockSubtitle = getFolderSortLockSubtitle(params.lock);
+    if (lockSubtitle) return lockSubtitle;
     if (params.mode === 'foldersFirst') {
         return params.machineViewMode === 'flat'
             ? t('sessionsList.folderSortFoldersFirstDescriptionFlatView')
             : t('sessionsList.folderSortFoldersFirstDescription');
     }
+    // Machine view never allows dragging, so it must be named whether or not status sorting is also on.
+    if (params.machineViewMode === 'machine') {
+        return params.dragBlockedByStatusSorting
+            ? t('sessionsList.folderSortMixedDescriptionMachineViewStatusSort')
+            : t('sessionsList.folderSortMixedDescriptionMachineView');
+    }
     if (params.dragBlockedByStatusSorting) return t('sessionsList.folderSortMixedDescriptionStatusSort');
-    if (params.machineViewMode === 'machine') return t('sessionsList.folderSortMixedDescriptionMachineView');
     if (params.machineViewMode === 'flat') return t('sessionsList.folderSortMixedDescriptionFlatView');
     return t('sessionsList.folderSortMixedDescription');
 }

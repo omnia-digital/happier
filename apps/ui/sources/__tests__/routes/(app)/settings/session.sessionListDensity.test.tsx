@@ -346,6 +346,21 @@ describe('Session settings session list density', () => {
         expect(restoredDropdown?.props.items.find((item: any) => item.id === 'mixed')?.disabled).toBe(false);
     });
 
+    it('names both settings to change when status grouping and date sorting each lock folder order', async () => {
+        sessionListStatusGrouping = 'agent';
+        sessionListOrderingMode = 'updated';
+        sessionListFolderSortMode = 'mixed';
+        const mod = await import('../../../../app/(app)/settings/session');
+        const screen = await renderSettingsView(React.createElement(mod.default));
+        const dropdown = screen.findAllByType('DropdownMenu' as any).find((node: any) =>
+            node.props?.itemTrigger?.itemProps?.testID === 'settings-session-sessionListFolderSortMode-trigger');
+
+        expect(dropdown?.props.items).toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: 'foldersFirst', disabled: true, subtitle: 'sessionsList.folderSortDisabledInStatusGroupingAndDateMode' }),
+            expect.objectContaining({ id: 'mixed', disabled: true, subtitle: 'sessionsList.folderSortDisabledInStatusGroupingAndDateMode' }),
+        ]));
+    });
+
     it('keeps mixed folder order selectable under status sorting without promising a drag that is off', async () => {
         sessionListStatusSort = 'agent';
         sessionListFolderSortMode = 'mixed';

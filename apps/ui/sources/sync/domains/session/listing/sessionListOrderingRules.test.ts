@@ -54,8 +54,10 @@ describe('resolveSessionListFolderSortControl', () => {
         });
     });
 
-    it('reports status grouping first when both locks apply, because it is the outer view', () => {
-        expect(resolveSessionListFolderSortControl({ ...unlocked, orderingMode: 'created', statusGrouping: 'agent' }).lock).toBe('statusGrouping');
+    it('reports both locks together so clearing one does not leave an unexplained lock', () => {
+        expect(resolveSessionListFolderSortControl({ ...unlocked, orderingMode: 'created', statusGrouping: 'agent' })).toEqual({
+            effectiveMode: 'foldersFirst', lock: 'statusGroupingAndDateOrdering', dragBlockedByStatusSorting: false,
+        });
     });
 
     it('keeps the saved choice under status sorting, where folder positions still apply but dragging is off', () => {
