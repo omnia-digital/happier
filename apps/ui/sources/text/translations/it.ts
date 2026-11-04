@@ -603,7 +603,7 @@ export const it: TranslationStructure = {
         title: "Macchine",
         empty: "Nessuna macchina connessa.",
         cadence: "Si aggiorna ogni 3 min quando visibile.",
-        olderCli: "La CLI di questa macchina non supporta le metriche del sistema. Esegui su questa macchina una CLI compatibile con le metriche; aggiornare solo l’app non le aggiungerà.",
+        olderCli: "La CLI di questa macchina non supporta le metriche del sistema. Le CLI pubblicate non le includono, quindi aggiornare l’app o la CLI non le aggiungerà. Installa la CLI del fork su questa macchina, poi riavvia il suo daemon.",
         readFailed: "Impossibile leggere le metriche. Verrà riprovato.",
         loading: "Lettura delle metriche…",
         stale: "Lettura precedente · obsoleta",

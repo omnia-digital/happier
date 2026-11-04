@@ -654,7 +654,7 @@ export const pt: TranslationStructure = {
         title: "Máquinas",
         empty: "Nenhuma máquina conectada.",
         cadence: "Atualiza a cada 3 min enquanto visível.",
-        olderCli: "A CLI desta máquina não oferece métricas do sistema. Execute nesta máquina uma CLI compatível com métricas; atualizar apenas o app não as adicionará.",
+        olderCli: "A CLI desta máquina não oferece métricas do sistema. As CLIs publicadas não as incluem, portanto atualizar o app ou a CLI não as adicionará. Instale a CLI do fork nesta máquina e depois reinicie o daemon.",
         readFailed: "Não foi possível ler as métricas. Uma nova tentativa será feita.",
         loading: "Lendo métricas…",
         stale: "Leitura anterior · desatualizada",

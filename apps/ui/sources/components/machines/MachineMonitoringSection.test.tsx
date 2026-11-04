@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMachineFixture, renderScreen, standardCleanup } from '@/dev/testkit';
 import { storage } from '@/sync/domains/state/storageStore';
 import { getActiveServerId } from '@/sync/domains/server/serverProfiles';
+import { t } from '@/text';
 import { MachineMonitoringSection } from './MachineMonitoringSection';
 
 const rpc = vi.hoisted(() => vi.fn());
@@ -34,13 +35,15 @@ describe('machine monitoring real store and rendered leaf', () => {
             expect(screen.getTextContent()).not.toMatch(/\bOnline\b/i);
             expect(screen.getTextContent()).toContain('does not support host metrics');
             expect(screen.findByTestId(buttonId)!.props.accessibilityLabel).toMatch(/\bonline\b/i);
-            // The next step must be stated: only the host's CLI can add the producer, not an app update.
-            expect(screen.findByTestId(buttonId)!.props.accessibilityLabel).toContain('Run a metrics-capable CLI on this machine');
+            // The unsupported state carries its full explanation; the visible summary may truncate it.
+            expect(screen.findByTestId(buttonId)!.props.accessibilityLabel).toContain(t('machineMonitoring.olderCli'));
             expect(screen.getTextContent()).not.toContain('Storage capacity used, not I/O');
             await screen.pressByTestIdAsync(buttonId);
             expect(screen.findByTestId(buttonId)!.props.accessibilityState.expanded).toBe(true);
             expect(screen.getTextContent()).toContain('Storage capacity used, not I/O');
             expect(screen.getTextContent()).toMatch(/\bonline\b/i);
+            const details = screen.findByTestId(`machine-monitoring-${machine.id}-readings`)!;
+            expect(details.findAll((node) => node.props.children === t('machineMonitoring.olderCli'))).not.toHaveLength(0);
             for (const metric of ['CPU', 'MEM', 'GPU', 'Storage used', 'LA 1/5/15m']) {
                 expect(screen.findByTestId(buttonId)!.props.accessibilityLabel).toContain(`${metric} —`);
             }

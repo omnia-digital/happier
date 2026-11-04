@@ -214,7 +214,7 @@ test.describe('OH59 actual local collector through authenticated fixture machine
                     }
                 }
                 await expect(page.getByTestId(`machine-monitoring-${LEGACY}-summary`)).toContainText('does not support host metrics');
-                await expect(page.getByTestId(`machine-monitoring-${LEGACY}-details`)).toHaveAttribute('aria-label', /online.*does not support host metrics.*Run a metrics-capable CLI on this machine/);
+                await expect(page.getByTestId(`machine-monitoring-${LEGACY}-details`)).toHaveAttribute('aria-label', /online.*does not support host metrics/);
                 await page.screenshot({ path: join(suiteDir, `compact-${themePreference}-${uiFontScale}.png`) });
                 await button.focus();
                 await page.keyboard.press('Enter');
@@ -240,6 +240,13 @@ test.describe('OH59 actual local collector through authenticated fixture machine
                 await expect(readings).toBeVisible();
                 await button.click();
                 await expect(readings).toHaveCount(0);
+                const legacyButton = page.getByTestId(`machine-monitoring-${LEGACY}-details`);
+                const legacyReadings = page.getByTestId(`machine-monitoring-${LEGACY}-readings`);
+                await legacyButton.click();
+                await expect(legacyReadings).toContainText('does not support host metrics');
+                await page.screenshot({ path: join(suiteDir, `unsupported-expanded-${themePreference}-${uiFontScale}.png`) });
+                await legacyButton.click();
+                await expect(legacyReadings).toHaveCount(0);
             }
             await testInfo.attach('compact-dark-large-text', { path: join(suiteDir, 'compact-dark-2.png'), contentType: 'image/png' });
             await testInfo.attach('expanded-dark-large-text', { path: join(suiteDir, 'expanded-dark-2.png'), contentType: 'image/png' });

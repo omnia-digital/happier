@@ -188,9 +188,11 @@ checks pass; native acceptance and rollout remain pending.
 
 The unreleased Omnia development fork adds a collapsible **Machines** section to
 the session sidebar. It shows machines in the current relay account independently
-of the selected session, using their chosen names, icons and colors. Each machine
-needs a connected fork CLI that provides host metrics; updating the app alone does
-not add telemetry to older CLIs.
+of the selected session, using their chosen names, icons and colors. Each machine's
+daemon must run a fork CLI that provides host metrics. Released CLIs do not include
+them, so updating the app or CLI does not add telemetry. After installing the fork
+CLI, restart that machine's daemon: a running daemon replaces itself only when the
+CLI version changes, and a fork CLI can share its version with a release.
 
 Each machine has one compact summary line. Select it to expand the full readings,
 metric definitions, sample time, GPU device identities and measured storage volume;
