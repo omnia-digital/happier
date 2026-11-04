@@ -102,6 +102,26 @@ describe('status organization through the canonical sidebar projection', () => {
         expect(ids(result).sort()).toEqual(['first', 'loose', 'second']);
     });
 
+    it('sorts each folder apart from loose rows when status grouping is off, and across a pinned band that has no folder headers', () => {
+        const folderRow = (id: string, folderId: string, options: Partial<Row['session']> = {}) => row(id, options, { folderId, folderDepth: 1, groupKind: 'folder' });
+        const working = { thinking: true, thinkingAt: now };
+        const input = { hasPendingPermissionRequests: true };
+        const folder = { ...header('Tests', 'folder'), folderId: 'tests', parentFolderId: null, depth: 0 };
+        const nested = { ...header('Nested', 'folder'), folderId: 'nested', parentFolderId: 'tests', depth: 1 };
+        const layout = (items: readonly SessionListViewItem[]) => projectSessionListStatusView({ items, grouping: 'none', sorting: 'agent', ticketStatuses: new Map(), nowMs: now })
+            .map(item => item.type === 'session' ? item.session.id : item.title);
+
+        // Canonical emission: a folder header, its nested folders, its own rows, then loose rows, with no header between them.
+        expect(layout([header('Sessions', 'sessions'), header('Repo'), folder, nested, folderRow('nested-idle', 'nested'), folderRow('nested-working', 'nested', working),
+            folderRow('parent-idle', 'tests'), folderRow('parent-working', 'tests', working), row('loose-idle'), row('loose-input', input)]))
+            .toEqual(['Sessions', 'Repo', 'Tests', 'Nested', 'nested-working', 'nested-idle', 'parent-working', 'parent-idle', 'loose-input', 'loose-idle']);
+
+        // Pinned rows keep their physical folder but are one sibling list.
+        const pinned = { pinned: true, groupKind: 'pinned' as const };
+        expect(layout([header('Pinned', 'pinned'), row('pin-idle', {}, { ...pinned, folderId: 'tests' }), row('pin-working', working, pinned), row('pin-input', input, { ...pinned, folderId: 'tests' })]))
+            .toEqual(['Pinned', 'pin-input', 'pin-working', 'pin-idle']);
+    });
+
     it('composes real folder/pin/filter/machine/repository owners and restores their exact saved presentation', () => {
         const rows = [row('assigned'), row('loose'), row('pin'), row('excluded')];
         const sessions = Object.fromEntries(rows.map(item => [item.session.id, item.session]));

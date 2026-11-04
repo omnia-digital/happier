@@ -61,9 +61,22 @@ export function projectSessionListStatusView(input: Readonly<{
     const sortRows = (rows: Row[]) => input.sorting === 'none' ? rows
         : rows.sort((a, b) => compare(keyFor(a, input.sorting as 'agent' | 'ticket'), keyFor(b, input.sorting as 'agent' | 'ticket')));
     if (input.grouping === 'none') {
-        const out: SessionListViewItem[] = []; let rows: Row[] = [];
+        const out: SessionListViewItem[] = []; let rows: Row[] = []; let container: string | null = null;
+        const headedFolders = new Set<string>();
         const flush = () => { out.push(...sortRows(rows)); rows = []; };
-        for (const item of input.items) { if (item.type === 'header') { flush(); out.push(item); } else rows.push(item); }
+        for (const item of input.items) {
+            if (item.type === 'header') {
+                flush(); out.push(item); container = null;
+                if (item.headerKind !== 'folder') headedFolders.clear();
+                else if (item.folderId) headedFolders.add(item.folderId);
+                continue;
+            }
+            // Nested, parent and loose rows follow each other with no header between them. A folder
+            // id bounds a sort only under that folder's header: pinned rows keep theirs and stay one list.
+            const rowContainer = item.folderId && headedFolders.has(item.folderId) ? item.folderId : null;
+            if (rowContainer !== container) { flush(); container = rowContainer; }
+            rows.push(item);
+        }
         flush(); return out;
     }
     const output: SessionListViewItem[] = []; let band: Header | null = null; let body: SessionListViewItem[] = [];
