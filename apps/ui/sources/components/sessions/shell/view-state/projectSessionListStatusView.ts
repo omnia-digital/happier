@@ -35,6 +35,10 @@ function ticketKey(row: Row, states: ReadonlyMap<string, SessionTicketStatus>, a
         order: snapshot.status.workflowId ? snapshot.status.order ?? Number.POSITIVE_INFINITY : Number.POSITIVE_INFINITY, name: snapshot.status.name,
         freshness: state.phase === 'loading' ? 0 : state.phase === 'ready' ? 1 : 2 };
 }
+/** A folder id scopes a row only under that folder's header: pinned and promoted rows keep theirs but form one list. */
+function headedFolderId(row: Row, headedFolders: ReadonlySet<string>): string | null {
+    return row.folderId && headedFolders.has(row.folderId) ? row.folderId : null;
+}
 function compare(left: StatusKey, right: StatusKey): number {
     for (let i = 0; i < Math.max(left.scope.length, right.scope.length); i++) {
         const order = (left.scope[i] ?? '').localeCompare(right.scope[i] ?? ''); if (order) return order;
@@ -61,9 +65,25 @@ export function projectSessionListStatusView(input: Readonly<{
     const sortRows = (rows: Row[]) => input.sorting === 'none' ? rows
         : rows.sort((a, b) => compare(keyFor(a, input.sorting as 'agent' | 'ticket'), keyFor(b, input.sorting as 'agent' | 'ticket')));
     if (input.grouping === 'none') {
-        const out: SessionListViewItem[] = []; let rows: Row[] = [];
-        const flush = () => { out.push(...sortRows(rows)); rows = []; };
-        for (const item of input.items) { if (item.type === 'header') { flush(); out.push(item); } else rows.push(item); }
+        // Same shape as sortSessionListIndexItemsByOrderingMode: each scope sorts across its own slots,
+        // so saved blocks stay in place. Any non-folder header ends every open scope.
+        const out = [...input.items]; const headedFolders = new Set<string>(); const scopes = new Map<string | null, number[]>();
+        const flush = () => {
+            for (const slots of scopes.values()) {
+                const sorted = sortRows(slots.map(slot => out[slot] as Row));
+                slots.forEach((slot, position) => { out[slot] = sorted[position]; });
+            }
+            scopes.clear(); headedFolders.clear();
+        };
+        input.items.forEach((item, slot) => {
+            if (item.type === 'header') {
+                if (item.headerKind !== 'folder') flush();
+                else if (item.folderId) headedFolders.add(item.folderId);
+                return;
+            }
+            const scope = headedFolderId(item, headedFolders);
+            const slots = scopes.get(scope) ?? []; slots.push(slot); scopes.set(scope, slots);
+        });
         flush(); return out;
     }
     const output: SessionListViewItem[] = []; let band: Header | null = null; let body: SessionListViewItem[] = [];
@@ -80,13 +100,13 @@ export function projectSessionListStatusView(input: Readonly<{
             }
         };
         const folders = body.filter((item): item is Header => item.type === 'header' && item.headerKind === 'folder');
+        const headedFolders = new Set(folders.flatMap(folder => folder.folderId ? [folder.folderId] : []));
         const members = new Map<string, Row[]>(); const loose: Row[] = [];
         for (const item of body) if (item.type === 'session') {
-            if (item.folderId) { const rows = members.get(item.folderId) ?? []; rows.push(item); members.set(item.folderId, rows); } else loose.push(item);
+            const folderId = headedFolderId(item, headedFolders);
+            if (folderId) { const rows = members.get(folderId) ?? []; rows.push(item); members.set(folderId, rows); } else loose.push(item);
         }
         for (const folder of folders) { output.push(folder); emitGroups(members.get(folder.folderId ?? '') ?? [], folder.groupKey ?? folder.folderId ?? '', folder.folderId); members.delete(folder.folderId ?? ''); }
-        // A filtered source may omit an ancestor header; preserve its rows rather than dropping them.
-        for (const [folderId, rows] of members) emitGroups(rows, folderId);
         emitGroups(loose, 'unfiled');
     };
     for (const item of input.items) { if (item.type === 'header' && BANDS.has(item.headerKind ?? '')) { flushBand(); band = item; body = []; } else body.push(item); }
