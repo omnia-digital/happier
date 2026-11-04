@@ -5,6 +5,10 @@ function whenSessionRowActionAllowed(context: KeyboardContext): boolean {
         && (!context.isOverlayActive || context.isOwnedSessionRowMenuActive === true);
 }
 
+function whenNoOverlayActive(context: KeyboardContext): boolean {
+    return !context.isEditableTarget && !context.isOverlayActive;
+}
+
 export const defaultKeyboardCommands: readonly KeyboardCommand[] = [
     {
         id: 'composer.abortConfirm',
@@ -187,7 +191,7 @@ export const defaultKeyboardCommands: readonly KeyboardCommand[] = [
         id: `session.number.${number}`,
         settingsTitleKey: `settingsKeyboard.commands.sessionNumber${number}`,
         defaultBinding: { binding: `Mod+${number}`, platforms: ['macos'] },
-        when: (context) => !context.isEditableTarget && !context.isOverlayActive,
+        when: whenNoOverlayActive,
     })),
     {
         id: 'session.mru.next',
@@ -211,13 +215,13 @@ export const defaultKeyboardCommands: readonly KeyboardCommand[] = [
         id: 'sessions.row.moveUp',
         defaultBinding: { binding: 'Alt+Shift+ArrowUp' },
         settingsTitleKey: 'settingsKeyboard.commands.sessionsRowMoveUp',
-        when: (context) => !context.isEditableTarget,
+        when: whenNoOverlayActive,
     },
     {
         id: 'sessions.row.moveDown',
         defaultBinding: { binding: 'Alt+Shift+ArrowDown' },
         settingsTitleKey: 'settingsKeyboard.commands.sessionsRowMoveDown',
-        when: (context) => !context.isEditableTarget,
+        when: whenNoOverlayActive,
     },
     {
         id: 'sessions.row.moveToFolder',
@@ -229,7 +233,7 @@ export const defaultKeyboardCommands: readonly KeyboardCommand[] = [
         id: 'sessions.row.moveToWorkspaceRoot',
         defaultBinding: { binding: 'Alt+Shift+R' },
         settingsTitleKey: 'settingsKeyboard.commands.sessionsRowMoveToWorkspaceRoot',
-        when: (context) => !context.isEditableTarget,
+        when: whenNoOverlayActive,
     },
     {
         id: 'sessions.selection.toggleFocused',

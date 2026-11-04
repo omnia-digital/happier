@@ -31,7 +31,7 @@ export type KeyboardShortcutDispatcherOptions = Readonly<{
 }>;
 
 export type KeyboardShortcutLabelOptions = Readonly<{
-    enabled?: boolean;
+    enabled: boolean;
     enabledWhenDisabledCommandIds?: readonly KeyboardCommandId[];
     disabledCommandIds?: readonly string[];
     overrides?: Readonly<Record<string, readonly KeybindingRule[]>>;
@@ -70,7 +70,7 @@ function isCommandEnabledByRegistry(
     commandId: KeyboardCommandId,
     options: Pick<KeyboardShortcutLabelOptions, 'enabled' | 'enabledWhenDisabledCommandIds'>,
 ): boolean {
-    return options.enabled !== false || options.enabledWhenDisabledCommandIds?.includes(commandId) === true;
+    return options.enabled || options.enabledWhenDisabledCommandIds?.includes(commandId) === true;
 }
 
 function isSingleKeyRule(rule: KeybindingRule): boolean {
@@ -293,7 +293,7 @@ export function readKeyboardContextFromEventTarget(target: EventTarget | null): 
 export function buildKeyboardShortcutLabels(
     platform: KeyboardPlatform,
     surface: KeyboardSurface = 'native',
-    options: KeyboardShortcutLabelOptions = {},
+    options: KeyboardShortcutLabelOptions,
 ): Partial<Record<KeyboardCommandId, string>> {
     return Object.fromEntries(
         defaultKeyboardCommands

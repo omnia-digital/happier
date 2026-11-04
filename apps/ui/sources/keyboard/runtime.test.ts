@@ -271,6 +271,7 @@ describe('createKeyboardShortcutDispatcher', () => {
 
     it('only displays labels for commands that can dispatch through active handlers', () => {
         const labels = buildKeyboardShortcutLabels('macos', 'native', {
+            enabled: true,
             disabledCommandIds: [],
             overrides: {},
             singleKeyShortcutsEnabled: true,
@@ -308,6 +309,7 @@ describe('createKeyboardShortcutDispatcher', () => {
 
     it('builds computer-aware web labels from the active safe default', () => {
         const labels = buildKeyboardShortcutLabels('macos', 'web', {
+            enabled: true,
             disabledCommandIds: [],
             overrides: {},
             singleKeyShortcutsEnabled: true,
@@ -327,6 +329,7 @@ describe('createKeyboardShortcutDispatcher', () => {
 
     it('uses Ctrl labels for Mod-based web shortcuts on Windows and Linux', () => {
         const labels = buildKeyboardShortcutLabels('windows', 'web', {
+            enabled: true,
             disabledCommandIds: [],
             overrides: {},
             singleKeyShortcutsEnabled: true,
@@ -344,6 +347,7 @@ describe('createKeyboardShortcutDispatcher', () => {
 
     it('omits native labels for bindings that iOS and Android hardware modules cannot emit', () => {
         const labels = buildKeyboardShortcutLabels('ios', 'native', {
+            enabled: true,
             disabledCommandIds: [],
             overrides: {},
             singleKeyShortcutsEnabled: true,

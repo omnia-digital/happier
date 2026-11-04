@@ -6,6 +6,7 @@ import type { Settings } from '@/sync/domains/settings/settings';
 
 const testState = vi.hoisted(() => ({
     platformOS: 'web',
+    modalActive: false,
     settings: {
         commandPaletteEnabled: true,
         keyboardShortcutsV2Enabled: true,
@@ -34,7 +35,14 @@ vi.mock('react-native', async () => {
 
 vi.mock('@/modal', async () => {
     const { createModalModuleMock } = await import('@/dev/testkit/mocks/modal');
-    return createModalModuleMock().module;
+    const { module } = createModalModuleMock();
+    return {
+        ...module,
+        useOptionalModal: () => ({
+            ...module.useOptionalModal(),
+            isKeyboardLiftSuppressedByModal: testState.modalActive,
+        }),
+    };
 });
 
 vi.mock('@/sync/domains/state/storage', async () => {
@@ -83,6 +91,7 @@ describe('KeyboardShortcutProvider', () => {
         vi.resetModules();
         vi.clearAllMocks();
         testState.platformOS = 'web';
+        testState.modalActive = false;
         testState.settings = {
             commandPaletteEnabled: true,
             keyboardShortcutsV2Enabled: true,
@@ -306,6 +315,51 @@ describe('KeyboardShortcutProvider', () => {
         const withHover = createKeyboardEvent({ key: 'a', code: 'KeyA' });
         await act(async () => { window.dispatchEvent(withHover); });
         expect(withHover.preventDefault).toHaveBeenCalledOnce();
+    });
+
+    describe.each([
+        ['sessions.row.moveToWorkspaceRoot', { key: 'r', code: 'KeyR' }],
+        ['sessions.row.moveUp', { key: 'ArrowUp', code: 'ArrowUp' }],
+        ['sessions.row.moveDown', { key: 'ArrowDown', code: 'ArrowDown' }],
+    ] as const)('%s', (commandId, keys) => {
+        const renderMoveCommand = async () => {
+            const { renderScreen } = await import('@/dev/testkit');
+            const { KeyboardShortcutProvider, useKeyboardShortcutHandlers } = await import('./KeyboardShortcutProvider');
+            const move = vi.fn();
+            function RowCommands() {
+                useKeyboardShortcutHandlers({ [commandId]: move }, { isOwnedSessionRowMenuActive: () => true });
+                return <Child />;
+            }
+            await renderScreen(<KeyboardShortcutProvider handlers={{}}><RowCommands /></KeyboardShortcutProvider>);
+            return {
+                move,
+                press: () => act(async () => {
+                    window.dispatchEvent(createKeyboardEvent({ ...keys, altKey: true, shiftKey: true }));
+                }),
+            };
+        };
+
+        it('does not move the selected session behind a modal', async () => {
+            testState.modalActive = true;
+            const { move, press } = await renderMoveCommand();
+
+            await press();
+
+            expect(move).not.toHaveBeenCalled();
+        });
+
+        it('waits for an open row menu to close before moving the selected session', async () => {
+            const { ESCAPE_LAYER_PRIORITIES, registerEscapeKeyBlocker } = await import('./escape');
+            const { move, press } = await renderMoveCommand();
+            const releaseMenu = registerEscapeKeyBlocker(ESCAPE_LAYER_PRIORITIES.popover);
+
+            await press();
+            expect(move).not.toHaveBeenCalled();
+
+            releaseMenu();
+            await press();
+            expect(move).toHaveBeenCalledTimes(1);
+        });
     });
 
     it('dispatches a row menu chord only for its owned popover and yields to modal, editor, and repeat contexts', async () => {
