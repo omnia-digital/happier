@@ -472,6 +472,63 @@ test.describe('ui e2e: session list ordering mode', () => {
     expect((await readUiE2eLocalSettings({ page })).sessionListShowMachineLabel).toBe(false);
   });
 
+  test('pairs the chosen machine glyph with its own project machine subtitle', async ({ page }) => {
+    test.setTimeout(180_000);
+    if (!server || !uiBaseUrl || !token || !uiServerUrl) throw new Error('missing server/ui fixtures');
+    const fixtures = { baseUrl: server.baseUrl, token };
+
+    const customized = { id: `project-glyph-custom-${run.runId}`, label: 'OH47 Studio' };
+    const untouched = { id: `project-glyph-default-${run.runId}`, label: 'OH47 Rack' };
+    for (const machine of [customized, untouched]) {
+      const registration = await registerMachineIdentity({
+        ...fixtures,
+        machineId: machine.id,
+        metadata: encodePlainMachineStoredContent({
+          host: machine.label,
+          platform: 'darwin',
+          happyCliVersion: '0.2.16',
+          happyHomeDir: cliHomeDir,
+          homeDir: resolve(suiteDir),
+        }),
+        dataEncryptionKey: MACHINE_PLAIN_DATA_KEY_MARKER,
+      });
+      expect(registration.status).toBe(200);
+      await createPlainSession({
+        ...fixtures,
+        title: `project glyph ${machine.label} ${run.runId}`,
+        rootPath: repoRootDir(),
+        machineId: machine.id,
+        tagPrefix: 'project-machine-glyph',
+      });
+    }
+    await patchPlainAccountSettingsV2({ ...fixtures, settingsPatch: { sessionListInactiveGroupingV1: 'project' } });
+
+    const projectMachine = (label: string) => page.locator('[data-testid^="session-list-project-machine:"]', { hasText: label });
+    const readGlyph = (label: string) => projectMachine(label).locator('svg').first().evaluate((svg) => svg.innerHTML);
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 300_000);
+    await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+    await expect(projectMachine(customized.label)).toHaveCount(1, { timeout: 120_000 });
+    await expect(projectMachine(untouched.label)).toHaveCount(1);
+    const defaultGlyph = await readGlyph(customized.label);
+    expect(await readGlyph(untouched.label)).toBe(defaultGlyph);
+
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/machine/${customized.id}?happier_hmr=0`, 180_000);
+    await page.getByTestId('machine-display-icon').click();
+    await page.getByTestId('dropdown-option-laptop').click();
+    const iconPreferenceKey = JSON.stringify([await resolveCanonicalServerIdForUi(uiServerUrl), customized.id]);
+    await expect.poll(async () => {
+      const settings = await readUiE2eLocalSettings({ page });
+      return (settings.machineDisplayIconByMachineV1 as Record<string, unknown> | undefined)?.[iconPreferenceKey];
+    }).toBe('laptop');
+
+    await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 180_000);
+    await expect(projectMachine(customized.label)).toHaveCount(1, { timeout: 120_000 });
+    expect(await readGlyph(customized.label)).not.toBe(defaultGlyph);
+    expect(await readGlyph(untouched.label)).toBe(defaultGlyph);
+  });
+
   test('opens a blank Same Setup draft for the clicked row from plus, right-click, and three-dot', async ({ page }) => {
     test.setTimeout(180_000);
     if (!server || !uiBaseUrl || !token) throw new Error('missing server/ui fixtures');

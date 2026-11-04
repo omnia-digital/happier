@@ -13,6 +13,8 @@ import { t } from '@/text';
 import { useWorkspaceFavicon } from './useWorkspaceFavicon';
 import type { RepositoryCheckout, RepositoryAssociationChoice } from '@/sync/domains/session/listing/sessionRepositoryIdentity';
 import { Icon } from '@/components/ui/icons/Icon';
+import { MachineDisplayGlyph } from '@/components/sessions/SessionMachineIdentity';
+import { normalizeKnownProjectMachineId } from '@/sync/runtime/orchestration/projectKeyIdentity';
 
 const WORKSPACE_FAVICON_SIZE = 16;
 const WORKSPACE_FAVICON_RADIUS = 4;
@@ -61,10 +63,17 @@ const stylesheet = StyleSheet.create((theme) => ({
         writingDirection: 'ltr' as const,
         unicodeBidi: 'isolate' as const,
     },
+    subtitleRow: {
+        flexDirection: 'row' as const,
+        alignItems: 'center' as const,
+        gap: 4,
+        minWidth: 0,
+        marginTop: 2,
+    },
     subtitle: {
         fontSize: 11,
         color: theme.colors.text.secondary,
-        marginTop: 2,
+        flexShrink: 1,
         ...Typography.default(),
     },
     faviconFrame: {
@@ -169,9 +178,11 @@ export const ProjectGroupHeader = React.memo(function ProjectGroupHeader(props: 
     const actionIconColor = theme.colors.text.secondary;
     const checkouts = item.repository?.checkouts;
     const canCreateSession = typeof onCreateSession === 'function' && Boolean(item.workspaceScopeHint || checkouts?.length);
+    const workspaceServerId = item.workspaceScopeHint?.serverId ?? item.serverId ?? null;
+    const subtitleMachineId = normalizeKnownProjectMachineId(item.machine?.id);
     const favicon = useWorkspaceFavicon({
         enabled: workspaceFaviconsEnabled,
-        serverId: item.workspaceScopeHint?.serverId ?? item.serverId ?? null,
+        serverId: workspaceServerId,
         machineId: item.workspaceScopeHint?.machineId ?? null,
         workspacePath: item.workspaceScopeHint?.rootPath ?? null,
     });
@@ -318,7 +329,17 @@ export const ProjectGroupHeader = React.memo(function ProjectGroupHeader(props: 
                         </View>
                     </View>
                     {workspaceMachineSubtitlesEnabled && hasMultipleMachines && item.subtitle ? (
-                        <Text style={styles.subtitle}>{item.subtitle}</Text>
+                        <View testID={`session-list-project-machine:${reorderHandleKey}`} style={styles.subtitleRow}>
+                            {subtitleMachineId ? (
+                                <MachineDisplayGlyph
+                                    serverId={workspaceServerId}
+                                    machineId={subtitleMachineId}
+                                    size={12}
+                                    color={theme.colors.text.secondary}
+                                />
+                            ) : null}
+                            <Text style={styles.subtitle}>{item.subtitle}</Text>
+                        </View>
                     ) : null}
                 </Pressable>
                 <View style={styles.trailingActions}>

@@ -4069,6 +4069,93 @@ describe('SessionsList (native virtualization)', () => {
         expect(rows[1]?.props.rowModel?.subtitle).toBe('Machine B · b');
     });
 
+    it('pairs a project machine subtitle with the chosen glyph of that machine on its own Home', async () => {
+        platformOs = 'web';
+        const { ProjectGroupHeader } = await import('./SessionsList');
+        const { storage } = await import('@/sync/domains/state/storage');
+        const { withMachineDisplayColor, withMachineDisplayIcon } = await import('@/sync/domains/machines/machineDisplayIconPreference');
+        const { useUnistyles } = await import('react-native-unistyles');
+        const { theme } = useUnistyles();
+        const previousLocalSettings = storage.getState().localSettings;
+        storage.setState((state) => ({
+            localSettings: {
+                ...state.localSettings,
+                machineDisplayIconByMachineV1: withMachineDisplayIcon(
+                    withMachineDisplayIcon({}, 'server_a', 'machine-shared', 'laptop'),
+                    'server_b',
+                    'machine-shared',
+                    'cloud',
+                ),
+                machineDisplayColorByMachineV1: withMachineDisplayColor({}, 'server_a', 'machine-shared', 'blue'),
+            },
+        }));
+        const machineHeader = (serverId: string, machineId: string, subtitle: string) => ({
+            type: 'header',
+            title: '/repo',
+            subtitle,
+            headerKind: 'project',
+            groupKey: `server:${serverId}:active:project:abc`,
+            workspaceKey: 'wl_abc',
+            workspaceScopeHint: machineId === 'unknown' ? null : { serverId, machineId, rootPath: '/repo' },
+            machine: { ...machineDisplayById['machine-target'], id: machineId },
+            serverId,
+            serverName: serverId,
+        } satisfies Extract<SessionListViewItem, { type: 'header' }>);
+        const renderHeader = (
+            item: Extract<SessionListViewItem, { type: 'header' }>,
+            options: Readonly<{ hasMultipleMachines?: boolean; workspaceMachineSubtitlesEnabled?: boolean }> = {},
+        ) => renderScreen(
+            <ProjectGroupHeader
+                item={item}
+                hasMultipleMachines={options.hasMultipleMachines ?? true}
+                workspaceMachineSubtitlesEnabled={options.workspaceMachineSubtitlesEnabled}
+                workspaceLabelsV1={{}}
+                onRenameWorkspace={vi.fn()}
+                onResetWorkspaceName={vi.fn()}
+                onCreateSession={vi.fn()}
+                onAddFolder={vi.fn()}
+                collapsed={false}
+                onToggleCollapse={vi.fn()}
+                headerTestId="project-header"
+            />,
+        );
+        const machineGlyphs = (screen: Awaited<ReturnType<typeof renderHeader>>) => screen.root
+            .findAllByType('Icon' as never)
+            .filter((icon) => !['caret-down', 'caret-right', 'plus', 'list', 'dots-three'].includes(String(icon.props.name)));
+
+        try {
+            const homeA = await renderHeader(machineHeader('server_a', 'machine-shared', 'Studio'));
+            const homeB = await renderHeader(machineHeader('server_b', 'machine-shared', 'Studio'));
+            const homeless = await renderHeader({
+                ...machineHeader('server_a', 'machine-shared', 'Studio'),
+                workspaceScopeHint: null,
+            });
+            const unattributed = await renderHeader(machineHeader('server_a', 'unknown', 'unknown'));
+            const subtitleHidden = await renderHeader(
+                machineHeader('server_a', 'machine-shared', 'Studio'),
+                { workspaceMachineSubtitlesEnabled: false },
+            );
+            const singleMachine = await renderHeader(
+                machineHeader('server_a', 'machine-shared', 'Studio'),
+                { hasMultipleMachines: false },
+            );
+
+            expect(machineGlyphs(homeA).map((icon) => icon.props)).toEqual([
+                expect.objectContaining({ name: 'laptop', color: theme.colors.accent.blue }),
+            ]);
+            expect(machineGlyphs(homeB).map((icon) => icon.props)).toEqual([
+                expect.objectContaining({ name: 'cloud', color: theme.colors.text.secondary }),
+            ]);
+            expect(machineGlyphs(homeless).map((icon) => icon.props.name)).toEqual(['laptop']);
+            expect(machineGlyphs(unattributed)).toEqual([]);
+            expect(unattributed.root.findAll((node) => String(node.type) === 'Text' && node.props.children === 'unknown')).toHaveLength(1);
+            expect(machineGlyphs(subtitleHidden)).toEqual([]);
+            expect(machineGlyphs(singleMachine)).toEqual([]);
+        } finally {
+            storage.setState({ localSettings: previousLocalSettings });
+        }
+    });
+
     it('uses start-side overflow ellipsis for workspace path headers on web without reordering the path', async () => {
         platformOs = 'web';
         const { ProjectGroupHeader } = await import('./SessionsList');
