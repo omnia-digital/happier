@@ -48,6 +48,7 @@ function CheckoutChip(props: Readonly<{
     label: string;
     checkoutPickerOpen: boolean;
     setCheckoutPickerOpen: React.Dispatch<React.SetStateAction<boolean>>;
+    onPress?: () => void;
 }>) {
     const { ctx, checkoutPickerOpen, setCheckoutPickerOpen } = props;
     const toggleCollapsedPopover = ctx.toggleCollapsedPopover;
@@ -66,6 +67,7 @@ function CheckoutChip(props: Readonly<{
             ref={ctx.chipAnchorRef}
             testID="new-session-checkout-chip"
             onPress={() => {
+                props.onPress?.();
                 if (toggleCollapsedPopover) {
                     toggleCollapsedPopover(CHIP_KEY);
                     return;
@@ -90,6 +92,7 @@ function CheckoutChip(props: Readonly<{
 export function useNewSessionCheckoutActionChip(params: Readonly<{
     scmScope?: ServerAccountScope | null;
     repoScmSnapshot: ScmWorkingSnapshot | null;
+    retryRepoScmSnapshot: () => void;
     checkoutChipModel: NewSessionCheckoutChipModel;
     checkoutPickerOpen: boolean;
     setCheckoutPickerOpen: React.Dispatch<React.SetStateAction<boolean>>;
@@ -283,6 +286,10 @@ export function useNewSessionCheckoutActionChip(params: Readonly<{
                     label={selectedLabel}
                     checkoutPickerOpen={params.checkoutPickerOpen}
                     setCheckoutPickerOpen={params.setCheckoutPickerOpen}
+                    // A failed lookup has no event of its own to recover on, so asking is the retry.
+                    onPress={newWorktreeUnavailableReason === 'repository_status_unavailable'
+                        ? params.retryRepoScmSnapshot
+                        : undefined}
                 />
             ),
         };
@@ -294,6 +301,7 @@ export function useNewSessionCheckoutActionChip(params: Readonly<{
         params.pendingGitWorktreeBaseRefRef,
         params.pendingGitWorktreeSourceKindRef,
         params.repoScmSnapshot,
+        params.retryRepoScmSnapshot,
         params.router,
         params.selectedMachineId,
         params.selectedPath,

@@ -119,6 +119,27 @@ describe('SelectionList virtualized row ARIA parity (R9 blocker 4)', () => {
         expect(probeWrapper).not.toBeNull();
     });
 
+    it('exposes a disabled option as disabled on its virtualized wrapper', async () => {
+        flashListState.props = null;
+        const root: SelectionListStep = {
+            id: 'root',
+            inputPlaceholder: 'Search',
+            sections: [
+                {
+                    kind: 'static',
+                    id: 'forced',
+                    options: [{ id: 'off', label: 'Off', disabled: true }, { id: 'on', label: 'On' }],
+                    virtualization: 'force',
+                },
+            ],
+        };
+        const { SelectionList } = await import('../SelectionList');
+        const screen = await renderScreen(<SelectionList {...defaultProps(root)} />);
+
+        expect(screen.findByTestId('sl:root:option-wrapper:off')?.props['aria-disabled']).toBe(true);
+        expect(screen.findByTestId('sl:root:option-wrapper:on')?.props['aria-disabled']).toBeUndefined();
+    });
+
     it('applies option accessibility labels to virtualized option wrappers', async () => {
         flashListState.props = null;
         const optionWithA11yName = {

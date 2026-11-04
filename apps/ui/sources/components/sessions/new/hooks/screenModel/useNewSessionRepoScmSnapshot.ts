@@ -32,10 +32,12 @@ import { pathBelongsToRepo } from './worktreePathComparison';
  * in flight, which both read as a null snapshot. It is recorded against the path it
  * failed for, so moving to another path falls back to plain "loading" immediately,
  * while a retry of the same path keeps the result on screen until a snapshot lands.
+ * `retry` rereads the current target for callers with no focus or target change to ride on.
  */
 export type NewSessionRepoScmSnapshotState = Readonly<{
     snapshot: ScmWorkingSnapshot | null;
     unavailable: boolean;
+    retry: () => void;
 }>;
 
 export function useNewSessionRepoScmSnapshot(input: Readonly<{
@@ -71,6 +73,9 @@ export function useNewSessionRepoScmSnapshot(input: Readonly<{
             unavailablePath: null,
         };
     });
+
+    const [retryCount, setRetryCount] = React.useState(0);
+    const retry = React.useCallback(() => setRetryCount((count) => count + 1), []);
 
     const refreshSnapshot = React.useCallback(() => {
         const machineId = input.machineId?.trim() ?? '';
@@ -170,7 +175,7 @@ export function useNewSessionRepoScmSnapshot(input: Readonly<{
         return () => {
             cancelled = true;
         };
-    }, [input.machineId, input.path, input.scope?.serverId, input.scope?.accountId, targetKey]);
+    }, [input.machineId, input.path, input.scope?.serverId, input.scope?.accountId, retryCount, targetKey]);
 
     React.useEffect(() => {
         return refreshSnapshot();
@@ -178,9 +183,10 @@ export function useNewSessionRepoScmSnapshot(input: Readonly<{
 
     useFocusEffect(refreshSnapshot);
 
-    if (state.targetKey !== targetKey) return { snapshot: null, unavailable: false };
+    if (state.targetKey !== targetKey) return { snapshot: null, unavailable: false, retry };
     return {
         snapshot: state.snapshot,
         unavailable: state.snapshot === null && state.unavailablePath === input.path.trim(),
+        retry,
     };
 }

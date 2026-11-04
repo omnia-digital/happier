@@ -139,6 +139,8 @@ test.describe('ui e2e: /new worktree picker (Phase 5 SelectionList migration)', 
         await page.getByTestId('new-session-checkout-chip').click();
         const unavailableNewWorktree = page.getByTestId('selection-list:worktree-root:option:create_git_worktree');
         await expect(unavailableNewWorktree).toBeVisible({ timeout: 30_000 });
+        await expect(page.getByTestId('selection-list:worktree-root:option-wrapper:create_git_worktree'))
+            .toHaveAttribute('aria-disabled', 'true');
         await expect(page.getByTestId('selection-list:worktree-root:option:existing_git_worktree')).toHaveCount(0);
         await expect(page.getByTestId('selection-list:worktree-root:option:create_git_worktree_from_branch')).toHaveCount(0);
         await unavailableNewWorktree.click({ force: true });

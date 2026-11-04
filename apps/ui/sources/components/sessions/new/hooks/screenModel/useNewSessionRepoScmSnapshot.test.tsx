@@ -373,13 +373,13 @@ describe('useNewSessionRepoScmSnapshot', () => {
         await flushHookEffects();
 
         // Still loading: an in-flight lookup must never read as a failure.
-        expect(hook.getCurrent()).toEqual({ snapshot: null, unavailable: false });
+        expect(hook.getCurrent()).toMatchObject({ snapshot: null, unavailable: false });
 
         await act(async () => {
             rejectFetch?.(new Error('machine offline'));
         });
         await flushHookEffects();
-        expect(hook.getCurrent()).toEqual({ snapshot: null, unavailable: true });
+        expect(hook.getCurrent()).toMatchObject({ snapshot: null, unavailable: true });
 
         // A retry keeps the reason on screen rather than flashing it away while it runs.
         const recovered = makeSnapshot({ fetchedAt: 9 });
@@ -390,13 +390,38 @@ describe('useNewSessionRepoScmSnapshot', () => {
         await act(async () => {
             focusEffectRunnerState.callback?.();
         });
-        expect(hook.getCurrent()).toEqual({ snapshot: null, unavailable: true });
+        expect(hook.getCurrent()).toMatchObject({ snapshot: null, unavailable: true });
 
         await act(async () => {
             resolveFetch?.(recovered);
         });
         await flushHookEffects();
-        expect(hook.getCurrent()).toEqual({ snapshot: recovered, unavailable: false });
+        expect(hook.getCurrent()).toMatchObject({ snapshot: recovered, unavailable: false });
+        await hook.unmount();
+    });
+
+    it('recovers from an unavailable status on retry without a focus or target change', async () => {
+        readCachedSnapshotForMachinePathMock.mockReturnValue(null);
+        readCachedWorktreesEnrichmentMock.mockReturnValue(null);
+        fetchSnapshotForMachinePathMock.mockRejectedValue(new Error('machine offline'));
+        fetchWorktreesEnrichmentMock.mockResolvedValue(null);
+
+        const hook = await renderHook(() => useNewSessionRepoScmSnapshot({
+            scope,
+            machineId: 'machine-a',
+            path: '/repo',
+        }));
+        await flushHookEffects();
+        expect(hook.getCurrent()).toMatchObject({ snapshot: null, unavailable: true });
+
+        const recovered = makeSnapshot({ fetchedAt: 9 });
+        fetchSnapshotForMachinePathMock.mockResolvedValue(recovered);
+        await act(async () => {
+            hook.getCurrent().retry();
+        });
+        await flushHookEffects();
+
+        expect(hook.getCurrent()).toMatchObject({ snapshot: recovered, unavailable: false });
         await hook.unmount();
     });
 
@@ -416,7 +441,7 @@ describe('useNewSessionRepoScmSnapshot', () => {
 
         fetchSnapshotForMachinePathMock.mockImplementation(() => new Promise(() => {}));
         await hook.rerender({ ...initialProps, path: '/other' });
-        expect(hook.getCurrent()).toEqual({ snapshot: null, unavailable: false });
+        expect(hook.getCurrent()).toMatchObject({ snapshot: null, unavailable: false });
         await hook.unmount();
     });
 

@@ -107,9 +107,17 @@ revalidates it.
 
 New Worktree needs a Git repository. In a folder outside Git, or when Happier
 cannot read the folder's repository status, the picker keeps **New Worktree**
-visible but disabled and shows the reason. If a restored draft or your default
-asked for a new worktree there, the picker chip reads **New Worktree unavailable**,
-and the session starts in the selected folder.
+visible but disabled and shows the reason. Opening the picker rereads a status
+Happier could not read.
+
+If a new worktree was requested but Happier can't prepare one for the folder, the
+picker chip reads **New Worktree unavailable** and the session starts in the
+selected folder. The request stays with the draft, so moving to a Git repository
+selects **New Worktree** again. Choose **No Worktree** to drop it.
+
+A new worktree already selected for the folder, including in a restored draft,
+stays selected while the repository status can't be read. Happier still tries to
+create it when you submit, and reports an error if that fails.
 
 To carry a conversation into another checkout, choose **Configure a new session**
 from the [fork chooser](/sessions/session-forking), then use the same picker.

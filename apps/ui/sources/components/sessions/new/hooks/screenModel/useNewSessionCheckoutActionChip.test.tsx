@@ -101,6 +101,7 @@ function makeDefaultParams(
 ): UseNewSessionCheckoutActionChipParams {
     return {
         repoScmSnapshot: makeSnapshot(),
+        retryRepoScmSnapshot: vi.fn(),
         checkoutChipModel: makeCheckoutChipModel(),
         checkoutPickerOpen: true,
         setCheckoutPickerOpen: createStateSetter<boolean>(),
@@ -524,6 +525,30 @@ describe('useNewSessionCheckoutActionChip', () => {
         ]);
         expect(getCheckoutChipRootStepFromChip(chip)?.sections.map((section) => section.id)).toEqual(['worktree:quick-actions']);
         expect(setCheckoutCreationDraft).not.toHaveBeenCalled();
+    });
+
+    it('rereads an unavailable repository status when the chip is opened, and only then', async () => {
+        const pressChip = async (reason: 'repository_status_unavailable' | 'not_git_repository') => {
+            const retryRepoScmSnapshot = vi.fn();
+            const chip = await renderCheckoutChip({
+                repoScmSnapshot: null,
+                checkoutChipModel: {
+                    ...makeCheckoutChipModel([{ id: 'current_path', kind: 'current_path', path: '/plain' }]),
+                    newWorktreeUnavailableReason: reason,
+                },
+                selectedPath: '/plain',
+                checkoutPickerOpen: false,
+                retryRepoScmSnapshot,
+            });
+            const screen = await renderScreen(<>{chip?.render?.(makeChipRenderContext())}</>);
+            await act(async () => {
+                screen.findByTestId('new-session-checkout-chip')?.props.onPress();
+            });
+            return retryRepoScmSnapshot;
+        };
+
+        expect(await pressChip('repository_status_unavailable')).toHaveBeenCalledTimes(1);
+        expect(await pressChip('not_git_repository')).not.toHaveBeenCalled();
     });
 
     it('explains an unavailable repository status and keeps a retained creation draft visible', async () => {

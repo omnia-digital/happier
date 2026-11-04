@@ -84,6 +84,7 @@ describe('useNewSessionAuthoringState', () => {
             selectedMachine: null,
             selectedPath: '/repo',
             checkoutCreationDraft: null,
+            persistableCheckoutCreationDraft: null,
             promptStore: createNewSessionPromptStore(''),
             agentType: 'claude',
             backendTarget: null,
@@ -127,6 +128,70 @@ describe('useNewSessionAuthoringState', () => {
         await hook.unmount();
     });
 
+    it('saves the requested worktree intent while the launch draft stays free of it', async () => {
+        const persistableCheckoutCreationDraft = {
+            kind: 'git_worktree' as const,
+            displayName: 'calm-forest',
+            baseRef: null,
+            branchMode: 'new' as const,
+        };
+        const buildNewSessionAuthoringContext = ({ buildDraft }: { buildDraft: (automation: unknown) => unknown }) => ({
+            draft: buildDraft(DEFAULT_NEW_SESSION_AUTOMATION_DRAFT),
+            effectiveAutomationDraft: DEFAULT_NEW_SESSION_AUTOMATION_DRAFT,
+            canSubmit: true,
+        });
+        buildNewSessionAuthoringContextMock.mockImplementation(buildNewSessionAuthoringContext);
+        buildLiveNewSessionAuthoringDraftFromResolvedInputsMock.mockImplementation((params) => ({
+            directory: params.directory,
+            prompt: params.prompt,
+            displayText: params.displayText ?? '',
+            checkoutCreationDraft: params.checkoutCreationDraft,
+        }));
+
+        const hook = await renderHook(() => useNewSessionAuthoringState({
+            automationDraft: DEFAULT_NEW_SESSION_AUTOMATION_DRAFT,
+            automationFeatureEnabled: false,
+            selectedMachineId: null,
+            selectedMachine: null,
+            selectedPath: '/plain',
+            checkoutCreationDraft: null,
+            persistableCheckoutCreationDraft,
+            promptStore: createNewSessionPromptStore(''),
+            agentType: 'claude',
+            backendTarget: null,
+            transcriptStorage: null,
+            useProfiles: false,
+            selectedProfileId: null,
+            resumeSessionId: '',
+            permissionMode: 'default',
+            modelMode: 'default',
+            mcpSelection: null,
+            agentNewSessionOptions: null,
+            settings: settingsDefaults,
+            effectiveWindowsRemoteSessionLaunchMode: null,
+            targetServerId: null,
+            windowsRemoteSessionLaunchModeOverride: null,
+            acpSessionModeId: null,
+            sessionConfigOptionOverrides: null,
+            automationEditId: null,
+            automationRequestedByRoute: false,
+            selectedSecretId: null,
+            selectedSecretIdByProfileIdByEnvVarName: {},
+            getSessionOnlySecretValueEncByProfileIdByEnvVarName: () => ({}),
+            agentNewSessionOptionStateByAgentId: {},
+            draftScope: { serverId: 'server-a', accountId: 'account-a' },
+            draftId: '8e0a5dd1-b1df-43dd-b51e-b7787b30362e',
+        }));
+
+        hook.getCurrent().stageDraftIfEnabled({ selectedPath: '/plain' } as never);
+
+        const write = writeNewSessionDraftMock.mock.calls[0]?.[0] as { patch: { authoring: Record<string, unknown> } };
+        expect(write.patch.authoring.checkoutCreationDraft).toEqual(persistableCheckoutCreationDraft);
+        expect(hook.getCurrent().currentAuthoringDraft).toMatchObject({ checkoutCreationDraft: null });
+
+        await hook.unmount();
+    });
+
     it('keeps the live prompt as canonical edit state without passing duplicate display text', async () => {
         const prompt = `  ${'x'.repeat(WEB_TEXTAREA_AUTOSIZE_VALUE_LENGTH_LIMIT + 1)}  `;
         buildNewSessionAuthoringContextMock.mockImplementation(({ buildDraft }) => ({
@@ -142,6 +207,7 @@ describe('useNewSessionAuthoringState', () => {
             selectedMachine: null,
             selectedPath: '/repo',
             checkoutCreationDraft: null,
+            persistableCheckoutCreationDraft: null,
             promptStore: createNewSessionPromptStore(prompt),
             agentType: 'claude',
             backendTarget: null,

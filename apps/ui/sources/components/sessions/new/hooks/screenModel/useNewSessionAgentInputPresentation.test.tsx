@@ -114,6 +114,7 @@ describe('useNewSessionAgentInputPresentation', () => {
             },
             setAutomationDraft: vi.fn(),
             repoScmSnapshot: null,
+            retryRepoScmSnapshot: vi.fn(),
             checkoutChipModel: {
                 selectedOptionId: 'current_path',
                 newWorktreeUnavailableReason: null,
@@ -212,6 +213,7 @@ describe('useNewSessionAgentInputPresentation', () => {
             },
             setAutomationDraft: vi.fn(),
             repoScmSnapshot: null,
+            retryRepoScmSnapshot: vi.fn(),
             checkoutChipModel: {
                 selectedOptionId: 'current_path',
                 newWorktreeUnavailableReason: null,
@@ -358,6 +360,7 @@ describe('useNewSessionAgentInputPresentation', () => {
             },
             setAutomationDraft: vi.fn(),
             repoScmSnapshot: null,
+            retryRepoScmSnapshot: vi.fn(),
             checkoutChipModel: {
                 selectedOptionId: 'current_path',
                 newWorktreeUnavailableReason: null,
@@ -479,6 +482,7 @@ describe('useNewSessionAgentInputPresentation', () => {
             },
             setAutomationDraft: vi.fn(),
             repoScmSnapshot: null,
+            retryRepoScmSnapshot: vi.fn(),
             checkoutChipModel: {
                 selectedOptionId: 'current_path',
                 newWorktreeUnavailableReason: null,
@@ -576,6 +580,7 @@ describe('useNewSessionAgentInputPresentation', () => {
             },
             setAutomationDraft: vi.fn(),
             repoScmSnapshot: null,
+            retryRepoScmSnapshot: vi.fn(),
             checkoutChipModel: {
                 selectedOptionId: 'current_path',
                 newWorktreeUnavailableReason: null,
@@ -675,6 +680,7 @@ describe('useNewSessionAgentInputPresentation', () => {
             },
             setAutomationDraft: vi.fn(),
             repoScmSnapshot: null,
+            retryRepoScmSnapshot: vi.fn(),
             checkoutChipModel: {
                 selectedOptionId: 'current_path',
                 newWorktreeUnavailableReason: null,

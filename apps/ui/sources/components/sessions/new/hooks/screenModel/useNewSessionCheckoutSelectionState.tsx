@@ -32,6 +32,8 @@ export function useNewSessionCheckoutSelectionState(params: Readonly<{
     autoOpenWorktreePickerKey?: string | null;
 }>): Readonly<{
     checkoutCreationDraft: NewSessionCheckoutCreationDraft | null;
+    /** What a saved draft records: the live draft, or a requested New Worktree this target cannot create yet. */
+    persistableCheckoutCreationDraft: NewSessionCheckoutCreationDraft | null;
     setCheckoutCreationDraft: React.Dispatch<React.SetStateAction<NewSessionCheckoutCreationDraft | null>>;
     checkoutSelectionExplicit: boolean;
     checkoutPickerOpen: boolean;
@@ -59,12 +61,8 @@ export function useNewSessionCheckoutSelectionState(params: Readonly<{
             checkoutCreationDraft: resolveCheckoutCreationDraftAction(next, current.checkoutCreationDraft),
         }));
     }, []);
-    // Clearing an invalidated draft rewrites the selection to `current_path`, so the fact that
-    // New Worktree was asked for has to outlive it for the chip to explain what happened.
-    const [worktreeIntentInvalidated, setWorktreeIntentInvalidated] = React.useState(false);
     const setExplicitCheckoutCreationDraft = React.useCallback<React.Dispatch<React.SetStateAction<NewSessionCheckoutCreationDraft | null>>>((next) => {
         hasLocalCheckoutSelectionAuthorityRef.current = true;
-        setWorktreeIntentInvalidated(false);
         setCheckoutSelectionState((current) => {
             const checkoutCreationDraft = resolveCheckoutCreationDraftAction(next, current.checkoutCreationDraft);
             return {
@@ -81,6 +79,17 @@ export function useNewSessionCheckoutSelectionState(params: Readonly<{
     const previousSelectionKeyRef = React.useRef<string | null>(null);
     const lastAutoOpenWorktreePickerKeyRef = React.useRef<string | null>(null);
     const defaultWorktreeNameRef = React.useRef(generateWorktreeName());
+    const buildDefaultCheckoutCreationDraft = React.useCallback((): NewSessionCheckoutCreationDraft => ({
+        kind: 'git_worktree',
+        displayName: defaultWorktreeNameRef.current,
+        baseRef: null,
+        branchMode: 'new',
+    }), []);
+    // Persistence has no way to say "requested, no draft": a saved null restores as No Worktree.
+    const persistableCheckoutCreationDraft = React.useMemo(() => {
+        if (checkoutCreationDraft !== null) return checkoutCreationDraft;
+        return effectiveCheckoutSelection.explicitMode === 'git_worktree' ? buildDefaultCheckoutCreationDraft() : null;
+    }, [buildDefaultCheckoutCreationDraft, checkoutCreationDraft, effectiveCheckoutSelection.explicitMode]);
 
     React.useEffect(() => {
         if (!hasAppliedCheckoutDraftEffectRef.current) {
@@ -103,8 +112,7 @@ export function useNewSessionCheckoutSelectionState(params: Readonly<{
             checkoutCreationDraft,
             repoSnapshot: params.repoScmSnapshot,
             repoSnapshotUnavailable: params.repoScmSnapshotUnavailable,
-            worktreeIntentRequested: worktreeIntentInvalidated
-                || (effectiveCheckoutSelection.explicitMode ?? params.defaultCheckoutMode) === 'git_worktree',
+            worktreeIntentRequested: (effectiveCheckoutSelection.explicitMode ?? params.defaultCheckoutMode) === 'git_worktree',
         });
     }, [
         checkoutCreationDraft,
@@ -113,7 +121,6 @@ export function useNewSessionCheckoutSelectionState(params: Readonly<{
         params.repoScmSnapshot,
         params.repoScmSnapshotUnavailable,
         params.selectedPath,
-        worktreeIntentInvalidated,
     ]);
 
     React.useEffect(() => {
@@ -131,10 +138,12 @@ export function useNewSessionCheckoutSelectionState(params: Readonly<{
         if (!shouldPreserveCheckoutCreationDraft && checkoutCreationDraft !== null) {
             shouldReconcileInitialHydratedCheckoutCreationDraftRef.current = false;
             hasLocalCheckoutSelectionAuthorityRef.current = true;
-            if (!gitDetectionAllowsDraft) setWorktreeIntentInvalidated(true);
+            // Only the draft is invalid when Git detection rejects it. The request stands, so the chip
+            // can explain it and a capable target regenerates it, exactly as after a path change.
+            const invalidatedExplicitMode = gitDetectionAllowsDraft ? 'current_path' : 'git_worktree';
             setCheckoutSelectionState({
                 checkoutCreationDraft: null,
-                explicitMode: effectiveCheckoutSelection.explicitMode === null ? null : 'current_path',
+                explicitMode: effectiveCheckoutSelection.explicitMode === null ? null : invalidatedExplicitMode,
             });
         }
     }, [
@@ -158,7 +167,6 @@ export function useNewSessionCheckoutSelectionState(params: Readonly<{
         }
         previousSelectionKeyRef.current = selectionKey;
         hasLocalCheckoutSelectionAuthorityRef.current = true;
-        setWorktreeIntentInvalidated(false);
         if (checkoutCreationDraft === null) {
             return;
         }
@@ -175,13 +183,9 @@ export function useNewSessionCheckoutSelectionState(params: Readonly<{
             return;
         }
 
-        setCheckoutCreationDraft({
-            kind: 'git_worktree',
-            displayName: defaultWorktreeNameRef.current,
-            baseRef: null,
-            branchMode: 'new',
-        });
+        setCheckoutCreationDraft(buildDefaultCheckoutCreationDraft());
     }, [
+        buildDefaultCheckoutCreationDraft,
         checkoutCreationDraft,
         effectiveCheckoutSelection.explicitMode,
         params.defaultCheckoutMode,
@@ -208,6 +212,7 @@ export function useNewSessionCheckoutSelectionState(params: Readonly<{
 
     return {
         checkoutCreationDraft,
+        persistableCheckoutCreationDraft,
         setCheckoutCreationDraft: setExplicitCheckoutCreationDraft,
         checkoutSelectionExplicit,
         checkoutPickerOpen,
