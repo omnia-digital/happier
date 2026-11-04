@@ -122,6 +122,12 @@ test.describe('ui e2e: session action rail', () => {
     // server-v0.2.17 (a2c45c86804b24e60ac0b76146a3ef36dfcaa15b) omits
     // ACK.createdAt but serves the same authenticated by-local-id route. Emulate only
     // that wire difference; persistence, auth, HTTP lookup, Sync and rendering stay real.
+    // Run the browser clock hours behind the server's. A row rendered from the local send time
+    // or from an ACK-time clock then differs visibly from the stored createdAt, which only the
+    // database supplies. (A cross-origin web client cannot read the HTTP Date header that
+    // `nowServerMs()` calibrates from, so nothing realigns the skewed clock.)
+    const clientClockSkewMs = -3 * 60 * 60 * 1000;
+    await page.clock.install({ time: Date.now() + clientClockSkewMs });
     await page.routeWebSocket((url) => url.pathname === '/v1/updates/', (route) => {
       const upstream = route.connectToServer();
       upstream.onMessage((packet) => {
@@ -153,10 +159,14 @@ test.describe('ui e2e: session action rail', () => {
       const { sessionId } = await createSessionWithCiphertexts({
         baseUrl: server.baseUrl,
         token: access.token,
-        metadataCiphertextBase64: encryptLegacyBase64({ path: suiteDir, host: 'Timestamp fixture', version: '0.2.16', flavor: 'claude' }, secret),
+        metadataCiphertextBase64: encryptLegacyBase64({ path: suiteDir, host: 'Timestamp fixture', version: '0.0.9', flavor: 'claude' }, secret),
       });
-      // Explicit immediate-send in agent_queue mode takes the socket path for an
-      // inactive session; ordinary Send intentionally queues it instead.
+      // With a numeric pendingVersion (which server-v0.2.17 always projects), agent_queue
+      // enqueues Pending whenever the attached CLI meets the Pending queue minimum, even for
+      // explicit immediate send, so no supported CLI reaches the socket commit on that server.
+      // This fixture therefore attaches a CLI version below that minimum (the UI flags it as
+      // needing an update). The other route to the socket commit is a session without a numeric
+      // pendingVersion, which a server serving the by-local-id lookup does not produce.
       expect((await fetchSessionV2(server.baseUrl, access.token, sessionId)).active).toBe(false);
       await mutateUiE2eScopedAccountSettings({ page, settingsPatch: {
         sessionMessageSendMode: 'agent_queue',
@@ -175,12 +185,18 @@ test.describe('ui e2e: session action rail', () => {
       const stored = (await response.json()).message;
       expect(stored).toMatchObject(omittedTimes[0]!);
       const expectedTime = await formatStoredMessageTimestamp(page, stored.createdAt);
+      // Guard the discriminator itself: a local-clock time must not format like the stored one.
+      expect(await formatStoredMessageTimestamp(page, stored.createdAt + clientClockSkewMs)).not.toBe(expectedTime);
+      // Rendered row ids are reducer-allocated, so the row is found by its text. Under the skew,
+      // a pending projection kept after a failed lookup, or a committed row built from an
+      // ACK-time clock, renders a time hours away from the stored one and fails here.
       const message = page.locator('[data-testid^="transcript-message-"]').filter({ hasText: prompt });
+      const messageTimestamp = message.locator('[data-testid^="transcript-message-timestamp-text:"]');
       await expect(message).toHaveCount(1);
-      await expect(message.locator('[data-testid^="transcript-message-timestamp-text:"]')).toHaveText(expectedTime);
+      await expect(messageTimestamp).toHaveText(expectedTime);
       await page.reload({ waitUntil: 'domcontentloaded' });
       await expect(message).toHaveCount(1);
-      await expect(message.locator('[data-testid^="transcript-message-timestamp-text:"]')).toHaveText(expectedTime);
+      await expect(messageTimestamp).toHaveText(expectedTime);
       await testInfo.attach('legacy-ack-stored-timestamp', {
         body: JSON.stringify({ wireEmulation: 'server-v0.2.17 ACK without createdAt', message: omittedTimes[0], expectedTime, lookupStatus: response.status() }),
         contentType: 'application/json',
