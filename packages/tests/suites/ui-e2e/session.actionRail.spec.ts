@@ -153,10 +153,11 @@ test.describe('ui e2e: session action rail', () => {
       const { sessionId } = await createSessionWithCiphertexts({
         baseUrl: server.baseUrl,
         token: access.token,
-        metadataCiphertextBase64: encryptLegacyBase64({ path: suiteDir, host: 'Timestamp fixture', version: '0.2.16', flavor: 'claude' }, secret),
+        metadataCiphertextBase64: encryptLegacyBase64({ path: suiteDir, host: 'Timestamp fixture', version: '0.0.9', flavor: 'claude' }, secret),
       });
-      // Explicit immediate-send in agent_queue mode takes the socket path for an
-      // inactive session; ordinary Send intentionally queues it instead.
+      // Immediate send stays on the socket commit path only when the attached CLI is below
+      // the Pending queue minimum. A newer CLI enqueues Pending, which never receives this
+      // ACK. Only the CLI version changes; the server's own pendingVersion is left untouched.
       expect((await fetchSessionV2(server.baseUrl, access.token, sessionId)).active).toBe(false);
       await mutateUiE2eScopedAccountSettings({ page, settingsPatch: {
         sessionMessageSendMode: 'agent_queue',
