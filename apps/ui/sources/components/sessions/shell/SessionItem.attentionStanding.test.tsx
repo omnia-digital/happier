@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { renderScreen, standardCleanup } from '@/dev/testkit';
 import { lightTheme } from '@/theme';
+import { compositeThemeColorOver, parseThemeColor, themeContrastRatio } from '@/theme/themeContrastMath';
 import { resolveSessionRowPresentation } from './row/resolveSessionRowPresentation';
 import { createSessionItemTestRowModel, installSessionShellCommonModuleMocks } from './sessionShellTestHelpers';
 
@@ -207,4 +208,47 @@ describe('SessionItem attention standing', () => {
         expect(screen.findByTestId(`session-item-current-indicator-${SESSION_ID}`)).toBeTruthy();
         expect(screen.findByTestId(`session-list-right-identity-${SESSION_ID}`)).toBeNull();
     });
+
+    it.each(['idle', 'working', 'finished', 'input', 'error'] as const)(
+        'marks the open %s row with line cues that leave its status fill and layout alone',
+        async (visualStatus) => {
+            const { SessionItem } = await import('./SessionItem');
+            const renderOpenState = async (selected: boolean) => {
+                const props: SessionItemProps = {
+                    session: createSession(), serverId: 'server_a', selected, isFirst: true, isLast: true, isSingle: true,
+                    compact: false, variant: 'no-path',
+                };
+                const rowModel = createSessionItemTestRowModel(props, { visualStatus });
+                const screen = await renderScreen(<SessionItem {...props} rowModel={rowModel} />);
+                const row = screen.findByTestId(`session-list-item-${SESSION_ID}`);
+                return { screen, rowStyles: Object.assign({}, ...(row?.props.style ?? [])) };
+            };
+            const open = await renderOpenState(true);
+            const closed = await renderOpenState(false);
+
+            expect(open.rowStyles.backgroundColor).toBe(closed.rowStyles.backgroundColor);
+            expect(open.screen.findByTestId(`session-row-status-${SESSION_ID}-${visualStatus}`)).toBeTruthy();
+            for (const layoutKey of ['minHeight', 'paddingHorizontal', 'borderLeftWidth', 'borderRightWidth', 'borderTopWidth', 'borderBottomWidth']) {
+                expect(open.rowStyles[layoutKey]).toBe(closed.rowStyles[layoutKey]);
+            }
+
+            expect(closed.screen.findByTestId(`session-item-current-outline-${SESSION_ID}`)).toBeNull();
+            const outline = open.screen.findByTestId(`session-item-current-outline-${SESSION_ID}`);
+            const rail = open.screen.findByTestId(`session-item-current-indicator-${SESSION_ID}`);
+            expect(outline?.props.pointerEvents).toBe('none');
+            expect(outline?.props.style.position).toBe('absolute');
+
+            const statusHues = (['info', 'active', 'success', 'warning', 'danger'] as const)
+                .flatMap((role) => Object.values(lightTheme.colors.state[role]))
+                .map((color) => color.toLowerCase());
+            const statusFill = compositeThemeColorOver(
+                parseThemeColor(open.rowStyles.backgroundColor),
+                parseThemeColor(lightTheme.colors.surface.base),
+            );
+            for (const cueColor of [outline?.props.style.borderColor, rail?.props.style.backgroundColor]) {
+                expect(statusHues).not.toContain(cueColor.toLowerCase());
+                expect(themeContrastRatio(parseThemeColor(cueColor), statusFill)).toBeGreaterThanOrEqual(3);
+            }
+        },
+    );
 });

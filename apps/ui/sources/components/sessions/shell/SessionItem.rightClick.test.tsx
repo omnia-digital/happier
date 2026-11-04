@@ -165,6 +165,7 @@ describe('SessionItem right-click menu (web)', () => {
 
         expect(screen.findByTestId('session-list-selection-checkbox-sess_multi_selected')?.props.accessibilityState).toMatchObject({ checked: true });
         expect(screen.findByTestId('session-item-current-indicator-sess_multi_selected')).toBeNull();
+        expect(screen.findByTestId('session-item-current-outline-sess_multi_selected')).toBeNull();
     });
 
     it('keeps the current-session marker, title, and action area through compact and minimal density changes', async () => {
