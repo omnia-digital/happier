@@ -8,6 +8,8 @@ export const SESSION_LIST_ORDERING_MODES_V1 = ['custom', 'created', 'updated'] a
 export type SessionListOrderingModeV1 = typeof SESSION_LIST_ORDERING_MODES_V1[number];
 export const SESSION_LIST_ORDERING_MODE_DEFAULT_V1: SessionListOrderingModeV1 = 'custom';
 
+export type SessionListStatusMode = 'none' | 'agent' | 'ticket';
+
 export const SESSION_LIST_UPDATED_ORDERING_BUCKET_MS = 5 * 60_000;
 
 export type SessionListOrderingSection = 'active' | 'inactive' | 'sessions';
@@ -38,6 +40,10 @@ export function normalizeSessionListOrderingModeV1(value: unknown): SessionListO
     return value === 'created' || value === 'updated' || value === 'custom'
         ? value
         : SESSION_LIST_ORDERING_MODE_DEFAULT_V1;
+}
+
+export function normalizeSessionListStatusMode(value: unknown): SessionListStatusMode {
+    return value === 'agent' || value === 'ticket' ? value : 'none';
 }
 
 export function normalizeSessionListOrderingSectionMode(value: unknown): SessionListOrderingSectionMode {
@@ -117,4 +123,35 @@ export function resolveEffectiveSessionListFolderSortMode(params: Readonly<{
     folderSortMode: SessionListFolderSortModeV1;
 }>): SessionListFolderSortModeV1 {
     return params.orderingMode === 'custom' ? params.folderSortMode : 'foldersFirst';
+}
+
+export type SessionListFolderSortControl = Readonly<{
+    effectiveMode: SessionListFolderSortModeV1;
+    /** Why neither choice can change the list; null when the saved choice applies. Both locks are named together so clearing one never leaves an unexplained lock. */
+    lock: 'statusGrouping' | 'dateOrdering' | 'statusGroupingAndDateOrdering' | null;
+    /** The saved choice still positions folders, but drag reordering is off until status sorting is cleared. */
+    dragBlockedByStatusSorting: boolean;
+}>;
+
+/**
+ * The one decision behind every Folder order control. Status organization is a presentation layer over the
+ * ordered source, so it is decided here rather than in resolveEffectiveSessionListFolderSortMode: status grouping
+ * always projects folders ahead of loose rows, whatever order the source had.
+ */
+export function resolveSessionListFolderSortControl(params: Readonly<{
+    orderingMode: SessionListOrderingModeV1;
+    folderSortMode: SessionListFolderSortModeV1;
+    statusGrouping: SessionListStatusMode;
+    statusSorting: SessionListStatusMode;
+}>): SessionListFolderSortControl {
+    const groupingLocks = params.statusGrouping !== 'none';
+    const orderingLocks = params.orderingMode !== 'custom';
+    const lock = groupingLocks && orderingLocks ? 'statusGroupingAndDateOrdering'
+        : groupingLocks ? 'statusGrouping'
+            : orderingLocks ? 'dateOrdering' : null;
+    return {
+        effectiveMode: lock ? 'foldersFirst' : resolveEffectiveSessionListFolderSortMode(params),
+        lock,
+        dragBlockedByStatusSorting: lock === null && params.statusSorting !== 'none',
+    };
 }

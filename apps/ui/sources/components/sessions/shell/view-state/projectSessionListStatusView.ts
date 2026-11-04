@@ -1,3 +1,4 @@
+import type { SessionListStatusMode } from '@/sync/domains/session/listing/sessionListOrderingRules';
 import type { SessionListViewItem } from '@/sync/domains/session/listing/sessionListViewData';
 import type { SessionListVisualStatus } from '@/sync/domains/session/listing/deriveSessionListActivity';
 import { resolveSessionListRowStatus } from '../row/buildSessionListRowModel';
@@ -7,7 +8,6 @@ import type { SessionTicketAssociationV1 } from '@happier-dev/protocol';
 import { resolveSessionTicketStatusLabel } from '@/sync/domains/session/tickets/sessionTicketStatusLabel';
 import { t } from '@/text';
 
-export type SessionListStatusMode = 'none' | 'agent' | 'ticket';
 export const SESSION_LIST_AGENT_STATUS_ORDER = ['input', 'finished', 'error', 'queued', 'working', 'idle', 'delivery_blocked', 'resuming', 'archiving', 'offline', 'cancelled'] as const satisfies readonly SessionListVisualStatus[];
 type Row = Extract<SessionListViewItem, { type: 'session' }>;
 type Header = Extract<SessionListViewItem, { type: 'header' }>;
@@ -106,7 +106,14 @@ export function projectSessionListStatusView(input: Readonly<{
             const folderId = headedFolderId(item, headedFolders);
             if (folderId) { const rows = members.get(folderId) ?? []; rows.push(item); members.set(folderId, rows); } else loose.push(item);
         }
-        for (const folder of folders) { output.push(folder); emitGroups(members.get(folder.folderId ?? '') ?? [], folder.groupKey ?? folder.folderId ?? '', folder.folderId); members.delete(folder.folderId ?? ''); }
+        // Folders first at every depth: a folder's own sessions follow all of its subfolders.
+        const open: Header[] = [];
+        const close = (folder: Header) => { emitGroups(members.get(folder.folderId ?? '') ?? [], folder.groupKey ?? folder.folderId ?? '', folder.folderId); members.delete(folder.folderId ?? ''); };
+        for (const folder of folders) {
+            while (open.length > 0 && open[open.length - 1].folderId !== folder.parentFolderId) close(open.pop()!);
+            output.push(folder); open.push(folder);
+        }
+        while (open.length > 0) close(open.pop()!);
         emitGroups(loose, 'unfiled');
     };
     for (const item of input.items) { if (item.type === 'header' && BANDS.has(item.headerKind ?? '')) { flushBand(); band = item; body = []; } else body.push(item); }

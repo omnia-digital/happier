@@ -21,6 +21,8 @@ const setSessionListSectionMode = vi.fn();
 const setSessionListOrderingMode = vi.fn();
 let sessionListOrderingMode: 'custom' | 'created' | 'updated' = 'custom';
 let sessionListFolderSortMode: 'foldersFirst' | 'mixed' = 'foldersFirst';
+let sessionListStatusGrouping: 'none' | 'agent' | 'ticket' = 'none';
+let sessionListStatusSort: 'none' | 'agent' | 'ticket' = 'none';
 
 installSessionSettingsEntryModuleMocks({
     storageModule: async (importOriginal) => {
@@ -38,6 +40,7 @@ installSessionSettingsEntryModuleMocks({
                     if (key === 'sessionListWorkingPlacementModeV1') return ['off', setSessionListWorkingPlacementMode];
                     if (key === 'sessionListSeparateBackgroundWork') return [false, setSessionListSeparateBackgroundWork];
                     if (key === 'sessionListOrderingModeV1') return [sessionListOrderingMode, setSessionListOrderingMode];
+                    if (key === 'sessionListStatusSortV1') return [sessionListStatusSort, vi.fn()];
                     if (key === 'workspacePathDisplayModeV1') return ['name', setWorkspacePathDisplayMode];
                     if (key === 'workspaceFaviconsEnabled') return [true, setWorkspaceFaviconsEnabled];
                     if (key === 'workspaceMachineSubtitlesEnabled') return [true, setWorkspaceMachineSubtitlesEnabled];
@@ -69,6 +72,7 @@ installSessionSettingsEntryModuleMocks({
                     if (key === 'sessionsRightPaneDefaultOpen') return [false, vi.fn()];
                     if (key === 'uiMultiPanePanelsEnabled') return [true, vi.fn()];
                     if (key === 'sessionListFolderSortModeV1') return [sessionListFolderSortMode, setSessionListFolderSortMode];
+                    if (key === 'sessionListStatusGroupingV1') return [sessionListStatusGrouping, vi.fn()];
                     return [null, vi.fn()];
                 }) as any,
             },
@@ -80,6 +84,8 @@ afterEach(() => {
     standardCleanup();
     sessionListOrderingMode = 'custom';
     sessionListFolderSortMode = 'foldersFirst';
+    sessionListStatusGrouping = 'none';
+    sessionListStatusSort = 'none';
     setSessionListDensity.mockClear();
     setWorkspacePathDisplayMode.mockClear();
     setWorkspaceFaviconsEnabled.mockClear();
@@ -313,6 +319,61 @@ describe('Session settings session list density', () => {
             node.props?.itemTrigger?.itemProps?.testID === 'settings-session-sessionListFolderSortMode-trigger');
         expect(restoredDropdown?.props.selectedId).toBe('mixed');
         expect(restoredDropdown?.props.items.find((item: any) => item.id === 'mixed')?.disabled).toBe(false);
+    });
+
+    it('matches the sidebar folder order lock under status grouping and restores the saved choice afterwards', async () => {
+        sessionListStatusGrouping = 'ticket';
+        sessionListFolderSortMode = 'mixed';
+        const mod = await import('../../../../app/(app)/settings/session');
+        const screen = await renderSettingsView(React.createElement(mod.default));
+        const dropdown = screen.findAllByType('DropdownMenu' as any).find((node: any) =>
+            node.props?.itemTrigger?.itemProps?.testID === 'settings-session-sessionListFolderSortMode-trigger');
+
+        expect(dropdown?.props.selectedId).toBe('foldersFirst');
+        expect(dropdown?.props.items).toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: 'foldersFirst', disabled: true, subtitle: 'sessionsList.folderSortDisabledInStatusGrouping' }),
+            expect.objectContaining({ id: 'mixed', disabled: true, subtitle: 'sessionsList.folderSortDisabledInStatusGrouping' }),
+        ]));
+        await act(async () => { dropdown?.props.onSelect('foldersFirst'); });
+        expect(setSessionListFolderSortMode).not.toHaveBeenCalled();
+
+        sessionListStatusGrouping = 'none';
+        await screen.unmount();
+        const reopenedScreen = await renderSettingsView(React.createElement(mod.default));
+        const restoredDropdown = reopenedScreen.findAllByType('DropdownMenu' as any).find((node: any) =>
+            node.props?.itemTrigger?.itemProps?.testID === 'settings-session-sessionListFolderSortMode-trigger');
+        expect(restoredDropdown?.props.selectedId).toBe('mixed');
+        expect(restoredDropdown?.props.items.find((item: any) => item.id === 'mixed')?.disabled).toBe(false);
+    });
+
+    it('names both settings to change when status grouping and date sorting each lock folder order', async () => {
+        sessionListStatusGrouping = 'agent';
+        sessionListOrderingMode = 'updated';
+        sessionListFolderSortMode = 'mixed';
+        const mod = await import('../../../../app/(app)/settings/session');
+        const screen = await renderSettingsView(React.createElement(mod.default));
+        const dropdown = screen.findAllByType('DropdownMenu' as any).find((node: any) =>
+            node.props?.itemTrigger?.itemProps?.testID === 'settings-session-sessionListFolderSortMode-trigger');
+
+        expect(dropdown?.props.items).toEqual(expect.arrayContaining([
+            expect.objectContaining({ id: 'foldersFirst', disabled: true, subtitle: 'sessionsList.folderSortDisabledInStatusGroupingAndDateMode' }),
+            expect.objectContaining({ id: 'mixed', disabled: true, subtitle: 'sessionsList.folderSortDisabledInStatusGroupingAndDateMode' }),
+        ]));
+    });
+
+    it('keeps mixed folder order selectable under status sorting without promising a drag that is off', async () => {
+        sessionListStatusSort = 'agent';
+        sessionListFolderSortMode = 'mixed';
+        const mod = await import('../../../../app/(app)/settings/session');
+        const screen = await renderSettingsView(React.createElement(mod.default));
+        const dropdown = screen.findAllByType('DropdownMenu' as any).find((node: any) =>
+            node.props?.itemTrigger?.itemProps?.testID === 'settings-session-sessionListFolderSortMode-trigger');
+
+        expect(dropdown?.props.selectedId).toBe('mixed');
+        expect(dropdown?.props.items.find((item: any) => item.id === 'mixed')).toEqual(expect.objectContaining({
+            disabled: false,
+            subtitle: 'sessionsList.folderSortMixedDescriptionStatusSort',
+        }));
     });
 
     it('exposes the session order selector in session list settings', async () => {

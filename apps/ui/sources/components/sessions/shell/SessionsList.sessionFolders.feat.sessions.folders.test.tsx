@@ -50,7 +50,9 @@ let foldersFeatureEnabled = true;
 let sessionFolderViewModeV1: 'off' | 'tree' = 'tree';
 let sessionListFolderSortModeV1: 'foldersFirst' | 'mixed' = 'foldersFirst';
 let sessionListOrderingModeV1: 'custom' | 'created' | 'updated' = 'custom';
-let sessionListMachineViewV1: 'original' | 'machine' | 'repository' = 'original';
+let sessionListMachineViewV1: 'original' | 'machine' | 'repository' | 'flat' = 'original';
+let sessionListStatusGroupingV1: 'none' | 'agent' | 'ticket' = 'none';
+let sessionListStatusSortV1: 'none' | 'agent' | 'ticket' = 'none';
 let sessionFoldersV1: any = { v: 1, folders: [] };
 let sessionListFocusedFolderV1: any = null;
 let collapsedGroupKeysV1: Record<string, boolean> = {};
@@ -116,6 +118,7 @@ installSessionShellCommonModuleMocks({
             if (key === 'sessionTagsV1') return [{}, setSessionTagsV1];
             if (key === 'pinnedSessionKeysV1') return [[], vi.fn()];
             if (key === 'sessionListOrderingModeV1') return [sessionListOrderingModeV1, setSessionListOrderingModeV1];
+            if (key === 'sessionListStatusSortV1') return [sessionListStatusSortV1, vi.fn()];
             if (key === 'workspaceLabelsV1') return [{}, vi.fn()];
             return [null, vi.fn()];
         },
@@ -136,6 +139,9 @@ installSessionShellCommonModuleMocks({
             }
             if (key === 'sessionListMachineViewV1') {
                 return [sessionListMachineViewV1, vi.fn()];
+            }
+            if (key === 'sessionListStatusGroupingV1') {
+                return [sessionListStatusGroupingV1, vi.fn()];
             }
             if (key === 'collapsedGroupKeysV1') {
                 return [collapsedGroupKeysV1, setCollapsedGroupKeysV1];
@@ -424,6 +430,8 @@ describe('SessionsList session folders shell', () => {
         sessionListFolderSortModeV1 = 'foldersFirst';
         sessionListOrderingModeV1 = 'custom';
         sessionListMachineViewV1 = 'original';
+        sessionListStatusGroupingV1 = 'none';
+        sessionListStatusSortV1 = 'none';
         sessionFoldersV1 = {
             v: 1,
             folders: [{
@@ -821,6 +829,100 @@ describe('SessionsList session folders shell', () => {
         expect(mixedItem?.disabled).toBe(false);
         expect(mixedItem?.subtitle).toBe('sessionsList.folderSortMixedDescriptionMachineView');
         expect(mixedItem?.rightElement).toBeTruthy();
+    });
+
+    it('locks folder order to effective folders first under status grouping and restores the saved choice afterwards', async () => {
+        sessionListStatusGroupingV1 = 'agent';
+        sessionListFolderSortModeV1 = 'mixed';
+
+        const screen = await renderSessionsList();
+        const dropdown = screen.findAllByType('DropdownMenu' as React.ElementType)
+            .find((node) => node.props?.items?.some((item: any) => item.id === 'session-folder-sort-mode:mixed'));
+        const mixedItem = dropdown?.props.items.find((item: any) => item.id === 'session-folder-sort-mode:mixed');
+        const foldersFirstItem = dropdown?.props.items.find((item: any) => item.id === 'session-folder-sort-mode:foldersFirst');
+
+        expect(mixedItem?.disabled).toBe(true);
+        expect(mixedItem?.rightElement).toBeNull();
+        expect(mixedItem?.subtitle).toBe('sessionsList.folderSortDisabledInStatusGrouping');
+        expect(foldersFirstItem?.disabled).toBe(true);
+        expect(foldersFirstItem?.rightElement).toBeTruthy();
+        expect(foldersFirstItem?.subtitle).toBe('sessionsList.folderSortDisabledInStatusGrouping');
+
+        dropdown?.props.onSelect('session-folder-sort-mode:mixed');
+        dropdown?.props.onSelect('session-folder-sort-mode:foldersFirst');
+        expect(setSessionListFolderSortModeV1).not.toHaveBeenCalled();
+
+        sessionListStatusGroupingV1 = 'none';
+        await screen.unmount();
+        const reopenedScreen = await renderSessionsList();
+        const savedDropdown = reopenedScreen.findAllByType('DropdownMenu' as React.ElementType)
+            .find((node) => node.props?.items?.some((item: any) => item.id === 'session-folder-sort-mode:mixed'));
+        const restoredMixed = savedDropdown?.props.items.find((item: any) => item.id === 'session-folder-sort-mode:mixed');
+        expect(restoredMixed?.disabled).toBe(false);
+        expect(restoredMixed?.rightElement).toBeTruthy();
+    });
+
+    it('names both steps when machine view and status sorting each keep dragging off', async () => {
+        sessionListStatusSortV1 = 'ticket';
+        sessionListMachineViewV1 = 'machine';
+        sessionListFolderSortModeV1 = 'mixed';
+
+        const screen = await renderSessionsList();
+        const dropdown = screen.findAllByType('DropdownMenu' as React.ElementType)
+            .find((node) => node.props?.items?.some((item: any) => item.id === 'session-folder-sort-mode:mixed'));
+        const mixedItem = dropdown?.props.items.find((item: any) => item.id === 'session-folder-sort-mode:mixed');
+
+        expect(mixedItem?.disabled).toBe(false);
+        expect(mixedItem?.subtitle).toBe('sessionsList.folderSortMixedDescriptionMachineViewStatusSort');
+    });
+
+    it('names both settings to change when status grouping and date sorting each lock folder order', async () => {
+        sessionListStatusGroupingV1 = 'agent';
+        sessionListOrderingModeV1 = 'updated';
+        sessionListFolderSortModeV1 = 'mixed';
+
+        const screen = await renderSessionsList();
+        const dropdown = screen.findAllByType('DropdownMenu' as React.ElementType)
+            .find((node) => node.props?.items?.some((item: any) => item.id === 'session-folder-sort-mode:mixed'));
+        const mixedItem = dropdown?.props.items.find((item: any) => item.id === 'session-folder-sort-mode:mixed');
+        const foldersFirstItem = dropdown?.props.items.find((item: any) => item.id === 'session-folder-sort-mode:foldersFirst');
+
+        expect(mixedItem?.disabled).toBe(true);
+        expect(mixedItem?.subtitle).toBe('sessionsList.folderSortDisabledInStatusGroupingAndDateMode');
+        expect(foldersFirstItem?.subtitle).toBe('sessionsList.folderSortDisabledInStatusGroupingAndDateMode');
+    });
+
+    it('keeps mixed folder order selectable under status sorting without promising a drag that is off', async () => {
+        sessionListStatusSortV1 = 'ticket';
+        sessionListMachineViewV1 = 'original';
+        sessionListFolderSortModeV1 = 'mixed';
+
+        const screen = await renderSessionsList();
+        const dropdown = screen.findAllByType('DropdownMenu' as React.ElementType)
+            .find((node) => node.props?.items?.some((item: any) => item.id === 'session-folder-sort-mode:mixed'));
+        const mixedItem = dropdown?.props.items.find((item: any) => item.id === 'session-folder-sort-mode:mixed');
+
+        expect(mixedItem?.disabled).toBe(false);
+        expect(mixedItem?.rightElement).toBeTruthy();
+        expect(mixedItem?.subtitle).toBe('sessionsList.folderSortMixedDescriptionStatusSort');
+
+        dropdown?.props.onSelect('session-folder-sort-mode:foldersFirst');
+        expect(setSessionListFolderSortModeV1).toHaveBeenCalledWith('foldersFirst');
+    });
+
+    it('describes folder order by section and folder in the flat view, which has no project groups', async () => {
+        sessionListMachineViewV1 = 'flat';
+        sessionListFolderSortModeV1 = 'mixed';
+
+        const screen = await renderSessionsList();
+        const dropdown = screen.findAllByType('DropdownMenu' as React.ElementType)
+            .find((node) => node.props?.items?.some((item: any) => item.id === 'session-folder-sort-mode:mixed'));
+        const mixedItem = dropdown?.props.items.find((item: any) => item.id === 'session-folder-sort-mode:mixed');
+        const foldersFirstItem = dropdown?.props.items.find((item: any) => item.id === 'session-folder-sort-mode:foldersFirst');
+
+        expect(mixedItem?.disabled).toBe(false);
+        expect(mixedItem?.subtitle).toBe('sessionsList.folderSortMixedDescriptionFlatView');
+        expect(foldersFirstItem?.subtitle).toBe('sessionsList.folderSortFoldersFirstDescriptionFlatView');
     });
 
     it('passes folder indentation and resolves nested destinations on demand', async () => {
