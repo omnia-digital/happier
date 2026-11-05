@@ -171,6 +171,7 @@ process.exit(result.status ?? 1);
       if (world.process && world.crashMarkers.has(world.process.marker)) world.process = null;
     },
     log: (line) => world.logs.push(line),
+    showDialog: (message) => world.alerts.push(message),
     kill: (pid, signal) => {
       world.signals.push(signal);
       assert.equal(pid, world.process?.pid);
@@ -192,17 +193,10 @@ process.exit(result.status ?? 1);
       }
       if (command === 'ioreg') return ok(`  | |   "HIDIdleTime" = ${world.idleMs * 1_000_000}`);
       if (command === 'open') {
-        launch('window');
+        launch(args.includes('--menu-bar') ? 'tray' : 'window');
         return ok();
       }
-      if (command === 'launchctl') {
-        if (args[0] === 'kickstart') launch('tray');
-        return ok();
-      }
-      if (command === 'osascript') {
-        world.alerts.push(args.at(-1));
-        return ok();
-      }
+      if (command === 'launchctl') return ok();
       throw new Error(`Unexpected command ${command}`);
     },
     fetch: async (url) => {
@@ -338,7 +332,7 @@ test('a new release installs in window mode and relaunches in the background', {
   assert.equal(world.head(world.productionClone), sha);
 });
 
-test('a tray-only app installs even while input is active and relaunches through its launch agent', { skip }, async (t) => {
+test('a tray-only app installs even while input is active and relaunches in tray mode without launchd', { skip }, async (t) => {
   const world = makeWorld(t);
   const sha = world.commit();
   world.publish(sha);
@@ -347,8 +341,8 @@ test('a tray-only app installs even while input is active and relaunches through
   world.idleMs = 0;
   await world.update();
   assert.equal(world.marker(), sha);
-  assert.deepEqual(world.commands('launchctl'), [['kickstart', 'gui/501/Omnia Happier']]);
-  assert.deepEqual(world.commands('open'), []);
+  assert.deepEqual(world.commands('launchctl'), []);
+  assert.deepEqual(world.commands('open'), [['-g', '-a', world.appPath, '--args', '--menu-bar']]);
   assert.equal(world.process.mode, 'tray');
 });
 
@@ -462,6 +456,7 @@ for (const [name, breakage] of refusals) {
     assertNoSwap(world, 'old');
     assert.equal(world.process.marker, 'old');
     assert.equal(world.alerts.length, 1, world.alerts.join('; '));
+    assert.equal(existsSync(join(world.stateDir, 'staging')), false, 'a refused bundle does not stay on disk');
     await world.update();
     assert.equal(world.alerts.length, 1, 'alert is deduplicated');
   });
@@ -682,7 +677,7 @@ test('a failure after quitting relaunches whatever is installed', { skip }, asyn
   world.running('tray', 'old');
   world.frontmost = true;
   await world.update();
-  const staged = join(world.stateDir, 'staging', sha, APP_NAME);
+  const staged = join(world.stateDir, 'staging', sha, 'bundle');
   assert.equal(world.marker(staged), sha);
   run('chflags', ['uchg', staged]);
   world.frontmost = false;
@@ -695,6 +690,35 @@ test('a failure after quitting relaunches whatever is installed', { skip }, asyn
   assert.equal(world.state().installedSha, oldSha);
   assert.equal(world.alerts.length, 1);
   assert.match(world.alerts[0], /App Management/);
+});
+
+test('a staged bundle that no longer verifies is replaced by a fresh download', { skip }, async (t) => {
+  const world = makeWorld(t);
+  const sha = world.commit();
+  const tarball = world.publish(sha);
+  world.installApp('old', oldSha);
+  world.running('window', 'old');
+  world.frontmost = true;
+  await world.update();
+  const staged = join(world.stateDir, 'staging', sha, 'bundle');
+  writeFileSync(join(staged, 'Contents', 'Resources', 'marker'), 'tampered');
+  world.frontmost = false;
+  await world.update();
+  assert.equal(world.fetchCount(tarball), 2);
+  assert.equal(world.marker(), sha);
+  assert.deepEqual(world.alerts, []);
+});
+
+test('a relaunch that fails outside the alive check is alerted, not just logged', { skip }, async (t) => {
+  const world = makeWorld(t);
+  world.installApp('old', oldSha);
+  world.writeState({ installedSha: oldSha, swap: { sha: 'c'.repeat(40), mode: 'window' } });
+  const exec = world.adapter.exec;
+  world.adapter.exec = (command, args) => (command === 'open' ? { ok: false, out: '', err: 'launch denied' } : exec(command, args));
+  world.offline = true;
+  await world.update();
+  assert.equal(world.alerts.length, 1);
+  assert.match(world.alerts[0], /launch denied/);
 });
 
 test('a missing bundle with nothing to restore reinstalls the same SHA', { skip }, async (t) => {
@@ -721,6 +745,57 @@ test('a missing bundle does not bypass a hold', { skip }, async (t) => {
   assert.equal(world.fetchCount(tarball), 0);
   assert.equal(world.alerts.length, 1);
   assert.match(world.alerts[0], /missing/i);
+});
+
+test('a corrupt state file still recovers an interrupted swap and alerts', { skip }, async (t) => {
+  const world = makeWorld(t);
+  const sha = world.commit();
+  world.publish(sha);
+  world.installApp('old', oldSha);
+  mkdirSync(world.stateDir, { recursive: true });
+  renameSync(world.appPath, world.outgoing);
+  writeFileSync(join(world.stateDir, 'state.json'), '');
+  await world.update();
+  assert.equal(existsSync(world.outgoing), false);
+  assert.equal(world.marker(), sha, 'an unknown installed SHA causes one bounded reinstall');
+  assert.equal(world.alerts.length, 1);
+  assert.match(world.alerts[0], /state/i);
+  assert.equal(world.state().installedSha, sha);
+  await world.update();
+  assert.equal(world.alerts.length, 1, 'the rewritten state does not alert again');
+});
+
+test('a waiting bundle is not named .app, so LaunchServices cannot offer it for happier links', { skip }, async (t) => {
+  const world = makeWorld(t);
+  const sha = world.commit();
+  world.publish(sha);
+  world.installApp('old', oldSha);
+  world.running('window', 'old');
+  world.frontmost = true;
+  await world.update();
+  const found = spawnSync('find', [join(world.stateDir, 'staging'), '-name', '*.app'], { encoding: 'utf8' }).stdout.trim();
+  assert.equal(found, '');
+  assert.equal(world.marker(join(world.stateDir, 'staging', sha, 'bundle')), sha);
+});
+
+test('a git fetch failure counts as a network failure, not a clone fault', { skip }, async (t) => {
+  const world = makeWorld(t);
+  const sha = world.commit();
+  world.publish(sha);
+  world.installApp('old', oldSha);
+  const bin = join(world.root, 'bin', 'git');
+  const working = readFileSync(bin, 'utf8');
+  writeFileSync(bin, working.replace("if (args[0] === 'fetch') args[1]", "if (args[0] === 'fetch') { console.error('Could not resolve host'); process.exit(128); }\nif (args[0] === 'fetch') args[1]"));
+  await world.update();
+  assert.deepEqual(world.alerts, []);
+  assert.equal(world.marker(), 'old');
+  assert.ok(world.logs.some((line) => /Network:/.test(line)));
+  world.now += 27 * HOUR;
+  await world.update();
+  assert.equal(world.alerts.length, 1, 'still reported once it lasts past 26 hours');
+  writeFileSync(bin, working);
+  await world.update();
+  assert.equal(world.marker(), sha);
 });
 
 test('a dark-wake network error is silent until 26 hours without a successful check', { skip }, async (t) => {
@@ -809,7 +884,10 @@ test('two standing problems do not alternate alerts hour after hour', { skip }, 
   world.publish(sha);
   world.installApp(sha);
   writeFileSync(join(world.devClone, 'untracked.txt'), 'work in progress\n');
-  world.runs = [{ id: 5, conclusion: 'failure', updated_at: new Date(world.now).toISOString() }];
+  world.runs = [
+    { id: 5, conclusion: 'failure', updated_at: new Date(world.now).toISOString() },
+    { id: 4, conclusion: 'success', updated_at: new Date(world.now - HOUR).toISOString() },
+  ];
   await world.update();
   assert.equal(world.alerts.length, 2);
   await world.update();
@@ -820,7 +898,10 @@ test('two standing problems do not alternate alerts hour after hour', { skip }, 
 test('an offline run keeps standing alerts deduplicated when the network returns', { skip }, async (t) => {
   const world = makeWorld(t);
   world.installApp('old', oldSha);
-  world.runs = [{ id: 5, conclusion: 'failure', updated_at: new Date(world.now).toISOString() }];
+  world.runs = [
+    { id: 5, conclusion: 'failure', updated_at: new Date(world.now).toISOString() },
+    { id: 4, conclusion: 'success', updated_at: new Date(world.now - HOUR).toISOString() },
+  ];
   await world.update();
   assert.equal(world.alerts.length, 1);
   world.offline = true;
@@ -842,7 +923,7 @@ test('pruning keeps the 3 newest rollback tarballs and never touches foreign fil
   const existing = ['Omnia Happier pre-nightly.tar.gz', ...['1', '2', '3'].map((digit) => `Omnia Happier ${digit.repeat(12)}.tar.gz`)];
   existing.forEach((name, index) => {
     writeFileSync(join(dir, name), 'old rollback');
-    const when = new Date(world.now - (10 - index) * HOUR);
+    const when = new Date(Date.now() - (10 - index) * HOUR);
     utimesSync(join(dir, name), when, when);
   });
   await world.update();

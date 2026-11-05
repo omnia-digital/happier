@@ -45,6 +45,10 @@ function protectionPaths({ repo, gitDir, hooksDir }) {
   return [...paths].filter((path) => existsSync(path));
 }
 
+function isLocked(path) {
+  return run('stat', ['-f', '%Sf', path]).split(',').includes('uchg');
+}
+
 function setLocked(paths, locked) {
   // xargs respects the OS argument-size boundary; -h never follows tracked symlinks.
   run('xargs', ['-0', 'chflags', '-h', locked ? 'uchg' : 'nouchg'], undefined, `${paths.join('\0')}\0`);
@@ -87,10 +91,18 @@ export function updateProductionCheckout(repoPath) {
   const state = inspect(repoPath);
   requireProtection(state);
   // Fetch while locked; network failure cannot leave the source writable.
-  git(state.repo, 'fetch', 'origin', 'refs/heads/production:refs/remotes/origin/production');
+  try {
+    git(state.repo, 'fetch', 'origin', 'refs/heads/production:refs/remotes/origin/production');
+  } catch (error) {
+    throw Object.assign(error, { code: 'PRODUCTION_FETCH_FAILED' });
+  }
   const candidate = git(state.repo, 'rev-parse', 'refs/remotes/origin/production');
   git(state.repo, 'merge-base', '--is-ancestor', 'HEAD', candidate);
-  if (git(state.repo, 'rev-parse', 'HEAD') === candidate) return candidate;
+  if (git(state.repo, 'rev-parse', 'HEAD') === candidate) {
+    // A kill between the merge and the relock leaves this state; the root flag is the cheap check.
+    if (!isLocked(state.repo)) setLocked(protectionPaths(state), true);
+    return candidate;
+  }
   const previousPaths = protectionPaths(state);
   try {
     setLocked(previousPaths, false);

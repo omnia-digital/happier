@@ -202,6 +202,9 @@ test('verifyTarballLayout requires the app bundle as the only root entry', { ski
   assert.throws(() => verifyTarballLayout(tarball('multi.tar.gz', APP_NAME, 'stray')), /root/);
   assert.throws(() => verifyTarballLayout(tarball('dotted.tar.gz', `./${APP_NAME}`)), /root/);
   assert.throws(() => verifyTarballLayout(tarball('other.tar.gz', 'stray')), /root/);
+  const escaping = join(root, 'escaping.tar.gz');
+  run('tar', ['-czf', escaping, '-C', contents, '-s', `|^stray$|${APP_NAME}/../stray|`, APP_NAME, 'stray'], { env: { ...process.env, COPYFILE_DISABLE: '1' } });
+  assert.throws(() => verifyTarballLayout(escaping), /root/);
   writeFileSync(join(root, 'garbage.tar.gz'), 'not a tarball');
   assert.throws(() => verifyTarballLayout(join(root, 'garbage.tar.gz')), /tarball/i);
 });

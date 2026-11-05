@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -25,8 +25,6 @@ const API = 'https://api.github.com/repos/omnia-digital/happier';
 const AGENT_LABEL = 'com.omnia.happier.nightly-update';
 const AGENT_SCRIPT = join('scripts', 'fork', 'omnia-nightly-update.mjs');
 const AGENT_PATH = '/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin';
-// The launch agent the app registers for itself; it starts the app in tray mode.
-const TRAY_SERVICE = 'Omnia Happier';
 const USAGE = 'Usage: node scripts/fork/omnia-nightly-update.mjs <install|run|status>';
 
 const HOUR = 3_600_000;
@@ -43,7 +41,7 @@ const ROLLBACK_NAME = /^Omnia Happier ([0-9a-f]{12}|pre-nightly)\.tar\.gz$/;
 class NetworkError extends Error {}
 
 export function defaultConfig() {
-  const apps = '/Users/Josh/Developer/Projects/Omnia/apps';
+  const apps = join(homedir(), 'Developer', 'Projects', 'Omnia', 'apps');
   const support = join(homedir(), 'Library', 'Application Support', 'Omnia Happier');
   return {
     appPath: join('/Applications', APP_NAME),
@@ -75,6 +73,12 @@ export const systemAdapter = {
   now: () => Date.now(),
   sleep: (ms) => new Promise((done) => { setTimeout(done, ms); }),
   log: (line) => console.log(line),
+  // Notifications from osascript do not appear on this Mac, so alerts are dialogs. Detached
+  // because a dialog stays up until clicked and must not hold the hourly run open.
+  showDialog(message) {
+    const script = ['on run argv', 'display alert "Omnia Happier update" message (item 1 of argv) as critical buttons {"OK"} default button "OK"', 'end run'];
+    spawn('osascript', [...script.flatMap((line) => ['-e', line]), message], { detached: true, stdio: 'ignore' }).unref();
+  },
 };
 
 function git(cwd, ...args) {
@@ -88,6 +92,7 @@ function isAncestor(cwd, sha, ref) {
   return spawnSync('git', ['merge-base', '--is-ancestor', sha, ref], { cwd }).status === 0;
 }
 
+/** A corrupt file yields defaults and `corrupt`, so recovery still runs: restoring a bundle needs nothing from state. */
 function loadState(config) {
   const defaults = {
     installedSha: null,
@@ -100,7 +105,12 @@ function loadState(config) {
     lastError: null,
   };
   const path = join(config.stateDir, 'state.json');
-  return existsSync(path) ? { ...defaults, ...JSON.parse(readFileSync(path, 'utf8')) } : defaults;
+  if (!existsSync(path)) return { state: defaults, corrupt: false };
+  try {
+    return { state: { ...defaults, ...JSON.parse(readFileSync(path, 'utf8')) }, corrupt: false };
+  } catch {
+    return { state: defaults, corrupt: true };
+  }
 }
 
 function saveState(ctx) {
@@ -118,8 +128,7 @@ function alert(ctx, key, message) {
   const alreadySent = ctx.raised.has(key) || ctx.state.lastAlertKeys.includes(key);
   ctx.raised.set(key, message);
   if (alreadySent) return;
-  const sent = ctx.adapter.exec('osascript', ['-e', 'on run argv', '-e', 'display notification (item 1 of argv) with title "Omnia Happier update"', '-e', 'end run', message]);
-  if (!sent.ok) log(ctx, `Could not show the notification: ${sent.err}`);
+  ctx.adapter.showDialog(message);
 }
 
 function moveBundle(ctx, from, to) {
@@ -199,16 +208,15 @@ function idleMs(ctx) {
 
 function relaunch(ctx, mode) {
   if (mode === 'none' || findPid(ctx)) return;
-  const result = mode === 'tray'
-    ? ctx.adapter.exec('launchctl', ['kickstart', `gui/${ctx.config.uid}/${TRAY_SERVICE}`])
-    : ctx.adapter.exec('open', ['-g', '-a', ctx.config.appPath]);
-  if (!result.ok) log(ctx, `Relaunch in ${mode} mode failed: ${result.err}`);
+  // --menu-bar is what the app's own login item passes. Needs no launchd state, unlike kickstart.
+  const result = ctx.adapter.exec('open', ['-g', '-a', ctx.config.appPath, ...(mode === 'tray' ? ['--args', '--menu-bar'] : [])]);
+  if (!result.ok) alert(ctx, `relaunch-failed:${mode}`, `Could not relaunch Omnia Happier in ${mode} mode: ${result.err}`);
 }
 
 async function quitApp(ctx, pid) {
   ctx.adapter.kill(pid, 'SIGTERM');
   const deadline = ctx.adapter.now() + QUIT_TIMEOUT_MS;
-  // Match the path, not the pid: a respawned copy would forward to nothing once the bundle moves.
+  // Match by path, so a respawned copy still counts as running.
   while (findPid(ctx)) {
     if (ctx.adapter.now() >= deadline) return false;
     await ctx.adapter.sleep(POLL_MS);
@@ -286,7 +294,11 @@ function fastForwardDevClone(clone, sha) {
   if (git(clone, 'branch', '--show-current') !== 'dev') throw new Error(`${clone} is not on dev; happier-dev was left alone.`);
   if (git(clone, 'status', '--porcelain=v1', '--untracked-files=all')) throw new Error(`${clone} has uncommitted work; happier-dev was left alone.`);
   if (isAncestor(clone, sha, 'HEAD')) return;
-  git(clone, 'fetch', 'origin', 'refs/heads/dev:refs/remotes/origin/dev');
+  try {
+    git(clone, 'fetch', 'origin', 'refs/heads/dev:refs/remotes/origin/dev');
+  } catch (error) {
+    throw new NetworkError(error.message);
+  }
   if (!isAncestor(clone, sha, 'refs/remotes/origin/dev')) throw new Error(`${sha} is not on origin/dev; happier-dev was left alone.`);
   git(clone, 'merge', '--ff-only', '--no-overwrite-ignore', sha);
 }
@@ -297,6 +309,7 @@ function refreshClones(ctx, sha) {
   try {
     updateProductionCheckout(productionClone);
   } catch (error) {
+    if (error.code === 'PRODUCTION_FETCH_FAILED') throw new NetworkError(error.message);
     alert(ctx, `production-clone:${sha}`, `happier-production could not update, so ${sha.slice(0, 12)} is unproven and will not install: ${error.message}`);
     return false;
   }
@@ -308,22 +321,47 @@ function refreshClones(ctx, sha) {
   try {
     fastForwardDevClone(devClone, sha);
   } catch (error) {
+    if (error instanceof NetworkError) throw error;
     alert(ctx, `dev-clone:${sha}`, `happier-dev did not update: ${error.message}`);
   }
   return true;
 }
 
-/** Step 5. Returns the staged, verified bundle, downloading it unless an earlier run left one. */
+/** Step 5. Returns the staged, verified bundle, downloading it unless an earlier run left a good one. */
 async function stageRelease(ctx, release, manifest) {
   const stagedDir = join(ctx.stagingDir, manifest.sourceSha);
-  const staged = join(stagedDir, APP_NAME);
+  // No .app name while it waits: LaunchServices could offer a same-id bundle for happier:// links.
+  const staged = join(stagedDir, 'bundle');
   if (existsSync(staged)) {
-    verifyAppBundle(staged);
-    return staged;
+    try {
+      verifyAppBundle(staged);
+      return staged;
+    } catch (error) {
+      log(ctx, `Discarding the staged bundle: ${error.message}`);
+    }
   }
   rmSync(ctx.stagingDir, { recursive: true, force: true });
   const unpacked = join(ctx.stagingDir, 'unpacking');
   mkdirSync(unpacked, { recursive: true });
+  try {
+    const tarball = join(ctx.stagingDir, TARBALL_ASSET);
+    writeFileSync(tarball, await downloadTarball(ctx, release, manifest));
+    verifyTarballLayout(tarball);
+    const extracted = spawnSync('tar', ['-xzf', tarball, '-C', unpacked], { encoding: 'utf8' });
+    if (extracted.status !== 0) throw new Error(`Could not unpack the release tarball: ${extracted.stderr}`);
+    verifyAppBundle(join(unpacked, APP_NAME));
+    rmSync(tarball);
+    mkdirSync(stagedDir);
+    renameSync(join(unpacked, APP_NAME), staged);
+    rmSync(unpacked, { recursive: true });
+    return staged;
+  } catch (error) {
+    rmSync(ctx.stagingDir, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+async function downloadTarball(ctx, release, manifest) {
   const url = assetUrl(release, TARBALL_ASSET);
   const response = await request(ctx, url);
   if (!response.ok) throw new NetworkError(`${url} returned ${response.status}`);
@@ -333,18 +371,11 @@ async function stageRelease(ctx, release, manifest) {
   } catch (error) {
     throw new NetworkError(`${url}: ${error.message}`);
   }
-  if (bytes.length !== manifest.size) throw new Error(`Release ${manifest.sourceSha.slice(0, 12)} tarball is ${bytes.length} bytes, expected ${manifest.size}. Refused.`);
+  const label = manifest.sourceSha.slice(0, 12);
+  if (bytes.length !== manifest.size) throw new Error(`Release ${label} tarball is ${bytes.length} bytes, expected ${manifest.size}. Refused.`);
   const sha256 = createHash('sha256').update(bytes).digest('hex');
-  if (sha256 !== manifest.sha256) throw new Error(`Release ${manifest.sourceSha.slice(0, 12)} tarball hash is ${sha256}, expected ${manifest.sha256}. Refused.`);
-  const tarball = join(ctx.stagingDir, TARBALL_ASSET);
-  writeFileSync(tarball, bytes);
-  verifyTarballLayout(tarball);
-  const extracted = spawnSync('tar', ['-xzf', tarball, '-C', unpacked], { encoding: 'utf8' });
-  if (extracted.status !== 0) throw new Error(`Could not unpack the release tarball: ${extracted.stderr}`);
-  verifyAppBundle(join(unpacked, APP_NAME));
-  rmSync(tarball);
-  renameSync(unpacked, stagedDir);
-  return staged;
+  if (sha256 !== manifest.sha256) throw new Error(`Release ${label} tarball hash is ${sha256}, expected ${manifest.sha256}. Refused.`);
+  return bytes;
 }
 
 function saveRollback(ctx) {
@@ -354,7 +385,10 @@ function saveRollback(ctx) {
   const path = join(previousBuildsDir, name);
   // COPYFILE_DISABLE keeps AppleDouble files out of the archive.
   const archived = spawnSync('tar', ['-czf', `${path}.tmp`, '-C', dirname(appPath), basename(appPath)], { encoding: 'utf8', env: { ...process.env, COPYFILE_DISABLE: '1' } });
-  if (archived.status !== 0) throw new Error(`Could not save the rollback tarball: ${archived.stderr}`);
+  if (archived.status !== 0) {
+    rmSync(`${path}.tmp`, { force: true });
+    throw new Error(`Could not save the rollback tarball: ${archived.stderr}`);
+  }
   renameSync(`${path}.tmp`, path);
   const tarballs = readdirSync(previousBuildsDir)
     .filter((entry) => ROLLBACK_NAME.test(entry))
@@ -395,14 +429,18 @@ async function installStaged(ctx, sha, staged, pid, mode) {
 async function updateFromRelease(ctx) {
   await recoverSwap(ctx);
   const release = await getJson(ctx, `${API}/releases/latest`);
-  ctx.state.lastSuccessfulCheckAt = new Date(ctx.adapter.now()).toISOString();
+  // Stamped only once git fetches also succeeded, so a git-only outage still reaches the 26 hour alert.
+  const markChecked = () => { ctx.state.lastSuccessfulCheckAt = new Date(ctx.adapter.now()).toISOString(); };
   if (!release) {
+    markChecked();
     log(ctx, 'No release has been published yet.');
     return;
   }
   const manifest = await acceptRelease(ctx, release);
   const sha = manifest.sourceSha;
-  if (!refreshClones(ctx, sha)) return;
+  const proven = refreshClones(ctx, sha);
+  markChecked();
+  if (!proven) return;
 
   if (ctx.state.heldSha && ctx.state.heldSha !== sha) ctx.state.heldSha = null;
   const bundlePresent = existsSync(ctx.config.appPath);
@@ -458,11 +496,12 @@ function noteNetworkFailure(ctx, error) {
 }
 
 function open(config, adapter) {
-  mkdirSync(config.stateDir, { recursive: true });
+  const { state, corrupt } = loadState(config);
   return {
     config,
     adapter,
-    state: loadState(config),
+    state,
+    stateCorrupt: corrupt,
     outgoing: join(config.stateDir, 'outgoing.app'),
     stagingDir: join(config.stateDir, 'staging'),
     raised: new Map(),
@@ -471,7 +510,9 @@ function open(config, adapter) {
 }
 
 export async function runUpdate(config, adapter) {
+  mkdirSync(config.stateDir, { recursive: true });
   const ctx = open(config, adapter);
+  if (ctx.stateCorrupt) alert(ctx, 'state-corrupt', 'The update agent state file was unreadable and has been reset. The latest release will be reinstalled once.');
   for (const step of [updateFromRelease, watchdog]) {
     try {
       await step(ctx);
@@ -524,7 +565,7 @@ export function installAgent(config, adapter) {
 export async function printStatus(config, adapter) {
   const ctx = open(config, adapter);
   const { state } = ctx;
-  const problems = [];
+  const problems = ctx.stateCorrupt ? ['The state file is unreadable; the next run resets it.'] : [];
   let latest = 'none published';
   try {
     const release = await getJson(ctx, `${API}/releases/latest`);

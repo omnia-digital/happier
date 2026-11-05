@@ -15,6 +15,7 @@ import {
   releaseTagForSha,
   validateManifest,
   verifyAppBundle,
+  verifyTarballLayout,
 } from './nightly-release-contract.mjs';
 
 // Turns the bundle built on Cassian into the two assets of a nightly release.
@@ -56,12 +57,6 @@ function assertAdhocSignature(appPath) {
   if (!/^Signature=adhoc$/m.test(stderr)) throw new Error(`Bundle is not ad-hoc signed: ${appPath}`);
 }
 
-function assertSingleRoot(tarball) {
-  const entries = tool('tar', ['-tzf', tarball]).stdout.trim().split('\n');
-  const stray = entries.find((entry) => entry.split('/')[0] !== APP_NAME);
-  if (stray !== undefined) throw new Error(`Tarball has an entry outside ${APP_NAME}: ${stray}`);
-}
-
 async function sha256(path) {
   const hash = createHash('sha256');
   for await (const chunk of createReadStream(path)) hash.update(chunk);
@@ -92,7 +87,7 @@ async function main() {
   const tarball = join(outDir, TARBALL_ASSET);
   // COPYFILE_DISABLE stops macOS tar adding AppleDouble entries beside the bundle root.
   tool('tar', ['-czf', tarball, '-C', dirname(app), APP_NAME], { ...process.env, COPYFILE_DISABLE: '1' });
-  assertSingleRoot(tarball);
+  verifyTarballLayout(tarball);
 
   const manifest = validateManifest({
     schema: 1,

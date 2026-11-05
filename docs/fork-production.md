@@ -4,10 +4,13 @@ The Omnia fork uses `dev` for integration and `production` for the daily-use
 source. `main` follows the parent project's main line and is not our release
 destination. Feature branches and pull requests target `dev`.
 
-This is a source promotion workflow gated by CI and unsigned desktop builds. It does not publish upstream npm packages,
-update feeds, app-store builds, Docker images, or GitHub release artifacts.
-Signing and distribution are separate release work. The hosted Happier account,
-relay, installed CLI and daemon remain the existing daily services.
+This is a source promotion workflow gated by CI and unsigned desktop builds. It also
+publishes one immutable, ad-hoc signed macOS GitHub Release per promoted commit, which
+[the Mac update agent](#mac-update-agent) installs. Those assets are public because the
+fork is public. It does not publish upstream npm packages, update feeds, app-store
+builds or Docker images. Developer ID signing, notarization and updater feeds are
+separate release work (OH-5). The hosted Happier account, relay, installed CLI and
+daemon remain the existing daily services.
 
 ## Permanent local checkouts
 
@@ -42,8 +45,9 @@ the PR with `--base dev`. After merge, fast-forward the clean `happier-dev`
 checkout. Verify all task work is pushed and merged and no process, unsaved work,
 or valuable ignored data depends on its directory before removing it through the
 existing worktree cleanup tools. Do not use forced removal to discard unfinished
-work. The nightly workflow then promotes tested `dev` source to `production`;
-update the protected clone only through the helper below.
+work. The nightly workflow then promotes tested `dev` source to `production`. The
+Mac update agent updates the protected clone through the helper below, and that helper
+is the only way to update it by hand.
 
 Use an explicitly named stack for concurrent feature runtimes. Linked worktrees
 can share the repo-local stack identity; the permanent production clone has its
@@ -78,8 +82,10 @@ build. A failed or interrupted update is not a verified running release.
 Install dependencies and create required ignored build/cache directories before
 first protection. Upgrades that change dependency or build prerequisites need
 the normal build/validation workflow before daily adoption. This helper does not
-certify a native app or silently refresh a running app. It currently supports
-macOS only and does not change Windows or Linux runtime paths.
+certify a native app or refresh a running app; the Mac update agent owns that. If it
+finds the checkout unlocked at the current commit, as a killed update leaves it, it
+locks it again. It currently supports macOS only and does not change Windows or Linux
+runtime paths.
 
 These are strong accidental-edit safeguards, not an OS security boundary against
 the owning account or an administrator deliberately removing them. Agents must
@@ -242,8 +248,8 @@ The Apple Silicon job ran on `cassian-happier-nightly` in `happier-nightly`.
 The protected local production clone was updated to that commit through the
 guarded helper. The installed latest feature bundle is ahead of this certified
 source: its subsequent full CI run exposed test-fixture corrections that must
-pass before its own promotion. Source promotion never silently replaces an
-already installed application; the local bundle must be explicitly installed.
+pass before its own promotion. Source promotion alone does not replace an installed
+application; the Mac update agent installs published releases.
 
 OH-5 commits `85bef2bda8` and `f4c093c9cd` remain deferred. Their unfinished
 signing/feed admission changes reject the unsigned preparation used by the
@@ -258,19 +264,38 @@ promote source after CI and unsigned native builds, with app updates disabled.
 `.github/workflows/omnia-production.yml` runs at **02:17 America/Los_Angeles**,
 including daylight-saving changes, on the fork's default `dev` branch. GitHub
 schedules are best effort. A manual run is admitted only from this fork's `dev`.
+It publishes at most one release per commit, and nothing when nothing changed.
 
-1. Bind the triggering `dev` commit.
-2. Find a successful canonical `tests.yml` **push** run for that exact SHA.
+1. `select-nightly-candidate.mjs` picks the newest successful canonical `tests.yml`
+   **push** run on `dev`. That commit must be the trigger SHA or an ancestor of it, so
+   a red or pending head does not cost the night its green commits.
+2. It skips the night when that commit already has a published release with both
+   assets, or is strictly behind `production`. The gate is keyed on the release, not
+   on `production`, so a failed publish is retried the next night.
 3. Use `verify-existing-ci.mjs` to validate the repository, workflow, event,
    branch, source SHA and required lane artifact. A green unrelated/manual run
    does not qualify. Missing or failed CI leaves production untouched.
 4. Build unsigned desktop candidates through `build-tauri.yml`, with Apple
-   Silicon on Cassian and other platforms on their existing hosted runners.
-   Missing, skipped or failed builds block promotion.
+   Silicon on Cassian and other platforms on their existing hosted runners. The
+   Cassian job also builds `Omnia Happier.app` through `hstack build --tauri
+   --tauri-production`, with `HAPPIER_STACK_TAURI_BUNDLES=app`, and
+   `package-nightly-app.mjs` rejects it unless the bundle identity, signature,
+   architecture, disabled updater and server URL are right. Missing, skipped or failed
+   builds block promotion.
 5. Create a narrowly scoped token from the fork's release GitHub App.
 6. Use the existing `promote-branch.mjs` owner to fast-forward `production` to
    the certified commit. Divergence fails; it is never reset. Newer `dev` commits
    arriving during the run are not silently included.
+7. A hosted job publishes the release through `github-publish-release`: tag
+   `omnia-nightly-<sha12>`, marked latest, with `omnia-happier-macos-arm64.tar.gz` and
+   its `.json` manifest. `scripts/fork/nightly-release-contract.mjs` is the only
+   definition of a valid release. This job uses `GITHUB_TOKEN` because the reusable
+   release workflow's actor guard rejects `andorcassian`. Cassian never gets write access.
+
+A selected source older than this change ignores `HAPPIER_STACK_TAURI_BUNDLES` and
+builds every bundle format, including the DMG. When proving a change to this path by
+dispatching a run, wait for the merge commit's own push CI to pass and confirm the
+run's `source_sha` equals it.
 
 GitHub's normal repository-write permission controls manual dispatch. The
 fork/repository and `dev` guards, exact-source CI verifier and App scope protect
@@ -279,6 +304,52 @@ its repository-admin check when no release team credentials are forwarded.
 Upstream scheduled
 publication and extra nightly suites remain defined, but their scheduled jobs
 are admitted only in `happier-dev/happier`; their manual/reusable behavior remains.
+
+## Mac update agent
+
+`scripts/fork/omnia-nightly-update.mjs` keeps this Mac on the newest release. It runs
+hourly under launchd as `com.omnia.happier.nightly-update`, from the `happier-dev`
+clone, and logs to `~/Library/Logs/omnia-happier-nightly-update.log`. Install it from
+that clone, and check it with `status`, which exits non-zero when something is wrong:
+
+```sh
+node scripts/fork/omnia-nightly-update.mjs install
+node scripts/fork/omnia-nightly-update.mjs status
+launchctl kickstart gui/$(id -u)/com.omnia.happier.nightly-update
+```
+
+Each run:
+
+1. Restores the app if an earlier swap was interrupted.
+2. Reads the latest release and refuses one that is not a published, immutable nightly
+   by the release workflow with a valid manifest.
+3. Updates `happier-production` through its guarded helper, and requires the release
+   commit to be on it. Then it fast-forwards `happier-dev` to that commit only, so the
+   agent only ever runs certified source. A dirty or diverged `happier-dev` is left
+   alone and reported. These updates still happen while an install is deferred.
+4. Downloads and verifies the bundle: size, SHA-256, single-root tarball, strict
+   codesign, bundle id, product name and arm64. A waiting bundle has no `.app` name,
+   because same-id bundles can take over the `happier://` handler.
+5. Defers while the app is frontmost, or has a window and there was input in the last
+   15 minutes. Tray-only and closed apps install straight away.
+6. Saves the current bundle as a tarball under `Previous Builds` (it keeps 3), sends
+   SIGTERM, swaps the bundle and relaunches in the previous mode. Tray mode uses
+   `open -g -a <app> --args --menu-bar`. If the new process does not stay alive, it
+   rolls back and holds that commit until a newer release.
+7. Alerts when the latest completed nightly did not succeed, or none succeeded within
+   26 hours. This is the only prompt signal for a dead Cassian runner, because GitHub
+   reports that job as `cancelled` after 24 hours.
+
+Alerts are on-screen dialogs that stay until clicked. macOS notifications from
+`osascript` did not appear on this Mac. Quitting the app does not stop sessions,
+because they are children of the daemon. The agent does not update the CLI or daemons:
+no fork CLI artifact exists, and a swap would affect running sessions, so host metrics
+and PR status stay "unsupported" until a fork CLI is installed deliberately.
+
+This is an interim path until OH-5 lands. The in-app updater stays compile-time disabled,
+so the agent is not a competing decision-maker. When OH-5 ships a fork feed, retire this
+agent. Limits: bundles are ad-hoc signed, so a repository writer could publish a release
+these checks accept; a closed app gets no alive check; and a dead agent cannot report itself.
 
 ## Cassian nightly build host
 
@@ -306,11 +377,20 @@ inventory or administer runner groups through its PAT. Group restriction
 configuration is confirmed by Josh; the registered group identity and service
 connection were independently read back on Cassian.
 
+On 2026-11-01 the runner service received a shutdown and exited 0; the sender is
+unknown. Its plist had no `KeepAlive`, so it stayed down and nightlies queued for 24
+hours before ending `cancelled`. On 2026-11-05 `KeepAlive=true` was added to
+`~/Library/LaunchAgents/actions.runner.omnia-digital.cassian-happier-nightly.plist`
+on Cassian, matching its Guitar Tricks runner. Re-registering the service regenerates
+that plist, so add the key again. Cassian has no auto-login, so after a reboot the runner
+stays offline until someone logs in; the Mac update agent reports the resulting gap.
+
 For registration, use a dedicated organization runner group restricted to this
 repository and `omnia-digital/happier/.github/workflows/build-tauri.yml@refs/heads/dev`,
 where the reusable build job is defined. Its additional admission step permits
-Cassian only when called by `omnia-production.yml` on `dev`, for the triggering
-exact SHA and unsigned preparation. This fork is public, so
+Cassian only when called by `omnia-production.yml` on `dev`, for unsigned preparation
+of the trigger SHA or an ancestor of it, checked through the compare API. That caller
+supplies a commit it has already verified as green. This fork is public, so
 do not expose Cassian's persistent runner to pull-request workflows. Give the
 runner a Cassian-specific label and its own `_work` directory under the installed
 runner. Register with `/opt/homebrew/bin` on PATH, then install/start its own
@@ -433,8 +513,8 @@ back through GitHub. This non-admin account cannot read the bypass list itself.
    bundled Mac UI. Verify updater suppression and hosted login/session continuity
    before replacing the current daily app.
 
-Native signing, updater feeds and app installation are not established by branch
-promotion. Existing fork UI changes must reach `dev` before they can reach
+Native signing and updater feeds are not established by branch promotion, and app
+installation belongs to the Mac update agent. Existing fork UI changes must reach `dev` before they can reach
 production. The fetched parent `dev` is reviewed independently; nightly promotion
 does not automatically merge parent updates or certify their compatibility.
 
