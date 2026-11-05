@@ -6,7 +6,7 @@
 | 2 | Map build path, local runtime, contracts | 🟢 |
 | 3 | Restore Cassian runner with `KeepAlive=true` | 🟢 Running, picked up queued run 41813506401 |
 | 4 | Select newest green SHA, gate on release, admit ancestor SHA on Cassian | 🟡 Implemented, final test run pending |
-| 5 | `HAPPIER_STACK_TAURI_BUNDLES`, Cassian app build step, publish job | 🟡 Implemented, real Cassian build pending |
+| 5 | `HAPPIER_STACK_TAURI_BUNDLES`, Cassian app build step, publish job | 🟡 Scratch build on Cassian passed (834s, cold), workflow run pending |
 | 6 | Mac update agent with tests | 🟡 Implemented, final test run pending |
 | 7 | Update `docs/fork-production.md` | 🟢 |
 | 8 | Probe bundle replacement under launchd on this Mac | 🟢 Rename and write allowed for an ad-hoc copy |
