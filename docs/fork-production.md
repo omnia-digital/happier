@@ -385,6 +385,18 @@ on Cassian, matching its Guitar Tricks runner. Re-registering the service regene
 that plist, so add the key again. Cassian has no auto-login, so after a reboot the runner
 stays offline until someone logs in; the Mac update agent reports the resulting gap.
 
+Never run `hstack build` for the `omnia-production-desktop` stack on Cassian from any
+checkout but the runner's. That stack's cargo target under `~/.happier/stacks` persists
+between nights, and its cached build outputs hold absolute paths. On 2026-11-05 a proof
+build from a scratch directory, deleted afterwards, made the next runner build fail with
+`failed to read plugin permissions` at the deleted path. Deleting that stack directory
+fixes it; the next build is cold.
+
+The first release, `omnia-nightly-da49cd8622ac`, came from dispatched run
+[42056243392](https://github.com/omnia-digital/happier/actions/runs/42056243392) on
+2026-11-05, after one rerun of its Cassian job for the cause above. Its Cassian job took
+24 minutes from cold.
+
 For registration, use a dedicated organization runner group restricted to this
 repository and `omnia-digital/happier/.github/workflows/build-tauri.yml@refs/heads/dev`,
 where the reusable build job is defined. Its additional admission step permits
