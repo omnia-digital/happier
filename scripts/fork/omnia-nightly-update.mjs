@@ -297,11 +297,7 @@ function fastForwardDevClone(clone, sha) {
   if (git(clone, 'branch', '--show-current') !== 'dev') throw new Error(`${clone} is not on dev; happier-dev was left alone.`);
   if (git(clone, 'status', '--porcelain=v1', '--untracked-files=all')) throw new Error(`${clone} has uncommitted work; happier-dev was left alone.`);
   if (isAncestor(clone, sha, 'HEAD')) return;
-  try {
-    git(clone, 'fetch', 'origin', 'refs/heads/dev:refs/remotes/origin/dev');
-  } catch (error) {
-    throw new NetworkError(error.message);
-  }
+  git(clone, 'fetch', 'origin', 'refs/heads/dev:refs/remotes/origin/dev');
   if (!isAncestor(clone, sha, 'refs/remotes/origin/dev')) throw new Error(`${sha} is not on origin/dev; happier-dev was left alone.`);
   git(clone, 'merge', '--ff-only', '--no-overwrite-ignore', sha);
 }
@@ -324,7 +320,6 @@ function refreshClones(ctx, sha) {
   try {
     fastForwardDevClone(devClone, sha);
   } catch (error) {
-    if (error instanceof NetworkError) throw error;
     alert(ctx, `dev-clone:${sha}`, `happier-dev did not update: ${error.message}`);
   }
   return true;
@@ -429,21 +424,28 @@ async function installStaged(ctx, sha, staged, pid, mode) {
   await confirmSwap(ctx, ctx.state.swap);
 }
 
+/** A run that ends without a network failure is a successful check, so API, git and download outages all reach the 26 hour alert. */
 async function updateFromRelease(ctx) {
+  try {
+    await applyLatestRelease(ctx);
+  } catch (error) {
+    if (error instanceof NetworkError) throw error;
+    ctx.state.lastSuccessfulCheckAt = new Date(ctx.adapter.now()).toISOString();
+    throw error;
+  }
+  ctx.state.lastSuccessfulCheckAt = new Date(ctx.adapter.now()).toISOString();
+}
+
+async function applyLatestRelease(ctx) {
   await recoverSwap(ctx);
   const release = await getJson(ctx, `${API}/releases/latest`);
-  // Stamped only once git fetches also succeeded, so a git-only outage still reaches the 26 hour alert.
-  const markChecked = () => { ctx.state.lastSuccessfulCheckAt = new Date(ctx.adapter.now()).toISOString(); };
   if (!release) {
-    markChecked();
     log(ctx, 'No release has been published yet.');
     return;
   }
   const manifest = await acceptRelease(ctx, release);
   const sha = manifest.sourceSha;
-  const proven = refreshClones(ctx, sha);
-  markChecked();
-  if (!proven) return;
+  if (!refreshClones(ctx, sha)) return;
 
   if (ctx.state.heldSha && ctx.state.heldSha !== sha) ctx.state.heldSha = null;
   const bundlePresent = existsSync(ctx.config.appPath);
@@ -494,7 +496,7 @@ function noteNetworkFailure(ctx, error) {
     // Start the clock, or a machine that has never reached GitHub would never say so.
     ctx.state.lastSuccessfulCheckAt = new Date(ctx.adapter.now()).toISOString();
   } else if (ctx.adapter.now() - Date.parse(lastCheck) > STALE_MS) {
-    alert(ctx, `offline:${lastCheck}`, `Could not reach GitHub for over 26 hours (last success ${lastCheck}).`);
+    alert(ctx, `offline:${lastCheck}`, `Could not reach GitHub or download the release for over 26 hours (last success ${lastCheck}).`);
   }
 }
 

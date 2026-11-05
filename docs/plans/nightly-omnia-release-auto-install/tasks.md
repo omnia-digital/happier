@@ -10,6 +10,6 @@
 | 6 | Mac update agent with tests | 🟡 Implemented, final test run pending |
 | 7 | Update `docs/fork-production.md` | 🟢 |
 | 8 | Probe bundle replacement under launchd on this Mac | 🟢 Rename and write allowed for an ad-hoc copy |
-| 9 | Adversarial review and fixes | 🟡 Three reviews done, fixes applied, delta review pending |
+| 9 | Adversarial review and fixes | 🟡 Three reviews and a delta review done; four delta findings fixed, final batch pending |
 | 10 | Open PR to `dev` | 🔴 |
 | 11 | After merge: dispatch nightly, install agent, verify app and clones | 🔴 Merge pre-approved by Josh once checks pass |

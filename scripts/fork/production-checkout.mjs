@@ -45,10 +45,6 @@ function protectionPaths({ repo, gitDir, hooksDir }) {
   return [...paths].filter((path) => existsSync(path));
 }
 
-function isLocked(path) {
-  return run('stat', ['-f', '%Sf', path]).split(',').includes('uchg');
-}
-
 function setLocked(paths, locked) {
   // xargs respects the OS argument-size boundary; -h never follows tracked symlinks.
   run('xargs', ['-0', 'chflags', '-h', locked ? 'uchg' : 'nouchg'], undefined, `${paths.join('\0')}\0`);
@@ -99,8 +95,9 @@ export function updateProductionCheckout(repoPath) {
   const candidate = git(state.repo, 'rev-parse', 'refs/remotes/origin/production');
   git(state.repo, 'merge-base', '--is-ancestor', 'HEAD', candidate);
   if (git(state.repo, 'rev-parse', 'HEAD') === candidate) {
-    // A kill between the merge and the relock leaves this state; the root flag is the cheap check.
-    if (!isLocked(state.repo)) setLocked(protectionPaths(state), true);
+    // A kill during an earlier update can leave any subset of files unlocked, and no flag on
+    // one path proves the rest, so always relock. This takes well under a second.
+    setLocked(protectionPaths(state), true);
     return candidate;
   }
   const previousPaths = protectionPaths(state);

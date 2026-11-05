@@ -798,6 +798,52 @@ test('a git fetch failure counts as a network failure, not a clone fault', { ski
   assert.equal(world.marker(), sha);
 });
 
+test('a happier-dev fetch failure alerts at once and does not block the install', { skip }, async (t) => {
+  const world = makeWorld(t);
+  const sha = world.commit();
+  world.publish(sha);
+  world.installApp('old', oldSha);
+  const bin = join(world.root, 'bin', 'git');
+  writeFileSync(bin, readFileSync(bin, 'utf8').replace("if (args[0] === 'fetch') args[1]", "if (args[0] === 'fetch' && process.cwd().endsWith('happier-dev')) { console.error('bad remote'); process.exit(128); }\nif (args[0] === 'fetch') args[1]"));
+  await world.update();
+  assert.equal(world.marker(), sha);
+  assert.equal(world.alerts.length, 1);
+  assert.match(world.alerts[0], /happier-dev did not update/);
+});
+
+test('a refused release counts as a completed check, so it never reads as offline', { skip }, async (t) => {
+  const world = makeWorld(t);
+  const sha = world.commit();
+  world.publish(sha, { release: { immutable: false } });
+  world.installApp('old', oldSha);
+  await world.update();
+  assert.equal(world.alerts.length, 1);
+  assert.equal(world.state().lastSuccessfulCheckAt, new Date(world.now).toISOString());
+  world.now += 27 * HOUR;
+  world.runs = [{ id: 2, conclusion: 'success', updated_at: new Date(world.now - HOUR).toISOString() }];
+  await world.update();
+  world.offline = true;
+  world.now += HOUR;
+  await world.update();
+  assert.ok(!world.alerts.some((message) => /reach GitHub/i.test(message)));
+});
+
+test('a download-only outage still reaches the 26 hour alert', { skip }, async (t) => {
+  const world = makeWorld(t);
+  const sha = world.commit();
+  const tarball = world.publish(sha);
+  world.installApp('old', oldSha);
+  world.assets.delete(tarball);
+  await world.update();
+  assert.deepEqual(world.alerts, [], 'a first failure stays quiet');
+  world.now += 27 * HOUR;
+  world.runs = [{ id: 2, conclusion: 'success', updated_at: new Date(world.now - HOUR).toISOString() }];
+  await world.update();
+  assert.equal(world.alerts.length, 1);
+  assert.match(world.alerts[0], /26 hours/);
+  assert.equal(world.marker(), 'old');
+});
+
 test('a dark-wake network error is silent until 26 hours without a successful check', { skip }, async (t) => {
   const world = makeWorld(t);
   world.installApp('old', oldSha);
