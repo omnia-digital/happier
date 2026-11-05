@@ -89,5 +89,5 @@ the `happier://` handler.
 - A dead Mac agent cannot report itself.
 - Cassian has no auto-login, so after a reboot its runner stays offline until someone
   logs in. The watchdog reports this.
-- Nothing has yet proven that a launchd job may replace a bundle in `/Applications`
-  on macOS 27 (App Management), or that a Cassian-built ad-hoc bundle runs here.
+- A launchd job may rename an ad-hoc bundle in `/Applications` (probed with a copy on
+  2026-11-05). A real swap, and a Cassian-built bundle launching here, are still unproven.
