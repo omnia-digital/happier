@@ -104,6 +104,29 @@ test('protection and updater reject dirty, wrong-branch, wrong-origin and shared
   assert.throws(() => updateProductionCheckout(checkout), /protected|worktree|independent/i);
 });
 
+test('a checkout left unlocked at the current commit is relocked by the next update', { skip: process.platform !== 'darwin' }, (t) => {
+  const { checkout } = fixture(t);
+  protectProductionCheckout(checkout);
+  // A kill between the merge and the relock unlocks the tree; a kill during the relock can
+  // leave the root locked over unlocked files, so both shapes must heal.
+  spawnSync('chflags', ['-R', 'nouchg', checkout]);
+  updateProductionCheckout(checkout);
+  assert.throws(() => writeFileSync(join(checkout, 'app.txt'), 'edited'), /EPERM|EACCES/);
+  assert.throws(() => writeFileSync(join(checkout, 'new.txt'), 'edited'), /EPERM|EACCES/);
+  spawnSync('chflags', ['nouchg', join(checkout, 'app.txt')]);
+  updateProductionCheckout(checkout);
+  assert.throws(() => writeFileSync(join(checkout, 'app.txt'), 'edited'), /EPERM|EACCES/);
+});
+
+test('a failed fetch is identifiable as a fetch failure', { skip: process.platform !== 'darwin' }, (t) => {
+  const { checkout, root } = fixture(t);
+  protectProductionCheckout(checkout);
+  const bin = join(root, 'bin', 'git');
+  writeFileSync(bin, readFileSync(bin, 'utf8').replace("if (args[0] === 'fetch') args[1]", "if (args[0] === 'fetch') { console.error('Could not resolve host'); process.exit(128); }\nif (args[0] === 'fetch') args[1]"));
+  assert.throws(() => updateProductionCheckout(checkout), { code: 'PRODUCTION_FETCH_FAILED' });
+  assert.throws(() => writeFileSync(join(checkout, 'app.txt'), 'edited'), /EPERM|EACCES/);
+});
+
 test('failed fetch leaves production unchanged and protected', { skip: process.platform !== 'darwin' }, (t) => {
   const { checkout, root } = fixture(t);
   protectProductionCheckout(checkout);

@@ -176,23 +176,28 @@ jobs:
           CALLER_WORKFLOW_REF: ${{ github.workflow_ref }}
           SOURCE_REF: ${{ inputs.source_ref }}
           PREPARATION_ONLY: ${{ inputs.preparation_only }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           if [ "$CASSIAN_BUILD" != true ]; then
             exit 0
           fi
-          # A persistent personal Mac may execute only the exact dev source
-          # admitted by the fork nightly's CI gate, never a PR or arbitrary SHA.
+          # A persistent personal Mac may execute only a dev source admitted by
+          # the fork nightly's CI gate, never a PR or arbitrary SHA.
           test "$GITHUB_REPOSITORY" = omnia-digital/happier
           test "$GITHUB_REF" = refs/heads/dev
           test "$CALLER_WORKFLOW_REF" = omnia-digital/happier/.github/workflows/omnia-production.yml@refs/heads/dev
           test "$PREPARATION_ONLY" = true
-          [[ "$SOURCE_REF" =~ ^[0-9a-f]{40}$ ]]
-          test "$SOURCE_REF" = "$GITHUB_SHA"
+          [[ "$SOURCE_REF" =~ ^[0-9a-f]{40}$ ]] || { echo "Cassian requires an exact source SHA." >&2; exit 1; }
           case "$GITHUB_EVENT_NAME" in
             schedule|workflow_dispatch) ;;
             *) echo "Cassian accepts only trusted nightly runs." >&2; exit 1 ;;
           esac
+          if [ "$SOURCE_REF" != "$GITHUB_SHA" ]; then
+            # The nightly may select an older green commit, never one outside this dev history.
+            compare_status="$(gh api "repos/$GITHUB_REPOSITORY/compare/$SOURCE_REF...$GITHUB_SHA" --jq .status)"
+            test "$compare_status" = ahead
+          fi
 
   release_actor_guard:
     needs: [trusted_ref_guard]
@@ -577,6 +582,71 @@ jobs:
           name: tauri-candidate-${{ inputs.environment }}-${{ matrix.platform_key }}
           path: dist/tauri/candidates/${{ matrix.platform_key }}/**
           retention-days: 7
+
+      - name: Build installable nightly app
+        id: nightly_app
+        if: inputs.cassian_build && matrix.platform_key == 'darwin-aarch64'
+        env:
+          HAPPIER_STACK_CLI_ROOT_DISABLE: "1"
+          HAPPIER_STACK_DISABLE_STACK_ENV_AUTOLOAD: "1"
+          # Keep Cassian's own ~/.happier-stack overrides out of this build.
+          HAPPIER_STACK_HOME_DIR: ${{ runner.temp }}/hstack-home
+          # Dependencies were installed above, and a refresh would drop HAPPIER_INSTALL_SCOPE.
+          HAPPIER_STACK_SKIP_REFRESH_DEPS: "1"
+          HAPPIER_STACK_STACK: omnia-production-desktop
+          HAPPIER_STACK_TAURI_BUNDLES: app
+          HAPPIER_STACK_TAURI_DEBUG: "0"
+          HAPPIER_STACK_TAURI_IDENTIFIER: com.omnia.happier.production
+          HAPPIER_STACK_TAURI_PREFER_TAILSCALE: "0"
+          HAPPIER_STACK_TAURI_PRODUCT_NAME: Omnia Happier
+          HAPPIER_STACK_TAURI_SERVER_URL: https://api.happier.dev
+          APP_ENV: production
+          EXPO_PUBLIC_HAPPIER_DESKTOP_UPDATES_ENABLED: "0"
+          APPLE_SIGNING_IDENTITY: "-"
+        run: |
+          set -euo pipefail
+          rm -rf "$HOME/.happier/stacks/$HAPPIER_STACK_STACK/tauri-target/release/bundle"
+          env -u HAPPIER_STACK_ENV_FILE HAPPIER_STACK_REPO_DIR="$PWD" \
+            ./apps/stack/bin/hstack-exec -- node apps/stack/bin/hstack.mjs build --tauri --tauri-production
+
+      # The selected source can predate the packager, so run it from the trusted control.
+      # Checked out only now because Metro would otherwise crawl this second repository copy.
+      - name: Checkout trusted nightly packager
+        id: nightly_control
+        if: inputs.cassian_build && matrix.platform_key == 'darwin-aarch64'
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .release-control
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Package installable nightly app
+        id: nightly_package
+        if: inputs.cassian_build && matrix.platform_key == 'darwin-aarch64'
+        env:
+          SOURCE_SHA: ${{ needs.resolve_source.outputs.source_sha }}
+          RUN_ID: ${{ github.run_id }}
+          OUT_DIR: ${{ runner.temp }}/omnia-nightly
+        run: |
+          set -euo pipefail
+          node .release-control/scripts/fork/package-nightly-app.mjs \
+            --app "$HOME/.happier/stacks/omnia-production-desktop/tauri-target/release/bundle/macos/Omnia Happier.app" \
+            --source-sha "$SOURCE_SHA" \
+            --run-id "$RUN_ID" \
+            --ui-export apps/ui/dist \
+            --out-dir "$OUT_DIR"
+
+      - name: Upload installable nightly app
+        id: nightly_upload
+        if: inputs.cassian_build && matrix.platform_key == 'darwin-aarch64'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: omnia-happier-macos-arm64
+          path: ${{ runner.temp }}/omnia-nightly/
+          retention-days: 7
+          if-no-files-found: error
 
 
   finalize:

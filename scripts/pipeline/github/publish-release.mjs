@@ -345,6 +345,8 @@ async function main() {
       'assets-dir': { type: 'string', default: '' },
       clobber: { type: 'string', default: 'false' },
       'prune-assets': { type: 'string', default: 'false' },
+      latest: { type: 'string', default: 'false' },
+      'replace-draft': { type: 'string', default: 'false' },
       'release-message': { type: 'string', default: '' },
       'dry-run': { type: 'boolean', default: false },
       'max-commits': { type: 'string', default: '200' },
@@ -364,6 +366,8 @@ async function main() {
   const generateNotes = parseBool(values['generate-notes'], '--generate-notes');
   const clobber = parseBool(values.clobber, '--clobber');
   const pruneAssets = parseBool(values['prune-assets'], '--prune-assets');
+  const markLatest = parseBool(values.latest, '--latest');
+  const replaceDraft = parseBool(values['replace-draft'], '--replace-draft');
   if (!rollingTag && (clobber || pruneAssets)) {
     fail('Immutable version releases forbid --clobber true and --prune-assets true.');
   }
@@ -460,6 +464,11 @@ async function main() {
     immutableDraft = parseBool(run('gh', [
       'release', 'view', tag, '--repo', repo, '--json', 'isDraft', '--jq', '.isDraft',
     ], { env: ghEnv }).trim(), 'GitHub Release isDraft');
+    // A rebuild of the same source never reproduces an earlier draft's bytes.
+    if (immutableDraft && replaceDraft) {
+      run('gh', ['release', 'delete', tag, '--repo', repo, '--yes'], { env: ghEnv });
+      releaseExists = false;
+    }
   }
 
   if (!releaseExists) {
@@ -637,7 +646,7 @@ async function main() {
     }
     // The complete asset set stays private until every remote byte has passed the audit.
     if (immutableDraft) {
-      run('gh', ['release', 'edit', tag, '--repo', repo, '--draft=false'], { env: ghEnv, dryRun });
+      run('gh', ['release', 'edit', tag, '--repo', repo, '--draft=false', ...(markLatest ? ['--latest'] : [])], { env: ghEnv, dryRun });
     }
     return;
   }

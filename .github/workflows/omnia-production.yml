@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   candidate:
-    name: Bind exact dev source and successful push CI
+    name: Select newest dev source with successful push CI
     if: ${{ github.repository == 'omnia-digital/happier' && github.ref == 'refs/heads/dev' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -25,38 +25,33 @@ jobs:
       actions: read
       contents: read
     outputs:
-      source_sha: ${{ steps.source.outputs.source_sha }}
-      ci_run_id: ${{ steps.ci.outputs.ci_run_id }}
+      source_sha: ${{ steps.select.outputs.source_sha }}
+      ci_run_id: ${{ steps.select.outputs.ci_run_id }}
+      release_tag: ${{ steps.select.outputs.release_tag }}
+      build_needed: ${{ steps.select.outputs.build_needed }}
     steps:
-      - name: Bind triggering dev SHA
-        id: source
-        env:
-          SOURCE_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          if ! [[ "$SOURCE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "Invalid triggering source SHA." >&2
-            exit 1
-          fi
-          echo "source_sha=$SOURCE_SHA" >> "$GITHUB_OUTPUT"
-      - name: Find successful canonical push CI for this SHA
-        id: ci
+      - name: Checkout trusted workflow control
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.x
+      - name: Select nightly source and decide whether it needs a build
+        id: select
         env:
           GH_TOKEN: ${{ github.token }}
-          SOURCE_SHA: ${{ steps.source.outputs.source_sha }}
-        run: |
-          set -euo pipefail
-          endpoint="repos/${GITHUB_REPOSITORY}/actions/workflows/tests.yml/runs?branch=dev&event=push&head_sha=${SOURCE_SHA}&status=success&per_page=100"
-          ci_run_id="$(gh api "$endpoint" --jq '.workflow_runs | map(select(.head_branch == "dev" and .event == "push" and .status == "completed" and .conclusion == "success")) | sort_by(.id) | last | .id // empty')"
-          if [ -z "$ci_run_id" ]; then
-            echo "::error::No successful canonical dev push CI exists for ${SOURCE_SHA}; production was not changed."
-            exit 1
-          fi
-          echo "ci_run_id=$ci_run_id" >> "$GITHUB_OUTPUT"
+          TRIGGER_SHA: ${{ github.sha }}
+        run: node scripts/fork/select-nightly-candidate.mjs
 
   verify_source_ci:
     name: Verify exact source CI lanes and artifact
     needs: [candidate]
+    # Skipping here also skips every job below: they all depend on this one.
+    if: needs.candidate.outputs.build_needed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -146,3 +141,53 @@ jobs:
             --allow-reset false \
             --confirm 'promote production from dev' \
             --summary-file "$GITHUB_STEP_SUMMARY"
+
+  publish_release:
+    name: Publish nightly release
+    needs: [candidate, promote]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout trusted workflow control
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22.x
+      - name: Download installable app
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: omnia-happier-macos-arm64
+          # The pipeline refuses a dirty worktree, so assets stay outside the checkout.
+          path: ${{ runner.temp }}/omnia-nightly
+      - name: Publish immutable release through canonical pipeline owner
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.candidate.outputs.release_tag }}
+          SOURCE_SHA: ${{ needs.candidate.outputs.source_sha }}
+          ASSETS_DIR: ${{ runner.temp }}/omnia-nightly
+        run: |
+          set -euo pipefail
+          # --replace-draft: a new run rebuilds the same SHA with different bytes, and
+          # a draft left by a failed publication would otherwise block that SHA forever.
+          node scripts/pipeline/run.mjs github-publish-release \
+            --tag "$RELEASE_TAG" \
+            --title "Omnia Happier nightly $RELEASE_TAG" \
+            --target-sha "$SOURCE_SHA" \
+            --prerelease false \
+            --rolling-tag false \
+            --generate-notes false \
+            --notes "Omnia Happier nightly build of $SOURCE_SHA." \
+            --assets "$ASSETS_DIR/omnia-happier-macos-arm64.tar.gz"$'\n'"$ASSETS_DIR/omnia-happier-macos-arm64.json" \
+            --clobber false \
+            --prune-assets false \
+            --latest true \
+            --replace-draft true \
+            --secrets-source env

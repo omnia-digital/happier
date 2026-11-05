@@ -67,6 +67,9 @@ if (args[0] === 'api') {
   if (name === process.env.CORRUPT_UPLOAD) fs.writeFileSync(path.join(remote, name), 'corrupted');
 } else if (args[1] === 'edit' && args.includes('--draft=false')) {
   save({ draft: false });
+} else if (args[1] === 'delete' && args.includes('--yes') && !args.includes('--cleanup-tag')) {
+  for (const name of fs.readdirSync(remote)) fs.rmSync(path.join(remote, name));
+  save(null);
 } else {
   throw new Error('Unexpected gh call: ' + args.join(' '));
 }
@@ -173,6 +176,53 @@ test('a public immutable release is audited without adding, replacing, pruning, 
     }
     assert.doesNotMatch(readFileSync(f.log, 'utf8'), /release (upload|edit|create)|-X DELETE/);
     assert.equal(JSON.parse(readFileSync(f.state, 'utf8')).draft, false);
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
+test('--latest marks the release latest when it is published, and is off by default', () => {
+  const f = fixture();
+  const env = { ...process.env, GH_REPO: 'test/test', PATH: `${f.bin}:${process.env.PATH ?? ''}` };
+  try {
+    writeFileSync(f.state, 'null');
+    rmSync(join(f.remote, 'archive.tar.gz'));
+    execFileSync(process.execPath, args(f.local), { cwd: repoRoot, env, encoding: 'utf8' });
+    assert.doesNotMatch(readFileSync(f.log, 'utf8'), /--latest/);
+
+    writeFileSync(f.state, 'null');
+    for (const name of ['archive.tar.gz', 'checksums.txt']) rmSync(join(f.remote, name));
+    writeFileSync(f.log, '');
+    execFileSync(process.execPath, [...args(f.local), '--latest', 'true'], { cwd: repoRoot, env, encoding: 'utf8' });
+    assert.match(readFileSync(f.log, 'utf8'), /release edit cli-v1\.2\.3-preview\.4 .*--draft=false --latest/);
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
+test('--replace-draft recovers a draft left with bytes from an earlier build', () => {
+  const f = fixture();
+  const env = { ...process.env, GH_REPO: 'test/test', PATH: `${f.bin}:${process.env.PATH ?? ''}` };
+  try {
+    // The fixture starts as a draft holding different bytes for archive.tar.gz.
+    execFileSync(process.execPath, [...args(f.local), '--replace-draft', 'true'], { cwd: repoRoot, env, encoding: 'utf8' });
+    assert.equal(JSON.parse(readFileSync(f.state, 'utf8')).draft, false);
+    assert.equal(readFileSync(join(f.remote, 'archive.tar.gz'), 'utf8'), 'authorized bytes\n');
+    assert.match(readFileSync(f.log, 'utf8'), /release delete cli-v1\.2\.3-preview\.4 --repo test\/test --yes/);
+  } finally {
+    rmSync(f.root, { recursive: true, force: true });
+  }
+});
+
+test('--replace-draft never touches a published release', () => {
+  const f = fixture();
+  const env = { ...process.env, GH_REPO: 'test/test', PATH: `${f.bin}:${process.env.PATH ?? ''}` };
+  try {
+    writeFileSync(f.state, JSON.stringify({ draft: false }));
+    const result = spawnSync(process.execPath, [...args(f.local), '--replace-draft', 'true'], { cwd: repoRoot, env, encoding: 'utf8' });
+    assert.notEqual(result.status, 0);
+    assert.doesNotMatch(readFileSync(f.log, 'utf8'), /release delete/);
+    assert.equal(readFileSync(join(f.remote, 'archive.tar.gz'), 'utf8'), 'different bytes\n');
   } finally {
     rmSync(f.root, { recursive: true, force: true });
   }

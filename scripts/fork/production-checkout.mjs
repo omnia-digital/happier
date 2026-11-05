@@ -87,10 +87,19 @@ export function updateProductionCheckout(repoPath) {
   const state = inspect(repoPath);
   requireProtection(state);
   // Fetch while locked; network failure cannot leave the source writable.
-  git(state.repo, 'fetch', 'origin', 'refs/heads/production:refs/remotes/origin/production');
+  try {
+    git(state.repo, 'fetch', 'origin', 'refs/heads/production:refs/remotes/origin/production');
+  } catch (error) {
+    throw Object.assign(error, { code: 'PRODUCTION_FETCH_FAILED' });
+  }
   const candidate = git(state.repo, 'rev-parse', 'refs/remotes/origin/production');
   git(state.repo, 'merge-base', '--is-ancestor', 'HEAD', candidate);
-  if (git(state.repo, 'rev-parse', 'HEAD') === candidate) return candidate;
+  if (git(state.repo, 'rev-parse', 'HEAD') === candidate) {
+    // A kill during an earlier update can leave any subset of files unlocked, and no flag on
+    // one path proves the rest, so always relock. This takes well under a second.
+    setLocked(protectionPaths(state), true);
+    return candidate;
+  }
   const previousPaths = protectionPaths(state);
   try {
     setLocked(previousPaths, false);
