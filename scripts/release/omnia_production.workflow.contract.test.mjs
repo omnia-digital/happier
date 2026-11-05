@@ -4,13 +4,15 @@ import { join } from 'node:path';
 import test from 'node:test';
 import YAML from 'yaml';
 
+import { MANIFEST_ASSET, TARBALL_ASSET } from '../fork/nightly-release-contract.mjs';
+
 const repoRoot = new URL('../..', import.meta.url).pathname;
 
 function workflow(name) {
   return YAML.parse(readFileSync(join(repoRoot, '.github', 'workflows', name), 'utf8'));
 }
 
-test('Omnia nightly promotes only an exact successful canonical dev push CI source', () => {
+test('Omnia nightly promotes only a selected source with successful canonical dev push CI', () => {
   const configured = workflow('omnia-production.yml');
   assert.deepEqual(configured.on.schedule, [{ cron: '17 2 * * *', timezone: 'America/Los_Angeles' }]);
   assert.ok(Object.hasOwn(configured.on, 'workflow_dispatch'), 'manual retry must remain available');
@@ -22,18 +24,21 @@ test('Omnia nightly promotes only an exact successful canonical dev push CI sour
   assert.match(candidate.if, /github\.ref == 'refs\/heads\/dev'/);
   assert.deepEqual(candidate.permissions, { actions: 'read', contents: 'read' });
   assert.deepEqual(verify.permissions, { actions: 'read', contents: 'read' });
-  assert.equal(candidate.outputs.source_sha, '${{ steps.source.outputs.source_sha }}');
-  assert.equal(candidate.outputs.ci_run_id, '${{ steps.ci.outputs.ci_run_id }}');
+  assert.deepEqual(candidate.outputs, {
+    source_sha: '${{ steps.select.outputs.source_sha }}',
+    ci_run_id: '${{ steps.select.outputs.ci_run_id }}',
+    release_tag: '${{ steps.select.outputs.release_tag }}',
+    build_needed: '${{ steps.select.outputs.build_needed }}',
+  });
 
-  const candidateShell = candidate.steps.map((step) => step.run ?? '').join('\n');
-  assert.equal(candidate.steps[0].env.SOURCE_SHA, '${{ github.sha }}');
-  assert.match(candidateShell, /head_sha=\$\{SOURCE_SHA\}/);
-  assert.match(candidateShell, /event=push/);
-  assert.match(candidateShell, /status=success/);
-  assert.match(candidateShell, /ci_run_id=/);
-  assert.match(candidateShell, /exit 1/);
-  assert.doesNotMatch(candidateShell, /secrets\.|RELEASE_BOT_/);
+  assert.equal(candidate.steps[0].with.ref, '${{ github.sha }}');
+  assert.equal(candidate.steps[0].with['persist-credentials'], false);
+  const select = candidate.steps.find((step) => step.id === 'select');
+  assert.match(select.run, /node scripts\/fork\/select-nightly-candidate\.mjs/);
+  assert.deepEqual(select.env, { GH_TOKEN: '${{ github.token }}', TRIGGER_SHA: '${{ github.sha }}' });
+  assert.doesNotMatch(JSON.stringify(candidate), /secrets\.|RELEASE_BOT_/);
 
+  assert.equal(verify.if, "needs.candidate.outputs.build_needed == 'true'");
   assert.deepEqual(verify.needs, ['candidate']);
   assert.equal(verify.steps[0].with.repository, '${{ github.repository }}');
   assert.equal(verify.steps[0].with.ref, '${{ github.sha }}');
@@ -61,6 +66,51 @@ test('Omnia nightly promotes only an exact successful canonical dev push CI sour
   assert.match(promoteShell, /--source-sha/);
   assert.match(promoteShell, /--mode fast_forward/);
   assert.doesNotMatch(promoteShell, /--allow-reset true|--mode reset/);
+  assert.equal(promote.steps.find((step) => step.env?.SOURCE_SHA).env.SOURCE_SHA, '${{ needs.candidate.outputs.source_sha }}');
+  // A skipped verify_source_ci must cascade through the build, promotion and publication.
+  assert.equal(promote.if, undefined);
+  assert.equal(configured.jobs.desktop_candidate.if, undefined);
+});
+
+test('Omnia nightly publishes the promoted build on a hosted job with only contents:write', () => {
+  const configured = workflow('omnia-production.yml');
+  const publish = configured.jobs.publish_release;
+  assert.ok(publish, 'nightly must publish what it promoted');
+  assert.deepEqual(publish.needs, ['candidate', 'promote']);
+  assert.equal(publish.if, undefined, 'a skipped or failed promotion must block publication');
+  assert.equal(publish['runs-on'], 'ubuntu-latest');
+  assert.deepEqual(publish.permissions, { contents: 'write' });
+  assert.equal(publish.steps[0].with.ref, '${{ github.sha }}');
+  assert.equal(publish.steps[0].with['persist-credentials'], false);
+
+  const download = publish.steps.find((step) => String(step.uses ?? '').startsWith('actions/download-artifact@'));
+  assert.equal(download.uses, 'actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093');
+  assert.equal(download.with.name, 'omnia-happier-macos-arm64');
+  // The pipeline refuses a dirty worktree, so assets must land outside the checkout.
+  assert.match(download.with.path, /^\$\{\{ runner\.temp \}\}/);
+
+  const release = publish.steps.find((step) => /github-publish-release/.test(step.run ?? ''));
+  assert.equal(release.env.GH_TOKEN, '${{ github.token }}');
+  assert.equal(release.env.RELEASE_TAG, '${{ needs.candidate.outputs.release_tag }}');
+  assert.equal(release.env.SOURCE_SHA, '${{ needs.candidate.outputs.source_sha }}');
+  for (const flag of [
+    /--tag "\$RELEASE_TAG"/,
+    /--title /,
+    /--target-sha "\$SOURCE_SHA"/,
+    /--prerelease false/,
+    /--rolling-tag false/,
+    /--generate-notes false/,
+    /--notes /,
+    /--clobber false/,
+    /--prune-assets false/,
+    /--latest true/,
+    /--replace-draft true/,
+    /--secrets-source env/,
+  ]) {
+    assert.match(release.run, flag);
+  }
+  assert.doesNotMatch(release.run, /--allow-dirty|--assets-dir/);
+  assert.ok(release.run.includes(`/${TARBALL_ASSET}`) && release.run.includes(`/${MANIFEST_ASSET}`));
 });
 
 test('upstream scheduled jobs retain their schedules and skip work on the Omnia fork', () => {

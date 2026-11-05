@@ -28,6 +28,8 @@ export const COMMAND_HELP_GITHUB = {
       '--assets-dir <dir>                Optional; uploads all matching assets from dir.',
       '--clobber <bool>                  true|false (default: true).',
       '--prune-assets <bool>             true|false (default: false).',
+      '--latest <bool>                   true|false (default: false). Mark an immutable release latest when published.',
+      '--replace-draft <bool>            true|false (default: false). Discard an existing immutable draft first.',
       '--release-message <text>          Optional; appended to notes.',
       '--max-commits <n>                 (default: 200).',
       '--allow-dirty <bool>              true|false (default: false).',

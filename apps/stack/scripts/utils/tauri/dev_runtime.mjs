@@ -61,6 +61,11 @@ export function buildStackTauriDevConfig({ baseConfig, overlayConfig, devUrl, en
   return applyHtml5FileDragDropWindowPolicy(merged);
 }
 
+export function buildStackTauriBuildArgs({ configPath, debug = false, env = process.env } = {}) {
+  const bundles = String(env.HAPPIER_STACK_TAURI_BUNDLES ?? '').trim();
+  return ['build', '--config', configPath, ...(debug ? ['--debug'] : []), ...(bundles ? ['--bundles', bundles] : [])];
+}
+
 export function buildStackTauriBundleConfig({ baseConfig, overlayConfig, variant = 'dev', frontendDist, env = process.env } = {}) {
   if (variant !== 'dev' && variant !== 'production') {
     throw new Error(`Unsupported Stack Tauri bundle variant: ${variant}`);

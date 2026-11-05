@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, lstatSync } from 'node:fs';
 import { join } from 'node:path';
 
 // The single definition of an Omnia nightly release, shared by the CI packager,
@@ -27,6 +27,11 @@ export function isPublishedNightlyRelease(release) {
   if (!tagPattern.test(String(release.tag_name))) return false;
   const names = new Set((release.assets ?? []).map((asset) => asset.name));
   return names.has(TARBALL_ASSET) && names.has(MANIFEST_ASSET);
+}
+
+/** True when a published nightly also has the provenance the Mac agent requires before reading its assets. */
+export function isTrustedNightlyRelease(release) {
+  return isPublishedNightlyRelease(release) && release.immutable === true && release.author?.login === RELEASE_AUTHOR;
 }
 
 /** Returns the validated manifest, or throws describing the first violation. */
@@ -60,15 +65,31 @@ function plistValue(plist, key) {
   return value.out;
 }
 
+/** The absolute path of the bundle's main executable, as `ps` reports it for the running app. */
+export function bundleExecutablePath(appPath) {
+  return join(appPath, 'Contents', 'MacOS', plistValue(join(appPath, 'Contents', 'Info.plist'), 'CFBundleExecutable'));
+}
+
+/** Throws unless every tarball entry sits under the app bundle, its one and only root. */
+export function verifyTarballLayout(tarballPath) {
+  const listing = tool('tar', ['-tzf', tarballPath]);
+  if (!listing.ok) throw new Error(`Not a readable tarball: ${listing.err}`);
+  for (const entry of listing.out.split('\n')) {
+    const segments = entry.split('/');
+    if (segments[0] !== APP_NAME || segments.includes('..')) throw new Error(`Tarball entry ${entry} is outside the single root ${APP_NAME}`);
+  }
+}
+
 /** Throws unless the bundle is a strictly valid arm64 Omnia Happier app. */
 export function verifyAppBundle(appPath) {
   const plist = join(appPath, 'Contents', 'Info.plist');
-  if (!existsSync(plist)) throw new Error(`Not an app bundle: ${appPath}`);
+  // A symlink root would verify its target but install only a pointer to it.
+  if (!existsSync(plist) || !lstatSync(appPath).isDirectory()) throw new Error(`Not an app bundle: ${appPath}`);
   const bundleId = plistValue(plist, 'CFBundleIdentifier');
   if (bundleId !== BUNDLE_ID) throw new Error(`Bundle identifier is ${bundleId}, expected ${BUNDLE_ID}`);
   const productName = plistValue(plist, 'CFBundleName');
   if (productName !== PRODUCT_NAME) throw new Error(`Bundle name is ${productName}, expected ${PRODUCT_NAME}`);
-  const executable = join(appPath, 'Contents', 'MacOS', plistValue(plist, 'CFBundleExecutable'));
+  const executable = bundleExecutablePath(appPath);
   if (!existsSync(executable)) throw new Error(`Bundle executable is missing: ${executable}`);
   if (!existsSync(join(appPath, 'Contents', 'MacOS', 'hsetup'))) throw new Error('Bundle sidecar hsetup is missing');
   const archs = tool('lipo', ['-archs', executable]);

@@ -1,14 +1,18 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import YAML from 'yaml';
+
+import { APP_NAME, BUNDLE_ID, PRODUCT_NAME, SERVER_URL } from '../fork/nightly-release-contract.mjs';
 
 function workflow(name) {
   return YAML.parse(readFileSync(new URL(`../../.github/workflows/${name}`, import.meta.url), 'utf8'));
 }
 
-test('Cassian admission accepts only the fork nightly exact dev source and unsigned preparation', () => {
+test('Cassian admission accepts only the fork nightly with a dev ancestor source and unsigned preparation', () => {
   const desktop = workflow('build-tauri.yml');
   const admission = desktop.jobs.trusted_ref_guard.steps.find((step) => step.id === 'admit_cassian');
   assert.ok(admission, 'persistent Cassian builds require admission before runner allocation');
@@ -17,38 +21,123 @@ test('Cassian admission accepts only the fork nightly exact dev source and unsig
     CALLER_WORKFLOW_REF: '${{ github.workflow_ref }}',
     SOURCE_REF: '${{ inputs.source_ref }}',
     PREPARATION_ONLY: '${{ inputs.preparation_only }}',
+    GH_TOKEN: '${{ github.token }}',
   });
+  const trigger = 'a'.repeat(40);
+  const ancestor = 'b'.repeat(40);
   const admitted = {
     CASSIAN_BUILD: 'true',
     CALLER_WORKFLOW_REF: 'omnia-digital/happier/.github/workflows/omnia-production.yml@refs/heads/dev',
     GITHUB_REPOSITORY: 'omnia-digital/happier',
     GITHUB_REF: 'refs/heads/dev',
-    GITHUB_SHA: 'a'.repeat(40),
+    GITHUB_SHA: trigger,
     GITHUB_EVENT_NAME: 'schedule',
-    SOURCE_REF: 'a'.repeat(40),
+    SOURCE_REF: ancestor,
     PREPARATION_ONLY: 'true',
   };
+  // gh is the GitHub API boundary. It answers only this repository's source...trigger compare.
+  const bin = mkdtempSync(join(tmpdir(), 'cassian-admission-'));
+  writeFileSync(join(bin, 'gh'), `#!/bin/sh
+if [ -n "$COMPARE_FAILS" ]; then echo 'gh: Server Error (HTTP 500)' >&2; exit 1; fi
+test "$*" = "api repos/$GITHUB_REPOSITORY/compare/$SOURCE_REF...$GITHUB_SHA --jq .status" || { echo "Unexpected gh call: $*" >&2; exit 2; }
+echo "$COMPARE_STATUS"
+`);
+  chmodSync(join(bin, 'gh'), 0o755);
   const run = (overrides) => spawnSync('bash', ['-c', admission.run], {
-    env: { PATH: process.env.PATH, ...admitted, ...overrides }, encoding: 'utf8',
+    env: { PATH: `${bin}:${process.env.PATH}`, COMPARE_STATUS: 'ahead', ...admitted, ...overrides }, encoding: 'utf8',
   });
-  for (const event of ['schedule', 'workflow_dispatch']) {
-    const result = run({ GITHUB_EVENT_NAME: event });
-    assert.equal(result.status, 0, result.stderr);
+  try {
+    for (const event of ['schedule', 'workflow_dispatch']) {
+      const result = run({ GITHUB_EVENT_NAME: event });
+      assert.equal(result.status, 0, result.stderr);
+    }
+    const exact = run({ SOURCE_REF: trigger, COMPARE_STATUS: 'behind' });
+    assert.equal(exact.status, 0, exact.stderr);
+    for (const override of [
+      { GITHUB_REPOSITORY: 'attacker/happier' },
+      { GITHUB_REF: 'refs/pull/1/merge' },
+      { GITHUB_EVENT_NAME: 'pull_request_target' },
+      { CALLER_WORKFLOW_REF: 'omnia-digital/happier/.github/workflows/untrusted.yml@refs/heads/dev' },
+      { CALLER_WORKFLOW_REF: 'omnia-digital/happier/.github/workflows/omnia-production.yml@refs/heads/feature' },
+      { COMPARE_STATUS: 'behind' },
+      { COMPARE_STATUS: 'diverged' },
+      { COMPARE_STATUS: 'identical' },
+      { COMPARE_FAILS: '1' },
+      { SOURCE_REF: 'dev' },
+      { PREPARATION_ONLY: 'false' },
+    ]) {
+      const result = run(override);
+      assert.notEqual(result.status, 0, `Cassian must reject ${JSON.stringify(override)}`);
+    }
+    assert.equal(run({ CASSIAN_BUILD: 'false', CALLER_WORKFLOW_REF: 'another-release', PREPARATION_ONLY: 'false' }).status, 0);
+  } finally {
+    rmSync(bin, { recursive: true, force: true });
   }
-  for (const override of [
-    { GITHUB_REPOSITORY: 'attacker/happier' },
-    { GITHUB_REF: 'refs/pull/1/merge' },
-    { GITHUB_EVENT_NAME: 'pull_request_target' },
-    { CALLER_WORKFLOW_REF: 'omnia-digital/happier/.github/workflows/untrusted.yml@refs/heads/dev' },
-    { CALLER_WORKFLOW_REF: 'omnia-digital/happier/.github/workflows/omnia-production.yml@refs/heads/feature' },
-    { SOURCE_REF: 'b'.repeat(40) },
-    { SOURCE_REF: 'dev' },
-    { PREPARATION_ONLY: 'false' },
-  ]) {
-    const result = run(override);
-    assert.notEqual(result.status, 0, `Cassian must reject ${JSON.stringify(override)}`);
-  }
-  assert.equal(run({ CASSIAN_BUILD: 'false', CALLER_WORKFLOW_REF: 'another-release', PREPARATION_ONLY: 'false' }).status, 0);
+});
+
+test('Cassian packages the installable app with the fork identity and uploads it', () => {
+  const build = workflow('build-tauri.yml').jobs.build;
+  const cassianOnly = "inputs.cassian_build && matrix.platform_key == 'darwin-aarch64'";
+  const index = (predicate) => {
+    const found = build.steps.findIndex(predicate);
+    assert.notEqual(found, -1);
+    return found;
+  };
+  const candidateUpload = index((step) => step.name === 'Upload desktop candidate');
+  const appBuild = index((step) => step.id === 'nightly_app');
+  const control = index((step) => step.id === 'nightly_control');
+  const packaging = index((step) => step.id === 'nightly_package');
+  const upload = index((step) => step.id === 'nightly_upload');
+  assert.ok(candidateUpload < appBuild && appBuild < control && control < packaging && packaging < upload);
+  for (const step of [appBuild, control, packaging, upload]) assert.equal(build.steps[step].if, cassianOnly);
+
+  const { env, run } = build.steps[appBuild];
+  assert.deepEqual(env, {
+    HAPPIER_STACK_CLI_ROOT_DISABLE: '1',
+    HAPPIER_STACK_DISABLE_STACK_ENV_AUTOLOAD: '1',
+    HAPPIER_STACK_HOME_DIR: '${{ runner.temp }}/hstack-home',
+    HAPPIER_STACK_SKIP_REFRESH_DEPS: '1',
+    HAPPIER_STACK_STACK: 'omnia-production-desktop',
+    HAPPIER_STACK_TAURI_BUNDLES: 'app',
+    HAPPIER_STACK_TAURI_DEBUG: '0',
+    HAPPIER_STACK_TAURI_IDENTIFIER: BUNDLE_ID,
+    HAPPIER_STACK_TAURI_PREFER_TAILSCALE: '0',
+    HAPPIER_STACK_TAURI_PRODUCT_NAME: PRODUCT_NAME,
+    HAPPIER_STACK_TAURI_SERVER_URL: SERVER_URL,
+    APP_ENV: 'production',
+    EXPO_PUBLIC_HAPPIER_DESKTOP_UPDATES_ENABLED: '0',
+    APPLE_SIGNING_IDENTITY: '-',
+  });
+  assert.match(run, /HAPPIER_STACK_REPO_DIR="\$PWD"/);
+  assert.match(run, /env -u HAPPIER_STACK_ENV_FILE/);
+  assert.match(run, /hstack\.mjs build --tauri --tauri-production/);
+  assert.ok(
+    run.indexOf('rm -rf "$HOME/.happier/stacks/$HAPPIER_STACK_STACK/tauri-target/release/bundle"') !== -1
+      && run.indexOf('rm -rf') < run.indexOf('hstack.mjs build'),
+    'a stale bundle from an earlier build must never be packaged',
+  );
+
+  // The selected source can predate the packager, so it comes from the trusted workflow control.
+  assert.deepEqual(build.steps[control].with, {
+    repository: '${{ job.workflow_repository }}',
+    ref: '${{ job.workflow_sha }}',
+    path: '.release-control',
+    'fetch-depth': 1,
+    'persist-credentials': false,
+  });
+  const packageStep = build.steps[packaging];
+  assert.match(packageStep.run, /node \.release-control\/scripts\/fork\/package-nightly-app\.mjs/);
+  assert.ok(packageStep.run.includes(`tauri-target/release/bundle/macos/${APP_NAME}`));
+  assert.match(packageStep.run, /--ui-export apps\/ui\/dist/);
+  assert.equal(packageStep.env.SOURCE_SHA, '${{ needs.resolve_source.outputs.source_sha }}');
+  assert.equal(packageStep.env.RUN_ID, '${{ github.run_id }}');
+
+  const artifact = build.steps[upload];
+  assert.equal(artifact.uses, build.steps[candidateUpload].uses);
+  assert.equal(artifact.with.name, 'omnia-happier-macos-arm64');
+  assert.equal(artifact.with['retention-days'], 7);
+  assert.equal(artifact.with['if-no-files-found'], 'error');
+  assert.doesNotMatch(JSON.stringify(build.steps.slice(appBuild)), /secrets\./);
 });
 
 test('Cassian runs only the unsigned Apple Silicon candidate with a job-local Xcode selection', () => {

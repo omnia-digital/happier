@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-import { buildStackTauriBundleConfig, buildStackTauriDevConfig, resolveStackTauriDevUrl } from './dev_runtime.mjs';
+import { buildStackTauriBuildArgs, buildStackTauriBundleConfig, buildStackTauriDevConfig, resolveStackTauriDevUrl } from './dev_runtime.mjs';
 
 test('stack desktop dev and bundled builds consume the same dev artwork and macOS display metadata', async () => {
   const baseConfig = JSON.parse(await readFile(new URL('../../../../ui/src-tauri/tauri.conf.json', import.meta.url), 'utf8'));
@@ -124,4 +124,15 @@ test('buildStackTauriDevConfig applies explicit stack overrides after merging co
   assert.equal(config.productName, 'Happier (stack exp1)');
   assert.equal(config.identifier, 'com.happier.stack.exp1');
   assert.equal(config.app.windows[0]?.title, 'Happier (stack exp1)');
+});
+
+test('buildStackTauriBuildArgs limits bundle formats only when HAPPIER_STACK_TAURI_BUNDLES is set', () => {
+  const configPath = '/tmp/tauri.conf.json';
+  assert.deepEqual(buildStackTauriBuildArgs({ configPath, debug: false, env: {} }), ['build', '--config', configPath]);
+  assert.deepEqual(buildStackTauriBuildArgs({ configPath, debug: true, env: { HAPPIER_STACK_TAURI_BUNDLES: ' ' } }), [
+    'build', '--config', configPath, '--debug',
+  ]);
+  assert.deepEqual(buildStackTauriBuildArgs({ configPath, debug: false, env: { HAPPIER_STACK_TAURI_BUNDLES: 'app' } }), [
+    'build', '--config', configPath, '--bundles', 'app',
+  ]);
 });

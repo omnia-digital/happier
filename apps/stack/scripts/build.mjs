@@ -11,7 +11,7 @@ import { printResult, wantsHelp, wantsJson } from './utils/cli/cli.mjs';
 import { ensureExpoIsolationEnv, getExpoStatePaths, resolveExpoTmpDir, wantsExpoClearCache } from './utils/expo/expo.mjs';
 import { expoExec } from './utils/expo/command.mjs';
 import { getInvokedCwd, inferComponentFromCwd } from './utils/cli/cwd_scope.mjs';
-import { buildStackTauriBundleConfig } from './utils/tauri/dev_runtime.mjs';
+import { buildStackTauriBuildArgs, buildStackTauriBundleConfig } from './utils/tauri/dev_runtime.mjs';
 import { buildIntoTempThenReplace } from './utils/fs/atomic_dir_swap.mjs';
 import { pathExists } from './utils/fs/fs.mjs';
 import { buildStackTauriExportEnv, buildStackWebExportEnv } from './utils/ui/ui_export_env.mjs';
@@ -272,10 +272,7 @@ async function main() {
     CI: 'false',
   };
 
-  const tauriArgs = ['build', '--config', generatedConfigPath];
-  if (tauriDebug) {
-    tauriArgs.push('--debug');
-  }
+  const tauriArgs = buildStackTauriBuildArgs({ configPath: generatedConfigPath, debug: tauriDebug, env: process.env });
   const { createTauriActoolEnvironment } = await import(pathToFileURL(join(uiDir, 'scripts', 'tauriActoolEnvironment.mjs')).href);
   const actool = createTauriActoolEnvironment({ env: tauriBuildEnv });
   try {
