@@ -12,4 +12,4 @@
 | 8 | Probe bundle replacement under launchd on this Mac | 🔴 |
 | 9 | Adversarial review and fixes | 🔴 |
 | 10 | Open PR to `dev` | 🔴 |
-| 11 | After merge: dispatch nightly, install agent, verify app and clones | 🔴 Needs Josh to authorize the merge |
+| 11 | After merge: dispatch nightly, install agent, verify app and clones | 🔴 Merge pre-approved by Josh once checks pass |
