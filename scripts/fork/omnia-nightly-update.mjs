@@ -74,10 +74,13 @@ export const systemAdapter = {
   sleep: (ms) => new Promise((done) => { setTimeout(done, ms); }),
   log: (line) => console.log(line),
   // Notifications from osascript do not appear on this Mac, so alerts are dialogs. Detached
-  // because a dialog stays up until clicked and must not hold the hourly run open.
+  // because a dialog stays up until clicked and must not hold the hourly run open. No default
+  // button, so pressing Return while typing cannot dismiss one unread.
   showDialog(message) {
-    const script = ['on run argv', 'display alert "Omnia Happier update" message (item 1 of argv) as critical buttons {"OK"} default button "OK"', 'end run'];
-    spawn('osascript', [...script.flatMap((line) => ['-e', line]), message], { detached: true, stdio: 'ignore' }).unref();
+    const script = ['on run argv', 'display alert "Omnia Happier update" message (item 1 of argv) as critical buttons {"OK"}', 'end run'];
+    const child = spawn('osascript', [...script.flatMap((line) => ['-e', line]), message], { detached: true, stdio: 'ignore' });
+    child.on('error', (error) => console.error(`Could not show the alert dialog: ${error.message}`));
+    child.unref();
   },
 };
 
