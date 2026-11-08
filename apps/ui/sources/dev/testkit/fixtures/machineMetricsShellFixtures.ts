@@ -1,0 +1,13 @@
+// Captured bash-RPC stdout for the released-CLI host metrics fallback.
+// darwin and win32 are real captures (2026-11-08) of the exact fallback scripts on an
+// Apple M4 Pro Mac and a Windows 11 host; win32 GPU rows are trimmed to six of 441.
+// linux is constructed from the documented /proc, df -P and nvidia-smi CSV formats;
+// wslLinux is a real capture from WSL Ubuntu, whose /proc/meminfo has no MemAvailable.
+
+export const darwinShellMetricsStdout = "@home\t/Users/dev\n@memsize\t51539607552\n@loadavg\t{ 28.70 21.45 21.32 }\n@pagesize\t16384\n@pagesfree\t10792\n@df\t/dev/disk3s5  1948455240 1818105828  87867780    96%    /System/Volumes/Data\n@cpu\tCPU usage: 28.58% user, 19.69% sys, 51.71% idle \n@gpu\tdictionary\t4294968574\tAGXAcceleratorG16X\tApple M4 Pro\t{\"In use system memory (driver)\":0,\"Alloc system memory\":1938259968,\"Renderer Utilization %\":0,\"SplitSceneCount\":0,\"TiledSceneBytes\":851968,\"Allocated PB Size\":81133568,\"Tiler Utilization %\":0,\"Device Utilization %\":0,\"lastRecoveryTime\":0,\"recoveryCount\":0,\"In use system memory\":1036353536}\n";
+
+export const win32ShellMetricsStdout = "#< CLIXML\n{\"home\":\"C:\\\\Users\\\\Admin\",\"memory\":{\"TotalVisibleMemorySize\":67053948,\"FreePhysicalMemory\":37470332},\"disk\":{\"DeviceID\":\"C:\",\"Size\":1023195213824,\"FreeSpace\":68069453824},\"cpu\":[{\"idle\":\"8930716015625\",\"time\":\"134386475715910464\"},{\"idle\":\"8930725019531\",\"time\":\"134386475726300541\"}],\"gpu\":[{\"Name\":\"pid_10200_luid_0x00000000_0x0000CF59_phys_0_eng_0_engtype_3D\",\"UtilizationPercentage\":0},{\"Name\":\"pid_10200_luid_0x00000000_0x0000CF59_phys_0_eng_10_engtype_Copy\",\"UtilizationPercentage\":0},{\"Name\":\"pid_10200_luid_0x00000000_0x0000CF59_phys_0_eng_11_engtype_Copy\",\"UtilizationPercentage\":0},{\"Name\":\"pid_10200_luid_0x00000000_0x0000CF59_phys_0_eng_12_engtype_Copy\",\"UtilizationPercentage\":0},{\"Name\":\"pid_10200_luid_0x00000000_0x0000CF59_phys_0_eng_1_engtype_LegacyOverlay\",\"UtilizationPercentage\":0}]}\r\n";
+
+export const linuxShellMetricsStdout = "@home\t/home/dev\n@meminfo\tMemTotal:\t16303452\n@meminfo\tMemAvailable:\t9145672\n@loadavg\t0.52 0.58 0.59 2/1203 48211\n@df\t/dev/nvme0n1p2  490617784 210545160 255050828      46% /\n@stat\tcpu  4705 150 1120 16250 520 0 25 0 0 0\n@stat\tcpu  4805 150 1170 16600 530 0 26 0 0 0\n@amdgpu\tcard1\t12\n@nvidia\tGPU-5a2c, NVIDIA GeForce RTX 4090, 37\n";
+
+export const wslLinuxShellMetricsStdout = "@home\t/root\n@meminfo\tMemTotal:\t67053948\n@meminfo\tMemFree:\t37430252\n@loadavg\t0.52 0.58 0.59 1/8 17\n@df\trootfs           999214076 932736540  66477536      94% /\n@stat\tcpu  42 0 10 260 0 0 0 0 0 0\n@stat\tcpu  176 0 73 1682 0 5 0 0 0 0\n";

@@ -623,6 +623,7 @@ export const es: TranslationStructure = {
         cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: "Carga 1/5/15min",
         volume: ({ volume, path }: { volume: string; path: string }) => "Volumen: " + volume + " · Sistema de archivos: " + path,
         sampledAt: ({ time }: { time: string }) => "Muestra: " + time,
+        shellSource: "Leído con herramientas estándar del sistema porque la CLI de esta máquina no genera métricas.",
     },
     sessionPullRequests: {
         title: 'Solicitudes de cambio vinculadas',

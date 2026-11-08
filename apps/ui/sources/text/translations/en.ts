@@ -437,6 +437,7 @@ export const en = {
         cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: 'LA 1/5/15m',
         volume: ({ volume, path }: { volume: string; path: string }) => "Volume: " + volume + " · Filesystem: " + path,
         sampledAt: ({ time }: { time: string }) => "Sampled: " + time,
+        shellSource: "Read with standard system tools because this machine's CLI has no metrics producer.",
     },
     sessionPullRequests: {
         title: 'Linked pull requests',

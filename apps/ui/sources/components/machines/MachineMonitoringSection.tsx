@@ -49,7 +49,7 @@ function MachineMonitoringMachines({ serverId, accountId }: ServerAccountScope) 
     const machines = useAllMachines();
     const nowMs = useNowMs();
     const scope = React.useMemo(() => ({ serverId, accountId }), [serverId, accountId]);
-    const targets = machines.map((machine) => ({ machineId: machine.id, online: isMachineOnline(machine, nowMs) }));
+    const targets = machines.map((machine) => ({ machineId: machine.id, online: isMachineOnline(machine, nowMs), platform: machine.metadata?.platform ?? null }));
     useMachineMetricsPolling(scope, targets);
     return <ScrollView style={styles.rows} contentContainerStyle={styles.rowsContent}>
         {!machines.length ? <Text style={styles.secondary}>{t('machineMonitoring.empty')}</Text> : machines.map((machine) => <MachineMonitoringRow
@@ -89,7 +89,8 @@ const MachineMonitoringRow = React.memo(function MachineMonitoringRow({ serverId
             <MachineDisplayGlyph serverId={serverId} machineId={machineId} size={14} color={theme.colors.text.secondary} />
             <Text style={styles.name} numberOfLines={1} testID={`machine-monitoring-${machineId}-name`}>{name}</Text>
             <Text style={styles.summaryReadings} numberOfLines={1} testID={`machine-monitoring-${machineId}-summary`}>
-                {[readingState, ...metrics].filter(Boolean).join(' · ')}
+                {/* With a reading, its values lead and the state follows: narrow sidebars truncate the end. */}
+                {(snapshot ? [...metrics, readingState] : [readingState, ...metrics]).filter(Boolean).join(' · ')}
             </Text>
             <Icon name={expanded ? 'caret-down' : 'caret-right'} size={14} color={theme.colors.text.secondary} />
         </PressableSurface>
@@ -110,6 +111,7 @@ const MachineMonitoringRow = React.memo(function MachineMonitoringRow({ serverId
             {snapshot?.storage.status === 'available' ? <Text style={styles.secondary}>{t('machineMonitoring.volume', { volume: snapshot.storage.volume, path: snapshot.storage.filesystemPath })}</Text> : null}
             <Text style={styles.secondary}>{t('machineMonitoring.loadDefinition')} {snapshot?.load.status === 'available' ? loadValues : unavailableReason(snapshot?.load)}</Text>
             {snapshot ? <Text style={styles.secondary}>{t('machineMonitoring.sampledAt', { time: new Date(snapshot.sampledAt).toLocaleString() })}</Text> : null}
+            {snapshot && entry.source === 'shell' ? <Text style={styles.secondary} testID={`machine-monitoring-${machineId}-shell-source`}>{t('machineMonitoring.shellSource')}</Text> : null}
         </View> : null}
     </View>;
 });

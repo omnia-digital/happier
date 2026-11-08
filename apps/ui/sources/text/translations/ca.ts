@@ -613,6 +613,7 @@ export const ca: TranslationStructure = {
         cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: "Càrrega 1/5/15min",
         volume: ({ volume, path }: { volume: string; path: string }) => "Volum: " + volume + " · Sistema de fitxers: " + path,
         sampledAt: ({ time }: { time: string }) => "Mostrejat: " + time,
+        shellSource: "Llegit amb eines estàndard del sistema perquè la CLI d'aquesta màquina no genera mètriques.",
     },
     sessionPullRequests: {
         title: 'Sol·licituds de canvi vinculades',

@@ -634,6 +634,7 @@ export const pl: TranslationStructure = {
         cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: "Obciąż. 1/5/15min",
         volume: ({ volume, path }: { volume: string; path: string }) => "Wolumin: " + volume + " · System plików: " + path,
         sampledAt: ({ time }: { time: string }) => "Zmierzono: " + time,
+        shellSource: "Odczytano standardowymi narzędziami systemowymi, ponieważ CLI tej maszyny nie udostępnia metryk.",
     },
     sessionPullRequests: {
         title: 'Powiązane pull requesty',

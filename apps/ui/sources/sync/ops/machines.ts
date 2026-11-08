@@ -932,15 +932,19 @@ export async function machineBash(
     machineId: string,
     command: MachineBashRequest,
     cwd: string,
-    options?: { serverId?: string | null; accountId?: string | null }
+    options?: { serverId?: string | null; accountId?: string | null; timeoutMs?: number }
 ): Promise<{
     success: boolean;
     stdout: string;
     stderr: string;
     exitCode: number;
+    /** Set when the RPC itself failed, e.g. `RPC_ERROR_CODES.METHOD_NOT_AVAILABLE` for a daemon without the handler. */
+    rpcErrorCode?: string;
 }> {
     try {
-        const payload = typeof command === 'string' ? { command, cwd } : { ...command, cwd };
+        // The daemon's bash handler bounds the command by `timeout`; the RPC shares that budget.
+        const timeout = options?.timeoutMs === undefined ? {} : { timeout: options.timeoutMs };
+        const payload = typeof command === 'string' ? { command, cwd, ...timeout } : { ...command, cwd, ...timeout };
         const result = await machineRpcWithServerScope<{
             success: boolean;
             stdout: string;
@@ -950,20 +954,27 @@ export async function machineBash(
             command?: string;
             argv?: readonly string[];
             cwd: string;
+            timeout?: number;
         }>({
             machineId,
             method: 'bash',
             payload,
             serverId: options?.serverId,
             accountId: options?.accountId,
+            ...(options?.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
         });
+        if (isRpcMethodNotFoundResult(result)) {
+            return { success: false, stdout: '', stderr: result.error, exitCode: -1, rpcErrorCode: RPC_ERROR_CODES.METHOD_NOT_FOUND };
+        }
         return result;
     } catch (error) {
+        const rpcErrorCode = readRpcErrorCode(error);
         return {
             success: false,
             stdout: '',
             stderr: error instanceof Error ? error.message : 'Unknown error',
-            exitCode: -1
+            exitCode: -1,
+            ...(rpcErrorCode ? { rpcErrorCode } : {}),
         };
     }
 }

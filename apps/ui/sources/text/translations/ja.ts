@@ -606,6 +606,7 @@ export const ja: TranslationStructure = {
         cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: "負荷 1/5/15分",
         volume: ({ volume, path }: { volume: string; path: string }) => "ボリューム: " + volume + " · ファイルシステム: " + path,
         sampledAt: ({ time }: { time: string }) => "測定日時: " + time,
+        shellSource: "このマシンの CLI はメトリクスを提供しないため、標準のシステムツールで取得しました。",
     },
     sessionPullRequests: {
         title: 'リンクされたプルリクエスト',

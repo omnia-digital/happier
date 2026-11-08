@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { execFile } from 'node:child_process';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -24,6 +25,7 @@ const run = createRunDirs({ runLabel: 'ui-e2e-oh59-machine-monitoring' });
 const LOCAL = 'oh59-actual-local-host';
 const LEGACY = 'oh59-legacy-cli-fixture';
 const OFFLINE = 'oh59-offline-fixture';
+const SHELL = 'oh59-released-cli-shell-host';
 const identity = { email: `oh59-${run.runId}@example.com`, issuer: 'happier-ui-e2e-oh59', fingerprint: `oh59-${run.runId}` };
 
 test.describe('OH59 actual local collector through authenticated fixture machine RPC and Chrome', () => {
@@ -38,6 +40,7 @@ test.describe('OH59 actual local collector through authenticated fixture machine
     let canonicalServerId = '';
     const samples: Array<{ machineId: string; cpu: unknown; memory: unknown; storage: unknown; gpu: MachineMetricsSnapshot['gpu']; load: unknown; collectionMs: number; processCpuMs: number; eventLoopActiveMs: number }> = [];
     let localRequests = 0;
+    const shellRequests: Array<{ argv: readonly string[]; cwd: unknown; timeout: unknown }> = [];
 
     test.beforeAll(async () => {
         test.setTimeout(resolveUiWebBeforeAllTimeoutMs(process.env));
@@ -62,16 +65,28 @@ test.describe('OH59 actual local collector through authenticated fixture machine
         stopProxy = proxy.stop;
         canonicalServerId = await resolveCanonicalServerIdForUi(proxy.baseUrl);
         await upsertPlainAccountSettingsV2({ baseUrl: server.baseUrl, token: auth.token, settings: { experiments: true, sessionListActiveGroupingV1: 'date' } });
-        for (const [machineId, displayName] of [[LOCAL, 'Local Mac · actual host'], [LEGACY, 'Older CLI · fixture'], [OFFLINE, 'Offline · fixture']]) {
+        for (const [machineId, displayName] of [[LOCAL, 'Local Mac · actual host'], [LEGACY, 'Older CLI · fixture'], [OFFLINE, 'Offline · fixture'], [SHELL, 'Released CLI · actual host via shell']]) {
             await registerMachineIdentity({ baseUrl: server.baseUrl, token: auth.token, machineId,
-                metadata: encodePlainMachineStoredContent({ host: machineId, displayName, platform: 'darwin', homeDir: '/fixture', happyHomeDir: '/fixture/.happier', happyCliVersion: machineId === LEGACY ? '0.2.16' : '0.2.17' }),
+                metadata: encodePlainMachineStoredContent({ host: machineId, displayName, platform: machineId === SHELL ? process.platform : 'darwin', homeDir: '/fixture', happyHomeDir: '/fixture/.happier', happyCliVersion: machineId === LEGACY || machineId === SHELL ? '0.2.16' : '0.2.17' }),
                 dataEncryptionKey: MACHINE_PLAIN_DATA_KEY_MARKER });
             if (machineId === OFFLINE) continue;
             const socket = createMachineScopedSocketCollector(server.baseUrl, auth.token, machineId);
             sockets.set(machineId, socket); socket.connect();
             await expect.poll(() => socket.isConnected(), { timeout: 20_000 }).toBe(true);
             socket.emit('machine-alive', { machineId, time: Date.now() });
-            socket.onRpcRequest<Record<string, unknown>, unknown>(async ({ params }) => {
+            socket.onRpcRequest<Record<string, unknown>, unknown>(async ({ method, params }) => {
+                if (machineId === SHELL && method === `${SHELL}:${RPC_METHODS.BASH}`) {
+                    // Released CLIs (0.2.12+) serve `bash` on the machine connection; argv requests spawn
+                    // without a shell and report stdout with success on exit 0. This runs the real host command.
+                    const argv = params.argv as string[];
+                    shellRequests.push({ argv, cwd: params.cwd, timeout: params.timeout });
+                    const started = performance.now();
+                    return await new Promise((resolve) => execFile(argv[0], argv.slice(1), { timeout: Number(params.timeout) || 30_000, windowsHide: true, maxBuffer: 4 * 1024 * 1024 },
+                        (error, stdout, stderr) => {
+                            console.info('[OH59 released-CLI shell read]', JSON.stringify({ ok: !error, ms: Math.round(performance.now() - started), stdoutBytes: stdout.length, error: error?.message ?? null }));
+                            resolve(error ? { success: false, stdout, stderr, exitCode: -1, error: error.message } : { success: true, stdout, stderr, exitCode: 0 });
+                        }));
+                }
                 if (params.id !== 'tool.machineMetrics' || params.method !== 'snapshot') return { ok: false, error: { code: 'unsupported-capability', message: 'Unsupported fixture capability' } };
                 if (machineId !== LOCAL) return { ok: false, error: { code: 'unsupported-capability', message: 'Unsupported capability: tool.machineMetrics' } };
                 localRequests++;
@@ -85,6 +100,7 @@ test.describe('OH59 actual local collector through authenticated fixture machine
                 return { ok: true, result };
             });
             await socket.rpcRegister(`${machineId}:${RPC_METHODS.CAPABILITIES_INVOKE}`);
+            if (machineId === SHELL) await socket.rpcRegister(`${machineId}:${RPC_METHODS.BASH}`);
         }
         heartbeat = setInterval(() => { for (const [machineId, socket] of sockets) if (socket.isConnected()) socket.emit('machine-alive', { machineId, time: Date.now() }); }, 20_000);
         selectedSessionId = await createPlainSession({ baseUrl: server.baseUrl, token: auth.token, title: 'Session on the older fixture host',
@@ -280,6 +296,41 @@ test.describe('OH59 actual local collector through authenticated fixture machine
             await writeFile(measurementPath, JSON.stringify({ platform: process.platform,
                 transport: 'authenticated plain fixture machine RPC with actual host collector', gpu }, null, 2));
             await testInfo.attach('actual-gpu-reading', { path: measurementPath, contentType: 'application/json' });
+        } catch (error) { throw appendBrowserDiagnostics(error, diagnostics()); }
+    });
+    test('reads a released CLI through its machine shell RPC and keeps the last reading across a reload', async ({ page }, testInfo) => {
+        test.setTimeout(420_000);
+        const diagnostics = collectBrowserDiagnostics({ page });
+        try {
+            await page.setViewportSize({ width: 1440, height: 900 });
+            await gotoDomContentLoadedWithRetries(page, `${uiBaseUrl}/?happier_hmr=0`, 300_000);
+            await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+            const row = page.getByTestId(`machine-monitoring-${SHELL}`);
+            await expect(row).toContainText(/CPU \d+%/, { timeout: 120_000 });
+            await expect(row).toContainText(/MEM \d+%/);
+            await expect(row).not.toContainText('does not support host metrics');
+            expect(shellRequests.length).toBeGreaterThanOrEqual(1);
+            expect(shellRequests[0]).toMatchObject({ cwd: '/', timeout: 30_000 });
+            expect(shellRequests[0].argv[0]).toBe(process.platform === 'win32' ? 'powershell.exe' : '/bin/sh');
+            await page.getByTestId(`machine-monitoring-${SHELL}-details`).click();
+            await expect(page.getByTestId(`machine-monitoring-${SHELL}-shell-source`)).toContainText('standard system tools');
+            await expect(row).toContainText('Volume:');
+            await page.screenshot({ path: join(suiteDir, 'released-cli-shell-reading.png') });
+            const shellSocket = sockets.get(SHELL)!;
+            shellSocket.disconnect();
+            const requestsBeforeReload = shellRequests.length;
+            await page.reload({ waitUntil: 'domcontentloaded' });
+            await waitForInitialAppUi({ page, timeoutMs: 180_000 });
+            await expect(row).toContainText('Previous reading', { timeout: 60_000 });
+            // The saved values lead the compact line, ahead of the state the narrow sidebar truncates.
+            await expect(page.getByTestId(`machine-monitoring-${SHELL}-summary`)).toHaveText(/^CPU \d+% · MEM \d+%/);
+            expect(shellRequests.length).toBe(requestsBeforeReload);
+            await page.screenshot({ path: join(suiteDir, 'released-cli-saved-reading-after-reload.png') });
+            await testInfo.attach('released-cli-saved-reading-after-reload', { path: join(suiteDir, 'released-cli-saved-reading-after-reload.png'), contentType: 'image/png' });
+            shellSocket.connect();
+            await expect.poll(() => shellSocket.isConnected()).toBe(true);
+            await shellSocket.rpcRegister(`${SHELL}:${RPC_METHODS.CAPABILITIES_INVOKE}`);
+            await shellSocket.rpcRegister(`${SHELL}:${RPC_METHODS.BASH}`);
         } catch (error) { throw appendBrowserDiagnostics(error, diagnostics()); }
     });
 });

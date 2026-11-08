@@ -1,32 +1,54 @@
 import { MACHINE_METRICS_REFRESH_MS, type MachineMetricsSnapshot } from '@happier-dev/protocol/capabilities';
 import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 
-export type MachineMetricsLoadResult = Readonly<{ status: 'ready'; snapshot: MachineMetricsSnapshot }> | Readonly<{ status: 'unsupported' | 'error' }>;
+/** `shell`: read through the released machine shell RPC because the host CLI lacks the metrics capability. */
+export type MachineMetricsSource = 'capability' | 'shell';
+export type MachineMetricsLoadResult = Readonly<{ status: 'ready'; source: MachineMetricsSource; snapshot: MachineMetricsSnapshot }> | Readonly<{ status: 'unsupported' | 'error' }>;
 export type MachineMetricsEntry = Readonly<{
     status: 'idle' | 'loading' | 'ready' | 'offline' | 'unsupported' | 'error';
     snapshot: MachineMetricsSnapshot | null;
     receivedAt: number | null;
+    source: MachineMetricsSource | null;
     refreshing: boolean;
 }>;
-const EMPTY: MachineMetricsEntry = Object.freeze({ status: 'idle', snapshot: null, receivedAt: null, refreshing: false });
-export type MachineMetricsTarget = Readonly<{ machineId: string; online: boolean }>;
+const EMPTY: MachineMetricsEntry = Object.freeze({ status: 'idle', snapshot: null, receivedAt: null, source: null, refreshing: false });
+export type MachineMetricsTarget = Readonly<{ machineId: string; online: boolean; platform?: string | null }>;
+/** The last good reading per Home/account/machine key, kept across app restarts. */
+export type MachineMetricsReading = Readonly<{ snapshot: MachineMetricsSnapshot; receivedAt: number; source: MachineMetricsSource }>;
+export type MachineMetricsPersistence = Readonly<{
+    read: (key: string) => MachineMetricsReading | null;
+    write: (key: string, reading: MachineMetricsReading) => void;
+}>;
 
 export function createMachineMetricsStore(deps: Readonly<{
-    load: (scope: ServerAccountScope, machineId: string) => Promise<MachineMetricsLoadResult>;
+    load: (scope: ServerAccountScope, machineId: string, platform?: string | null) => Promise<MachineMetricsLoadResult>;
     startInterval: (tick: () => void, ms: number) => () => void;
     isActive: () => boolean;
     subscribeActiveChange?: (listener: () => void) => () => void;
+    persistence?: MachineMetricsPersistence;
 }>) {
     const entries = new Map<string, MachineMetricsEntry>();
     const listeners = new Map<string, Set<() => void>>();
     const pending = new Map<string, Promise<void>>();
     const online = new Map<string, boolean>();
+    const platforms = new Map<string, string | null | undefined>();
     const pollers = new Map<string, { callbacks: Set<(onlyIfDue: boolean) => void>; stop: () => void }>();
     const keyFor = (scope: ServerAccountScope, machineId: string) => JSON.stringify([scope.serverId, scope.accountId, machineId]);
-    const get = (scope: ServerAccountScope, machineId: string) => entries.get(keyFor(scope, machineId)) ?? EMPTY;
+    const entryFor = (key: string): MachineMetricsEntry => {
+        const current = entries.get(key);
+        if (current) return current;
+        const saved = deps.persistence?.read(key) ?? null;
+        if (!saved) return EMPTY;
+        // Seed once so later reads return the same reference to subscribers.
+        const seeded: MachineMetricsEntry = { status: 'idle', snapshot: saved.snapshot, receivedAt: saved.receivedAt, source: saved.source, refreshing: false };
+        entries.set(key, seeded);
+        return seeded;
+    };
+    const get = (scope: ServerAccountScope, machineId: string) => entryFor(keyFor(scope, machineId));
     const publish = (key: string, value: MachineMetricsEntry) => {
-        const previous = entries.get(key) ?? EMPTY;
-        if (previous.status === value.status && previous.snapshot === value.snapshot && previous.receivedAt === value.receivedAt && previous.refreshing === value.refreshing) return;
+        const previous = entryFor(key);
+        if (previous.status === value.status && previous.snapshot === value.snapshot && previous.receivedAt === value.receivedAt
+            && previous.source === value.source && previous.refreshing === value.refreshing) return;
         entries.set(key, value);
         listeners.get(key)?.forEach((listener) => listener());
     };
@@ -39,15 +61,26 @@ export function createMachineMetricsStore(deps: Readonly<{
             return Promise.resolve();
         }
         if (!deps.isActive()) return Promise.resolve();
+        const platform = platforms.get(key);
         const inFlight = pending.get(key);
         if (inFlight) return inFlight;
         publish(key, { ...previous, status: previous.snapshot ? previous.status : 'loading', refreshing: true });
-        const operation = deps.load(scope, machineId).catch((): MachineMetricsLoadResult => ({ status: 'error' })).then((result) => {
+        const operation: Promise<void> = deps.load(scope, machineId, platform).catch((): MachineMetricsLoadResult => ({ status: 'error' })).then((result) => {
+            // The platform selects a released-CLI host's shell read. When it arrived during a read that
+            // came back unsupported for lack of it, read again instead of publishing that answer.
+            if (result.status === 'unsupported' && platforms.get(key) !== platform) {
+                pending.delete(key);
+                return refresh(scope, machineId, online.get(key) !== false);
+            }
             const current = get(scope, machineId);
             const isStillOnline = online.get(key) !== false;
-            publish(key, result.status === 'ready'
-                ? { status: isStillOnline ? 'ready' : 'offline', snapshot: result.snapshot, receivedAt: Date.now(), refreshing: false }
-                : { ...current, status: isStillOnline ? result.status : 'offline', refreshing: false });
+            if (result.status === 'ready') {
+                const reading = { snapshot: result.snapshot, receivedAt: Date.now(), source: result.source };
+                deps.persistence?.write(key, reading);
+                publish(key, { status: isStillOnline ? 'ready' : 'offline', ...reading, refreshing: false });
+            } else {
+                publish(key, { ...current, status: isStillOnline ? result.status : 'offline', refreshing: false });
+            }
         }).finally(() => { if (pending.get(key) === operation) pending.delete(key); });
         pending.set(key, operation);
         return operation;
@@ -67,6 +100,7 @@ export function createMachineMetricsStore(deps: Readonly<{
             const scopeKey = JSON.stringify([scope.serverId, scope.accountId]);
             const tick = (onlyIfDue: boolean) => {
                 for (const target of currentTargets) {
+                    platforms.set(keyFor(scope, target.machineId), target.platform);
                     const current = get(scope, target.machineId);
                     if (!onlyIfDue || !target.online || current.status !== 'ready' || current.receivedAt === null || Date.now() - current.receivedAt >= MACHINE_METRICS_REFRESH_MS) {
                         void refresh(scope, target.machineId, target.online);

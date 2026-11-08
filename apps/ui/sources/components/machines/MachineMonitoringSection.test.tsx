@@ -5,7 +5,9 @@ import { createMachineFixture, renderScreen, standardCleanup } from '@/dev/testk
 import { storage } from '@/sync/domains/state/storageStore';
 import { getActiveServerId } from '@/sync/domains/server/serverProfiles';
 import { t } from '@/text';
+import { RPC_ERROR_CODES } from '@happier-dev/protocol/rpc';
 import { MachineMonitoringSection } from './MachineMonitoringSection';
+import { darwinShellMetricsStdout } from '@/dev/testkit/fixtures/machineMetricsShellFixtures';
 
 const rpc = vi.hoisted(() => vi.fn());
 // The transport is stubbed for rendering; real metrics parsing/store/UI remain in scope.
@@ -26,7 +28,11 @@ describe('machine monitoring real store and rendered leaf', () => {
         const machine = createMachineFixture({ id: 'compact-unsupported-host', activeAt: Date.now() });
         storage.setState({ isDataReady: true, profileScope: { serverId, accountId: 'compact-metrics-account' },
             machines: { [machine.id]: machine }, machineListByServerId: { [serverId]: [machine] } });
-        rpc.mockResolvedValue({ ok: false, error: { code: 'unsupported-capability', message: 'unsupported' } });
+        // An older CLI without the metrics capability or a machine shell handler.
+        rpc.mockImplementation(async ({ method }: { method: string }) => {
+            if (method === 'bash') throw Object.assign(new Error('RPC method not available'), { rpcErrorCode: RPC_ERROR_CODES.METHOD_NOT_AVAILABLE });
+            return { ok: false, error: { code: 'unsupported-capability', message: 'unsupported' } };
+        });
         let screen: Awaited<ReturnType<typeof renderScreen>> | undefined;
         try {
             screen = await renderScreen(<MachineMonitoringSection />);
@@ -74,6 +80,33 @@ describe('machine monitoring real store and rendered leaf', () => {
             await screen.pressByTestIdAsync(`machine-monitoring-${machine.id}-details`);
             expect(screen.getTextContent()).toContain('Apple M5 Pro · ioreg:4294969373 · 0%');
             expect(screen.getTextContent()).toContain('Second GPU · ioreg:9007199254740993 · 47%');
+        } finally { await screen?.unmount(); storage.setState(previous, true); }
+    });
+
+    it('shows a released-CLI host read through its shell, and keeps its values first once the reading is old', async () => {
+        const previous = storage.getState();
+        const serverId = getActiveServerId();
+        const machine = createMachineFixture({ id: 'released-cli-shell-host', activeAt: Date.now() });
+        storage.setState({ isDataReady: true, profileScope: { serverId, accountId: 'released-cli-shell-account' },
+            machines: { [machine.id]: machine }, machineListByServerId: { [serverId]: [machine] } });
+        rpc.mockImplementation(async ({ method }: { method: string }) => method === 'bash'
+            ? { success: true, stdout: darwinShellMetricsStdout, stderr: '', exitCode: 0 }
+            : { ok: false, error: { code: 'unknown-capability', message: 'Unknown capability: tool.machineMetrics' } });
+        let screen: Awaited<ReturnType<typeof renderScreen>> | undefined;
+        try {
+            screen = await renderScreen(<MachineMonitoringSection />);
+            const summary = () => String(screen!.findByTestId(`machine-monitoring-${machine.id}-summary`)!.props.children);
+            expect(summary()).toMatch(/^CPU 48% · MEM 100% · GPU 0% · Storage used 95% · LA/);
+            expect(summary()).not.toContain('does not support host metrics');
+            await screen.pressByTestIdAsync(`machine-monitoring-${machine.id}-details`);
+            expect(screen.findByTestId(`machine-monitoring-${machine.id}-shell-source`)).not.toBeNull();
+            await screen.pressByTestIdAsync(`machine-monitoring-${machine.id}-details`);
+            await act(async () => {
+                const offline = { ...machine, active: false, activeAt: 1 };
+                storage.setState({ machines: { [machine.id]: offline }, machineListByServerId: { [serverId]: [offline] } });
+            });
+            // A narrow sidebar truncates the end of the line; the readings stay visible ahead of their state.
+            expect(summary()).toMatch(/^CPU 48% · .* · offline · Previous reading · stale$/);
         } finally { await screen?.unmount(); storage.setState(previous, true); }
     });
 

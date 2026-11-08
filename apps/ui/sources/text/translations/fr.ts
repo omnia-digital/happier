@@ -439,6 +439,7 @@ export const fr: TranslationStructure = {
         cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: "Charge 1/5/15min",
         volume: ({ volume, path }: { volume: string; path: string }) => "Volume: " + volume + " · Système de fichiers: " + path,
         sampledAt: ({ time }: { time: string }) => "Mesuré: " + time,
+        shellSource: "Lu avec les outils système standard, car la CLI de cette machine ne produit pas de métriques.",
     },
     sessionPullRequests: {
         title: 'Demandes de fusion liées',
