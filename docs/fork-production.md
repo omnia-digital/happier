@@ -318,6 +318,8 @@ node scripts/fork/omnia-nightly-update.mjs status
 launchctl kickstart gui/$(id -u)/com.omnia.happier.nightly-update
 ```
 
+The last command installs a waiting release at once instead of at the next hourly run.
+
 Each run:
 
 1. Restores the app if an earlier swap was interrupted.
@@ -326,12 +328,12 @@ Each run:
 3. Updates `happier-production` through its guarded helper, and requires the release
    commit to be on it. Then it fast-forwards `happier-dev` to that commit only, so the
    agent only ever runs certified source. A dirty or diverged `happier-dev` is left
-   alone and reported. These updates still happen while an install is deferred.
+   alone and reported.
 4. Downloads and verifies the bundle: size, SHA-256, single-root tarball, strict
-   codesign, bundle id, product name and arm64. A waiting bundle has no `.app` name,
+   codesign, bundle id, product name and arm64. A staged bundle has no `.app` name,
    because same-id bundles can take over the `happier://` handler.
-5. Defers while the app is frontmost, or has a window and there was input in the last
-   15 minutes. Tray-only and closed apps install straight away.
+5. Installs straight away, even while the app is in use. Josh chose this on 2026-11-08:
+   waiting for 15 idle minutes never happened, because this Mac sleeps when he steps away.
 6. Saves the current bundle as a tarball under `Previous Builds` (it keeps 3), sends
    SIGTERM, swaps the bundle and relaunches in the previous mode. Tray mode uses
    `open -g -a <app> --args --menu-bar`. If the new process does not stay alive, it
