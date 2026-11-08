@@ -204,11 +204,19 @@ checks pass; native acceptance and rollout remain pending.
 
 The unreleased Omnia development fork adds a collapsible **Machines** section to
 the session sidebar. It shows machines in the current relay account independently
-of the selected session, using their chosen names, icons and colors. Each machine's
-daemon must run a fork CLI that provides host metrics. Released CLIs do not include
-them, so updating the app or CLI does not add telemetry. After installing the fork
-CLI, restart that machine's daemon: a running daemon replaces itself only when the
-CLI version changes, and a fork CLI can share its version with a release.
+of the selected session, using their chosen names, icons and colors. A daemon running
+a fork CLI reports host metrics itself. A daemon running a released CLI (0.2.12 or
+later) has no metrics producer, so the app reads the same values with standard system
+tools through that daemon's existing machine shell command: `top`, `vm_stat`,
+`sysctl`, `df` and `ioreg` on macOS, `/proc`, `df` and `nvidia-smi` on Linux, and
+PowerShell CIM queries on Windows. Expanded details say when a reading came from
+system tools. The fallback applies to macOS, Linux and Windows hosts; others show
+the CLI as unsupported.
+
+The app keeps each machine's last good reading for up to a week. After a restart, or
+while a machine is offline or unreadable, the row shows that reading marked
+**Previous reading · stale** until a new one arrives. The values stay first on the
+compact line so a narrow sidebar truncates the state, not the readings.
 
 Each machine has one compact summary line. Select it to expand the full readings,
 metric definitions, sample time, GPU device identities and measured storage volume;

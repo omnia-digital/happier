@@ -643,6 +643,7 @@ const zhHantOverrides: DeepPartial<TranslationStructure> = {
         cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: "負載 1/5/15分",
         volume: ({ volume, path }: { volume: string; path: string }) => "卷宗: " + volume + " · 檔案系統: " + path,
         sampledAt: ({ time }: { time: string }) => "取樣時間: " + time,
+        shellSource: "此機器的 CLI 不提供指標，因此使用標準系統工具讀取。",
     },
     sessionPullRequests: {
         title: '已連結的拉取請求',

@@ -638,6 +638,7 @@ export const ru: TranslationStructure = {
         cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: "Нагрузка 1/5/15мин",
         volume: ({ volume, path }: { volume: string; path: string }) => "Том: " + volume + " · Файловая система: " + path,
         sampledAt: ({ time }: { time: string }) => "Измерено: " + time,
+        shellSource: "Прочитано стандартными системными средствами, так как CLI этой машины не собирает метрики.",
     },
     sessionPullRequests: {
         title: 'Связанные запросы на слияние',

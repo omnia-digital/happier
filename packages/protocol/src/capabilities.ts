@@ -36,6 +36,9 @@ export const MachineMetricsSnapshotSchema = z.object({
   ]) }), metricUnavailable]),
 });
 export type MachineMetricsSnapshot = z.infer<typeof MachineMetricsSnapshotSchema>;
+export {
+  capacityUsage, metricUnavailable, parseDarwinGpuUtilization, parseNvidiaGpuUtilization, parseWindowsGpuEngineUtilization,
+} from './machineMetricsReadings.js';
 
 // Capability IDs are namespaced strings returned by the daemon.
 // Keep this flexible so new capabilities (including new `cli.<agent>` ids) do not require UI code changes.

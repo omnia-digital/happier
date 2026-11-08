@@ -621,6 +621,7 @@ export const it: TranslationStructure = {
         cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: "Carico 1/5/15min",
         volume: ({ volume, path }: { volume: string; path: string }) => "Volume: " + volume + " · File system: " + path,
         sampledAt: ({ time }: { time: string }) => "Rilevato: " + time,
+        shellSource: "Letto con gli strumenti di sistema standard perché la CLI di questa macchina non produce metriche.",
     },
     sessionPullRequests: {
         title: 'Pull request collegate',

@@ -351,8 +351,9 @@ Each run:
 Alerts are on-screen dialogs that stay until clicked. macOS notifications from
 `osascript` did not appear on this Mac. Quitting the app does not stop sessions,
 because they are children of the daemon. The agent does not update the CLI or daemons:
-no fork CLI artifact exists, and a swap would affect running sessions, so host metrics
-and PR status stay "unsupported" until a fork CLI is installed deliberately.
+no fork CLI artifact exists, and a swap would affect running sessions, so PR status stays
+"unsupported" until a fork CLI is installed deliberately. Host metrics do not need the
+swap: the app reads released daemons through their machine shell command instead.
 
 This is an interim path until OH-5 lands. The in-app updater stays compile-time disabled,
 so the agent is not a competing decision-maker. When OH-5 ships a fork feed, retire this

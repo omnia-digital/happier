@@ -1,8 +1,29 @@
 import * as React from 'react';
+import { MACHINE_METRICS_REFRESH_MS, MachineMetricsSnapshotSchema } from '@happier-dev/protocol/capabilities';
 import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
-import { createMachineMetricsStore, type MachineMetricsTarget } from '@/sync/engine/machines/machineMetricsStore';
+import { createMachineMetricsStore, type MachineMetricsReading, type MachineMetricsTarget } from '@/sync/engine/machines/machineMetricsStore';
 import { loadMachineMetrics } from '@/sync/ops/machineMetrics';
+import { createPersistentProbedResourceCache } from '@/sync/runtime/probedResources/createPersistentProbedResourceCache';
 import { isHostVisible, isRuntimeActive, startRuntimeActiveGatedInterval, subscribeToRuntimeActiveChange } from '@/utils/runtime/isRuntimeActive';
+
+const lastReadings = createPersistentProbedResourceCache<MachineMetricsReading>({
+    cacheId: 'machine-metrics-last-reading',
+    persistKey: 'machine-metrics-last-reading',
+    persistVersion: 1,
+    // One entry per Home/account/machine row; a week keeps an occasionally used host's last reading.
+    persistMaxEntries: 64,
+    persistMaxAgeMs: 7 * 24 * 60 * 60 * 1000,
+    staleTimeMs: MACHINE_METRICS_REFRESH_MS,
+    errorCooldownMs: 0,
+    deleteOnPersistVersionMismatch: true,
+    normalizePersistedValue: (raw) => {
+        if (!raw || typeof raw !== 'object') return null;
+        const { snapshot, receivedAt, source } = raw as Record<string, unknown>;
+        const parsed = MachineMetricsSnapshotSchema.safeParse(snapshot);
+        return parsed.success && typeof receivedAt === 'number' && Number.isFinite(receivedAt) && (source === 'capability' || source === 'shell')
+            ? { snapshot: parsed.data, receivedAt, source } : null;
+    },
+});
 
 const store = createMachineMetricsStore({
     load: loadMachineMetrics,
@@ -10,6 +31,10 @@ const store = createMachineMetricsStore({
     // Desktop background session sync may continue, but UI-only metrics need a visible host.
     isActive: () => isRuntimeActive() && isHostVisible(),
     subscribeActiveChange: subscribeToRuntimeActiveChange,
+    persistence: {
+        read: (key) => lastReadings.getSnapshot(key).data,
+        write: (key, reading) => lastReadings.writeSuccess(key, reading, reading.receivedAt),
+    },
 });
 
 export function useMachineMetricsPolling(scope: ServerAccountScope, targets: readonly MachineMetricsTarget[]) {

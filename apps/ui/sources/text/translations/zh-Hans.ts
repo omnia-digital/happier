@@ -621,6 +621,7 @@ export const zhHans: TranslationStructure = {
         cpu: 'CPU', memory: 'MEM', gpu: 'GPU', load: "负载 1/5/15分",
         volume: ({ volume, path }: { volume: string; path: string }) => "卷: " + volume + " · 文件系统: " + path,
         sampledAt: ({ time }: { time: string }) => "采样时间: " + time,
+        shellSource: "此机器的 CLI 不提供指标，因此使用标准系统工具读取。",
     },
     sessionPullRequests: {
         title: '关联的拉取请求',

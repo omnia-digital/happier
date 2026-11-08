@@ -932,7 +932,7 @@ export async function machineBash(
     machineId: string,
     command: MachineBashRequest,
     cwd: string,
-    options?: { serverId?: string | null; accountId?: string | null }
+    options?: { serverId?: string | null; accountId?: string | null; timeoutMs?: number }
 ): Promise<{
     success: boolean;
     stdout: string;
@@ -940,7 +940,9 @@ export async function machineBash(
     exitCode: number;
 }> {
     try {
-        const payload = typeof command === 'string' ? { command, cwd } : { ...command, cwd };
+        // The daemon's bash handler bounds the command by `timeout`; the RPC shares that budget.
+        const timeout = options?.timeoutMs === undefined ? {} : { timeout: options.timeoutMs };
+        const payload = typeof command === 'string' ? { command, cwd, ...timeout } : { ...command, cwd, ...timeout };
         const result = await machineRpcWithServerScope<{
             success: boolean;
             stdout: string;
@@ -950,12 +952,14 @@ export async function machineBash(
             command?: string;
             argv?: readonly string[];
             cwd: string;
+            timeout?: number;
         }>({
             machineId,
             method: 'bash',
             payload,
             serverId: options?.serverId,
             accountId: options?.accountId,
+            ...(options?.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
         });
         return result;
     } catch (error) {
