@@ -308,7 +308,7 @@ are admitted only in `happier-dev/happier`; their manual/reusable behavior remai
 ## Mac update agent
 
 `scripts/fork/omnia-nightly-update.mjs` keeps this Mac on the newest release. It runs
-hourly under launchd as `com.omnia.happier.nightly-update`, from the `happier-dev`
+every 5 minutes under launchd as `com.omnia.happier.nightly-update`, from the `happier-dev`
 clone, and logs to `~/Library/Logs/omnia-happier-nightly-update.log`. Install it from
 that clone, and check it with `status`, which exits non-zero when something is wrong:
 
@@ -318,7 +318,9 @@ node scripts/fork/omnia-nightly-update.mjs status
 launchctl kickstart gui/$(id -u)/com.omnia.happier.nightly-update
 ```
 
-The last command installs a waiting release at once instead of at the next hourly run.
+The last command starts a run at once instead of waiting up to 5 minutes. Only `install`
+writes the launch agent, so after a release that changes it, run `install` again;
+`status` reports an outdated or missing launch agent.
 
 Each run:
 
@@ -332,8 +334,12 @@ Each run:
 4. Downloads and verifies the bundle: size, SHA-256, single-root tarball, strict
    codesign, bundle id, product name and arm64. A staged bundle has no `.app` name,
    because same-id bundles can take over the `happier://` handler.
-5. Installs straight away, even while the app is in use. Josh chose this on 2026-11-08:
-   waiting for 15 idle minutes never happened, because this Mac sleeps when he steps away.
+5. If the app is closed, installs straight away. If it is open, shows one **Install
+   now** / **Later** dialog per release and installs on Install now, or after an hour
+   without a click, even while the app is in use. Josh chose this on 2026-11-08: waiting
+   for 15 idle minutes never happened, because this Mac sleeps when he steps away. The
+   dialog closes itself once the release installs. A failed attempt keeps the approval,
+   so later runs retry without asking again.
 6. Saves the current bundle as a tarball under `Previous Builds` (it keeps 3), sends
    SIGTERM, swaps the bundle and relaunches in the previous mode. Tray mode uses
    `open -g -a <app> --args --menu-bar`. If the new process does not stay alive, it

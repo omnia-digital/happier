@@ -14,3 +14,4 @@
 | 10 | Open PR to `dev` | 🟢 PR 29 merged as da49cd8622 |
 | 11 | After merge: dispatch nightly, install agent, verify app and clones | 🟢 Swap verified; Josh confirmed login and sessions |
 | 12 | Install without waiting for idle time (Josh, 2026-11-08) | 🟡 |
+| 13 | Install now prompt when a release lands (Josh, 2026-11-08) | 🟡 74 tests pass; two review lenses done and fixed. After its release lands, run `install` from happier-dev so the agent runs every 5 minutes |

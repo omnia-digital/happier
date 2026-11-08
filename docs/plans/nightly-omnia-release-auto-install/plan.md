@@ -24,7 +24,7 @@ machine and this main Omnia Happier app/repo is refreshed with the newest versio
 | Build | One Cassian-only step in the `build` job of `build-tauri.yml`, calling the documented `hstack build --tauri --tauri-production` with new `HAPPIER_STACK_TAURI_BUNDLES=app` | Reuses the tested fork identity owner; the runner group admits only this workflow |
 | Publish | Hosted job after promote, using the existing `github-publish-release` pipeline command with `GITHUB_TOKEN` | The reusable release workflow rejects the `andorcassian` actor; Cassian stays read-only |
 | Release form | Immutable per-SHA tag `omnia-nightly-<sha12>`, no rolling tag | The repository enforces immutable releases |
-| Local trigger | Hourly launchd agent, idempotent | A calendar job misses a sleeping Mac and a network outage until the next day |
+| Local trigger | launchd agent every 5 minutes, idempotent | A calendar job misses a sleeping Mac and a network outage until the next day |
 | Installer source | Script runs from `happier-dev`, which only fast-forwards to certified release SHAs | Satisfies "invoked from a development checkout" without running uncertified code |
 | In-app updater | Stays disabled. This is an interim path until OH-5 lands | Updates are compile-time off, so there is no live competing decision-maker |
 | CLI and daemons | Out of scope | No fork CLI artifact exists and a swap would affect running sessions |
@@ -62,7 +62,7 @@ The version does not change nightly, so `sourceSha` identifies a build.
 
 ## Mac agent behaviour
 
-Each hourly run:
+Each run:
 
 1. Restore the app if a previous swap was interrupted.
 2. Read the latest release. Reject anything that breaks the contract above.
@@ -71,9 +71,11 @@ Each hourly run:
 4. Stop if the SHA is already installed or is held after a failed install.
 5. Download and verify: size, SHA-256, SHA reachable from `origin/production`,
    single-root tarball, strict codesign, bundle id, product name, arm64.
-6. Install straight away, even while the app is in use (Josh, 2026-11-08). The first
-   rule deferred for 15 idle minutes, and the swap never happened, because this Mac
-   sleeps when Josh steps away.
+6. With the app open, ask once per release with an Install now / Later dialog, and
+   install on Install now or after an hour without a click, even while the app is in use.
+   With it closed, install straight away (Josh, 2026-11-08). The first rule deferred for
+   15 idle minutes, and the swap never happened, because this Mac sleeps when Josh steps
+   away. The agent polls every 5 minutes so the dialog appears soon after a release.
 7. Save the current bundle as a tarball, SIGTERM the app, wait for exit, swap with two
    renames, relaunch in the previous mode, and confirm the new process stays alive.
    If it does not, roll back and hold that SHA.
