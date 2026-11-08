@@ -85,8 +85,13 @@ describe('machine metrics subscription and polling owner', () => {
         const handle = store.retain(scope, [{ machineId: 'old', online: true, platform: null }]);
         handle.updateTargets([{ machineId: 'old', online: true, platform: 'darwin' }]);
         expect(reads.map((read) => read.platform)).toEqual([null]);
+        const statuses: string[] = [];
+        const unsubscribe = store.subscribe(scope, 'old', () => statuses.push(store.get(scope, 'old').status));
         reads[0].finish({ status: 'unsupported' });
         await vi.waitFor(() => expect(reads.map((read) => read.platform)).toEqual([null, 'darwin']));
+        // The read that missed the platform must not flash "install the fork CLI" before the re-read answers.
+        expect(statuses).not.toContain('unsupported');
+        unsubscribe();
         reads[1].finish({ status: 'ready', source: 'shell', snapshot: snapshot('old') });
         await vi.waitFor(() => expect(store.get(scope, 'old')).toMatchObject({ status: 'ready', source: 'shell' }));
         handle.updateTargets([{ machineId: 'old', online: true, platform: 'darwin' }]);

@@ -1,4 +1,5 @@
 import { DEFAULT_CAPABILITIES_INVOKE_TIMEOUT_MS, MACHINE_METRICS_CAPABILITY_ID, MachineMetricsSnapshotSchema } from '@happier-dev/protocol/capabilities';
+import { RPC_ERROR_CODES } from '@happier-dev/protocol/rpc';
 import type { ServerAccountScope } from '@/sync/domains/scope/serverAccountScope';
 import type { MachineMetricsLoadResult } from '@/sync/engine/machines/machineMetricsStore';
 import { machineCapabilitiesInvoke } from './capabilities';
@@ -26,8 +27,11 @@ async function loadReleasedCliMetrics(scope: ServerAccountScope, machineId: stri
     const started = Date.now();
     const response = await machineBash(machineId, { argv }, '/', { ...scope, timeoutMs: DEFAULT_CAPABILITIES_INVOKE_TIMEOUT_MS });
     const sampledAt = Date.now();
+    // Only a daemon without the shell handler is unsupported. A timeout, dropped connection, failed
+    // spawn or unreadable output is a read failure that the next refresh retries.
+    if (response.rpcErrorCode === RPC_ERROR_CODES.METHOD_NOT_FOUND || response.rpcErrorCode === RPC_ERROR_CODES.METHOD_NOT_AVAILABLE) return { status: 'unsupported' };
     const snapshot = response.success
         ? parseShellMetrics({ platform, machineId, stdout: response.stdout, sampledAt, collectionMs: sampledAt - started })
         : null;
-    return snapshot ? { status: 'ready', source: 'shell', snapshot } : { status: 'unsupported' };
+    return snapshot ? { status: 'ready', source: 'shell', snapshot } : { status: 'error' };
 }

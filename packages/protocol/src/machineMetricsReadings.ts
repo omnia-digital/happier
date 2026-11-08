@@ -11,6 +11,35 @@ export function metricUnavailable(reason: Unavailable['reason']): Unavailable {
     return { status: 'unavailable', reason };
 }
 
+/** CPU tick counters for one logical core, or one aggregate line, as os.cpus() and /proc/stat report them. */
+export type CpuTimes = Readonly<{ times: Readonly<{ user: number; nice: number; sys: number; idle: number; irq: number }> }>;
+
+/** Busy share of all counted ticks between two samples; iowait, softirq and steal are not counted. */
+export function cpuUsageFromSamples(before: readonly CpuTimes[], after: readonly CpuTimes[], sampleMs: number): MachineMetricsSnapshot['cpu'] {
+    if (!before.length || before.length !== after.length || sampleMs <= 0) return metricUnavailable('invalid-data');
+    let idle = 0;
+    let total = 0;
+    for (let i = 0; i < before.length; i++) {
+        for (const key of ['user', 'nice', 'sys', 'idle', 'irq'] as const) {
+            const delta = after[i].times[key] - before[i].times[key];
+            if (!Number.isFinite(delta) || delta < 0) return metricUnavailable('invalid-data');
+            total += delta;
+            if (key === 'idle') idle += delta;
+        }
+    }
+    return total > 0 ? { status: 'available', usagePercent: 100 * (total - idle) / total, sampleMs } : metricUnavailable('invalid-data');
+}
+
+export function loadAverageReading(averages: readonly number[]): MachineMetricsSnapshot['load'] {
+    return averages.length === 3 && averages.every((value) => Number.isFinite(value) && value >= 0)
+        ? { status: 'available', averages: [averages[0], averages[1], averages[2]] } : metricUnavailable('invalid-data');
+}
+
+export function utilizationPercent(usagePercent: number): { status: 'available'; usagePercent: number } | Unavailable {
+    return Number.isFinite(usagePercent) && usagePercent >= 0 && usagePercent <= 100
+        ? { status: 'available', usagePercent } : metricUnavailable('invalid-data');
+}
+
 export function capacityUsage(totalBytes: number, freeBytes: number): MachineMetricsSnapshot['memory'] {
     if (!Number.isFinite(totalBytes) || !Number.isFinite(freeBytes) || totalBytes <= 0 || freeBytes < 0 || freeBytes > totalBytes) return metricUnavailable('invalid-data');
     const usedBytes = totalBytes - freeBytes;
@@ -24,12 +53,7 @@ export function parseNvidiaGpuUtilization(stdout: string): GpuDevices {
         const rawUsage = fields.pop() ?? '';
         const name = fields.join(', ');
         const usagePercent = rawUsage ? Number(rawUsage) : NaN;
-        return {
-            id, name,
-            utilization: Number.isFinite(usagePercent) && usagePercent >= 0 && usagePercent <= 100
-                ? { status: 'available' as const, usagePercent }
-                : metricUnavailable('invalid-data'),
-        };
+        return { id, name, utilization: utilizationPercent(usagePercent) };
     }).filter((device) => device.id && device.name);
 }
 

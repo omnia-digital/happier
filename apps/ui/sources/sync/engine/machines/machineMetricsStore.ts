@@ -29,8 +29,7 @@ export function createMachineMetricsStore(deps: Readonly<{
 }>) {
     const entries = new Map<string, MachineMetricsEntry>();
     const listeners = new Map<string, Set<() => void>>();
-    // The platform selects the read path, so it is part of what an in-flight read may be shared for.
-    const pending = new Map<string, { operation: Promise<void>; platform: string | null | undefined }>();
+    const pending = new Map<string, Promise<void>>();
     const online = new Map<string, boolean>();
     const platforms = new Map<string, string | null | undefined>();
     const pollers = new Map<string, { callbacks: Set<(onlyIfDue: boolean) => void>; stop: () => void }>();
@@ -64,13 +63,15 @@ export function createMachineMetricsStore(deps: Readonly<{
         if (!deps.isActive()) return Promise.resolve();
         const platform = platforms.get(key);
         const inFlight = pending.get(key);
-        if (inFlight) {
-            // Only a released-CLI host's shell read depends on the platform; re-read when it missed it.
-            return inFlight.platform === platform ? inFlight.operation
-                : inFlight.operation.then(() => (get(scope, machineId).status === 'unsupported' ? refresh(scope, machineId, online.get(key) !== false) : undefined));
-        }
+        if (inFlight) return inFlight;
         publish(key, { ...previous, status: previous.snapshot ? previous.status : 'loading', refreshing: true });
-        const operation = deps.load(scope, machineId, platform).catch((): MachineMetricsLoadResult => ({ status: 'error' })).then((result) => {
+        const operation: Promise<void> = deps.load(scope, machineId, platform).catch((): MachineMetricsLoadResult => ({ status: 'error' })).then((result) => {
+            // The platform selects a released-CLI host's shell read. When it arrived during a read that
+            // came back unsupported for lack of it, read again instead of publishing that answer.
+            if (result.status === 'unsupported' && platforms.get(key) !== platform) {
+                pending.delete(key);
+                return refresh(scope, machineId, online.get(key) !== false);
+            }
             const current = get(scope, machineId);
             const isStillOnline = online.get(key) !== false;
             if (result.status === 'ready') {
@@ -80,8 +81,8 @@ export function createMachineMetricsStore(deps: Readonly<{
             } else {
                 publish(key, { ...current, status: isStillOnline ? result.status : 'offline', refreshing: false });
             }
-        }).finally(() => { if (pending.get(key)?.operation === operation) pending.delete(key); });
-        pending.set(key, { operation, platform });
+        }).finally(() => { if (pending.get(key) === operation) pending.delete(key); });
+        pending.set(key, operation);
         return operation;
     };
     return {

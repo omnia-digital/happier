@@ -938,6 +938,8 @@ export async function machineBash(
     stdout: string;
     stderr: string;
     exitCode: number;
+    /** Set when the RPC itself failed, e.g. `RPC_ERROR_CODES.METHOD_NOT_AVAILABLE` for a daemon without the handler. */
+    rpcErrorCode?: string;
 }> {
     try {
         // The daemon's bash handler bounds the command by `timeout`; the RPC shares that budget.
@@ -961,13 +963,18 @@ export async function machineBash(
             accountId: options?.accountId,
             ...(options?.timeoutMs === undefined ? {} : { timeoutMs: options.timeoutMs }),
         });
+        if (isRpcMethodNotFoundResult(result)) {
+            return { success: false, stdout: '', stderr: result.error, exitCode: -1, rpcErrorCode: RPC_ERROR_CODES.METHOD_NOT_FOUND };
+        }
         return result;
     } catch (error) {
+        const rpcErrorCode = readRpcErrorCode(error);
         return {
             success: false,
             stdout: '',
             stderr: error instanceof Error ? error.message : 'Unknown error',
-            exitCode: -1
+            exitCode: -1,
+            ...(rpcErrorCode ? { rpcErrorCode } : {}),
         };
     }
 }

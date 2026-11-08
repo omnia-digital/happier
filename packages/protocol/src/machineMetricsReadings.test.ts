@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { capacityUsage, parseDarwinGpuUtilization, parseNvidiaGpuUtilization, parseWindowsGpuEngineUtilization } from './machineMetricsReadings';
+import { capacityUsage, cpuUsageFromSamples, parseDarwinGpuUtilization, parseNvidiaGpuUtilization, parseWindowsGpuEngineUtilization, type CpuTimes } from './machineMetricsReadings';
+
+const cpu = (user: number, idle: number): CpuTimes => ({ times: { user, idle, nice: 0, sys: 0, irq: 0 } });
 
 describe('host metric reading interpretation', () => {
+    it('measures total busy CPU time across all logical cores', () => {
+        expect(cpuUsageFromSamples([cpu(10, 10), cpu(10, 10)], [cpu(110, 10), cpu(10, 310)], 1000))
+            .toEqual({ status: 'available', usagePercent: 25, sampleMs: 1000 });
+    });
+    it('does not turn missing, reset or unchanged CPU counters into zero usage', () => {
+        for (const [before, after] of [[[], []], [[cpu(10, 10)], [cpu(10, 10)]], [[cpu(10, 10)], [cpu(0, 0)]]]) {
+            expect(cpuUsageFromSamples(before, after, 1000)).toMatchObject({ status: 'unavailable' });
+        }
+    });
     it('uses nonfree capacity and rejects absent or inconsistent capacity', () => {
         expect(capacityUsage(100, 40)).toEqual({ status: 'available', totalBytes: 100, usedBytes: 60, usagePercent: 60 });
         for (const [total, free] of [[0, 0], [100, 101], [NaN, 2]]) expect(capacityUsage(total, free)).toMatchObject({ status: 'unavailable' });

@@ -1,6 +1,6 @@
 import {
-    capacityUsage, MachineMetricsSnapshotSchema, metricUnavailable, parseDarwinGpuUtilization, parseNvidiaGpuUtilization,
-    parseWindowsGpuEngineUtilization, type MachineMetricsSnapshot,
+    capacityUsage, cpuUsageFromSamples, loadAverageReading, MachineMetricsSnapshotSchema, metricUnavailable, parseDarwinGpuUtilization,
+    parseNvidiaGpuUtilization, parseWindowsGpuEngineUtilization, utilizationPercent, type MachineMetricsSnapshot,
 } from '@happier-dev/protocol/capabilities';
 
 /*
@@ -44,7 +44,8 @@ command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi --query-gpu=uuid,name,utiliz
 exit 0
 `;
 
-// CPU counters exceed Number.MAX_SAFE_INTEGER, so they travel as strings.
+// CPU counters exceed Number.MAX_SAFE_INTEGER, so they travel as strings. Storage is the drive holding
+// the user profile, like the CLI collector; HOMEDRIVE can name a network home folder in a domain.
 const WIN32_SCRIPT = String.raw`$ErrorActionPreference = 'Stop'
 function Read-Optional([scriptblock]$Read) { try { & $Read } catch { $null } }
 $cpuSample = { Get-CimInstance Win32_PerfRawData_PerfOS_Processor -Filter "Name='_Total'" | Select-Object @{ n = 'idle'; e = { [string]$_.PercentProcessorTime } }, @{ n = 'time'; e = { [string]$_.Timestamp_Sys100NS } } }
@@ -54,7 +55,7 @@ $cpu2 = Read-Optional $cpuSample
 ConvertTo-Json -Compress -Depth 4 -InputObject ([ordered]@{
   home = $env:USERPROFILE
   memory = Read-Optional { Get-CimInstance Win32_OperatingSystem | Select-Object TotalVisibleMemorySize, FreePhysicalMemory }
-  disk = Read-Optional { Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$env:HOMEDRIVE'" | Select-Object DeviceID, Size, FreeSpace }
+  disk = Read-Optional { $drive = Split-Path -Qualifier $env:USERPROFILE; Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$drive'" | Select-Object DeviceID, Size, FreeSpace }
   cpu = @($cpu1, $cpu2)
   gpu = Read-Optional { , @(Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine | Select-Object Name, UtilizationPercentage) }
 })
@@ -69,8 +70,6 @@ export function buildShellMetricsArgv(platform: string | null | undefined): read
 
 type Readings = Readonly<Omit<Snapshot, 'version' | 'machineId' | 'platform' | 'sampledAt' | 'collectionMs'>>;
 const finite = (raw: unknown): number => (typeof raw === 'number' ? raw : typeof raw === 'string' && raw.trim() ? Number(raw) : NaN);
-const percentage = (usagePercent: number) => (Number.isFinite(usagePercent) && usagePercent >= 0 && usagePercent <= 100
-    ? { status: 'available' as const, usagePercent } : metricUnavailable('invalid-data'));
 
 function taggedLines(stdout: string): Map<string, string[][]> {
     const tagged = new Map<string, string[][]>();
@@ -82,24 +81,25 @@ function taggedLines(stdout: string): Map<string, string[][]> {
     return tagged;
 }
 
-/** POSIX `df -kP` data row: capacity is the `N%` field; the mount point may contain spaces. */
-function storageFromDf(row: string | undefined, home: string | undefined): Snapshot['storage'] {
+/**
+ * POSIX `df -kP` data row: capacity is the `N%` field; the mount point may contain spaces.
+ * Free space must match the CLI collector's statfs free blocks. GNU df's Used is total minus
+ * free blocks, but an APFS volume shares its container, so on macOS Used counts only this
+ * volume and the Available column is the container's free space.
+ */
+function storageFromDf(row: string | undefined, home: string | undefined, free: 'total-minus-used' | 'available'): Snapshot['storage'] {
     if (!row || !home) return metricUnavailable('collection-failed');
     const fields = row.trim().split(/\s+/);
     const capacityIndex = fields.findIndex((field, index) => index >= 4 && /^\d+%$/.test(field));
     if (capacityIndex < 0) return metricUnavailable('invalid-data');
     const totalBytes = finite(fields[capacityIndex - 3]) * 1024;
-    const usedBytes = finite(fields[capacityIndex - 2]) * 1024;
-    const usage = capacityUsage(totalBytes, totalBytes - usedBytes);
+    const freeBytes = free === 'available' ? finite(fields[capacityIndex - 1]) * 1024 : totalBytes - finite(fields[capacityIndex - 2]) * 1024;
+    const usage = capacityUsage(totalBytes, freeBytes);
     const volume = fields.slice(capacityIndex + 1).join(' ');
     return usage.status === 'available' && volume ? { ...usage, filesystemPath: home, volume } : metricUnavailable('invalid-data');
 }
 
-function loadFrom(values: readonly string[]): Snapshot['load'] {
-    const averages = values.slice(0, 3).map(finite);
-    return averages.length === 3 && averages.every((value) => Number.isFinite(value) && value >= 0)
-        ? { status: 'available', averages: [averages[0], averages[1], averages[2]] } : metricUnavailable('invalid-data');
-}
+const loadFrom = (values: readonly string[]): Snapshot['load'] => loadAverageReading(values.slice(0, 3).map(finite));
 
 const gpuFrom = (devices: GpuDevices, failed: Unavailable | null = null): Snapshot['gpu'] => (devices.length
     ? { status: 'available', devices: [devices[0], ...devices.slice(1)] } : failed ?? metricUnavailable('no-supported-gpu'));
@@ -125,7 +125,7 @@ function parseDarwin(stdout: string): Readings | null {
             : idle <= 100 ? { status: 'available', usagePercent: 100 - idle, sampleMs: 1000 } : metricUnavailable('invalid-data'),
         // Matches the CLI's os.freemem() on macOS: free pages only, so cache counts as used.
         memory: Number.isFinite(memsize) ? capacityUsage(memsize, finite(first('pagesfree')) * finite(first('pagesize'))) : metricUnavailable('collection-failed'),
-        storage: storageFromDf(first('df'), first('home')),
+        storage: storageFromDf(first('df'), first('home'), 'available'),
         gpu,
         load: first('loadavg') === undefined ? metricUnavailable('collection-failed') : loadFrom(loadValues),
     };
@@ -135,17 +135,13 @@ function parseLinux(stdout: string): Readings | null {
     const lines = taggedLines(stdout);
     if (!lines.has('home') && !lines.has('meminfo') && !lines.has('stat')) return null;
     const meminfo = new Map((lines.get('meminfo') ?? []).map(([key, kib]) => [key.replace(/:$/, ''), finite(kib) * 1024]));
-    // Same fields libuv's os.cpus() reads: user, nice, system, idle and irq; iowait is excluded.
-    const samples = (lines.get('stat') ?? []).map(([row]) => row.trim().split(/\s+/).slice(1).map(finite));
-    let cpu: Snapshot['cpu'] = metricUnavailable('collection-failed');
-    if (samples.length === 2) {
-        const delta = (index: number) => samples[1][index] - samples[0][index];
-        const [user, nice, system, idle, irq] = [delta(0), delta(1), delta(2), delta(3), delta(5)];
-        const total = user + nice + system + idle + irq;
-        cpu = [user, nice, system, idle, irq].every((value) => Number.isFinite(value) && value >= 0) && total > 0
-            ? { status: 'available', usagePercent: 100 * (total - idle) / total, sampleMs: 1000 } : metricUnavailable('invalid-data');
-    }
-    const amd = (lines.get('amdgpu') ?? []).map(([id, raw]) => ({ id, name: id, utilization: percentage(finite(raw)) }));
+    // The aggregate /proc/stat line, read into the same fields libuv's os.cpus() reports (iowait is field 4).
+    const samples = (lines.get('stat') ?? []).map(([row]) => {
+        const [user, nice, sys, idle, , irq] = row.trim().split(/\s+/).slice(1).map(finite);
+        return { times: { user, nice, sys, idle, irq } };
+    });
+    const cpu = samples.length === 2 ? cpuUsageFromSamples([samples[0]], [samples[1]], 1000) : metricUnavailable('collection-failed');
+    const amd = (lines.get('amdgpu') ?? []).map(([id, raw]) => ({ id, name: id, utilization: utilizationPercent(finite(raw)) }));
     const nvidia = parseNvidiaGpuUtilization((lines.get('nvidia') ?? []).map(([row]) => row).join('\n'));
     const memTotal = meminfo.get('MemTotal');
     const memAvailable = meminfo.get('MemAvailable') ?? meminfo.get('MemFree');
@@ -154,7 +150,7 @@ function parseLinux(stdout: string): Readings | null {
         // Matches the CLI's os.freemem() on Linux: libuv reads MemAvailable and falls
         // back to free memory on kernels that lack it (seen on WSL Ubuntu).
         memory: memTotal === undefined || memAvailable === undefined ? metricUnavailable('collection-failed') : capacityUsage(memTotal, memAvailable),
-        storage: storageFromDf(lines.get('df')?.[0]?.[0], lines.get('home')?.[0]?.[0]),
+        storage: storageFromDf(lines.get('df')?.[0]?.[0], lines.get('home')?.[0]?.[0], 'total-minus-used'),
         gpu: gpuFrom([...amd.filter((device) => device.id), ...nvidia]),
         load: lines.has('loadavg') ? loadFrom((lines.get('loadavg')?.[0]?.[0] ?? '').trim().split(/\s+/)) : metricUnavailable('collection-failed'),
     };

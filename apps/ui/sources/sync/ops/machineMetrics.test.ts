@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { RPC_ERROR_CODES } from '@happier-dev/protocol/rpc';
 import { loadMachineMetrics } from './machineMetrics';
 import { darwinShellMetricsStdout, linuxShellMetricsStdout, win32ShellMetricsStdout, wslLinuxShellMetricsStdout } from '@/dev/testkit/fixtures/machineMetricsShellFixtures';
 
@@ -47,11 +48,13 @@ describe('released-CLI host metrics through the existing machine shell RPC', () 
         expect(call.payload).toEqual({ argv: ['/bin/sh', '-c', expect.stringContaining('/usr/bin/top -l 2')], cwd: '/', timeout: 30_000 });
         expect(result).toMatchObject({ status: 'ready', source: 'shell' });
         if (result.status !== 'ready') throw new Error('expected a reading');
+        // APFS volumes share their container: df's Used counts only this volume, so free space is the
+        // Available column, which equals the CLI collector's statfs free blocks.
         const totalDisk = 1948455240 * 1024;
         expect(result.snapshot).toMatchObject({ version: 1, machineId: 'host-a', platform: 'darwin',
             cpu: { status: 'available', usagePercent: 100 - 51.71, sampleMs: 1000 },
             memory: { status: 'available', totalBytes: 51539607552, usedBytes: 51539607552 - 10792 * 16384 },
-            storage: { status: 'available', totalBytes: totalDisk, usedBytes: 1818105828 * 1024, filesystemPath: '/Users/dev', volume: '/System/Volumes/Data' },
+            storage: { status: 'available', totalBytes: totalDisk, usedBytes: totalDisk - 87867780 * 1024, filesystemPath: '/Users/dev', volume: '/System/Volumes/Data' },
             load: { status: 'available', averages: [28.7, 21.45, 21.32] },
             gpu: { status: 'available', devices: [{ id: 'ioreg:4294968574', name: 'Apple M4 Pro', utilization: { status: 'available', usagePercent: 0 } }] } });
     });
@@ -100,12 +103,23 @@ describe('released-CLI host metrics through the existing machine shell RPC', () 
         });
     });
 
-    it('keeps an older CLI unsupported when its shell cannot answer, and never shells out for an unknown platform', async () => {
-        for (const bash of [() => ({ success: false, stdout: '', stderr: 'denied', exitCode: 1 }), () => { throw new Error('no bash handler'); },
-            () => ({ success: true, stdout: 'garbage', stderr: '', exitCode: 0 })]) {
-            respondAsOlderCli(bash);
+    it('reports a host without a shell handler as unsupported, but a failed or unreadable shell read as a read error', async () => {
+        for (const code of [RPC_ERROR_CODES.METHOD_NOT_FOUND, RPC_ERROR_CODES.METHOD_NOT_AVAILABLE]) {
+            respondAsOlderCli(() => { throw Object.assign(new Error('RPC method not available'), { rpcErrorCode: code }); });
             expect(await loadMachineMetrics(scope, 'host-a', 'darwin')).toEqual({ status: 'unsupported' });
         }
+        // Daemons also answer an unknown method with a method-not-found result payload instead of throwing.
+        respondAsOlderCli(() => ({ error: 'Method not found', errorCode: RPC_ERROR_CODES.METHOD_NOT_FOUND }));
+        expect(await loadMachineMetrics(scope, 'host-a', 'darwin')).toEqual({ status: 'unsupported' });
+        // Timeouts, dropped connections and spawn failures are transient: the row says it could not read, and retries.
+        for (const bash of [() => { throw new Error('RPC timed out'); }, () => ({ success: false, stdout: '', stderr: 'Command timed out', exitCode: -1 }),
+            () => ({ success: true, stdout: 'garbage', stderr: '', exitCode: 0 })]) {
+            respondAsOlderCli(bash);
+            expect(await loadMachineMetrics(scope, 'host-a', 'darwin')).toEqual({ status: 'error' });
+        }
+    });
+
+    it('never shells out for an unknown platform', async () => {
         rpc.mockReset();
         respondAsOlderCli(() => ({ success: true, stdout: darwinShellMetricsStdout, stderr: '', exitCode: 0 }));
         for (const platform of [undefined, null, 'freebsd']) expect(await loadMachineMetrics(scope, 'host-a', platform)).toEqual({ status: 'unsupported' });

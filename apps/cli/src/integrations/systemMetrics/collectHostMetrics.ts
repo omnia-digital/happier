@@ -7,8 +7,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { performance } from 'node:perf_hooks';
 import { finished } from 'node:stream/promises';
 import {
-    capacityUsage, MachineMetricsSnapshotSchema, metricUnavailable as unavailable, parseDarwinGpuUtilization,
-    parseNvidiaGpuUtilization, parseWindowsGpuEngineUtilization, type MachineMetricsSnapshot,
+    capacityUsage, cpuUsageFromSamples, loadAverageReading, MachineMetricsSnapshotSchema, metricUnavailable as unavailable,
+    parseDarwinGpuUtilization, parseNvidiaGpuUtilization, parseWindowsGpuEngineUtilization, utilizationPercent, type MachineMetricsSnapshot,
 } from '@happier-dev/protocol/capabilities';
 
 const execFileAsync = promisify(execFile);
@@ -16,21 +16,6 @@ type Unavailable = Extract<MachineMetricsSnapshot['cpu'], { status: 'unavailable
 function failure(error: unknown): Unavailable {
     const code = (error as NodeJS.ErrnoException)?.code;
     return unavailable(code === 'EACCES' || code === 'EPERM' ? 'permission-denied' : 'collection-failed');
-}
-
-export function cpuUsageFromSamples(before: os.CpuInfo[], after: os.CpuInfo[], sampleMs: number): MachineMetricsSnapshot['cpu'] {
-    if (!before.length || before.length !== after.length || sampleMs <= 0) return unavailable('invalid-data');
-    let idle = 0;
-    let total = 0;
-    for (let i = 0; i < before.length; i++) {
-        for (const key of ['user', 'nice', 'sys', 'idle', 'irq'] as const) {
-            const delta = after[i].times[key] - before[i].times[key];
-            if (!Number.isFinite(delta) || delta < 0) return unavailable('invalid-data');
-            total += delta;
-            if (key === 'idle') idle += delta;
-        }
-    }
-    return total > 0 ? { status: 'available', usagePercent: 100 * (total - idle) / total, sampleMs } : unavailable('invalid-data');
 }
 
 async function collectStorage(): Promise<MachineMetricsSnapshot['storage']> {
@@ -126,8 +111,7 @@ async function collectGpu(signal?: AbortSignal): Promise<MachineMetricsSnapshot[
                     // AMDGPU's documented read-only percentage of GPU engine activity.
                     const raw = (await readFile(`/sys/class/drm/${card}/device/gpu_busy_percent`, 'utf8')).trim();
                     const usagePercent = raw ? Number(raw) : NaN;
-                    devices.push({ id: card, name: card, utilization: Number.isFinite(usagePercent) && usagePercent >= 0 && usagePercent <= 100
-                        ? { status: 'available', usagePercent } : unavailable('invalid-data') });
+                    devices.push({ id: card, name: card, utilization: utilizationPercent(usagePercent) });
                 } catch (error) {
                     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') queryFailure = failure(error);
                 }
@@ -162,10 +146,7 @@ export async function collectHostMetrics(machineId: string, signal?: AbortSignal
     signal?.throwIfAborted();
     const cpu = cpuUsageFromSamples(before, os.cpus(), performance.now() - started);
     const memory = capacityUsage(os.totalmem(), os.freemem());
-    const averages = os.loadavg();
-    const load: MachineMetricsSnapshot['load'] = process.platform === 'win32' ? unavailable('unsupported-platform')
-        : averages.length === 3 && averages.every((value) => Number.isFinite(value) && value >= 0)
-            ? { status: 'available', averages: [averages[0], averages[1], averages[2]] } : unavailable('invalid-data');
+    const load: MachineMetricsSnapshot['load'] = process.platform === 'win32' ? unavailable('unsupported-platform') : loadAverageReading(os.loadavg());
     return MachineMetricsSnapshotSchema.parse({ version: 1, machineId, platform: process.platform,
         sampledAt: Date.now(), collectionMs: performance.now() - started, cpu, memory, storage, gpu, load });
 }

@@ -5,6 +5,7 @@ import { createMachineFixture, renderScreen, standardCleanup } from '@/dev/testk
 import { storage } from '@/sync/domains/state/storageStore';
 import { getActiveServerId } from '@/sync/domains/server/serverProfiles';
 import { t } from '@/text';
+import { RPC_ERROR_CODES } from '@happier-dev/protocol/rpc';
 import { MachineMonitoringSection } from './MachineMonitoringSection';
 import { darwinShellMetricsStdout } from '@/dev/testkit/fixtures/machineMetricsShellFixtures';
 
@@ -27,7 +28,11 @@ describe('machine monitoring real store and rendered leaf', () => {
         const machine = createMachineFixture({ id: 'compact-unsupported-host', activeAt: Date.now() });
         storage.setState({ isDataReady: true, profileScope: { serverId, accountId: 'compact-metrics-account' },
             machines: { [machine.id]: machine }, machineListByServerId: { [serverId]: [machine] } });
-        rpc.mockResolvedValue({ ok: false, error: { code: 'unsupported-capability', message: 'unsupported' } });
+        // An older CLI without the metrics capability or a machine shell handler.
+        rpc.mockImplementation(async ({ method }: { method: string }) => {
+            if (method === 'bash') throw Object.assign(new Error('RPC method not available'), { rpcErrorCode: RPC_ERROR_CODES.METHOD_NOT_AVAILABLE });
+            return { ok: false, error: { code: 'unsupported-capability', message: 'unsupported' } };
+        });
         let screen: Awaited<ReturnType<typeof renderScreen>> | undefined;
         try {
             screen = await renderScreen(<MachineMonitoringSection />);
@@ -91,7 +96,7 @@ describe('machine monitoring real store and rendered leaf', () => {
         try {
             screen = await renderScreen(<MachineMonitoringSection />);
             const summary = () => String(screen!.findByTestId(`machine-monitoring-${machine.id}-summary`)!.props.children);
-            expect(summary()).toMatch(/^CPU 48% · MEM 100% · GPU 0% · Storage used 93% · LA/);
+            expect(summary()).toMatch(/^CPU 48% · MEM 100% · GPU 0% · Storage used 95% · LA/);
             expect(summary()).not.toContain('does not support host metrics');
             await screen.pressByTestIdAsync(`machine-monitoring-${machine.id}-details`);
             expect(screen.findByTestId(`machine-monitoring-${machine.id}-shell-source`)).not.toBeNull();
