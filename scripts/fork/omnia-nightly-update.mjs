@@ -7,7 +7,6 @@ import { fileURLToPath } from 'node:url';
 
 import {
   APP_NAME,
-  BUNDLE_ID,
   MANIFEST_ASSET,
   TARBALL_ASSET,
   bundleExecutablePath,
@@ -28,8 +27,6 @@ const AGENT_PATH = '/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin';
 const USAGE = 'Usage: node scripts/fork/omnia-nightly-update.mjs <install|run|status>';
 
 const HOUR = 3_600_000;
-const IDLE_BEFORE_INSTALL_MS = 15 * 60_000;
-const DEFERRAL_ALERT_MS = 24 * HOUR;
 // One nightly period plus a two hour margin.
 const STALE_MS = 26 * HOUR;
 const QUIT_TIMEOUT_MS = 30_000;
@@ -103,7 +100,6 @@ function loadState(config) {
     lastSuccessfulCheckAt: null,
     // Every alert standing after the last complete run. One key would let two standing problems alternate hourly.
     lastAlertKeys: [],
-    deferredSince: null,
     swap: null,
     lastError: null,
   };
@@ -194,19 +190,8 @@ function findPid(ctx) {
 function appMode(ctx, pid) {
   const asn = ctx.adapter.exec('lsappinfo', ['find', `pid=${pid}`]).out;
   const info = ctx.adapter.exec('lsappinfo', ['info', '-only', 'ApplicationType', asn]).out;
-  // Only a positive tray reading skips the input check and the window relaunch.
+  // Only a positive tray reading relaunches without a window.
   return info.includes('type="UIElement"') ? 'tray' : 'window';
-}
-
-function isFrontmost(ctx) {
-  const front = ctx.adapter.exec('lsappinfo', ['front']).out;
-  return ctx.adapter.exec('lsappinfo', ['info', '-only', 'bundleID', front]).out.includes(`"${BUNDLE_ID}"`);
-}
-
-function idleMs(ctx) {
-  const match = /"HIDIdleTime" = (\d+)/.exec(ctx.adapter.exec('ioreg', ['-c', 'IOHIDSystem']).out);
-  // An unreadable idle time counts as active, which only defers.
-  return match ? Number(match[1]) / 1_000_000 : 0;
 }
 
 function relaunch(ctx, mode) {
@@ -247,7 +232,6 @@ async function confirmSwap(ctx, swap) {
     rmSync(ctx.stagingDir, { recursive: true, force: true });
     ctx.state.installedSha = swap.sha;
     ctx.state.swap = null;
-    ctx.state.deferredSince = null;
     saveState(ctx);
     log(ctx, `Installed ${swap.sha}`);
     return;
@@ -455,22 +439,15 @@ async function applyLatestRelease(ctx) {
     return;
   }
   if (bundlePresent && ctx.state.installedSha === sha) {
-    ctx.state.deferredSince = null;
     log(ctx, `${sha} is already installed.`);
     return;
   }
 
   const staged = await stageRelease(ctx, release, manifest);
   const pid = findPid(ctx);
+  // Josh, 2026-11-08: close the app if needed to refresh it, even while it is in use.
+  // Sessions belong to the daemon, and the relaunch does not take focus.
   const mode = pid ? appMode(ctx, pid) : 'none';
-  if (pid && (isFrontmost(ctx) || (mode === 'window' && idleMs(ctx) < IDLE_BEFORE_INSTALL_MS))) {
-    ctx.state.deferredSince ??= new Date(ctx.adapter.now()).toISOString();
-    log(ctx, `Deferred ${sha} while the app is in use.`);
-    if (ctx.adapter.now() - Date.parse(ctx.state.deferredSince) > DEFERRAL_ALERT_MS) {
-      alert(ctx, `deferred:${ctx.state.deferredSince}`, `Omnia Happier ${sha.slice(0, 12)} has been deferred since ${ctx.state.deferredSince} because the app stays in use.`);
-    }
-    return;
-  }
   await installStaged(ctx, sha, staged, pid, mode);
 }
 
@@ -590,7 +567,7 @@ export async function printStatus(config, adapter) {
   }
   adapter.log(`Installed: ${state.installedSha ?? 'unknown'}`);
   adapter.log(`Latest release: ${latest}`);
-  adapter.log(`State: ${state.deferredSince ? `deferred since ${state.deferredSince}` : problems.length ? 'needs attention' : 'ok'}`);
+  adapter.log(`State: ${problems.length ? 'needs attention' : 'ok'}`);
   adapter.log(`Last successful check: ${state.lastSuccessfulCheckAt ?? 'never'}`);
   for (const problem of problems) adapter.log(problem);
   return problems.length ? 1 : 0;

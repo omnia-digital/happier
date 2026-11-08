@@ -146,8 +146,6 @@ process.exit(result.status ?? 1);
     runs: null,
     assets: new Map(),
     process: null,
-    frontmost: false,
-    idleMs: HOUR,
     ignoreTerm: false,
     crashMarkers: new Set(),
     alerts: [],
@@ -186,12 +184,9 @@ process.exit(result.status ?? 1);
         return ok(lines.join('\n'));
       }
       if (command === 'lsappinfo') {
-        if (args[0] === 'front') return ok('ASN:front:');
         if (args[0] === 'find') return ok('ASN:0x0-0x1-"Omnia_Happier":');
-        if (args.includes('bundleID')) return ok(`bundleID="${world.frontmost ? BUNDLE_ID : 'com.apple.finder'}"`);
         if (args.includes('ApplicationType')) return ok(`type="${world.process?.mode === 'tray' ? 'UIElement' : 'Foreground'}"`);
       }
-      if (command === 'ioreg') return ok(`  | |   "HIDIdleTime" = ${world.idleMs * 1_000_000}`);
       if (command === 'open') {
         launch(args.includes('--menu-bar') ? 'tray' : 'window');
         return ok();
@@ -332,13 +327,12 @@ test('a new release installs in window mode and relaunches in the background', {
   assert.equal(world.head(world.productionClone), sha);
 });
 
-test('a tray-only app installs even while input is active and relaunches in tray mode without launchd', { skip }, async (t) => {
+test('a tray-only app relaunches in tray mode without launchd', { skip }, async (t) => {
   const world = makeWorld(t);
   const sha = world.commit();
   world.publish(sha);
   world.installApp('old', oldSha);
   world.running('tray', 'old');
-  world.idleMs = 0;
   await world.update();
   assert.equal(world.marker(), sha);
   assert.deepEqual(world.commands('launchctl'), []);
@@ -351,7 +345,6 @@ test('a closed app installs without launching and without an alive check', { ski
   const sha = world.commit();
   world.publish(sha);
   makeBundle(world.appPath, 'old');
-  world.idleMs = 0;
   await world.update();
   assert.equal(world.marker(), sha);
   assert.equal(world.process, null);
@@ -376,62 +369,20 @@ test('the rollback tarball holds exactly the previous bundle', { skip }, async (
   assert.equal(world.marker(join(unpack, APP_NAME)), 'old');
 });
 
-test('deferred while frontmost: clones still refresh, the verified bundle is kept and reused', { skip }, async (t) => {
-  const world = makeWorld(t);
-  const sha = world.commit();
-  const tarball = world.publish(sha);
-  world.installApp('old', oldSha);
-  world.running('window', 'old');
-  world.frontmost = true;
-  await world.update();
-  assertNoSwap(world, 'old');
-  assert.equal(world.head(world.devClone), sha);
-  assert.equal(world.head(world.productionClone), sha);
-  assert.equal(world.state().deferredSince, new Date(world.now).toISOString());
-
-  await world.update();
-  assert.equal(world.fetchCount(tarball), 1, 'second deferred run reuses the staged bundle');
-
-  world.frontmost = false;
-  await world.update();
-  assert.equal(world.marker(), sha);
-  assert.equal(world.fetchCount(tarball), 1, 'install reuses the staged bundle');
-  assert.equal(world.state().deferredSince, null);
-  assert.deepEqual(world.alerts, []);
-});
-
-test('a window with recent input defers, frontmost or not; 15 idle minutes proceed', { skip }, async (t) => {
+// Josh, 2026-11-08: close Happier if needed to refresh it. An app in use is not a reason to wait.
+test('an open app is closed and updated at once, however recently it was used, relaunching in the background', { skip }, async (t) => {
   const world = makeWorld(t);
   const sha = world.commit();
   world.publish(sha);
   world.installApp('old', oldSha);
   world.running('window', 'old');
-  world.idleMs = 15 * 60_000 - 1;
-  await world.update();
-  assertNoSwap(world, 'old');
-  world.idleMs = 15 * 60_000;
   await world.update();
   assert.equal(world.marker(), sha);
-});
-
-test('deferral beyond 24 hours alerts once', { skip }, async (t) => {
-  const world = makeWorld(t);
-  const sha = world.commit();
-  world.publish(sha);
-  world.installApp('old', oldSha);
-  world.running('window', 'old');
-  world.idleMs = 0;
-  await world.update();
-  world.now += 23 * HOUR;
-  await world.update();
+  assert.deepEqual(world.signals, ['SIGTERM']);
+  assert.deepEqual(world.commands('open'), [['-g', '-a', world.appPath]]);
+  assert.equal(world.process.mode, 'window');
+  assert.equal(world.state().installedSha, sha);
   assert.deepEqual(world.alerts, []);
-  world.now += 2 * HOUR;
-  await world.update();
-  assert.equal(world.alerts.length, 1);
-  assert.match(world.alerts[0], /deferred/i);
-  world.now += HOUR;
-  await world.update();
-  assert.equal(world.alerts.length, 1);
 });
 
 const refusals = [
@@ -675,12 +626,13 @@ test('a failure after quitting relaunches whatever is installed', { skip }, asyn
   world.publish(sha);
   world.installApp('old', oldSha);
   world.running('tray', 'old');
-  world.frontmost = true;
-  await world.update();
+  // The staged bundle becomes immovable after the quit, so the swap fails with the app down.
   const staged = join(world.stateDir, 'staging', sha, 'bundle');
-  assert.equal(world.marker(staged), sha);
-  run('chflags', ['uchg', staged]);
-  world.frontmost = false;
+  const kill = world.adapter.kill;
+  world.adapter.kill = (pid, signal) => {
+    kill(pid, signal);
+    run('chflags', ['uchg', staged]);
+  };
   await world.update();
   assert.deepEqual(world.signals, ['SIGTERM']);
   assert.equal(world.marker(), 'old');
@@ -698,15 +650,16 @@ test('a staged bundle that no longer verifies is replaced by a fresh download', 
   const tarball = world.publish(sha);
   world.installApp('old', oldSha);
   world.running('window', 'old');
-  world.frontmost = true;
+  // A quit timeout is what leaves a staged bundle waiting for the next run.
+  world.ignoreTerm = true;
   await world.update();
   const staged = join(world.stateDir, 'staging', sha, 'bundle');
   writeFileSync(join(staged, 'Contents', 'Resources', 'marker'), 'tampered');
-  world.frontmost = false;
+  world.ignoreTerm = false;
   await world.update();
   assert.equal(world.fetchCount(tarball), 2);
   assert.equal(world.marker(), sha);
-  assert.deepEqual(world.alerts, []);
+  assert.equal(world.alerts.length, 1, 'only the quit timeout alerted');
 });
 
 test('a relaunch that fails outside the alive check is alerted, not just logged', { skip }, async (t) => {
@@ -771,7 +724,7 @@ test('a waiting bundle is not named .app, so LaunchServices cannot offer it for 
   world.publish(sha);
   world.installApp('old', oldSha);
   world.running('window', 'old');
-  world.frontmost = true;
+  world.ignoreTerm = true;
   await world.update();
   const found = spawnSync('find', [join(world.stateDir, 'staging'), '-name', '*.app'], { encoding: 'utf8' }).stdout.trim();
   assert.equal(found, '');

@@ -24,7 +24,7 @@ machine and this main Omnia Happier app/repo is refreshed with the newest versio
 | Build | One Cassian-only step in the `build` job of `build-tauri.yml`, calling the documented `hstack build --tauri --tauri-production` with new `HAPPIER_STACK_TAURI_BUNDLES=app` | Reuses the tested fork identity owner; the runner group admits only this workflow |
 | Publish | Hosted job after promote, using the existing `github-publish-release` pipeline command with `GITHUB_TOKEN` | The reusable release workflow rejects the `andorcassian` actor; Cassian stays read-only |
 | Release form | Immutable per-SHA tag `omnia-nightly-<sha12>`, no rolling tag | The repository enforces immutable releases |
-| Local trigger | Hourly launchd agent, idempotent | A calendar job can fire on wake, defer, and wait a day |
+| Local trigger | Hourly launchd agent, idempotent | A calendar job misses a sleeping Mac and a network outage until the next day |
 | Installer source | Script runs from `happier-dev`, which only fast-forwards to certified release SHAs | Satisfies "invoked from a development checkout" without running uncertified code |
 | In-app updater | Stays disabled. This is an interim path until OH-5 lands | Updates are compile-time off, so there is no live competing decision-maker |
 | CLI and daemons | Out of scope | No fork CLI artifact exists and a swap would affect running sessions |
@@ -67,12 +67,13 @@ Each hourly run:
 1. Restore the app if a previous swap was interrupted.
 2. Read the latest release. Reject anything that breaks the contract above.
 3. Fast-forward `happier-dev` to the release SHA and update `happier-production`
-   through its guarded helper. This also happens while an app install is deferred.
+   through its guarded helper.
 4. Stop if the SHA is already installed or is held after a failed install.
 5. Download and verify: size, SHA-256, SHA reachable from `origin/production`,
    single-root tarball, strict codesign, bundle id, product name, arm64.
-6. Defer while the app is frontmost, or has a window and input was active in the last
-   15 minutes. Tray-only and closed states proceed.
+6. Install straight away, even while the app is in use (Josh, 2026-11-08). The first
+   rule deferred for 15 idle minutes, and the swap never happened, because this Mac
+   sleeps when Josh steps away.
 7. Save the current bundle as a tarball, SIGTERM the app, wait for exit, swap with two
    renames, relaunch in the previous mode, and confirm the new process stays alive.
    If it does not, roll back and hold that SHA.
@@ -89,5 +90,5 @@ the `happier://` handler.
 - A dead Mac agent cannot report itself.
 - Cassian has no auto-login, so after a reboot its runner stays offline until someone
   logs in. The watchdog reports this.
-- A launchd job may rename an ad-hoc bundle in `/Applications` (probed with a copy on
-  2026-11-05). A real swap, and a Cassian-built bundle launching here, are still unproven.
+- A real swap installed the Cassian-built `da49cd8622` on 2026-11-05; Josh confirmed login
+  and sessions survived. Nights with no change skipped on 2026-11-07 and 2026-11-08.
