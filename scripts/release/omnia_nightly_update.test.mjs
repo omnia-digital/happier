@@ -149,6 +149,10 @@ process.exit(result.status ?? 1);
     ignoreTerm: false,
     crashMarkers: new Set(),
     alerts: [],
+    prompts: [],
+    promptsClosed: 0,
+    // Stands for Josh clicking Install now before each run; the prompt tests turn it off.
+    approveInstalls: true,
     calls: [],
     signals: [],
     sleeps: [],
@@ -170,6 +174,8 @@ process.exit(result.status ?? 1);
     },
     log: (line) => world.logs.push(line),
     showDialog: (message) => world.alerts.push(message),
+    showInstallPrompt: (sha) => world.prompts.push(sha),
+    closeInstallPrompts: () => { world.promptsClosed += 1; },
     kill: (pid, signal) => {
       world.signals.push(signal);
       assert.equal(pid, world.process?.pid);
@@ -277,7 +283,17 @@ process.exit(result.status ?? 1);
   world.state = () => JSON.parse(readFileSync(join(stateDir, 'state.json'), 'utf8'));
   world.marker = (app = appPath) => readFileSync(join(app, 'Contents', 'Resources', 'marker'), 'utf8');
   world.running = (mode, marker) => { world.process = { pid: 500, marker, mode }; };
-  world.update = () => runUpdate(config, world.adapter);
+  world.installRequest = join(stateDir, 'install-now');
+  world.clickInstallNow = (sha) => {
+    mkdirSync(stateDir, { recursive: true });
+    writeFileSync(world.installRequest, sha);
+  };
+  world.update = () => {
+    if (world.approveInstalls && world.release) {
+      world.clickInstallNow(JSON.parse(world.assets.get(world.release.assets[1].browser_download_url)).sourceSha);
+    }
+    return runUpdate(config, world.adapter);
+  };
   world.commands = (command) => world.calls.filter(([name]) => name === command).map(([, args]) => args);
   world.head = (clone) => git(clone, 'rev-parse', 'HEAD');
   world.fetchCount = (url) => world.fetched.filter((seen) => seen === url).length;
@@ -340,12 +356,14 @@ test('a tray-only app relaunches in tray mode without launchd', { skip }, async 
   assert.equal(world.process.mode, 'tray');
 });
 
-test('a closed app installs without launching and without an alive check', { skip }, async (t) => {
+test('a closed app installs without launching, asking or an alive check', { skip }, async (t) => {
   const world = makeWorld(t);
   const sha = world.commit();
   world.publish(sha);
   makeBundle(world.appPath, 'old');
+  world.approveInstalls = false;
   await world.update();
+  assert.deepEqual(world.prompts, []);
   assert.equal(world.marker(), sha);
   assert.equal(world.process, null);
   assert.deepEqual(world.commands('open'), []);
@@ -353,6 +371,113 @@ test('a closed app installs without launching and without an alive check', { ski
   assert.deepEqual(world.sleeps, []);
   assert.deepEqual(world.rollbacks(), ['Omnia Happier pre-nightly.tar.gz']);
   assert.equal(world.state().installedSha, sha);
+});
+
+test('an open app asks first, and Install now installs on the next run', { skip }, async (t) => {
+  const world = makeWorld(t);
+  const sha = world.commit();
+  world.publish(sha);
+  world.installApp('old', oldSha);
+  world.running('window', 'old');
+  world.approveInstalls = false;
+  await world.update();
+  assert.deepEqual(world.prompts, [sha]);
+  assertNoSwap(world, 'old');
+  assert.equal(world.head(world.productionClone), sha, 'clones refresh while it asks');
+
+  world.now += 5 * 60_000;
+  await world.update();
+  assert.deepEqual(world.prompts, [sha], 'asks once per release');
+  assert.equal(world.marker(), 'old');
+
+  world.clickInstallNow(sha);
+  world.now += 60_000;
+  await world.update();
+  assert.equal(world.marker(), sha);
+  assert.equal(world.process.mode, 'window');
+  assert.equal(existsSync(world.installRequest), false);
+  assert.ok(world.promptsClosed >= 1, 'the open prompt is closed once installed');
+  assert.equal(world.state().prompt, null);
+  assert.deepEqual(world.alerts, []);
+});
+
+test('without a click it installs an hour after asking, and ignores a request for another release', { skip }, async (t) => {
+  const world = makeWorld(t);
+  const sha = world.commit();
+  world.publish(sha);
+  world.installApp('old', oldSha);
+  world.running('tray', 'old');
+  world.approveInstalls = false;
+  await world.update();
+  world.clickInstallNow(oldSha);
+  world.now += 60 * 60_000 - 1;
+  await world.update();
+  assert.equal(world.marker(), 'old');
+  world.now += 1;
+  await world.update();
+  assert.equal(world.marker(), sha);
+  assert.equal(world.process.mode, 'tray');
+  assert.equal(existsSync(world.installRequest), false);
+});
+
+test('a failed install with the app open keeps its approval: one prompt and one alert across many runs', { skip }, async (t) => {
+  const world = makeWorld(t);
+  const sha = world.commit();
+  world.publish(sha);
+  world.installApp('old', oldSha);
+  world.running('window', 'old');
+  world.approveInstalls = false;
+  run('chflags', ['uchg', world.appPath]);
+  for (let minutes = 0; minutes <= 135; minutes += 5) {
+    await world.update();
+    world.now += 5 * 60_000;
+  }
+  assert.deepEqual(world.prompts, [sha]);
+  assert.equal(world.alerts.length, 1);
+  assert.match(world.alerts[0], /App Management/);
+  assert.equal(world.process.marker, 'old', 'the running app was never stopped');
+  run('chflags', ['nouchg', world.appPath]);
+  await world.update();
+  assert.equal(world.marker(), sha, 'installs once the permission is granted, without asking again');
+  assert.deepEqual(world.prompts, [sha]);
+});
+
+test('after a quit timeout, a late exit installs on the next run without asking again', { skip }, async (t) => {
+  const world = makeWorld(t);
+  const sha = world.commit();
+  world.publish(sha);
+  world.installApp('old', oldSha);
+  world.running('window', 'old');
+  world.approveInstalls = false;
+  await world.update();
+  world.clickInstallNow(sha);
+  world.ignoreTerm = true;
+  world.now += 60_000;
+  await world.update();
+  assert.equal(world.marker(), 'old');
+  world.process = null;
+  world.ignoreTerm = false;
+  world.now += 5 * 60_000;
+  await world.update();
+  assert.equal(world.marker(), sha);
+  assert.equal(world.process.marker, sha);
+  assert.deepEqual(world.prompts, [sha]);
+});
+
+test('a newer release asks again', { skip }, async (t) => {
+  const world = makeWorld(t);
+  const first = world.commit();
+  world.publish(first);
+  world.installApp('old', oldSha);
+  world.running('window', 'old');
+  world.approveInstalls = false;
+  await world.update();
+  const second = world.commit();
+  world.publish(second);
+  world.now += 5 * 60_000;
+  await world.update();
+  assert.deepEqual(world.prompts, [first, second]);
+  assert.equal(world.marker(), 'old', 'the newer release gets its own hour');
 });
 
 test('the rollback tarball holds exactly the previous bundle', { skip }, async (t) => {
@@ -947,7 +1072,7 @@ test('install writes the launch agent and bootstraps it from the dev clone', { s
   assert.deepEqual(parsed, {
     Label: 'com.omnia.happier.nightly-update',
     ProgramArguments: ['/opt/homebrew/bin/node', world.config.scriptPath, 'run'],
-    StartInterval: 3600,
+    StartInterval: 300,
     RunAtLoad: true,
     LimitLoadToSessionType: 'Aqua',
     EnvironmentVariables: { PATH: '/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin' },
@@ -978,6 +1103,7 @@ test('status reports a healthy machine and exits zero', { skip }, async (t) => {
   const sha = world.commit();
   world.publish(sha);
   world.installApp(sha);
+  installAgent(world.config, world.adapter);
   await world.update();
   world.logs.length = 0;
   assert.equal(await printStatus(world.config, world.adapter), 0);
@@ -986,10 +1112,29 @@ test('status reports a healthy machine and exits zero', { skip }, async (t) => {
   assert.ok(output.includes(releaseTagForSha(sha)), output);
 });
 
+test('status flags a launch agent written by an older version', { skip }, async (t) => {
+  const world = makeWorld(t);
+  const sha = world.commit();
+  world.publish(sha);
+  world.installApp(sha);
+  installAgent(world.config, world.adapter);
+  const plist = join(world.config.launchAgentsDir, 'com.omnia.happier.nightly-update.plist');
+  writeFileSync(plist, readFileSync(plist, 'utf8').replace('<integer>300</integer>', '<integer>3600</integer>'));
+  await world.update();
+  world.logs.length = 0;
+  assert.equal(await printStatus(world.config, world.adapter), 1);
+  assert.match(world.logs.join('\n'), /reinstall|install again/i);
+  rmSync(plist);
+  world.logs.length = 0;
+  assert.equal(await printStatus(world.config, world.adapter), 1);
+  assert.match(world.logs.join('\n'), /not installed/i);
+});
+
 test('status exits non-zero and says why for a hold, an error, a missing app or no network', { skip }, async (t) => {
   const world = makeWorld(t);
   const sha = world.commit();
   world.publish(sha);
+  installAgent(world.config, world.adapter);
   const fresh = new Date(world.now).toISOString();
   const statusOf = async () => {
     world.logs.length = 0;

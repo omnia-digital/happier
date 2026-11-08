@@ -17,8 +17,8 @@ import {
 } from './nightly-release-contract.mjs';
 import { updateProductionCheckout } from './production-checkout.mjs';
 
-// Hourly macOS agent: installs the newest Omnia nightly release and keeps the two
-// permanent clones on it. See docs/plans/nightly-omnia-release-auto-install/plan.md.
+// macOS agent, run every 5 minutes: installs the newest Omnia nightly release and keeps
+// the two permanent clones on it. See docs/plans/nightly-omnia-release-auto-install/plan.md.
 
 const API = 'https://api.github.com/repos/omnia-digital/happier';
 const AGENT_LABEL = 'com.omnia.happier.nightly-update';
@@ -27,6 +27,13 @@ const AGENT_PATH = '/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin';
 const USAGE = 'Usage: node scripts/fork/omnia-nightly-update.mjs <install|run|status>';
 
 const HOUR = 3_600_000;
+// Polls often so the Install now prompt appears soon after a release lands.
+const START_INTERVAL_SECONDS = 300;
+// With the app open, Josh gets this long to click Install now before it installs anyway.
+// It keeps the hourly bound he accepted on 2026-11-08, when installs stopped waiting for him.
+const PROMPT_GRACE_MS = HOUR;
+// The prompt dialog's title, also used to find and close an open prompt.
+const PROMPT_TITLE = 'Omnia Happier update ready';
 // One nightly period plus a two hour margin.
 const STALE_MS = 26 * HOUR;
 const QUIT_TIMEOUT_MS = 30_000;
@@ -71,15 +78,33 @@ export const systemAdapter = {
   sleep: (ms) => new Promise((done) => { setTimeout(done, ms); }),
   log: (line) => console.log(line),
   // Notifications from osascript do not appear on this Mac, so alerts are dialogs. Detached
-  // because a dialog stays up until clicked and must not hold the hourly run open. No default
+  // because a dialog stays up until clicked and must not hold a run open. No default
   // button, so pressing Return while typing cannot dismiss one unread.
   showDialog(message) {
     const script = ['on run argv', 'display alert "Omnia Happier update" message (item 1 of argv) as critical buttons {"OK"}', 'end run'];
-    const child = spawn('osascript', [...script.flatMap((line) => ['-e', line]), message], { detached: true, stdio: 'ignore' });
-    child.on('error', (error) => console.error(`Could not show the alert dialog: ${error.message}`));
-    child.unref();
+    detach('osascript', [...script.flatMap((line) => ['-e', line]), message]);
+  },
+  // Install now records the request and starts a run at once. The shell receives every value
+  // as a positional argument, so nothing is interpolated into it.
+  showInstallPrompt(sha, requestPath, agentTarget) {
+    const script = ['on run argv', `display alert "${PROMPT_TITLE}" message (item 1 of argv) buttons {"Later", "Install now"}`, 'end run'];
+    const ask = ['osascript', ...script.flatMap((line) => ['-e', line])].map((word) => `'${word.replaceAll("'", "'\\''")}'`).join(' ');
+    const message = `Nightly ${sha.slice(0, 12)} is ready. Install now closes and reopens Omnia Happier; your sessions keep running. Otherwise it installs within the hour.`;
+    detach('/bin/sh', ['-c', `case "$(${ask} "$1")" in *"Install now"*) printf %s "$2" > "$3" && launchctl kickstart "$4";; esac`, 'prompt', message, sha, requestPath, agentTarget]);
+  },
+  // Anchored to the dialog's own command line: a bare title would also match any search or
+  // shell whose arguments mention it. The wrapping shell exits once its osascript is gone.
+  closeInstallPrompts() {
+    spawnSync('pkill', ['-f', `^osascript -e on run argv -e display alert "${PROMPT_TITLE}"`]);
   },
 };
+
+// Dialogs stay up until clicked, so they run detached and must not hold the run open.
+function detach(command, args) {
+  const child = spawn(command, args, { detached: true, stdio: 'ignore' });
+  child.on('error', (error) => console.error(`Could not show a dialog: ${error.message}`));
+  child.unref();
+}
 
 function git(cwd, ...args) {
   const result = spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer: Infinity, env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } });
@@ -98,9 +123,11 @@ function loadState(config) {
     installedSha: null,
     heldSha: null,
     lastSuccessfulCheckAt: null,
-    // Every alert standing after the last complete run. One key would let two standing problems alternate hourly.
+    // Every alert standing after the last complete run. One key would let two standing problems alternate run to run.
     lastAlertKeys: [],
     swap: null,
+    // The release the Install now prompt was shown for, and when.
+    prompt: null,
     lastError: null,
   };
   const path = join(config.stateDir, 'state.json');
@@ -445,10 +472,40 @@ async function applyLatestRelease(ctx) {
 
   const staged = await stageRelease(ctx, release, manifest);
   const pid = findPid(ctx);
+  if (pid && !installApproved(ctx, sha)) return;
   // Josh, 2026-11-08: close the app if needed to refresh it, even while it is in use.
   // Sessions belong to the daemon, and the relaunch does not take focus.
   const mode = pid ? appMode(ctx, pid) : 'none';
-  await installStaged(ctx, sha, staged, pid, mode);
+  try {
+    await installStaged(ctx, sha, staged, pid, mode);
+  } finally {
+    // Only an installed or held release ends the question. After a failure or a quit timeout the
+    // approval stands, so the next run retries without asking again or restarting the hour.
+    if (ctx.state.installedSha === sha || ctx.state.heldSha === sha) {
+      rmSync(ctx.installRequest, { force: true });
+      ctx.state.prompt = null;
+      ctx.adapter.closeInstallPrompts();
+    }
+  }
+}
+
+/** With the app open: ask once per release, then install on Install now or after the grace period. */
+function installApproved(ctx, sha) {
+  const requested = existsSync(ctx.installRequest) && readFileSync(ctx.installRequest, 'utf8').trim() === sha;
+  if (requested) return true;
+  if (ctx.state.prompt?.sha !== sha) {
+    ctx.adapter.closeInstallPrompts();
+    ctx.state.prompt = { sha, at: new Date(ctx.adapter.now()).toISOString() };
+    saveState(ctx);
+    ctx.adapter.showInstallPrompt(sha, ctx.installRequest, `gui/${ctx.config.uid}/${AGENT_LABEL}`);
+    log(ctx, `Asked to install ${sha}.`);
+    return false;
+  }
+  if (ctx.adapter.now() - Date.parse(ctx.state.prompt.at) >= PROMPT_GRACE_MS) {
+    log(ctx, `Installing ${sha}: no answer within the hour.`);
+    return true;
+  }
+  return false;
 }
 
 /** Step 8. GitHub lists runs newest first, and one page covers far more than the 26 hour window. */
@@ -486,6 +543,7 @@ function open(config, adapter) {
     stateCorrupt: corrupt,
     outgoing: join(config.stateDir, 'outgoing.app'),
     stagingDir: join(config.stateDir, 'staging'),
+    installRequest: join(config.stateDir, 'install-now'),
     raised: new Map(),
     incomplete: false,
   };
@@ -528,7 +586,7 @@ export function installAgent(config, adapter) {
 <plist version="1.0"><dict>
 <key>Label</key>${plistString(AGENT_LABEL)}
 <key>ProgramArguments</key><array>${plistString(config.nodePath)}${plistString(script)}${plistString('run')}</array>
-<key>StartInterval</key><integer>3600</integer>
+<key>StartInterval</key><integer>${START_INTERVAL_SECONDS}</integer>
 <key>RunAtLoad</key><true/>
 <key>LimitLoadToSessionType</key>${plistString('Aqua')}
 <key>EnvironmentVariables</key><dict><key>PATH</key>${plistString(AGENT_PATH)}</dict>
@@ -560,6 +618,14 @@ export async function printStatus(config, adapter) {
     problems.push(error.message);
   }
   if (!existsSync(config.appPath)) problems.push(`${config.appPath} is missing.`);
+  const plistPath = join(config.launchAgentsDir, `${AGENT_LABEL}.plist`);
+  if (!existsSync(plistPath)) {
+    problems.push('The launch agent is not installed. Run install from happier-dev.');
+  } else {
+    // Only install writes the plist, so a release that changes it needs install run again.
+    const interval = /<key>StartInterval<\/key><integer>(\d+)<\/integer>/.exec(readFileSync(plistPath, 'utf8'))?.[1];
+    if (Number(interval) !== START_INTERVAL_SECONDS) problems.push(`The launch agent runs every ${interval ?? '?'} seconds, not ${START_INTERVAL_SECONDS}. Run install again from happier-dev.`);
+  }
   if (state.heldSha) problems.push(`Held after a failed install: ${state.heldSha}`);
   if (state.lastError) problems.push(`Last error: ${state.lastError}`);
   if (!state.lastSuccessfulCheckAt || adapter.now() - Date.parse(state.lastSuccessfulCheckAt) > STALE_MS) {
@@ -567,7 +633,7 @@ export async function printStatus(config, adapter) {
   }
   adapter.log(`Installed: ${state.installedSha ?? 'unknown'}`);
   adapter.log(`Latest release: ${latest}`);
-  adapter.log(`State: ${problems.length ? 'needs attention' : 'ok'}`);
+  adapter.log(`State: ${problems.length ? 'needs attention' : state.prompt ? `asked to install ${state.prompt.sha.slice(0, 12)} at ${state.prompt.at}` : 'ok'}`);
   adapter.log(`Last successful check: ${state.lastSuccessfulCheckAt ?? 'never'}`);
   for (const problem of problems) adapter.log(problem);
   return problems.length ? 1 : 0;
