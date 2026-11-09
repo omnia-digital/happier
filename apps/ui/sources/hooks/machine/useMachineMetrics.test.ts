@@ -59,7 +59,7 @@ describe('machine monitor target lifecycle', () => {
         expect(rpc).toHaveBeenCalledTimes(2);
     });
 
-    it('keeps the healthy host on its original 180-second cadence when another target goes offline', async () => {
+    it('keeps the healthy host on its original 60-second cadence when another target goes offline', async () => {
         vi.useFakeTimers();
         const absent = { status: 'unavailable', reason: 'no-supported-gpu' };
         rpc.mockImplementation(async ({ machineId }: { machineId: string }) => ({ ok: true, result: {
@@ -73,9 +73,9 @@ describe('machine monitor target lifecycle', () => {
         await vi.advanceTimersByTimeAsync(0);
         const healthyCalls = () => rpc.mock.calls.filter(([request]) => request.machineId === 'healthy-host').length;
         expect(healthyCalls()).toBe(1);
-        await vi.advanceTimersByTimeAsync(60_000);
+        await vi.advanceTimersByTimeAsync(20_000);
         await hook.rerender({ targets: [{ machineId: 'healthy-host', online: true }, { machineId: 'changing-host', online: false }] });
-        await vi.advanceTimersByTimeAsync(119_999);
+        await vi.advanceTimersByTimeAsync(39_999);
         expect(healthyCalls()).toBe(1);
         await vi.advanceTimersByTimeAsync(1);
         expect(healthyCalls()).toBe(2);

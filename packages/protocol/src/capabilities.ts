@@ -3,7 +3,7 @@ import { z } from 'zod';
 export type CapabilityKind = 'cli' | 'tool' | 'dep';
 
 export const MACHINE_METRICS_CAPABILITY_ID = 'tool.machineMetrics' as const;
-export const MACHINE_METRICS_REFRESH_MS = 180_000;
+export const MACHINE_METRICS_REFRESH_MS = 60_000;
 // Existing interactive capability-invoke budget, shared by its UI owner and the
 // receiving host snapshot. Effectful capabilities may explicitly request longer.
 export const DEFAULT_CAPABILITIES_INVOKE_TIMEOUT_MS = 30_000;

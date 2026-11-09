@@ -594,7 +594,7 @@ export const ca: TranslationStructure = {
     machineMonitoring: {
         title: "Màquines",
         empty: "No hi ha màquines connectades.",
-        cadence: "S’actualitza cada 3 min mentre és visible.",
+        cadence: "S’actualitza cada minut mentre és visible.",
         olderCli: "La CLI d’aquesta màquina no admet mètriques del sistema. Les CLI publicades no les inclouen, així que actualitzar l’app o la CLI no les afegirà. Instal·la la CLI del fork en aquesta màquina i després reinicia’n el dimoni.",
         readFailed: "No s’han pogut llegir les mètriques. Es tornarà a provar.",
         loading: "Llegint mètriques…",

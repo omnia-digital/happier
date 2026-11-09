@@ -38,7 +38,7 @@ test.describe('OH59 actual local collector through authenticated fixture machine
     let heartbeat: ReturnType<typeof setInterval> | null = null;
     let selectedSessionId = '';
     let canonicalServerId = '';
-    const samples: Array<{ machineId: string; cpu: unknown; memory: unknown; storage: unknown; gpu: MachineMetricsSnapshot['gpu']; load: unknown; collectionMs: number; processCpuMs: number; eventLoopActiveMs: number }> = [];
+    const samples: Array<{ at: number; machineId: string; cpu: unknown; memory: unknown; storage: unknown; gpu: MachineMetricsSnapshot['gpu']; load: unknown; collectionMs: number; processCpuMs: number; eventLoopActiveMs: number }> = [];
     let localRequests = 0;
     const shellRequests: Array<{ argv: readonly string[]; cwd: unknown; timeout: unknown }> = [];
 
@@ -90,11 +90,12 @@ test.describe('OH59 actual local collector through authenticated fixture machine
                 if (params.id !== 'tool.machineMetrics' || params.method !== 'snapshot') return { ok: false, error: { code: 'unsupported-capability', message: 'Unsupported fixture capability' } };
                 if (machineId !== LOCAL) return { ok: false, error: { code: 'unsupported-capability', message: 'Unsupported capability: tool.machineMetrics' } };
                 localRequests++;
+                const requestedAt = Date.now();
                 const beforeCpu = process.cpuUsage();
                 const beforeLoop = performance.eventLoopUtilization();
                 const result = await collectHostMetrics(machineId);
                 const cpu = process.cpuUsage(beforeCpu);
-                samples.push({ machineId, cpu: result.cpu, memory: result.memory, storage: result.storage, gpu: result.gpu, load: result.load,
+                samples.push({ at: requestedAt, machineId, cpu: result.cpu, memory: result.memory, storage: result.storage, gpu: result.gpu, load: result.load,
                     collectionMs: result.collectionMs, processCpuMs: (cpu.user + cpu.system) / 1000,
                     eventLoopActiveMs: performance.eventLoopUtilization(beforeLoop).active });
                 return { ok: true, result };
@@ -117,8 +118,8 @@ test.describe('OH59 actual local collector through authenticated fixture machine
         await ui?.stop(); await stopProxy?.(); await server?.stop();
     });
 
-    test('shows real host readings independently of the selected session, refreshes after 180s and handles disconnect/reconnect', async ({ page }, testInfo) => {
-        // Three-minute refresh plus both canonical presence-grace transitions,
+    test('shows real host readings independently of the selected session, refreshes every 60s and handles disconnect/reconnect', async ({ page }, testInfo) => {
+        // One-minute refreshes plus both canonical presence-grace transitions,
         // initial browser readiness and interactive verification share this budget.
         test.setTimeout(600_000);
         const diagnostics = collectBrowserDiagnostics({ page });
@@ -141,8 +142,8 @@ test.describe('OH59 actual local collector through authenticated fixture machine
             const legacyGlyph = page.getByTestId(`machine-monitoring-${LEGACY}`).locator('svg').first();
             expect(await localGlyph.evaluate((element) => getComputedStyle(element).color)).not.toBe(await legacyGlyph.evaluate((element) => getComputedStyle(element).color));
             expect(await localGlyph.innerHTML()).not.toBe(await legacyGlyph.innerHTML());
-            expect(samples).toHaveLength(1);
-            expect(localRequests).toBe(1);
+            expect(samples.length).toBeGreaterThanOrEqual(1);
+            expect(localRequests - samples.length).toBeLessThanOrEqual(1); // at most one read still collecting
             await page.getByTestId(`session-list-item-${selectedSessionId}`).click();
             await expect(page).toHaveURL(new RegExp(`/session/${selectedSessionId}`));
             await expect(local).toContainText('Local Mac · actual host');
@@ -164,9 +165,13 @@ test.describe('OH59 actual local collector through authenticated fixture machine
             expect(monitoringBounds!.y + monitoringBounds!.height).toBeLessThanOrEqual(newSessionBounds!.y);
             await page.screenshot({ path: join(suiteDir, 'machine-monitoring-narrow-details.png') });
             await page.getByTestId(`machine-monitoring-${LOCAL}-details`).click();
-            // This is the real 180-second product cadence, not a changed build flag or fixture timer.
-            await expect.poll(() => samples.length, { timeout: 195_000, intervals: [1000] }).toBe(2);
-            expect(localRequests).toBe(2);
+            // This is the real 60-second product cadence, not a changed build flag or fixture timer:
+            // consecutive requests land about a minute apart. 55 s still rejects any extra read.
+            await expect.poll(() => samples.length, { timeout: 75_000, intervals: [1000] }).toBeGreaterThanOrEqual(2);
+            const connectedGaps = samples.slice(1).map((sample, index) => sample.at - samples[index].at);
+            expect(Math.min(...connectedGaps)).toBeGreaterThanOrEqual(55_000);
+            expect(Math.max(...connectedGaps)).toBeLessThan(75_000);
+            expect(localRequests - samples.length).toBeLessThanOrEqual(1); // at most one read still collecting
             const actualSocket = sockets.get(LOCAL)!;
             actualSocket.disconnect();
             await expect(local).toContainText('offline', { timeout: 125_000 });
@@ -174,14 +179,16 @@ test.describe('OH59 actual local collector through authenticated fixture machine
             actualSocket.connect();
             await expect.poll(() => actualSocket.isConnected()).toBe(true);
             await actualSocket.rpcRegister(`${LOCAL}:${RPC_METHODS.CAPABILITIES_INVOKE}`);
+            const readsBeforeReconnect = samples.length;
             actualSocket.emit('machine-alive', { machineId: LOCAL, time: Date.now() });
-            await expect.poll(() => samples.length, { timeout: 30_000 }).toBe(3);
+            await expect.poll(() => samples.length, { timeout: 30_000 }).toBeGreaterThan(readsBeforeReconnect);
             await expect(local).not.toContainText('Previous reading');
             await page.getByTestId('machine-monitoring-toggle').click();
             await expect(local).toHaveCount(0);
             await page.getByTestId('machine-monitoring-toggle').click();
             await expect(local).toContainText(/CPU \d+%/);
-            expect(samples).toHaveLength(3);
+            // Navigation and collapsing/expanding the section never add a read inside the cadence.
+            expect(Math.min(...samples.slice(1).map((sample, index) => sample.at - samples[index].at))).toBeGreaterThanOrEqual(55_000);
             await page.screenshot({ path: join(suiteDir, 'machine-monitoring-reconnected.png') });
             await page.getByText('Start New Session', { exact: true }).click();
             await expect(page).toHaveURL(/\/new(?:\?|$)/);
