@@ -418,7 +418,7 @@ export const en = {
     machineMonitoring: {
         title: "Machines",
         empty: "No machines connected.",
-        cadence: "Refreshes every 3 min while visible.",
+        cadence: "Refreshes every minute while visible.",
         olderCli: "This machine CLI does not support host metrics. Released CLIs don't include them, so updating the app or CLI won't add them. Install the fork CLI on this machine, then restart its daemon.",
         readFailed: "Could not read host metrics. Will retry.",
         loading: "Reading host metrics…",

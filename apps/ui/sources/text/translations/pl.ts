@@ -615,7 +615,7 @@ export const pl: TranslationStructure = {
     machineMonitoring: {
         title: "Maszyny",
         empty: "Brak połączonych maszyn.",
-        cadence: "Odświeżanie co 3 min, gdy widoczne.",
+        cadence: "Odświeżanie co minutę, gdy widoczne.",
         olderCli: "CLI tej maszyny nie obsługuje pomiarów hosta. Wydane wersje CLI ich nie zawierają, więc aktualizacja aplikacji ani CLI ich nie doda. Zainstaluj na tej maszynie CLI z forka, a potem zrestartuj daemona.",
         readFailed: "Nie można odczytać pomiarów. Próba zostanie ponowiona.",
         loading: "Odczytywanie pomiarów…",

@@ -587,7 +587,7 @@ export const ja: TranslationStructure = {
     machineMonitoring: {
         title: "マシン",
         empty: "接続されたマシンはありません。",
-        cadence: "表示中は3分ごとに更新します。",
+        cadence: "表示中は1分ごとに更新します。",
         olderCli: "このマシンのCLIはホストの指標に対応していません。リリース版のCLIには含まれていないため、アプリやCLIを更新しても追加されません。このマシンにフォーク版CLIをインストールしてから、デーモンを再起動してください。",
         readFailed: "ホストの指標を取得できませんでした。再試行します。",
         loading: "ホストの指標を取得中…",

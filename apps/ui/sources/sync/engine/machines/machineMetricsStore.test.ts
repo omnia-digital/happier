@@ -12,7 +12,7 @@ const snapshot = (machineId: string): MachineMetricsSnapshot => ({
 afterEach(() => vi.useRealTimers());
 
 describe('machine metrics subscription and polling owner', () => {
-    it('refreshes actual online machine targets at 180 seconds, isolates row notifications and retains offline readings', async () => {
+    it('refreshes actual online machine targets every 60 seconds, isolates row notifications and retains offline readings', async () => {
         vi.useFakeTimers();
         const calls: string[] = [];
         const store = createMachineMetricsStore({
@@ -27,7 +27,7 @@ describe('machine metrics subscription and polling owner', () => {
         expect(calls).toEqual(['mac', 'windows']);
         expect(otherRow).not.toHaveBeenCalled();
         expect(store.get(scope, 'offline').status).toBe('offline');
-        await vi.advanceTimersByTimeAsync(179_999);
+        await vi.advanceTimersByTimeAsync(59_999);
         expect(calls).toHaveLength(2);
         await vi.advanceTimersByTimeAsync(1);
         expect(calls).toEqual(['mac', 'windows', 'mac', 'windows']);
@@ -37,7 +37,7 @@ describe('machine metrics subscription and polling owner', () => {
         expect(store.get(scope, 'mac')).toMatchObject({ status: 'offline', snapshot: previous });
         expect(store.get({ ...scope, accountId: 'other-account' }, 'mac').snapshot).toBeNull();
         stopOffline.release(); stopOtherRow();
-        await vi.advanceTimersByTimeAsync(180_000);
+        await vi.advanceTimersByTimeAsync(60_000);
         expect(calls).toHaveLength(4);
     });
 
@@ -133,7 +133,7 @@ describe('machine metrics subscription and polling owner', () => {
         expect(count).toBe(0); stop.release();
     });
 
-    it('loads a missing reading on foreground resume without waiting for the first 180-second deadline', async () => {
+    it('loads a missing reading on foreground resume without waiting for the first 60-second deadline', async () => {
         let active = false;
         let resume: () => void = () => undefined;
         let count = 0;

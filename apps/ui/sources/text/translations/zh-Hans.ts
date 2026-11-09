@@ -602,7 +602,7 @@ export const zhHans: TranslationStructure = {
     machineMonitoring: {
         title: "机器",
         empty: "没有已连接的机器。",
-        cadence: "显示时每3分钟刷新。",
+        cadence: "显示时每分钟刷新。",
         olderCli: "此机器的CLI不支持主机指标。已发布的CLI不包含这些指标，因此更新应用或CLI不会添加它们。请在此机器上安装fork版CLI，然后重启其守护进程。",
         readFailed: "无法读取主机指标，将重试。",
         loading: "正在读取主机指标…",
