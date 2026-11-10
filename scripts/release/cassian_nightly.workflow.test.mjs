@@ -29,6 +29,7 @@ test('Cassian admission accepts only the fork nightly with a dev ancestor source
     CASSIAN_BUILD: 'true',
     CALLER_WORKFLOW_REF: 'omnia-digital/happier/.github/workflows/omnia-production.yml@refs/heads/dev',
     GITHUB_REPOSITORY: 'omnia-digital/happier',
+    GITHUB_REPOSITORY_OWNER: 'omnia-digital',
     GITHUB_REF: 'refs/heads/dev',
     GITHUB_SHA: trigger,
     GITHUB_EVENT_NAME: 'schedule',
@@ -53,8 +54,20 @@ echo "$COMPARE_STATUS"
     }
     const exact = run({ SOURCE_REF: trigger, COMPARE_STATUS: 'behind' });
     assert.equal(exact.status, 0, exact.stderr);
+    // Josh is renaming the repository to omnia-digital/command-center; admission must not depend on the name.
+    const renamed = run({
+      GITHUB_REPOSITORY: 'omnia-digital/command-center',
+      CALLER_WORKFLOW_REF: 'omnia-digital/command-center/.github/workflows/omnia-production.yml@refs/heads/dev',
+    });
+    assert.equal(renamed.status, 0, renamed.stderr);
     for (const override of [
       { GITHUB_REPOSITORY: 'attacker/happier' },
+      {
+        GITHUB_REPOSITORY: 'attacker/happier',
+        GITHUB_REPOSITORY_OWNER: 'attacker',
+        CALLER_WORKFLOW_REF: 'attacker/happier/.github/workflows/omnia-production.yml@refs/heads/dev',
+      },
+      { CALLER_WORKFLOW_REF: 'omnia-digital/another-repo/.github/workflows/omnia-production.yml@refs/heads/dev' },
       { GITHUB_REF: 'refs/pull/1/merge' },
       { GITHUB_EVENT_NAME: 'pull_request_target' },
       { CALLER_WORKFLOW_REF: 'omnia-digital/happier/.github/workflows/untrusted.yml@refs/heads/dev' },

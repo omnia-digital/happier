@@ -20,7 +20,9 @@ test('Omnia nightly promotes only a selected source with successful canonical de
   const candidate = configured.jobs.candidate;
   const verify = configured.jobs.verify_source_ci;
   const promote = configured.jobs.promote;
-  assert.match(candidate.if, /github\.repository == 'omnia-digital\/happier'/);
+  // Bound to the organization, not the repository name, which Josh is changing to command-center.
+  assert.match(candidate.if, /github\.repository_owner == 'omnia-digital'/);
+  assert.doesNotMatch(candidate.if, /omnia-digital\//);
   assert.match(candidate.if, /github\.ref == 'refs\/heads\/dev'/);
   assert.deepEqual(candidate.permissions, { actions: 'read', contents: 'read' });
   assert.deepEqual(verify.permissions, { actions: 'read', contents: 'read' });
