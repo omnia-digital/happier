@@ -33,8 +33,8 @@ import { installAgent, printStatus, runUpdate } from '../fork/omnia-nightly-upda
 import { protectProductionCheckout } from '../fork/production-checkout.mjs';
 
 const skip = process.platform !== 'darwin';
-const githubUrl = 'https://github.com/omnia-digital/happier.git';
-const api = 'https://api.github.com/repos/omnia-digital/happier';
+const githubUrl = 'https://github.com/omnia-digital/autopilot.git';
+const api = 'https://api.github.com/repos/omnia-digital/autopilot';
 const HOUR = 3_600_000;
 const realGit = spawnSync('which', ['git'], { encoding: 'utf8' }).stdout.trim();
 const oldSha = 'f'.repeat(40);
@@ -83,11 +83,11 @@ function makeBundle(appPath, marker, { bundleId = BUNDLE_ID } = {}) {
 
 /** Real git, tar, codesign and filesystem; the session, network and clock are the faked boundary. */
 function makeWorld(t) {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'omnia-nightly-')));
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'autopilot-nightly-')));
   const source = join(root, 'source');
   const remote = join(root, 'origin.git');
-  const productionClone = join(root, 'happier-production');
-  const devClone = join(root, 'happier-dev');
+  const productionClone = join(root, 'autopilot-production');
+  const devClone = join(root, 'autopilot-dev');
   const bin = join(root, 'bin');
   mkdirSync(source);
   mkdirSync(bin);
@@ -120,7 +120,7 @@ process.exit(result.status ?? 1);
   protectProductionCheckout(productionClone);
 
   const applications = join(root, 'Applications');
-  const support = join(root, 'Application Support', 'Omnia Happier');
+  const support = join(root, 'Application Support', 'Autopilot');
   mkdirSync(applications);
   const appPath = join(applications, APP_NAME);
   const stateDir = join(support, 'nightly-update');
@@ -131,7 +131,7 @@ process.exit(result.status ?? 1);
     devClone,
     productionClone,
     launchAgentsDir: join(root, 'LaunchAgents'),
-    logPath: join(root, 'Logs', 'omnia-happier-nightly-update.log'),
+    logPath: join(root, 'Logs', 'autopilot-nightly-update.log'),
     nodePath: '/opt/homebrew/bin/node',
     uid: 501,
     scriptPath: join(devClone, 'scripts', 'fork', 'omnia-nightly-update.mjs'),
@@ -190,7 +190,7 @@ process.exit(result.status ?? 1);
         return ok(lines.join('\n'));
       }
       if (command === 'lsappinfo') {
-        if (args[0] === 'find') return ok('ASN:0x0-0x1-"Omnia_Happier":');
+        if (args[0] === 'find') return ok('ASN:0x0-0x1-"Autopilot":');
         if (args.includes('ApplicationType')) return ok(`type="${world.process?.mode === 'tray' ? 'UIElement' : 'Foreground'}"`);
       }
       if (command === 'open') {
@@ -337,7 +337,7 @@ test('a new release installs in window mode and relaunches in the background', {
   assert.ok(world.sleeps.includes(10_000), 'waits out the alive window');
   assert.equal(world.state().installedSha, sha);
   assert.equal(existsSync(world.outgoing), false);
-  assert.deepEqual(world.rollbacks(), [`Omnia Happier ${oldSha.slice(0, 12)}.tar.gz`]);
+  assert.deepEqual(world.rollbacks(), [`Autopilot ${oldSha.slice(0, 12)}.tar.gz`]);
   assert.deepEqual(world.alerts, []);
   assert.equal(world.head(world.devClone), sha);
   assert.equal(world.head(world.productionClone), sha);
@@ -369,7 +369,7 @@ test('a closed app installs without launching, asking or an alive check', { skip
   assert.deepEqual(world.commands('open'), []);
   assert.deepEqual(world.commands('launchctl'), []);
   assert.deepEqual(world.sleeps, []);
-  assert.deepEqual(world.rollbacks(), ['Omnia Happier pre-nightly.tar.gz']);
+  assert.deepEqual(world.rollbacks(), ['Autopilot pre-nightly.tar.gz']);
   assert.equal(world.state().installedSha, sha);
 });
 
@@ -579,7 +579,7 @@ test('a dirty dev clone skips dev only: it alerts, keeps the work and still inst
   assert.equal(world.head(world.productionClone), sha);
   assert.equal(world.marker(), sha);
   assert.equal(world.alerts.length, 1);
-  assert.match(world.alerts[0], /happier-dev/);
+  assert.match(world.alerts[0], /autopilot-dev/);
 });
 
 test('a dev clone on another branch is left alone and diverged history is alerted', { skip }, async (t) => {
@@ -876,17 +876,17 @@ test('a git fetch failure counts as a network failure, not a clone fault', { ski
   assert.equal(world.marker(), sha);
 });
 
-test('a happier-dev fetch failure alerts at once and does not block the install', { skip }, async (t) => {
+test('an autopilot-dev fetch failure alerts at once and does not block the install', { skip }, async (t) => {
   const world = makeWorld(t);
   const sha = world.commit();
   world.publish(sha);
   world.installApp('old', oldSha);
   const bin = join(world.root, 'bin', 'git');
-  writeFileSync(bin, readFileSync(bin, 'utf8').replace("if (args[0] === 'fetch') args[1]", "if (args[0] === 'fetch' && process.cwd().endsWith('happier-dev')) { console.error('bad remote'); process.exit(128); }\nif (args[0] === 'fetch') args[1]"));
+  writeFileSync(bin, readFileSync(bin, 'utf8').replace("if (args[0] === 'fetch') args[1]", "if (args[0] === 'fetch' && process.cwd().endsWith('autopilot-dev')) { console.error('bad remote'); process.exit(128); }\nif (args[0] === 'fetch') args[1]"));
   await world.update();
   assert.equal(world.marker(), sha);
   assert.equal(world.alerts.length, 1);
-  assert.match(world.alerts[0], /happier-dev did not update/);
+  assert.match(world.alerts[0], /autopilot-dev did not update/);
 });
 
 test('a refused release counts as a completed check, so it never reads as offline', { skip }, async (t) => {
@@ -1042,9 +1042,9 @@ test('pruning keeps the 3 newest rollback tarballs and never touches foreign fil
   world.installApp('old', oldSha);
   const dir = world.config.previousBuildsDir;
   mkdirSync(join(dir, '2026-10-23', APP_NAME), { recursive: true });
-  const foreign = ['notes.txt', 'Omnia Happier notes.tar.gz', 'Other 111111111111.tar.gz'];
+  const foreign = ['notes.txt', 'Autopilot notes.tar.gz', 'Other 111111111111.tar.gz'];
   for (const name of foreign) writeFileSync(join(dir, name), 'keep');
-  const existing = ['Omnia Happier pre-nightly.tar.gz', ...['1', '2', '3'].map((digit) => `Omnia Happier ${digit.repeat(12)}.tar.gz`)];
+  const existing = ['Autopilot pre-nightly.tar.gz', ...['1', '2', '3'].map((digit) => `Autopilot ${digit.repeat(12)}.tar.gz`)];
   existing.forEach((name, index) => {
     writeFileSync(join(dir, name), 'old rollback');
     const when = new Date(Date.now() - (10 - index) * HOUR);
@@ -1054,10 +1054,10 @@ test('pruning keeps the 3 newest rollback tarballs and never touches foreign fil
   const names = readdirSync(dir).sort();
   assert.deepEqual(names, [
     '2026-10-23',
-    'Omnia Happier 222222222222.tar.gz',
-    'Omnia Happier 333333333333.tar.gz',
-    `Omnia Happier ${oldSha.slice(0, 12)}.tar.gz`,
-    'Omnia Happier notes.tar.gz',
+    'Autopilot 222222222222.tar.gz',
+    'Autopilot 333333333333.tar.gz',
+    `Autopilot ${oldSha.slice(0, 12)}.tar.gz`,
+    'Autopilot notes.tar.gz',
     'Other 111111111111.tar.gz',
     'notes.txt',
   ].sort());
@@ -1067,10 +1067,10 @@ test('pruning keeps the 3 newest rollback tarballs and never touches foreign fil
 test('install writes the launch agent and bootstraps it from the dev clone', { skip }, (t) => {
   const world = makeWorld(t);
   installAgent(world.config, world.adapter);
-  const plist = join(world.config.launchAgentsDir, 'com.omnia.happier.nightly-update.plist');
+  const plist = join(world.config.launchAgentsDir, 'com.omnia.autopilot.nightly-update.plist');
   const parsed = JSON.parse(run('plutil', ['-convert', 'json', '-o', '-', plist]));
   assert.deepEqual(parsed, {
-    Label: 'com.omnia.happier.nightly-update',
+    Label: 'com.omnia.autopilot.nightly-update',
     ProgramArguments: ['/opt/homebrew/bin/node', world.config.scriptPath, 'run'],
     StartInterval: 300,
     RunAtLoad: true,
@@ -1086,7 +1086,7 @@ test('install writes the launch agent and bootstraps it from the dev clone', { s
 test('install refuses to run from anywhere but the dev clone', { skip }, (t) => {
   const world = makeWorld(t);
   world.config.scriptPath = join(world.root, 'worktree', 'scripts', 'fork', 'omnia-nightly-update.mjs');
-  assert.throws(() => installAgent(world.config, world.adapter), /happier-dev/);
+  assert.throws(() => installAgent(world.config, world.adapter), /autopilot-dev/);
   assert.equal(existsSync(world.config.launchAgentsDir), false);
   assert.deepEqual(world.commands('launchctl'), []);
 });
@@ -1118,7 +1118,7 @@ test('status flags a launch agent written by an older version', { skip }, async 
   world.publish(sha);
   world.installApp(sha);
   installAgent(world.config, world.adapter);
-  const plist = join(world.config.launchAgentsDir, 'com.omnia.happier.nightly-update.plist');
+  const plist = join(world.config.launchAgentsDir, 'com.omnia.autopilot.nightly-update.plist');
   writeFileSync(plist, readFileSync(plist, 'utf8').replace('<integer>300</integer>', '<integer>3600</integer>'));
   await world.update();
   world.logs.length = 0;

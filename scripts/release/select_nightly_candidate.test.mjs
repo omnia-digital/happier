@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { MANIFEST_ASSET, TARBALL_ASSET, releaseTagForSha } from '../fork/nightly-release-contract.mjs';
 import { decideNightlyBuild, selectGreenDevRun } from '../fork/select-nightly-candidate.mjs';
 
-const repository = 'omnia-digital/happier';
+const repository = 'omnia-digital/autopilot';
 const script = fileURLToPath(new URL('../fork/select-nightly-candidate.mjs', import.meta.url));
 const trigger = 'a'.repeat(40);
 const green = 'b'.repeat(40);

@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "(Dev) Omnia - Happier",
+  "productName": "(Dev) Autopilot",
   "mainBinaryName": "happier-desktop-dev",
   "identifier": "dev.happier.app.publicdev",
   "bundle": {
@@ -42,7 +42,7 @@
       {
         "label": "main",
         "create": false,
-        "title": "(Dev) Omnia - Happier",
+        "title": "(Dev) Autopilot",
         "width": 800,
         "height": 600,
         "visible": false,

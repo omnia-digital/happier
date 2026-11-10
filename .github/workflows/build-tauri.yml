@@ -68,7 +68,7 @@ on:
   workflow_call:
     inputs:
       cassian_build:
-        description: "Omnia nightly only — Build the unsigned Apple Silicon candidate on Cassian"
+        description: "Autopilot nightly only — Build the unsigned Apple Silicon candidate on Cassian"
         required: false
         default: false
         type: boolean
@@ -597,9 +597,9 @@ jobs:
           HAPPIER_STACK_STACK: omnia-production-desktop
           HAPPIER_STACK_TAURI_BUNDLES: app
           HAPPIER_STACK_TAURI_DEBUG: "0"
-          HAPPIER_STACK_TAURI_IDENTIFIER: com.omnia.happier.production
+          HAPPIER_STACK_TAURI_IDENTIFIER: com.omnia.autopilot
           HAPPIER_STACK_TAURI_PREFER_TAILSCALE: "0"
-          HAPPIER_STACK_TAURI_PRODUCT_NAME: Omnia Happier
+          HAPPIER_STACK_TAURI_PRODUCT_NAME: Autopilot
           HAPPIER_STACK_TAURI_SERVER_URL: https://api.happier.dev
           APP_ENV: production
           EXPO_PUBLIC_HAPPIER_DESKTOP_UPDATES_ENABLED: "0"
@@ -629,11 +629,11 @@ jobs:
         env:
           SOURCE_SHA: ${{ needs.resolve_source.outputs.source_sha }}
           RUN_ID: ${{ github.run_id }}
-          OUT_DIR: ${{ runner.temp }}/omnia-nightly
+          OUT_DIR: ${{ runner.temp }}/autopilot-nightly
         run: |
           set -euo pipefail
           node .release-control/scripts/fork/package-nightly-app.mjs \
-            --app "$HOME/.happier/stacks/omnia-production-desktop/tauri-target/release/bundle/macos/Omnia Happier.app" \
+            --app "$HOME/.happier/stacks/omnia-production-desktop/tauri-target/release/bundle/macos/Autopilot.app" \
             --source-sha "$SOURCE_SHA" \
             --run-id "$RUN_ID" \
             --ui-export apps/ui/dist \
@@ -644,8 +644,8 @@ jobs:
         if: inputs.cassian_build && matrix.platform_key == 'darwin-aarch64'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: omnia-happier-macos-arm64
-          path: ${{ runner.temp }}/omnia-nightly/
+          name: autopilot-macos-arm64
+          path: ${{ runner.temp }}/autopilot-nightly/
           retention-days: 7
           if-no-files-found: error
 

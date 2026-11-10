@@ -54,10 +54,10 @@ echo "$COMPARE_STATUS"
     }
     const exact = run({ SOURCE_REF: trigger, COMPARE_STATUS: 'behind' });
     assert.equal(exact.status, 0, exact.stderr);
-    // Josh is renaming the repository to omnia-digital/command-center; admission must not depend on the name.
+    // Josh is renaming the repository to omnia-digital/autopilot; admission must not depend on the name.
     const renamed = run({
-      GITHUB_REPOSITORY: 'omnia-digital/command-center',
-      CALLER_WORKFLOW_REF: 'omnia-digital/command-center/.github/workflows/omnia-production.yml@refs/heads/dev',
+      GITHUB_REPOSITORY: 'omnia-digital/autopilot',
+      CALLER_WORKFLOW_REF: 'omnia-digital/autopilot/.github/workflows/omnia-production.yml@refs/heads/dev',
     });
     assert.equal(renamed.status, 0, renamed.stderr);
     for (const override of [
@@ -147,7 +147,7 @@ test('Cassian packages the installable app with the fork identity and uploads it
 
   const artifact = build.steps[upload];
   assert.equal(artifact.uses, build.steps[candidateUpload].uses);
-  assert.equal(artifact.with.name, 'omnia-happier-macos-arm64');
+  assert.equal(artifact.with.name, 'autopilot-macos-arm64');
   assert.equal(artifact.with['retention-days'], 7);
   assert.equal(artifact.with['if-no-files-found'], 'error');
   assert.doesNotMatch(JSON.stringify(build.steps.slice(appBuild)), /secrets\./);
@@ -219,7 +219,7 @@ test('nightly desktop builds consume certified source and must succeed before pr
     preparation_only: true,
     publish_release: false,
     cassian_build: true,
-    release_message: 'Omnia nightly candidate ${{ needs.candidate.outputs.source_sha }}',
+    release_message: 'Autopilot nightly candidate ${{ needs.candidate.outputs.source_sha }}',
   });
   assert.equal(build.secrets, undefined, 'unsigned builds must not inherit signing or publishing credentials');
   assert.ok(nightly.jobs.promote.needs.includes('desktop_candidate'));

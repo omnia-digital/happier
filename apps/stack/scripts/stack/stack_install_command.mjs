@@ -97,7 +97,7 @@ function buildDesktopMetadata({ stackName, port, desktopDebug, env = process.env
       ...env,
       HAPPIER_STACK_STACK: stackName,
     },
-    baseProductName: '(Dev) Omnia - Happier',
+    baseProductName: '(Dev) Autopilot',
   });
   const { baseDir } = resolveStackBaseDir(stackName, env);
   const profile = desktopDebug ? 'debug' : 'release';

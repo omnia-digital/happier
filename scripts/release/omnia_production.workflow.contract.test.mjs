@@ -20,7 +20,7 @@ test('Omnia nightly promotes only a selected source with successful canonical de
   const candidate = configured.jobs.candidate;
   const verify = configured.jobs.verify_source_ci;
   const promote = configured.jobs.promote;
-  // Bound to the organization, not the repository name, which Josh is changing to command-center.
+  // Bound to the organization, not the repository name, which Josh is changing to autopilot.
   assert.match(candidate.if, /github\.repository_owner == 'omnia-digital'/);
   assert.doesNotMatch(candidate.if, /omnia-digital\//);
   assert.match(candidate.if, /github\.ref == 'refs\/heads\/dev'/);
@@ -87,7 +87,7 @@ test('Omnia nightly publishes the promoted build on a hosted job with only conte
 
   const download = publish.steps.find((step) => String(step.uses ?? '').startsWith('actions/download-artifact@'));
   assert.equal(download.uses, 'actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093');
-  assert.equal(download.with.name, 'omnia-happier-macos-arm64');
+  assert.equal(download.with.name, 'autopilot-macos-arm64');
   // The pipeline refuses a dirty worktree, so assets must land outside the checkout.
   assert.match(download.with.path, /^\$\{\{ runner\.temp \}\}/);
 

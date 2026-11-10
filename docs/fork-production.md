@@ -12,16 +12,21 @@ builds or Docker images. Developer ID signing, notarization and updater feeds ar
 separate release work (OH-5). The hosted Happier account, relay, installed CLI and
 daemon remain the existing daily services.
 
+On 2026-11-10 Josh renamed the fork's app from **Omnia Happier** to **Autopilot**: bundle
+identifier `com.omnia.autopilot`, repository `omnia-digital/autopilot`, and permanent clones
+`autopilot-dev` and `autopilot-production`. Dated records below keep the names, paths and
+links in use at the time; the [rename cutover](#rename-cutover) lists the one-time local steps.
+
 ## Permanent local checkouts
 
 | Checkout | Branch | Purpose |
 | --- | --- | --- |
-| `/Users/Josh/Developer/Projects/Omnia/apps/happier-dev` | `dev` | Integration baseline and starting point for feature worktrees |
-| `/Users/Josh/Developer/Projects/Omnia/apps/happier-production` | `production` | Pull-only daily-use source |
+| `/Users/Josh/Developer/Projects/Omnia/apps/autopilot-dev` | `dev` | Integration baseline and starting point for feature worktrees |
+| `/Users/Josh/Developer/Projects/Omnia/apps/autopilot-production` | `production` | Pull-only daily-use source |
 
 These are the only two permanent clones. Production never shares a Git directory,
 working source, or a mutable `node_modules` symlink with development. Task
-directories are temporary linked worktrees owned by `happier-dev`; neither
+directories are temporary linked worktrees owned by `autopilot-dev`; neither
 permanent checkout is a feature branch. A branch name alone does not certify its
 starting commit as a tested release.
 
@@ -33,7 +38,7 @@ until its source contains the intended changes. Existing active and unpublished
 work, linked worktrees, and running stacks still need preservation/migration
 before this old checkout can be removed. Start no new tasks there.
 
-Create ticket-named worktrees through the existing Stack owner, from `happier-dev`:
+Create ticket-named worktrees through the existing Stack owner, from `autopilot-dev`:
 
 ```sh
 git pull --ff-only origin dev
@@ -41,7 +46,7 @@ node apps/stack/scripts/repo_local.mjs wt new OH-123-description --from=origin -
 ```
 
 Implement and validate in that task worktree, commit and push its branch, and open
-the PR with `--base dev`. After merge, fast-forward the clean `happier-dev`
+the PR with `--base dev`. After merge, fast-forward the clean `autopilot-dev`
 checkout. Verify all task work is pushed and merged and no process, unsaved work,
 or valuable ignored data depends on its directory before removing it through the
 existing worktree cleanup tools. Do not use forced removal to discard unfinished
@@ -59,9 +64,9 @@ Run the following from a development checkout containing this change, never by
 editing the production copy:
 
 ```sh
-node scripts/fork/production-checkout.mjs protect /Users/Josh/Developer/Projects/Omnia/apps/happier-production
-node scripts/fork/production-checkout.mjs status /Users/Josh/Developer/Projects/Omnia/apps/happier-production
-node scripts/fork/production-checkout.mjs update /Users/Josh/Developer/Projects/Omnia/apps/happier-production
+node scripts/fork/production-checkout.mjs protect /Users/Josh/Developer/Projects/Omnia/apps/autopilot-production
+node scripts/fork/production-checkout.mjs status /Users/Josh/Developer/Projects/Omnia/apps/autopilot-production
+node scripts/fork/production-checkout.mjs update /Users/Josh/Developer/Projects/Omnia/apps/autopilot-production
 ```
 
 `protect` requires a clean independent clone, the `production` branch, and the
@@ -141,8 +146,8 @@ env -u HAPPIER_STACK_ENV_FILE \
   HAPPIER_STACK_REPO_DIR="$PWD" \
   HAPPIER_STACK_TAURI_SERVER_URL=https://api.happier.dev \
   HAPPIER_STACK_TAURI_DEBUG=0 \
-  HAPPIER_STACK_TAURI_IDENTIFIER=com.omnia.happier.production \
-  HAPPIER_STACK_TAURI_PRODUCT_NAME='Omnia Happier' \
+  HAPPIER_STACK_TAURI_IDENTIFIER=com.omnia.autopilot \
+  HAPPIER_STACK_TAURI_PRODUCT_NAME=Autopilot \
   APP_ENV=production \
   EXPO_PUBLIC_HAPPIER_DESKTOP_UPDATES_ENABLED=0 \
   APPLE_SIGNING_IDENTITY=- \
@@ -150,7 +155,7 @@ env -u HAPPIER_STACK_ENV_FILE \
   ./apps/stack/bin/hstack-exec -- node apps/stack/bin/hstack.mjs build --tauri --tauri-production
 ```
 
-`--tauri-production` selects the stable Tauri config and Omnia Happier artwork.
+`--tauri-production` selects the stable Tauri config and Autopilot artwork.
 The explicit identifier keeps this local app's storage separate. Build and
 verify a fresh bundle after this integration before adopting its output.
 
@@ -208,7 +213,8 @@ The separate application identifier keeps local account storage distinct, so
 connect the existing hosted account in the new app. The earlier **Happier Omnia
 Production** bundle and the renamed **Omnia Happier** bundle intentionally share
 `com.omnia.happier.production` to preserve that storage. They are successive
-versions of one app. Quit the earlier bundle before opening its replacement;
+versions of one app. Autopilot's new `com.omnia.autopilot` identifier does not share that
+storage, so connect the hosted account again after the first Autopilot install. Quit the earlier bundle before opening its replacement;
 the single-instance owner otherwise forwards the launch to the running old
 process and exits normally. Both stable apps currently
 declare `happier://`; launch this bundle by its full path. After the first launch,
@@ -277,7 +283,7 @@ It publishes at most one release per commit, and nothing when nothing changed.
    does not qualify. Missing or failed CI leaves production untouched.
 4. Build unsigned desktop candidates through `build-tauri.yml`, with Apple
    Silicon on Cassian and other platforms on their existing hosted runners. The
-   Cassian job also builds `Omnia Happier.app` through `hstack build --tauri
+   Cassian job also builds `Autopilot.app` through `hstack build --tauri
    --tauri-production`, with `HAPPIER_STACK_TAURI_BUNDLES=app`, and
    `package-nightly-app.mjs` rejects it unless the bundle identity, signature,
    architecture, disabled updater and server URL are right. Missing, skipped or failed
@@ -287,7 +293,7 @@ It publishes at most one release per commit, and nothing when nothing changed.
    the certified commit. Divergence fails; it is never reset. Newer `dev` commits
    arriving during the run are not silently included.
 7. A hosted job publishes the release through `github-publish-release`: tag
-   `omnia-nightly-<sha12>`, marked latest, with `omnia-happier-macos-arm64.tar.gz` and
+   `autopilot-nightly-<sha12>`, marked latest, with `autopilot-macos-arm64.tar.gz` and
    its `.json` manifest. `scripts/fork/nightly-release-contract.mjs` is the only
    definition of a valid release. This job uses `GITHUB_TOKEN` because the reusable
    release workflow's actor guard rejects `andorcassian`. Cassian never gets write access.
@@ -308,14 +314,14 @@ are admitted only in `happier-dev/happier`; their manual/reusable behavior remai
 ## Mac update agent
 
 `scripts/fork/omnia-nightly-update.mjs` keeps this Mac on the newest release. It runs
-every 5 minutes under launchd as `com.omnia.happier.nightly-update`, from the `happier-dev`
-clone, and logs to `~/Library/Logs/omnia-happier-nightly-update.log`. Install it from
+every 5 minutes under launchd as `com.omnia.autopilot.nightly-update`, from the `autopilot-dev`
+clone, and logs to `~/Library/Logs/autopilot-nightly-update.log`. Install it from
 that clone, and check it with `status`, which exits non-zero when something is wrong:
 
 ```sh
 node scripts/fork/omnia-nightly-update.mjs install
 node scripts/fork/omnia-nightly-update.mjs status
-launchctl kickstart gui/$(id -u)/com.omnia.happier.nightly-update
+launchctl kickstart gui/$(id -u)/com.omnia.autopilot.nightly-update
 ```
 
 The last command starts a run at once instead of waiting up to 5 minutes. Only `install`
@@ -327,9 +333,9 @@ Each run:
 1. Restores the app if an earlier swap was interrupted.
 2. Reads the latest release and refuses one that is not a published, immutable nightly
    by the release workflow with a valid manifest.
-3. Updates `happier-production` through its guarded helper, and requires the release
-   commit to be on it. Then it fast-forwards `happier-dev` to that commit only, so the
-   agent only ever runs certified source. A dirty or diverged `happier-dev` is left
+3. Updates `autopilot-production` through its guarded helper, and requires the release
+   commit to be on it. Then it fast-forwards `autopilot-dev` to that commit only, so the
+   agent only ever runs certified source. A dirty or diverged `autopilot-dev` is left
    alone and reported.
 4. Downloads and verifies the bundle: size, SHA-256, single-root tarball, strict
    codesign, bundle id, product name and arm64. A staged bundle has no `.app` name,
@@ -340,7 +346,8 @@ Each run:
    for 15 idle minutes never happened, because this Mac sleeps when he steps away. The
    dialog closes itself once the release installs. A failed attempt keeps the approval,
    so later runs retry without asking again.
-6. Saves the current bundle as a tarball under `Previous Builds` (it keeps 3), sends
+6. Saves the current bundle as a tarball under `Previous Builds` in
+   `~/Library/Application Support/Autopilot` (it keeps 3), sends
    SIGTERM, swaps the bundle and relaunches in the previous mode. Tray mode uses
    `open -g -a <app> --args --menu-bar`. If the new process does not stay alive, it
    rolls back and holds that commit until a newer release.
@@ -359,6 +366,34 @@ This is an interim path until OH-5 lands. The in-app updater stays compile-time 
 so the agent is not a competing decision-maker. When OH-5 ships a fork feed, retire this
 agent. Limits: bundles are ad-hoc signed, so a repository writer could publish a release
 these checks accept; a closed app gets no alive check; and a dead agent cannot report itself.
+
+### Rename cutover
+
+The code uses the Autopilot names from the commit that renamed it. Moving this Mac
+across is a one-time manual step that has not been run yet; the order matters
+because the old agent cannot install an Autopilot release:
+
+1. Rename the GitHub repository to `omnia-digital/autopilot`, then confirm the Cassian
+   runner group's selected workflow reads
+   `omnia-digital/autopilot/.github/workflows/build-tauri.yml@refs/heads/dev`.
+2. Stop the old agent: `launchctl bootout gui/$(id -u)/com.omnia.happier.nightly-update`,
+   then delete `~/Library/LaunchAgents/com.omnia.happier.nightly-update.plist`. Its code
+   refuses `autopilot-nightly-*` tags, so it would only alert.
+3. Rename `happier-dev` to `autopilot-dev`, set its `origin` to
+   `https://github.com/omnia-digital/autopilot.git`, and run `git worktree repair` there
+   so its linked task worktrees find it again.
+4. The production clone's root, `.git/config` and hooks are immutable, so Josh clears
+   their flags by hand, renames it to `autopilot-production` and sets `origin` to the same
+   URL. Its old hooks path and hook text no longer match, so `protect` and `update` refuse
+   it until he unsets `happier.productionCheckout` and `core.hooksPath` and deletes
+   `.git/production-hooks`. `protect` from `autopilot-dev` then installs the new hooks and
+   locks it again.
+5. From `autopilot-dev`, run the agent's `install` and `status`. It installs
+   `/Applications/Autopilot.app` as a first install, with fresh state under
+   `~/Library/Application Support/Autopilot`.
+6. Connect the hosted account in Autopilot, whose new identifier has its own storage.
+   Remove `/Applications/Omnia Happier.app` by hand once Autopilot is verified; the agent
+   does not touch it.
 
 ## Cassian nightly build host
 
@@ -407,7 +442,7 @@ The first release, `omnia-nightly-da49cd8622ac`, came from dispatched run
 24 minutes from cold.
 
 For registration, use a dedicated organization runner group restricted to this
-repository and `omnia-digital/happier/.github/workflows/build-tauri.yml@refs/heads/dev`,
+repository and `omnia-digital/autopilot/.github/workflows/build-tauri.yml@refs/heads/dev`,
 where the reusable build job is defined. Its additional admission step permits
 Cassian only when called by `omnia-production.yml` on `dev`, for unsigned preparation
 of the trigger SHA or an ancestor of it, checked through the compare API. That caller

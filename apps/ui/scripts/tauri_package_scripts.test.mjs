@@ -66,14 +66,14 @@ test('apps/ui Tauri channel configs use the expected desktop product names', asy
   const preview = JSON.parse(previewRaw);
   const publicDev = JSON.parse(publicDevRaw);
 
-  assert.equal(stable?.productName, 'Omnia Happier');
-  assert.equal(stable?.app?.windows?.[0]?.title, 'Omnia Happier');
+  assert.equal(stable?.productName, 'Autopilot');
+  assert.equal(stable?.app?.windows?.[0]?.title, 'Autopilot');
 
-  assert.equal(preview?.productName, '(Dev) Omnia - Happier (preview)');
-  assert.equal(preview?.app?.windows?.[0]?.title, '(Dev) Omnia - Happier');
+  assert.equal(preview?.productName, '(Dev) Autopilot (preview)');
+  assert.equal(preview?.app?.windows?.[0]?.title, '(Dev) Autopilot');
 
-  assert.equal(publicDev?.productName, '(Dev) Omnia - Happier');
-  assert.equal(publicDev?.app?.windows?.[0]?.title, '(Dev) Omnia - Happier');
+  assert.equal(publicDev?.productName, '(Dev) Autopilot');
+  assert.equal(publicDev?.app?.windows?.[0]?.title, '(Dev) Autopilot');
   assert.deepEqual(publicDev?.bundle?.icon, [
     'icons/dev/32x32.png',
     'icons/dev/128x128.png',
@@ -93,8 +93,8 @@ test('apps/ui Tauri channel configs use the expected desktop product names', asy
     }
   }
   const devPlist = await readFile(join(packageRoot, 'src-tauri', 'Info.dev.plist'), 'utf-8');
-  assert.match(devPlist, /<key>CFBundleDisplayName<\/key>\s*<string>\(Dev\) Omnia - Happier<\/string>/);
-  assert.match(devPlist, /<key>CFBundleName<\/key>\s*<string>\(Dev\) Omnia - Happier<\/string>/);
+  assert.match(devPlist, /<key>CFBundleDisplayName<\/key>\s*<string>\(Dev\) Autopilot<\/string>/);
+  assert.match(devPlist, /<key>CFBundleName<\/key>\s*<string>\(Dev\) Autopilot<\/string>/);
 
   // Linux installs executables and icons in shared directories. Distinct bundle
   // identifiers alone do not prevent channels (or the Happier CLI) colliding.

@@ -17,12 +17,12 @@ test('stack desktop dev and bundled builds consume the same dev artwork and macO
     assert.deepEqual(config.bundle.icon, overlayConfig.bundle.icon);
     assert.equal(config.app.windows[0].title, config.productName);
   }
-  assert.equal(dev.productName, '(Dev) Omnia - Happier');
-  assert.equal(bundle.productName, '(Dev) Omnia - Happier (qa)');
+  assert.equal(dev.productName, '(Dev) Autopilot');
+  assert.equal(bundle.productName, '(Dev) Autopilot (qa)');
   assert.equal(bundle.build.frontendDist, '../dist');
   assert.equal(bundle.build.beforeBuildCommand, null);
   const plist = await readFile(new URL('../../../../ui/src-tauri/Info.dev.plist', import.meta.url), 'utf8');
-  assert.match(plist, /<key>CFBundleDisplayName<\/key>\s*<string>\(Dev\) Omnia - Happier<\/string>/);
+  assert.match(plist, /<key>CFBundleDisplayName<\/key>\s*<string>\(Dev\) Autopilot<\/string>/);
 });
 
 test('an explicit production bundle keeps stable Tauri assets and isolated stack identity', async () => {
@@ -35,14 +35,14 @@ test('an explicit production bundle keeps stable Tauri assets and isolated stack
     frontendDist: '../dist',
     env: {
       HAPPIER_STACK_STACK: 'omnia-production-desktop',
-      HAPPIER_STACK_TAURI_IDENTIFIER: 'com.omnia.happier.production',
-      HAPPIER_STACK_TAURI_PRODUCT_NAME: 'Omnia Happier',
+      HAPPIER_STACK_TAURI_IDENTIFIER: 'com.omnia.autopilot',
+      HAPPIER_STACK_TAURI_PRODUCT_NAME: 'Autopilot',
     },
   });
 
-  assert.equal(config.identifier, 'com.omnia.happier.production');
-  assert.equal(config.productName, 'Omnia Happier');
-  assert.equal(config.app.windows[0].title, 'Omnia Happier');
+  assert.equal(config.identifier, 'com.omnia.autopilot');
+  assert.equal(config.productName, 'Autopilot');
+  assert.equal(config.app.windows[0].title, 'Autopilot');
   assert.equal(config.mainBinaryName, baseConfig.mainBinaryName);
   assert.equal(config.bundle.macOS.infoPlist, undefined);
   assert.deepEqual(config.bundle.icon, baseConfig.bundle.icon);

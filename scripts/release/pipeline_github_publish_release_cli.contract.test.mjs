@@ -50,8 +50,8 @@ test('pipeline CLI forwards the immutable nightly publication options', () => {
     [
       resolve(repoRoot, 'scripts', 'pipeline', 'run.mjs'),
       'github-publish-release',
-      '--tag', 'omnia-nightly-0123456789ab',
-      '--title', 'Omnia Happier nightly',
+      '--tag', 'autopilot-nightly-0123456789ab',
+      '--title', 'Autopilot nightly',
       '--target-sha', '0123456789abcdef0123456789abcdef01234567',
       '--prerelease', 'false',
       '--rolling-tag', 'false',
@@ -74,7 +74,7 @@ test('pipeline CLI forwards the immutable nightly publication options', () => {
     },
   );
 
-  assert.match(out, /\[dry-run\] gh release edit omnia-nightly-0123456789ab --repo test\/test --draft=false --latest/);
+  assert.match(out, /\[dry-run\] gh release edit autopilot-nightly-0123456789ab --repo test\/test --draft=false --latest/);
   assert.match(out, /"--replace-draft" "true"/);
 });
 

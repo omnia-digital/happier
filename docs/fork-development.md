@@ -1,6 +1,6 @@
-# Omnia Happier development and adoption
+# Autopilot development and adoption
 
-This is the fork-specific runbook for `omnia-digital/happier`. Develop against an isolated local stack. macOS was the first adoption target; Josh resumed iOS work in OH-8 on October 25 to deliver the fork changes to the mobile app. Native Mac compilation, hosted session messaging, permission rejection and authentication/session reconnect across a full native restart are verified. iOS device acceptance, packaged distribution and daily-use cutover remain open.
+This is the fork-specific runbook for `omnia-digital/autopilot`. On 2026-11-10 Josh renamed the fork's app from Omnia Happier to Autopilot and the repository from `omnia-digital/happier`; dated records below keep the names in use at the time. Develop against an isolated local stack. macOS was the first adoption target; Josh resumed iOS work in OH-8 on October 25 to deliver the fork changes to the mobile app. Native Mac compilation, hosted session messaging, permission rejection and authentication/session reconnect across a full native restart are verified. iOS device acceptance, packaged distribution and daily-use cutover remain open.
 
 ## First adoption: custom macOS UI, existing Happier services
 
@@ -37,7 +37,8 @@ Independent review confirmed the final positive file bytes, actual agent history
 ### Launch only the forked Mac UI
 
 The unreleased OH-55 source now gives stable macOS bundles the display name
-**Omnia Happier** and development/testing bundles **(Dev) Omnia - Happier**.
+**Omnia Happier** and development/testing bundles **(Dev) Omnia - Happier**. The 2026-11-10 rename made
+them **Autopilot** and **(Dev) Autopilot**.
 Development artwork uses a blue mark with an amber D badge; stable keeps the dark
 mark. Canonical variant configuration feeds both bundle artwork and runtime Dock
 icon selection, including stack launch/build paths. Stack-specific filenames and
@@ -150,11 +151,11 @@ checkpoints keep the current machine's configured Git identity and transport.
 Merges to shared branches, releases, repository settings/secrets and workflow
 dispatch remain separate user-owned actions unless explicitly authorized.
 
-- `origin`: `https://github.com/omnia-digital/happier.git`
+- `origin`: `https://github.com/omnia-digital/autopilot.git`
 - `upstream`: `https://github.com/happier-dev/happier.git`
 - Development base and PR target: `dev`.
-- Permanent development checkout: `/Users/Josh/Developer/Projects/Omnia/apps/happier-dev`, always on `dev`.
-- Permanent stable checkout: `/Users/Josh/Developer/Projects/Omnia/apps/happier-production`, always on protected `production`.
+- Permanent development checkout: `/Users/Josh/Developer/Projects/Omnia/apps/autopilot-dev`, always on `dev`.
+- Permanent stable checkout: `/Users/Josh/Developer/Projects/Omnia/apps/autopilot-production`, always on protected `production`.
 
 Create ticket-named feature worktrees from the permanent dev clone at the fork's
 current `origin/dev`. Commit and push completed steps and open PRs targeting
@@ -166,7 +167,7 @@ the stable checkout accepts only guarded updates from GitHub. See the
 The old `happier` directory and `chore/happier-fork-dev-setup` branch are temporary
 migration state, not another permanent development repo. Preserve their existing
 work until it has been integrated through PRs and their active runtimes have moved;
-start new tasks in worktrees owned by `happier-dev`. Review upstream changes in a
+start new tasks in worktrees owned by `autopilot-dev`. Review upstream changes in a
 task worktree too, preserving fork functionality and targeting `dev` through a PR.
 
 The full clone includes upstream history; fetch updates without changing the working tree:
@@ -238,7 +239,7 @@ Current work is tracked in [OH-8](https://linear.app/omniachurchapps/issue/OH-8/
 
 Start with simulator development, then a signed local development client on an iPhone. Use TestFlight for convenient ongoing use after native and session acceptance. An App Store listing is not required to begin simulator development.
 
-For TestFlight, create an app record in **App Store Connect**, backed by an explicit bundle ID in the Apple Developer team. This is the developer account attached to the Apple ID, not an iCloud application setting. Confirm the team and bundle ID before registration; `com.omniadigital.happier` and `com.omniadigital.happier.dev` are proposed names only, with availability unverified. See [Apple's app-record instructions](https://developer.apple.com/help/app-store-connect/create-an-app-record/add-a-new-app/).
+For TestFlight, create an app record in **App Store Connect**, backed by an explicit bundle ID in the Apple Developer team. This is the developer account attached to the Apple ID, not an iCloud application setting. Josh chose `com.omnia.autopilot` for the desktop and iOS apps on 2026-11-10; its registration in the team is unverified. No development-client bundle ID has been chosen: `com.omniadigital.happier.dev` in the example below is an earlier proposal. See [Apple's app-record instructions](https://developer.apple.com/help/app-store-connect/create-an-app-record/add-a-new-app/).
 
 The fork needs its own Expo/EAS project for cloud builds, OTA updates and push credentials. Existing hooks in `apps/ui/app.config.js` accept `EXPO_APP_OWNER`, `EXPO_APP_SLUG`, `EXPO_EAS_PROJECT_ID`, `EXPO_APP_NAME`, `EXPO_APP_BUNDLE_ID`, `EXPO_APP_SCHEME`, `EXPO_UPDATES_URL`, and `EXPO_UPDATES_CHANNEL`. Configure the selected server via `EXPO_PUBLIC_HAPPY_SERVER_URL` and verify the evaluated config before building. Keep signing keys and tokens out of Git.
 

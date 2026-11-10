@@ -330,7 +330,8 @@ stable release's real assets and its signed `checksums-*.txt`.
   inside the rendered release's DMG, which the generator requires as `--desktop-app-name`: the
   release metadata does not record it, and the checkout's current `productName` says nothing about
   an older DMG. Upstream DMGs and fork DMGs built before the stable rename carry `Happier.app`;
-  releases built with the `Omnia Happier` stable `productName` carry `Omnia Happier.app`. The
+  releases built with the `Omnia Happier` stable `productName` carry `Omnia Happier.app`, and
+  releases built after the 2026-11-10 rename to the `Autopilot` `productName` carry `Autopilot.app`. The
   checked-in candidate renders v0.2.12 (`Happier`). Submit it for the first desktop release built
   with that minimum. Earlier DMGs declare `LSMinimumSystemVersion` 10.13, which
   `brew audit --online` would flag against `:ventura`.

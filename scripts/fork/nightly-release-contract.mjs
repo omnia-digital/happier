@@ -2,23 +2,23 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, lstatSync } from 'node:fs';
 import { join } from 'node:path';
 
-// The single definition of an Omnia nightly release, shared by the CI packager,
+// The single definition of an Autopilot nightly release, shared by the CI packager,
 // the CI change gate and the Mac update agent.
-export const APP_NAME = 'Omnia Happier.app';
-export const BUNDLE_ID = 'com.omnia.happier.production';
-export const PRODUCT_NAME = 'Omnia Happier';
+export const APP_NAME = 'Autopilot.app';
+export const BUNDLE_ID = 'com.omnia.autopilot';
+export const PRODUCT_NAME = 'Autopilot';
 export const SERVER_URL = 'https://api.happier.dev';
-export const TARBALL_ASSET = 'omnia-happier-macos-arm64.tar.gz';
-export const MANIFEST_ASSET = 'omnia-happier-macos-arm64.json';
+export const TARBALL_ASSET = 'autopilot-macos-arm64.tar.gz';
+export const MANIFEST_ASSET = 'autopilot-macos-arm64.json';
 export const RELEASE_AUTHOR = 'github-actions[bot]';
 
 const fullSha = /^[0-9a-f]{40}$/;
 const sha256Hex = /^[0-9a-f]{64}$/;
-const tagPattern = /^omnia-nightly-[0-9a-f]{12}$/;
+const tagPattern = /^autopilot-nightly-[0-9a-f]{12}$/;
 
 export function releaseTagForSha(sha) {
   if (!fullSha.test(String(sha))) throw new Error(`Invalid source SHA: ${sha}`);
-  return `omnia-nightly-${sha.slice(0, 12)}`;
+  return `autopilot-nightly-${sha.slice(0, 12)}`;
 }
 
 /** True when a GitHub release object is a finished nightly carrying both assets. */
@@ -80,7 +80,7 @@ export function verifyTarballLayout(tarballPath) {
   }
 }
 
-/** Throws unless the bundle is a strictly valid arm64 Omnia Happier app. */
+/** Throws unless the bundle is a strictly valid arm64 Autopilot app. */
 export function verifyAppBundle(appPath) {
   const plist = join(appPath, 'Contents', 'Info.plist');
   // A symlink root would verify its target but install only a pointer to it.

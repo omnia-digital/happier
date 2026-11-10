@@ -23,7 +23,7 @@ import {
 } from '../fork/nightly-release-contract.mjs';
 
 const sha = 'a'.repeat(40);
-const tag = `omnia-nightly-${'a'.repeat(12)}`;
+const tag = `autopilot-nightly-${'a'.repeat(12)}`;
 const skip = process.platform !== 'darwin';
 
 const manifest = (overrides = {}) => ({

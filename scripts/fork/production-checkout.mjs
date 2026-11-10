@@ -3,8 +3,8 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, writeFile
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const originUrl = 'https://github.com/omnia-digital/happier.git';
-const hook = '#!/bin/sh\necho "This is the pull-only production checkout. Work in happier-dev or a feature worktree." >&2\nexit 1\n';
+const originUrl = 'https://github.com/omnia-digital/autopilot.git';
+const hook = '#!/bin/sh\necho "This is the pull-only production checkout. Work in autopilot-dev or a feature worktree." >&2\nexit 1\n';
 const hookNames = ['pre-commit', 'prepare-commit-msg', 'pre-merge-commit', 'pre-rebase', 'pre-push'];
 
 function run(command, args, cwd, input) {
@@ -115,7 +115,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     const [command, repo, ...rest] = process.argv.slice(2);
     if (!repo || rest.length || !['protect', 'update', 'status'].includes(command)) {
-      throw new Error('Usage: node scripts/fork/production-checkout.mjs <protect|update|status> /absolute/path/to/happier-production');
+      throw new Error('Usage: node scripts/fork/production-checkout.mjs <protect|update|status> /absolute/path/to/autopilot-production');
     }
     if (command === 'status') {
       const state = inspect(repo);

@@ -7,7 +7,7 @@ import test from 'node:test';
 
 import { protectProductionCheckout, updateProductionCheckout } from '../fork/production-checkout.mjs';
 
-const githubUrl = 'https://github.com/omnia-digital/happier.git';
+const githubUrl = 'https://github.com/omnia-digital/autopilot.git';
 const realGit = spawnSync('which', ['git'], { encoding: 'utf8' }).stdout.trim();
 
 function git(cwd, ...args) {

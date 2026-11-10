@@ -17,11 +17,11 @@ import {
 } from './nightly-release-contract.mjs';
 import { updateProductionCheckout } from './production-checkout.mjs';
 
-// macOS agent, run every 5 minutes: installs the newest Omnia nightly release and keeps
+// macOS agent, run every 5 minutes: installs the newest Autopilot nightly release and keeps
 // the two permanent clones on it. See docs/plans/nightly-omnia-release-auto-install/plan.md.
 
-const API = 'https://api.github.com/repos/omnia-digital/happier';
-const AGENT_LABEL = 'com.omnia.happier.nightly-update';
+const API = 'https://api.github.com/repos/omnia-digital/autopilot';
+const AGENT_LABEL = 'com.omnia.autopilot.nightly-update';
 const AGENT_SCRIPT = join('scripts', 'fork', 'omnia-nightly-update.mjs');
 const AGENT_PATH = '/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin';
 const USAGE = 'Usage: node scripts/fork/omnia-nightly-update.mjs <install|run|status>';
@@ -33,28 +33,28 @@ const START_INTERVAL_SECONDS = 300;
 // It keeps the hourly bound he accepted on 2026-11-08, when installs stopped waiting for him.
 const PROMPT_GRACE_MS = HOUR;
 // The prompt dialog's title, also used to find and close an open prompt.
-const PROMPT_TITLE = 'Omnia Happier update ready';
+const PROMPT_TITLE = 'Autopilot update ready';
 // One nightly period plus a two hour margin.
 const STALE_MS = 26 * HOUR;
 const QUIT_TIMEOUT_MS = 30_000;
 const ALIVE_WINDOW_MS = 10_000;
 const POLL_MS = 1_000;
 const ROLLBACKS_KEPT = 3;
-const ROLLBACK_NAME = /^Omnia Happier ([0-9a-f]{12}|pre-nightly)\.tar\.gz$/;
+const ROLLBACK_NAME = /^Autopilot ([0-9a-f]{12}|pre-nightly)\.tar\.gz$/;
 
 class NetworkError extends Error {}
 
 export function defaultConfig() {
   const apps = join(homedir(), 'Developer', 'Projects', 'Omnia', 'apps');
-  const support = join(homedir(), 'Library', 'Application Support', 'Omnia Happier');
+  const support = join(homedir(), 'Library', 'Application Support', 'Autopilot');
   return {
     appPath: join('/Applications', APP_NAME),
     stateDir: join(support, 'nightly-update'),
     previousBuildsDir: join(support, 'Previous Builds'),
-    devClone: join(apps, 'happier-dev'),
-    productionClone: join(apps, 'happier-production'),
+    devClone: join(apps, 'autopilot-dev'),
+    productionClone: join(apps, 'autopilot-production'),
     launchAgentsDir: join(homedir(), 'Library', 'LaunchAgents'),
-    logPath: join(homedir(), 'Library', 'Logs', 'omnia-happier-nightly-update.log'),
+    logPath: join(homedir(), 'Library', 'Logs', 'autopilot-nightly-update.log'),
     nodePath: '/opt/homebrew/bin/node',
     uid: process.getuid(),
     scriptPath: fileURLToPath(import.meta.url),
@@ -81,7 +81,7 @@ export const systemAdapter = {
   // because a dialog stays up until clicked and must not hold a run open. No default
   // button, so pressing Return while typing cannot dismiss one unread.
   showDialog(message) {
-    const script = ['on run argv', 'display alert "Omnia Happier update" message (item 1 of argv) as critical buttons {"OK"}', 'end run'];
+    const script = ['on run argv', 'display alert "Autopilot update" message (item 1 of argv) as critical buttons {"OK"}', 'end run'];
     detach('osascript', [...script.flatMap((line) => ['-e', line]), message]);
   },
   // Install now records the request and starts a run at once. The shell receives every value
@@ -89,7 +89,7 @@ export const systemAdapter = {
   showInstallPrompt(sha, requestPath, agentTarget) {
     const script = ['on run argv', `display alert "${PROMPT_TITLE}" message (item 1 of argv) buttons {"Later", "Install now"}`, 'end run'];
     const ask = ['osascript', ...script.flatMap((line) => ['-e', line])].map((word) => `'${word.replaceAll("'", "'\\''")}'`).join(' ');
-    const message = `Nightly ${sha.slice(0, 12)} is ready. Install now closes and reopens Omnia Happier; your sessions keep running. Otherwise it installs within the hour.`;
+    const message = `Nightly ${sha.slice(0, 12)} is ready. Install now closes and reopens Autopilot; your sessions keep running. Otherwise it installs within the hour.`;
     detach('/bin/sh', ['-c', `case "$(${ask} "$1")" in *"Install now"*) printf %s "$2" > "$3" && launchctl kickstart "$4";; esac`, 'prompt', message, sha, requestPath, agentTarget]);
   },
   // Anchored to the dialog's own command line: a bare title would also match any search or
@@ -225,7 +225,7 @@ function relaunch(ctx, mode) {
   if (mode === 'none' || findPid(ctx)) return;
   // --menu-bar is what the app's own login item passes. Needs no launchd state, unlike kickstart.
   const result = ctx.adapter.exec('open', ['-g', '-a', ctx.config.appPath, ...(mode === 'tray' ? ['--args', '--menu-bar'] : [])]);
-  if (!result.ok) alert(ctx, `relaunch-failed:${mode}`, `Could not relaunch Omnia Happier in ${mode} mode: ${result.err}`);
+  if (!result.ok) alert(ctx, `relaunch-failed:${mode}`, `Could not relaunch Autopilot in ${mode} mode: ${result.err}`);
 }
 
 async function quitApp(ctx, pid) {
@@ -270,7 +270,7 @@ async function rollBack(ctx, swap) {
   const pid = findPid(ctx);
   if (pid && !await quitApp(ctx, pid)) {
     // The swap stays recorded so the next run looks at it again.
-    alert(ctx, `rollback-blocked:${swap.sha}`, `Omnia Happier ${swap.sha.slice(0, 12)} failed its alive check and did not quit, so it could not be rolled back.`);
+    alert(ctx, `rollback-blocked:${swap.sha}`, `Autopilot ${swap.sha.slice(0, 12)} failed its alive check and did not quit, so it could not be rolled back.`);
     return;
   }
   const failed = join(ctx.config.stateDir, 'failed.app');
@@ -283,7 +283,7 @@ async function rollBack(ctx, swap) {
   ctx.state.swap = null;
   saveState(ctx);
   relaunch(ctx, swap.mode);
-  alert(ctx, `held:${swap.sha}`, `Omnia Happier ${swap.sha.slice(0, 12)} did not stay running. Rolled back and held that build until a newer release.`);
+  alert(ctx, `held:${swap.sha}`, `Autopilot ${swap.sha.slice(0, 12)} did not stay running. Rolled back and held that build until a newer release.`);
 }
 
 /** Step 1: finish whatever a previous run left between quitting the app and confirming the new one. */
@@ -305,11 +305,11 @@ async function recoverSwap(ctx) {
 }
 
 function fastForwardDevClone(clone, sha) {
-  if (git(clone, 'branch', '--show-current') !== 'dev') throw new Error(`${clone} is not on dev; happier-dev was left alone.`);
-  if (git(clone, 'status', '--porcelain=v1', '--untracked-files=all')) throw new Error(`${clone} has uncommitted work; happier-dev was left alone.`);
+  if (git(clone, 'branch', '--show-current') !== 'dev') throw new Error(`${clone} is not on dev; autopilot-dev was left alone.`);
+  if (git(clone, 'status', '--porcelain=v1', '--untracked-files=all')) throw new Error(`${clone} has uncommitted work; autopilot-dev was left alone.`);
   if (isAncestor(clone, sha, 'HEAD')) return;
   git(clone, 'fetch', 'origin', 'refs/heads/dev:refs/remotes/origin/dev');
-  if (!isAncestor(clone, sha, 'refs/remotes/origin/dev')) throw new Error(`${sha} is not on origin/dev; happier-dev was left alone.`);
+  if (!isAncestor(clone, sha, 'refs/remotes/origin/dev')) throw new Error(`${sha} is not on origin/dev; autopilot-dev was left alone.`);
   git(clone, 'merge', '--ff-only', '--no-overwrite-ignore', sha);
 }
 
@@ -320,18 +320,18 @@ function refreshClones(ctx, sha) {
     updateProductionCheckout(productionClone);
   } catch (error) {
     if (error.code === 'PRODUCTION_FETCH_FAILED') throw new NetworkError(error.message);
-    alert(ctx, `production-clone:${sha}`, `happier-production could not update, so ${sha.slice(0, 12)} is unproven and will not install: ${error.message}`);
+    alert(ctx, `production-clone:${sha}`, `autopilot-production could not update, so ${sha.slice(0, 12)} is unproven and will not install: ${error.message}`);
     return false;
   }
   if (!isAncestor(productionClone, sha, 'HEAD')) {
-    // happier-dev runs this agent, so it must not advance to a SHA production never certified.
+    // autopilot-dev runs this agent, so it must not advance to a SHA production never certified.
     alert(ctx, `not-on-production:${sha}`, `Release ${sha.slice(0, 12)} is not on production. Refused.`);
     return false;
   }
   try {
     fastForwardDevClone(devClone, sha);
   } catch (error) {
-    alert(ctx, `dev-clone:${sha}`, `happier-dev did not update: ${error.message}`);
+    alert(ctx, `dev-clone:${sha}`, `autopilot-dev did not update: ${error.message}`);
   }
   return true;
 }
@@ -390,7 +390,7 @@ async function downloadTarball(ctx, release, manifest) {
 function saveRollback(ctx) {
   const { appPath, previousBuildsDir } = ctx.config;
   mkdirSync(previousBuildsDir, { recursive: true });
-  const name = `Omnia Happier ${ctx.state.installedSha?.slice(0, 12) ?? 'pre-nightly'}.tar.gz`;
+  const name = `Autopilot ${ctx.state.installedSha?.slice(0, 12) ?? 'pre-nightly'}.tar.gz`;
   const path = join(previousBuildsDir, name);
   // COPYFILE_DISABLE keeps AppleDouble files out of the archive.
   const archived = spawnSync('tar', ['-czf', `${path}.tmp`, '-C', dirname(appPath), basename(appPath)], { encoding: 'utf8', env: { ...process.env, COPYFILE_DISABLE: '1' } });
@@ -419,7 +419,7 @@ async function installStaged(ctx, sha, staged, pid, mode) {
   saveState(ctx);
   if (pid && !await quitApp(ctx, pid)) {
     // The swap stays recorded: if the app exits later, the next run relaunches it.
-    alert(ctx, `quit-timeout:${sha}`, `Omnia Happier did not quit within ${QUIT_TIMEOUT_MS / 1000} seconds and is still running, so ${sha.slice(0, 12)} was not installed.`);
+    alert(ctx, `quit-timeout:${sha}`, `Autopilot did not quit within ${QUIT_TIMEOUT_MS / 1000} seconds and is still running, so ${sha.slice(0, 12)} was not installed.`);
     return;
   }
   try {
@@ -576,7 +576,7 @@ function plistString(value) {
 export function installAgent(config, adapter) {
   const script = join(config.devClone, AGENT_SCRIPT);
   if (resolve(config.scriptPath) !== script) {
-    throw new Error(`The agent must be installed from happier-dev (${script}), not ${config.scriptPath}.`);
+    throw new Error(`The agent must be installed from autopilot-dev (${script}), not ${config.scriptPath}.`);
   }
   mkdirSync(config.launchAgentsDir, { recursive: true });
   mkdirSync(dirname(config.logPath), { recursive: true });
@@ -620,11 +620,11 @@ export async function printStatus(config, adapter) {
   if (!existsSync(config.appPath)) problems.push(`${config.appPath} is missing.`);
   const plistPath = join(config.launchAgentsDir, `${AGENT_LABEL}.plist`);
   if (!existsSync(plistPath)) {
-    problems.push('The launch agent is not installed. Run install from happier-dev.');
+    problems.push('The launch agent is not installed. Run install from autopilot-dev.');
   } else {
     // Only install writes the plist, so a release that changes it needs install run again.
     const interval = /<key>StartInterval<\/key><integer>(\d+)<\/integer>/.exec(readFileSync(plistPath, 'utf8'))?.[1];
-    if (Number(interval) !== START_INTERVAL_SECONDS) problems.push(`The launch agent runs every ${interval ?? '?'} seconds, not ${START_INTERVAL_SECONDS}. Run install again from happier-dev.`);
+    if (Number(interval) !== START_INTERVAL_SECONDS) problems.push(`The launch agent runs every ${interval ?? '?'} seconds, not ${START_INTERVAL_SECONDS}. Run install again from autopilot-dev.`);
   }
   if (state.heldSha) problems.push(`Held after a failed install: ${state.heldSha}`);
   if (state.lastError) problems.push(`Last error: ${state.lastError}`);

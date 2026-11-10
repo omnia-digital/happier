@@ -1,5 +1,10 @@
 # Nightly Omnia release and automatic install
 
+> Names changed on 2026-11-10, when the app became Autopilot: tag `autopilot-nightly-<sha12>`,
+> assets `autopilot-macos-arm64.*`, bundle `Autopilot.app` with id `com.omnia.autopilot`, clones
+> `autopilot-dev` and `autopilot-production`. This plan keeps the names it was written with;
+> [the fork production runbook](../../fork-production.md) has the current ones.
+
 Josh, 2026-11-05: "make sure we have a deterministic way of new releases getting
 out once per night (if there are any changes) and auto downloaded on to this
 machine and this main Omnia Happier app/repo is refreshed with the newest version."

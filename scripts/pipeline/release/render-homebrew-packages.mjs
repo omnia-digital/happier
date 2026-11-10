@@ -211,8 +211,9 @@ export function renderHappierFormulaFromRelease({
 /**
  * `appName` is the bundle inside this release's DMG (`<appName>.app`), which Tauri names after the
  * `productName` the release was built with. It is a fact of the release, not of this checkout:
- * upstream releases and fork releases built before the stable rename carry `Happier.app`, later
- * fork releases `Omnia Happier.app`. The release metadata does not record it, so it is required.
+ * upstream releases and fork releases built before the stable rename carry `Happier.app`, fork
+ * releases built as Omnia Happier carry `Omnia Happier.app`, and later fork releases `Autopilot.app`.
+ * The release metadata does not record it, so it is required.
  *
  * @param {{ release: Release; checksumsText: string; repo?: string; appName: string }} params
  * @returns {string}

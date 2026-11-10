@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 import { isPublishedNightlyRelease, releaseTagForSha } from './nightly-release-contract.mjs';
 
-// Chooses what the Omnia nightly builds: the newest dev push with successful canonical CI.
+// Chooses what the Autopilot nightly builds: the newest dev push with successful canonical CI.
 
 /** Returns the newest successful canonical dev push CI run of this repository, or null. */
 export function selectGreenDevRun(runs, repository) {

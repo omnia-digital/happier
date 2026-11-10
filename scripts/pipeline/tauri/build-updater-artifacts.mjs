@@ -70,7 +70,7 @@ export function normalizeTauriBuildVersionForWindows(buildVersion) {
  * linuxdeploy's AppImage plugin is (still) brittle around spaces/shell quoting in artifact names.
  * Tauri uses `productName` as the basis for bundle filenames, so we override it on Linux for
  * every lane while keeping the human-friendly window title untouched (set in config). Production
- * keeps the space-free `Happier`: the `Omnia Happier` display name is a macOS bundle contract.
+ * keeps the space-free `Happier`: the `Autopilot` display name is a macOS bundle contract.
  *
  * @param {{ environment: string }} opts
  * @returns {string}
