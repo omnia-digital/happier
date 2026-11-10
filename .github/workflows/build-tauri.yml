@@ -184,9 +184,10 @@ jobs:
           fi
           # A persistent personal Mac may execute only a dev source admitted by
           # the fork nightly's CI gate, never a PR or arbitrary SHA.
-          test "$GITHUB_REPOSITORY" = omnia-digital/happier
+          # Checked against this repository rather than its name, which can change.
+          test "$GITHUB_REPOSITORY_OWNER" = omnia-digital
           test "$GITHUB_REF" = refs/heads/dev
-          test "$CALLER_WORKFLOW_REF" = omnia-digital/happier/.github/workflows/omnia-production.yml@refs/heads/dev
+          test "$CALLER_WORKFLOW_REF" = "$GITHUB_REPOSITORY/.github/workflows/omnia-production.yml@refs/heads/dev"
           test "$PREPARATION_ONLY" = true
           [[ "$SOURCE_REF" =~ ^[0-9a-f]{40}$ ]] || { echo "Cassian requires an exact source SHA." >&2; exit 1; }
           case "$GITHUB_EVENT_NAME" in

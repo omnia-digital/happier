@@ -18,7 +18,8 @@ concurrency:
 jobs:
   candidate:
     name: Select newest dev source with successful push CI
-    if: ${{ github.repository == 'omnia-digital/happier' && github.ref == 'refs/heads/dev' }}
+    # Bound to the organization, so renaming the repository does not stop the nightly.
+    if: ${{ github.repository_owner == 'omnia-digital' && github.ref == 'refs/heads/dev' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
